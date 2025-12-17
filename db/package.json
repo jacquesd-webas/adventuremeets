@@ -1,0 +1,25 @@
+{
+  "name": "@meetplanner/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "migrate": "knex migrate:latest --knexfile ./knexfile.ts",
+    "migrate:rollback": "knex migrate:rollback --knexfile ./knexfile.ts",
+    "migrate:make": "knex migrate:make --knexfile ./knexfile.ts",
+    "seed:dev": "NODE_ENV=development knex seed:run --knexfile ./knexfile.ts",
+    "lint": "eslint . --ext .ts || true"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.3.1",
+    "knex": "^2.5.1",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2",
+    "@types/bcryptjs": "^2.4.2"
+  }
+}

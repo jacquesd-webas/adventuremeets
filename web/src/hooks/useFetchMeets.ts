@@ -1,0 +1,60 @@
+import { useApi } from "./useApi";
+import { useQuery } from "@tanstack/react-query";
+
+export type Meet = {
+  id: string;
+  name: string;
+  location: string;
+  start_time: string;
+  end_time: string;
+  status?: string;
+};
+
+type MeetsResponse = { meets: Meet[] } | Meet[];
+
+type UseFetchMeetsOptions = {
+  upcoming?: boolean;
+  page?: number;
+  limit?: number;
+};
+
+type MeetsApiResponse = {
+  items: Meet[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export function useFetchMeets(options: UseFetchMeetsOptions = {}) {
+  const api = useApi();
+
+  const { upcoming = false, page = 1, limit = 20 } = options;
+
+  const query = useQuery({
+    queryKey: ["meets", { upcoming, page, limit }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (upcoming) params.set("upcoming", "true");
+      params.set("page", String(page));
+      params.set("limit", String(limit));
+      const res = await api.get<MeetsResponse | MeetsApiResponse>(`/meets?${params.toString()}`);
+      if (Array.isArray(res)) {
+        return { items: res, total: res.length, page, limit };
+      }
+      if ((res as MeetsApiResponse).items) {
+        return res as MeetsApiResponse;
+      }
+      return { items: (res as any).meets || [], total: 0, page, limit };
+    }
+  });
+
+  return {
+    data: query.data?.items || [],
+    total: query.data?.total ?? 0,
+    page: query.data?.page ?? page,
+    limit: query.data?.limit ?? limit,
+    isLoading: query.isLoading,
+    error: query.error ? (query.error as Error).message : null,
+    refetch: query.refetch
+  };
+}

@@ -1,0 +1,7 @@
+# Non-secret environment variables that should be appended to the generated .env file.
+# Can be set either via CI/CD in GitHub or in local env/ files.
+
+CI_REGISTRY_HOST
+CI_REGISTRY_USER
+DB_HOST
+DB_USER
