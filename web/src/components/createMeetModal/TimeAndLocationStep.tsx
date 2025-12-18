@@ -1,9 +1,47 @@
 import { Box, Stack, TextField, Typography } from "@mui/material";
+import { useEffect, useRef } from "react";
 import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 
-export const TimeAndLocationStep = ({ state, setState }: StepProps) => (
-  <Stack spacing={2}>
+export const TimeAndLocationStep = ({ state, setState }: StepProps) => {
+  const lastGeocoded = useRef("");
+
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+    if (!state.location || !apiKey) {
+      return;
+    }
+    if (state.location === lastGeocoded.current) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(state.location)}&key=${apiKey}`,
+          { signal: controller.signal }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const result = data.results?.[0];
+        if (!result?.geometry?.location) return;
+        const { lat, lng } = result.geometry.location;
+        lastGeocoded.current = state.location;
+        setState((prev) => ({ ...prev, locationLat: lat, locationLong: lng }));
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+      }
+    }, 500);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [state.location, setState]);
+
+  return (
+    <Stack spacing={2}>
     <LabeledField label="Location" required>
       <TextField
         placeholder="Where is the meeting place? (search updates the map below)"
@@ -73,4 +111,5 @@ export const TimeAndLocationStep = ({ state, setState }: StepProps) => (
       )}
     </Box>
   </Stack>
-);
+  );
+};

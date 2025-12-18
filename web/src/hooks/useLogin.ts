@@ -17,6 +17,10 @@ export function useLogin() {
   const mutation = useMutation<LoginResponse, Error, LoginPayload>({
     mutationFn: async (payload: LoginPayload) => {
       return api.post<LoginResponse>("/auth/login", payload);
+    },
+    onSuccess: (data) => {
+      window.localStorage.setItem("accessToken", data.accessToken);
+      window.localStorage.setItem("refreshToken", data.refreshToken);
     }
   });
 

@@ -1,5 +1,34 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+
+export class MeetMetaDefinitionInputDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiProperty()
+  @IsString()
+  fieldKey!: string;
+
+  @ApiProperty()
+  @IsString()
+  label!: string;
+
+  @ApiProperty()
+  @IsString()
+  fieldType!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  required?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  config?: Record<string, any>;
+}
 
 export class CreateMeetDto {
   @ApiProperty()
@@ -11,69 +40,103 @@ export class CreateMeetDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ description: 'Organizer user id (UUID)' })
+  @ApiPropertyOptional({ description: 'Organizer user id (UUID)' })
+  @IsOptional()
   @IsString()
-  organizerId!: string;
+  organizerId?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Organization id (UUID)' })
+  @IsOptional()
   @IsString()
-  location!: string;
+  organizationId?: string;
 
-  @ApiProperty()
-  @IsDateString()
-  startTime!: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  location?: string;
 
-  @ApiProperty()
-  @IsDateString()
-  endTime!: string;
+  @ApiPropertyOptional({ description: 'Latitude for meet location' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 7 })
+  locationLat?: number;
 
-  @ApiProperty()
-  @IsDateString()
-  openingDate!: string;
+  @ApiPropertyOptional({ description: 'Longitude for meet location' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 7 })
+  locationLong?: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsDateString()
-  closingDate!: string;
+  startTime?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsDateString()
-  scheduledDate!: string;
+  endTime?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  openingDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  closingDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  scheduledDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsDateString()
   confirmDate?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsInt()
   @Min(0)
-  capacity!: number;
-
-  @ApiProperty()
-  @IsInt()
-  @Min(0)
-  waitlistSize!: number;
-
-  @ApiProperty({ default: 1 })
-  @IsInt()
-  statusId!: number;
-
-  @ApiProperty({ default: true })
-  @IsBoolean()
-  autoPlacement = true;
-
-  @ApiProperty({ default: true })
-  @IsBoolean()
-  autoPromoteWaitlist = true;
-
-  @ApiProperty({ default: false })
-  @IsBoolean()
-  isVirtual = false;
+  capacity?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  accessLink?: string;
+  @IsInt()
+  @Min(0)
+  waitlistSize?: number;
+
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @IsInt()
+  statusId?: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  autoPlacement?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  autoPromoteWaitlist?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  allowGuests?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxGuests?: number;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isVirtual?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -87,8 +150,33 @@ export class CreateMeetDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  waitlistMessage?: string;
+
+  @ApiPropertyOptional({ description: 'Requires indemnity waiver' })
+  @IsOptional()
+  @IsBoolean()
+  hasIndemnity?: boolean;
+
+  @ApiPropertyOptional({ description: 'Indemnity text' })
+  @IsOptional()
+  @IsString()
+  indemnity?: string;
+
+  @ApiPropertyOptional({ description: 'Allow minors to accept indemnity' })
+  @IsOptional()
+  @IsBoolean()
+  allowMinorIndemnity?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsInt()
   currencyId?: number | null;
+
+  @ApiPropertyOptional({ description: 'Currency code (ISO 4217)' })
+  @IsOptional()
+  @IsString()
+  currencyCode?: string;
 
   @ApiPropertyOptional({ description: 'Cost in currency units (e.g. 12.34)' })
   @IsOptional()
@@ -101,4 +189,10 @@ export class CreateMeetDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   depositCents?: number;
+
+  @ApiPropertyOptional({ type: [MeetMetaDefinitionInputDto] })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => MeetMetaDefinitionInputDto)
+  metaDefinitions?: MeetMetaDefinitionInputDto[];
 }

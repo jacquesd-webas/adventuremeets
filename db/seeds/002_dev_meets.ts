@@ -19,6 +19,15 @@ export async function seed(knex: Knex): Promise<void> {
   await knex("meet_attendees").del();
   await knex("meets").del();
 
+  const shareCodeChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const generateShareCode = (length = 12) =>
+    Array.from({ length }, () => shareCodeChars[Math.floor(Math.random() * shareCodeChars.length)]).join("");
+
+  const primaryOrg = await knex("organizations").orderBy("created_at", "asc").first("id");
+  if (!primaryOrg?.id) {
+    throw new Error("Seed requires at least one organization (run user seeds first)");
+  }
+
   const organizer = await knex("users").first("id");
   if (!organizer?.id) {
     throw new Error("Seed requires at least one user (run user seeds first)");
@@ -40,7 +49,12 @@ export async function seed(knex: Knex): Promise<void> {
       cost_cents: 0,
       deposit_cents: 0,
       status_id: 2, // Published
-      is_virtual: false
+      allow_guests: true,
+      max_guests: 2,
+      is_virtual: false,
+      has_indemnity: true,
+      indemnity:
+        "I acknowledge the inherent risks of hiking and accept responsibility for my safety and belongings. I agree to follow the organizer's instructions and release the organizers from liability."
     },
     {
       name: "Caving Meet",
@@ -53,7 +67,12 @@ export async function seed(knex: Knex): Promise<void> {
       cost_cents: 4500,
       deposit_cents: 1500,
       status_id: 2,
-      is_virtual: false
+      allow_guests: true,
+      max_guests: 1,
+      is_virtual: false,
+      has_indemnity: true,
+      indemnity:
+        "Caving can be hazardous. I understand the risks and agree to follow guide instructions and safety protocols."
     },
     {
       name: "Scrambling Meet",
@@ -79,7 +98,12 @@ export async function seed(knex: Knex): Promise<void> {
       cost_cents: 2000,
       deposit_cents: 1000,
       status_id: 2,
-      is_virtual: false
+      allow_guests: true,
+      max_guests: 2,
+      is_virtual: false,
+      has_indemnity: true,
+      indemnity:
+        "Outdoor camping has inherent risks. I accept responsibility for my safety and agree to respect camp safety rules."
     },
     {
       name: "Work Meet",
@@ -92,8 +116,7 @@ export async function seed(knex: Knex): Promise<void> {
       cost_cents: 0,
       deposit_cents: 0,
       status_id: 3, // Closed
-      is_virtual: true,
-      access_link: "https://meetplanner.example.com/standup"
+      is_virtual: true
     },
     {
       name: "Overnight Hike Meet",
@@ -106,7 +129,10 @@ export async function seed(knex: Knex): Promise<void> {
       cost_cents: 0,
       deposit_cents: 0,
       status_id: 3,
-      is_virtual: false
+      is_virtual: false,
+      has_indemnity: true,
+      indemnity:
+        "Backpacking is physically demanding and includes risks. I agree to take responsibility for my actions and well-being."
     }
   ];
 
@@ -119,6 +145,7 @@ export async function seed(knex: Knex): Promise<void> {
 
     return {
       organizer_id: organizer.id,
+      organization_id: primaryOrg.id,
       name: meet.name,
       description: meet.description,
       location: meet.location,
@@ -133,18 +160,59 @@ export async function seed(knex: Knex): Promise<void> {
       status_id: meet.status_id,
       auto_placement: true,
       auto_promote_waitlist: true,
+      allow_guests: meet.allow_guests ?? false,
+      max_guests: meet.max_guests ?? null,
       is_virtual: meet.is_virtual,
-      access_link: meet.access_link || null,
+      has_indemnity: meet.has_indemnity ?? false,
+      indemnity: meet.indemnity ?? null,
       confirm_message: "You're in! See you there.",
       reject_message: "Sorry, this meet is full.",
-      meta_definition: {},
       currency_id: currencyId,
       cost_cents: meet.cost_cents,
       deposit_cents: meet.deposit_cents,
+      share_code: generateShareCode(),
       created_at: now.toISOString(),
       updated_at: now.toISOString()
     };
   });
 
-  await knex("meets").insert(records);
+  const insertedMeets = await knex("meets").insert(records, ["id", "name"]);
+
+  const meetByName = new Map(insertedMeets.map((meet) => [meet.name, meet.id]));
+  const targetMeetNames = ["Day Hike Meet", "Caving Meet"];
+  const attendeeRows: any[] = [];
+  const nowIso = now.toISOString();
+
+  targetMeetNames.forEach((name, idx) => {
+    const meetId = meetByName.get(name);
+    if (!meetId) return;
+    const selectedUsers = [
+      { name: "Sam Trail", email: "sam.trail@example.com", phone: "+1-555-0101" },
+      { name: "Riley Peaks", email: "riley.peaks@example.com", phone: "+1-555-0102" },
+      { name: "Jordan Pines", email: "jordan.pines@example.com", phone: "+1-555-0103" },
+      { name: "Avery Summit", email: "avery.summit@example.com", phone: "+1-555-0104" },
+      { name: "Taylor Ridge", email: "taylor.ridge@example.com", phone: "+1-555-0105" }
+    ];
+    selectedUsers.forEach((user, sequence) => {
+      attendeeRows.push({
+        meet_id: meetId,
+        user_id: null,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        guests: sequence % 2,
+        indemnity_accepted: sequence < 4,
+        indemnity_minors: sequence % 2 === 0 ? "No minors" : "One minor under supervision",
+        status: sequence < 4 ? "confirmed" : "waitlisted",
+        sequence,
+        responded_at: nowIso,
+        created_at: nowIso,
+        updated_at: nowIso
+      });
+    });
+  });
+
+  if (attendeeRows.length) {
+    await knex("meet_attendees").insert(attendeeRows);
+  }
 }

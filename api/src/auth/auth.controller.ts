@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Post, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, Post, Query, UnauthorizedException } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
@@ -9,6 +9,9 @@ import { User } from "./decorators/user.decorator";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { UsersService } from "../users/users.service";
 import { RegisterDto } from "./dto/register.dto";
+import { GoogleAuthUrlDto } from "./dto/google-auth-url.dto";
+import { GoogleAuthCodeDto } from "./dto/google-auth-code.dto";
+import { GoogleIdTokenDto } from "./dto/google-id-token.dto";
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -31,6 +34,25 @@ export class AuthController {
   }
 
   @Public()
+  @Get("google/url")
+  async googleUrl(@Query() query: GoogleAuthUrlDto) {
+    const url = await this.authService.getGoogleAuthUrl(query.redirectUri, query.state);
+    return { url };
+  }
+
+  @Public()
+  @Post("google/token")
+  async googleToken(@Body() dto: GoogleAuthCodeDto): Promise<TokenPair> {
+    return this.authService.googleLoginWithCode(dto.code, dto.redirectUri);
+  }
+
+  @Public()
+  @Post("google/verify")
+  async googleVerify(@Body() dto: GoogleIdTokenDto): Promise<TokenPair> {
+    return this.authService.googleLoginWithIdToken(dto.idToken);
+  }
+
+  @Public()
   @Post('refresh')
   async refresh(@Body() dto: RefreshDto): Promise<TokenPair> {
     return this.authService.refresh(dto);
@@ -47,6 +69,7 @@ export class AuthController {
       throw new ForbiddenException('User not found');
     }
     const { passwordHash, ...rest } = full;
-    return rest as UserProfile;
+    const organizationIds = await this.usersService.findOrganizationIds(user.id);
+    return { ...(rest as UserProfile), organizationIds } as UserProfile;
   }
 }

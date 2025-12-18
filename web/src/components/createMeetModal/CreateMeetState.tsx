@@ -15,13 +15,17 @@ export type QuestionField = {
   label: string;
   required?: boolean;
   options?: string[];
+  fieldKey?: string;
+  optionsInput?: string;
 };
 
 export type CreateMeetState = {
   name: string;
   description: string;
-  organizer: string;
+  organizerId: string;
   location: string;
+  locationLat: number | string;
+  locationLong: number | string;
   startTime: string;
   endTime: string;
   openingDate: string;
@@ -48,8 +52,10 @@ export type CreateMeetState = {
 export const initialState: CreateMeetState = {
   name: "",
   description: "",
-  organizer: "You",
+  organizerId: "",
   location: "",
+  locationLat: "",
+  locationLong: "",
   startTime: "",
   endTime: "",
   openingDate: "",

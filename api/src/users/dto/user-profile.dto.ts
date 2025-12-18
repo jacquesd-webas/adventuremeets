@@ -13,11 +13,20 @@ export class UserProfile {
   @ApiProperty({ required: false })
   lastName?: string;
 
+  @ApiProperty({ required: false })
+  phone?: string;
+
   @ApiProperty({ type: [String] })
   roles: string[];
 
   @ApiProperty({ type: [String] })
   studios: string[];
+
+  @ApiProperty({ type: [String], required: false })
+  organizationIds?: string[];
+
+  @ApiProperty({ required: false })
+  organizationId?: string | null;
 
   @ApiProperty({
     required: false,

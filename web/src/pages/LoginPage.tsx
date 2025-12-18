@@ -1,9 +1,21 @@
-import { Box, Button, Container, Divider, Link, Paper, Stack, TextField, Typography, Alert } from "@mui/material";
+import {
+  Box,
+  Button,
+  Container,
+  Link,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+  Alert,
+  Divider,
+} from "@mui/material";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import { useState } from "react";
 import { useLogin } from "../hooks/useLogin";
 import { useNavigate } from "react-router-dom";
+import { AuthSocialButtons } from "../components/AuthSocialButtons";
 
 function LoginPage() {
   const [email, setEmail] = useState("");
@@ -22,9 +34,22 @@ function LoginPage() {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 8 }}>
+    <Container
+      maxWidth="sm"
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        py: 8,
+      }}
+    >
       <Box sx={{ textAlign: "center", mb: 4 }}>
-        <img src="/static/meetplanner-logo.svg" alt="Meetplanner logo" width={350} height="auto" />
+        <img
+          src="/static/meetplanner-logo.svg"
+          alt="Meetplanner logo"
+          width={350}
+          height="auto"
+        />
       </Box>
 
       <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
@@ -36,7 +61,7 @@ function LoginPage() {
             {error.message}
           </Alert>
         )}
-        <Box component="form" onSubmit={handleSubmit}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ mb: 2 }}>
           <Stack spacing={2}>
             <TextField
               label="Email"
@@ -45,7 +70,12 @@ function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               InputProps={{
-                startAdornment: <EmailOutlinedIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />
+                startAdornment: (
+                  <EmailOutlinedIcon
+                    fontSize="small"
+                    sx={{ mr: 1, color: "text.disabled" }}
+                  />
+                ),
               }}
             />
             <TextField
@@ -55,42 +85,29 @@ function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               InputProps={{
-                startAdornment: <LockOutlinedIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />
+                startAdornment: (
+                  <LockOutlinedIcon
+                    fontSize="small"
+                    sx={{ mr: 1, color: "text.disabled" }}
+                  />
+                ),
               }}
             />
-            <Button type="submit" variant="contained" size="large" sx={{ textTransform: "uppercase" }}>
+            <Button
+              type="submit"
+              variant="contained"
+              size="large"
+              sx={{ textTransform: "uppercase" }}
+            >
               {isLoading ? "Logging in..." : "Login"}
             </Button>
           </Stack>
         </Box>
 
-        <Divider sx={{ my: 2 }} />
-        <Stack spacing={1.5}>
-          <Button
-            variant="outlined"
-            fullWidth
-            startIcon={<img src="/static/google.svg" alt="Google" width={20} height={20} />}
-          >
-            Continue with Google
-          </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            startIcon={<img src="/static/microsoft.svg" alt="Microsoft" width={20} height={20} />}
-          >
-            Continue with Microsoft
-          </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            startIcon={<img src="/static/facebook.svg" alt="Facebook" width={20} height={20} />}
-          >
-            Continue with Facebook
-          </Button>
-        </Stack>
+        <AuthSocialButtons compact />
 
         <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
-          <Link href="#">Create Account</Link>
+          <Link href="/register">Create Account</Link>
           <Link href="#">Forgot password?</Link>
         </Stack>
       </Paper>

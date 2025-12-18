@@ -8,6 +8,25 @@ import { RefreshDto } from "./dto/refresh.dto";
 import { TokenPair } from "./dto/token-pair.dto";
 import { RegisterDto } from "./dto/register.dto";
 
+type GoogleTokenResponse = {
+  access_token: string;
+  id_token: string;
+  expires_in: number;
+  token_type: string;
+  scope?: string;
+  refresh_token?: string;
+};
+
+type GoogleIdTokenPayload = {
+  sub: string;
+  email?: string;
+  email_verified?: string | boolean;
+  given_name?: string;
+  family_name?: string;
+  name?: string;
+  picture?: string;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -76,6 +95,124 @@ export class AuthService {
 
   async register(dto: RegisterDto): Promise<TokenPair> {
     const created = await this.usersService.create(dto);
+    const user = await this.usersService.findById(created.id);
+    return {
+      accessToken: this.signAccessToken(user as any),
+      refreshToken: this.signRefreshToken(user as any)
+    };
+  }
+
+  async getGoogleAuthUrl(redirectUri?: string, state?: string) {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const fallbackRedirect = process.env.GOOGLE_REDIRECT_URI;
+    const actualRedirect = redirectUri || fallbackRedirect;
+    if (!clientId || !actualRedirect) {
+      throw new UnauthorizedException("Google OAuth is not configured");
+    }
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: actualRedirect,
+      response_type: "code",
+      scope: "openid email profile",
+      include_granted_scopes: "true",
+      access_type: "offline",
+      prompt: "consent"
+    });
+    if (state) {
+      params.set("state", state);
+    }
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  async googleLoginWithCode(code: string, redirectUri?: string): Promise<TokenPair> {
+    const token = await this.exchangeGoogleCode(code, redirectUri);
+    const profile = await this.verifyGoogleIdToken(token.id_token);
+    return this.upsertGoogleUser(profile);
+  }
+
+  async googleLoginWithIdToken(idToken: string): Promise<TokenPair> {
+    const profile = await this.verifyGoogleIdToken(idToken);
+    return this.upsertGoogleUser(profile);
+  }
+
+  private async exchangeGoogleCode(code: string, redirectUri?: string): Promise<GoogleTokenResponse> {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const fallbackRedirect = process.env.GOOGLE_REDIRECT_URI;
+    const actualRedirect = redirectUri || fallbackRedirect;
+    if (!clientId || !clientSecret || !actualRedirect) {
+      throw new UnauthorizedException("Google OAuth is not configured");
+    }
+    const params = new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: actualRedirect,
+      grant_type: "authorization_code"
+    });
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString()
+    });
+    if (!res.ok) {
+      const message = await res.text();
+      throw new UnauthorizedException(message || "Google token exchange failed");
+    }
+    return (await res.json()) as GoogleTokenResponse;
+  }
+
+  private async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenPayload> {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (!res.ok) {
+      const message = await res.text();
+      throw new UnauthorizedException(message || "Invalid Google ID token");
+    }
+    return (await res.json()) as GoogleIdTokenPayload;
+  }
+
+  private async upsertGoogleUser(profile: GoogleIdTokenPayload): Promise<TokenPair> {
+    if (!profile.sub) {
+      throw new UnauthorizedException("Invalid Google profile");
+    }
+    const existingByIdp = await this.usersService.findByIdp("google", profile.sub);
+    if (existingByIdp) {
+      const user = await this.usersService.findById(existingByIdp.id);
+      return {
+        accessToken: this.signAccessToken(user as any),
+        refreshToken: this.signRefreshToken(user as any)
+      };
+    }
+
+    const email = profile.email || "";
+    if (!email) {
+      throw new UnauthorizedException("Google account email not available");
+    }
+
+    const existingByEmail = await this.usersService.findByEmail(email);
+    if (existingByEmail) {
+      await this.usersService.update(existingByEmail.id, {
+        idpProvider: "google",
+        idpSubject: profile.sub,
+        firstName: profile.given_name,
+        lastName: profile.family_name,
+        idpProfile: profile
+      });
+      const user = await this.usersService.findById(existingByEmail.id);
+      return {
+        accessToken: this.signAccessToken(user as any),
+        refreshToken: this.signRefreshToken(user as any)
+      };
+    }
+
+    const created = await this.usersService.create({
+      email,
+      idpProvider: "google",
+      idpSubject: profile.sub,
+      firstName: profile.given_name,
+      lastName: profile.family_name,
+      idpProfile: profile
+    });
     const user = await this.usersService.findById(created.id);
     return {
       accessToken: this.signAccessToken(user as any),

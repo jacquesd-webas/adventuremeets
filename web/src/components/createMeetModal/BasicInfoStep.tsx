@@ -1,8 +1,14 @@
 import { Stack, TextField } from "@mui/material";
 import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
+import { UserSelect, UserOption } from "./UserSelect";
 
-export const BasicInfoStep = ({ state, setState }: StepProps) => (
+type BasicInfoStepProps = StepProps & {
+  organizers: UserOption[];
+  currentUserId?: string;
+};
+
+export const BasicInfoStep = ({ state, setState, organizers, currentUserId }: BasicInfoStepProps) => (
   <Stack spacing={2}>
     <LabeledField label="Meet name" required>
       <TextField
@@ -23,11 +29,11 @@ export const BasicInfoStep = ({ state, setState }: StepProps) => (
       />
     </LabeledField>
     <LabeledField label="Organizer" required>
-      <TextField
-        placeholder="Who is organizing this meet?"
-        value={state.organizer}
-        onChange={(e) => setState((prev) => ({ ...prev, organizer: e.target.value }))}
-        fullWidth
+      <UserSelect
+        value={state.organizerId}
+        onChange={(value) => setState((prev) => ({ ...prev, organizerId: value }))}
+        options={organizers}
+        currentUserId={currentUserId}
       />
     </LabeledField>
   </Stack>

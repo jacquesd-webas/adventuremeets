@@ -28,7 +28,7 @@ const templates: MeetTemplate[] = [
     fields: [
       { field_key: "experience", label: "Caving Experience", field_type: "select", required: true, config: { options: ["None", "Some", "Experienced"] } },
       { field_key: "helmet", label: "Helmet Provided?", field_type: "select", config: { options: ["Need one", "Bringing my own"] } },
-      { field_key: "waiver", label: "Signed Liability Waiver", field_type: "checkbox", required: true }
+      { field_key: "litter", label: "I aggree to pick up litter", field_type: "checkbox", required: true }
     ]
   },
   {

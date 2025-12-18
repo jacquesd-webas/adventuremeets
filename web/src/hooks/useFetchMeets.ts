@@ -8,6 +8,13 @@ export type Meet = {
   start_time: string;
   end_time: string;
   status?: string;
+  status_id?: number;
+  has_indemnity?: boolean;
+  indemnity?: string;
+  allow_guests?: boolean;
+  max_guests?: number;
+  waitlist_message?: string;
+  allow_minor_indemnity?: boolean;
 };
 
 type MeetsResponse = { meets: Meet[] } | Meet[];

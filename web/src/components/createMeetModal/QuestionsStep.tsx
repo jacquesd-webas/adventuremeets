@@ -8,7 +8,8 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
     const newField: QuestionField = {
       id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
       type,
-      label: ""
+      label: "",
+      optionsInput: ""
     };
     if (type === "select") {
       newField.options = [];
@@ -66,9 +67,10 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
                 <TextField
                   label="Options (comma separated)"
                   placeholder="e.g. Beginner, Intermediate, Advanced"
-                  value={field.options?.join(", ") || ""}
+                  value={field.optionsInput ?? (field.options?.join(", ") || "")}
                   onChange={(e) =>
                     updateField(field.id, {
+                      optionsInput: e.target.value,
                       options: e.target.value
                         .split(",")
                         .map((o) => o.trim())

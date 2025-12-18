@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
+import { NotistackProvider } from "./components/NotistackProvider";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -17,7 +18,9 @@ ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <App />
+        <NotistackProvider>
+          <App />
+        </NotistackProvider>
       </QueryClientProvider>
     </BrowserRouter>
   </React.StrictMode>

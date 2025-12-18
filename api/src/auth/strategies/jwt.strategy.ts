@@ -19,6 +19,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       return null;
     }
-    return user;
+    const organizationIds = await this.usersService.findOrganizationIds(user.id);
+    return {
+      ...user,
+      organizationIds,
+      organizationId: organizationIds[0] ?? null,
+    } as UserProfile;
   }
 }

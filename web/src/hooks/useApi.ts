@@ -8,18 +8,20 @@ type ApiOptions = {
 };
 
 export function useApi(options: ApiOptions = {}) {
-  // TODO: use baseUrl from options or env
-  const baseUrl = "http://localhost:9000"
+  const envBaseUrl = import.meta.env.VITE_API_BASEURL || import.meta.env.API_BASEURL;
+  const baseUrl = options.baseUrl || envBaseUrl || "http://localhost:3000";
+  const storedToken = typeof window !== "undefined" ? window.localStorage.getItem("accessToken") : null;
+  const token = options.token || storedToken || undefined;
   
   const headers = useMemo(() => {
     const common: Record<string, string> = {
       "Content-Type": "application/json"
     };
-    if (options.token) {
-      common.Authorization = `Bearer ${options.token}`;
+    if (token) {
+      common.Authorization = `Bearer ${token}`;
     }
     return common;
-  }, [options.token]);
+  }, [token]);
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${baseUrl}${path}`, {
@@ -29,6 +31,14 @@ export function useApi(options: ApiOptions = {}) {
         ...(init?.headers || {})
       }
     });
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.localStorage.removeItem("accessToken");
+      window.localStorage.removeItem("refreshToken");
+      if (window.location.pathname !== "/login") {
+        window.location.assign("/login");
+      }
+      throw new Error("Unauthorized");
+    }
     if (!res.ok) {
       const message = await res.text();
       throw new Error(message || `Request failed with status ${res.status}`);
@@ -51,5 +61,17 @@ export function useApi(options: ApiOptions = {}) {
     });
   }
 
-  return { baseUrl, get, post };
+  async function patch<T>(path: string, body?: Json, init?: RequestInit) {
+    return request<T>(path, {
+      ...init,
+      method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined
+    });
+  }
+
+  async function del<T>(path: string, init?: RequestInit) {
+    return request<T>(path, { ...init, method: "DELETE" });
+  }
+
+  return { baseUrl, get, post, patch, del };
 }

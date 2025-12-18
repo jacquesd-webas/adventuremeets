@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Box, Button, Container, Grid, Paper, Stack, Typography, Chip } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import HistoryIcon from "@mui/icons-material/History";
@@ -7,6 +7,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { Heading } from "../components/Heading";
+import { CreateMeetModal } from "../components/createMeetModal/CreateMeetModal";
 
 type Meet = {
   id: string;
@@ -127,6 +128,7 @@ function MeetCard({ meet }: { meet: Meet }) {
 }
 
 function DashboardPage() {
+  const [showModal, setShowModal] = useState(false);
   const { upcoming, past } = useMemo(() => {
     const now = new Date();
     const upcomingMeets = sampleMeets.filter((m) => new Date(m.start) >= now);
@@ -139,7 +141,11 @@ function DashboardPage() {
       <Heading
         title="Dashboard"
         subtitle="View upcoming and past meets that you are organising."
-        actionComponent={<Button variant="contained">New Meet</Button>}
+        actionComponent={
+          <Button variant="contained" onClick={() => setShowModal(true)}>
+            New Meet
+          </Button>
+        }
       />
 
       <Grid container spacing={3}>
@@ -176,6 +182,7 @@ function DashboardPage() {
           </Stack>
         </Grid>
       </Grid>
+      <CreateMeetModal open={showModal} onClose={() => setShowModal(false)} />
     </Container>
   );
 }

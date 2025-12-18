@@ -23,10 +23,22 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('Meet Planner API')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+      'bearer',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  document.security = [{ bearer: [] }];
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
 
   const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
   app.enableCors({
