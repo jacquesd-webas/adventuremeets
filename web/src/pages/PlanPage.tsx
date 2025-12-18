@@ -7,42 +7,49 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  Button,
-  FormControlLabel,
-  Switch,
-  IconButton,
-  Tooltip
+  Button
 } from "@mui/material";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PlaceIcon from "@mui/icons-material/Place";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import OpenInNewOutlinedIcon from "@mui/icons-material/OpenInNewOutlined";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { Heading } from "../components/Heading";
 import { useState } from "react";
 import { CreateMeetModal } from "../components/createMeetModal/CreateMeetModal";
 import { useNavigate } from "react-router-dom";
 import { MeetStatus } from "../components/MeetStatus";
+import { ManageAttendeesModal } from "../components/manageAttendeesModal";
+import { ReportsModal } from "../components/reportsModal";
+import { MeetActionsMenu } from "../components/MeetActionsMenu";
 
 function PlanPage() {
-  const [showPast, setShowPast] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showAttendeesModal, setShowAttendeesModal] = useState(false);
+  const [showReportsModal, setShowReportsModal] = useState(false);
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
-  const { data: meets, isLoading, refetch } = useFetchMeets({ upcoming: !showPast, page: 1, limit: 50 });
+  const { data: meets, isLoading, refetch } = useFetchMeets({ view: "plan", page: 1, limit: 50 });
   const navigate = useNavigate();
+  const handleRowAction = (meet: any) => {
+    const statusId = meet?.status_id;
+    setSelectedMeetId(meet.id);
+    if (statusId === 1 || statusId === 6) {
+      setShowModal(true);
+      return;
+    }
+    if (statusId === 2 || statusId === 3) {
+      setShowAttendeesModal(true);
+      return;
+    }
+    if (statusId === 4 || statusId === 5) {
+      setShowReportsModal(true);
+      return;
+    }
+  };
 
   return (
     <Stack spacing={2}>
       <Heading
         title="Plan"
-        subtitle="Manage and review your upcoming meets."
-        secondaryActionComponent={
-          <FormControlLabel
-            control={<Switch checked={showPast} onChange={(e) => setShowPast(e.target.checked)} />}
-            label="Show past events"
-          />
-        }
+        subtitle="Manage draft, published, and postponed meets."
         actionComponent={
           <Button
             variant="outlined"
@@ -78,16 +85,23 @@ function PlanPage() {
             )}
             {!isLoading &&
               meets.map((meet) => (
-                <TableRow key={meet.id}>
+                <TableRow
+                  key={meet.id}
+                  hover
+                  onClick={() => handleRowAction(meet)}
+                  sx={{ cursor: "pointer" }}
+                >
                   <TableCell>
                     <Typography fontWeight={600}>{meet.name}</Typography>
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={1} alignItems="center">
                       <AccessTimeIcon fontSize="small" color="disabled" />
-                      <Typography variant="body2">
-                        {new Date((meet as any).start_time || (meet as any).start).toLocaleString()}
-                      </Typography>
+                      {((meet as any).start_time || (meet as any).start) ? (
+                        <Typography variant="body2">
+                          {new Date((meet as any).start_time || (meet as any).start).toLocaleString()}
+                        </Typography>
+                      ) : null}
                     </Stack>
                   </TableCell>
                   <TableCell>
@@ -101,30 +115,29 @@ function PlanPage() {
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Tooltip title="Edit">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setSelectedMeetId(meet.id);
-                            setShowModal(true);
-                          }}
-                        >
-                          <EditOutlinedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Preview">
-                        <IconButton
-                          size="small"
-                          onClick={() => navigate(`/meets/${(meet as any).share_code || meet.id}`)}
-                        >
-                          <OpenInNewOutlinedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton size="small" onClick={() => {}}>
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      <MeetActionsMenu
+                        meetId={meet.id}
+                        statusId={(meet as any).status_id}
+                        onEdit={() => {
+                          setSelectedMeetId(meet.id);
+                          setShowModal(true);
+                        }}
+                        onPreview={() => navigate(`/meets/${(meet as any).share_code || meet.id}`)}
+                        onAttendees={() => {
+                          setSelectedMeetId(meet.id);
+                          setShowAttendeesModal(true);
+                        }}
+                        onReports={() => {
+                          setSelectedMeetId(meet.id);
+                          setShowReportsModal(true);
+                        }}
+                        onCheckin={() => {
+                          navigate(`/meet/${meet.id}/checkin`);
+                        }}
+                        onOpen={() => {}}
+                        onPostpone={() => {}}
+                        onDelete={() => {}}
+                      />
                     </Stack>
                   </TableCell>
                 </TableRow>
@@ -133,7 +146,7 @@ function PlanPage() {
               <TableRow>
                 <TableCell colSpan={5}>
                   <Typography variant="body2" color="text.secondary">
-                    No upcoming meets.
+                    No meets to plan.
                   </Typography>
                 </TableCell>
               </TableRow>
@@ -149,6 +162,22 @@ function PlanPage() {
           setSelectedMeetId(null);
         }}
         onCreated={() => refetch()}
+      />
+      <ManageAttendeesModal
+        open={showAttendeesModal}
+        meetId={selectedMeetId}
+        onClose={() => {
+          setShowAttendeesModal(false);
+          setSelectedMeetId(null);
+        }}
+      />
+      <ReportsModal
+        open={showReportsModal}
+        meetId={selectedMeetId}
+        onClose={() => {
+          setShowReportsModal(false);
+          setSelectedMeetId(null);
+        }}
       />
     </Stack>
   );
