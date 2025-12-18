@@ -11,8 +11,8 @@ export class MeetAttendeesController {
   constructor(private readonly meetsService: MeetsService) {}
 
   @Get()
-  list(@Param('meetId') meetId: string) {
-    return this.meetsService.listAttendees(meetId);
+  list(@Param('meetId') meetId: string, @Query('filter') filter?: string) {
+    return this.meetsService.listAttendees(meetId, filter);
   }
 
   @Public()

@@ -14,6 +14,8 @@ export function MeetStatus({ statusId, fallbackLabel = "Scheduled" }: MeetStatus
   let color: "default" | "primary" | "success" | "error" | "warning" = "primary";
   if (normalized === "draft") color = "default";
   if (normalized === "published") color = "success";
+  if (normalized === "open") color = "primary";
+  if (normalized === "completed") color = "success";
   if (normalized === "cancelled") color = "error";
   if (normalized === "postponed") color = "warning";
 

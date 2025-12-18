@@ -6,6 +6,7 @@ export const steps = [
   "Limits",
   "Costs",
   "Responses",
+  "Image",
   "Finish"
 ];
 
@@ -47,6 +48,8 @@ export type CreateMeetState = {
   allowMinorSign: boolean;
   duration?: string;
   questions: QuestionField[];
+  imageFile: File | null;
+  imagePreview: string;
 };
 
 export const initialState: CreateMeetState = {
@@ -76,7 +79,9 @@ export const initialState: CreateMeetState = {
   indemnityText: "",
   allowMinorSign: false,
   duration: "",
-  questions: []
+  questions: [],
+  imageFile: null,
+  imagePreview: ""
 };
 
 export type StepProps = {

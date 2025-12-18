@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, UnauthorizedException, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { MeetsService } from './meets.service';
 import { CreateMeetDto } from './dto/create-meet.dto';
 import { MeetDto } from './dto/meet.dto';
 import { UpdateMeetDto } from './dto/update-meet.dto';
 import { UpdateMeetStatusDto } from './dto/update-meet-status.dto';
+import { CreateMeetImageDto } from './dto/create-meet-image.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from '../auth/decorators/public.decorator';
 import { User } from '../auth/decorators/user.decorator';
 import { UserProfile } from '../users/dto/user-profile.dto';
@@ -15,14 +17,19 @@ export class MeetsController {
   constructor(private readonly meetsService: MeetsService) {}
 
   @Get()
-  @ApiQuery({ name: 'upcoming', required: false, type: Boolean, description: 'Filter to upcoming meets only' })
+  @ApiQuery({ name: 'view', required: false, type: String, description: 'Filter view: reports, plan, all' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (1-based)', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Page size (max 100)', example: 20 })
-  findAll(@Query('upcoming') upcoming?: string, @Query('page') page = '1', @Query('limit') limit = '20', @User() user?: UserProfile & { organizationIds?: string[] | null }) {
-    const upcomingOnly = upcoming === 'true';
+  findAll(
+    @Query('view') view = 'all',
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+    @User() user?: UserProfile & { organizationIds?: string[] | null }
+  ) {
+    const normalizedView = String(view || 'all').toLowerCase();
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit as string, 10) || 20));
-    return this.meetsService.findAll(upcomingOnly, pageNum, limitNum, user?.organizationIds || []);
+    return this.meetsService.findAll(normalizedView, pageNum, limitNum, user?.organizationIds || []);
   }
 
   @Get('statuses')
@@ -86,6 +93,15 @@ export class MeetsController {
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateMeetStatusDto) {
     return this.meetsService.updateStatus(id, dto.statusId);
+  }
+
+  @Post(':id/images')
+  @UseInterceptors(FileInterceptor('file'))
+  addImage(@Param('id') id: string, @UploadedFile() file: Express.Multer.File, @Body() dto: CreateMeetImageDto) {
+    if (!file) {
+      throw new BadRequestException('Image file is required');
+    }
+    return this.meetsService.addImage(id, file, dto);
   }
 
   @Delete(':id')

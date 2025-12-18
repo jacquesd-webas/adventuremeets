@@ -4,8 +4,8 @@ import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import MainLayout from "./layout/MainLayout";
 import PlanPage from "./pages/PlanPage";
-import ReportsPage from "./pages/ReportsPage";
 import MeetSignupSheet from "./pages/MeetSignupSheet";
+import MeetCheckinPage from "./pages/MeetCheckinPage";
 
 function App() {
   return (
@@ -13,8 +13,8 @@ function App() {
       <Route element={<MainLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/plan" element={<PlanPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
       </Route>
+      <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
       <Route path="/meets/:code" element={<MeetSignupSheet />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

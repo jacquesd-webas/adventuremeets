@@ -9,6 +9,7 @@ export type AddAttendeePayload = {
   guests?: number;
   indemnityAccepted?: boolean;
   indemnityMinors?: string;
+  metaValues?: { definitionId: string; value: string }[];
 };
 
 export function useAddAttendee() {

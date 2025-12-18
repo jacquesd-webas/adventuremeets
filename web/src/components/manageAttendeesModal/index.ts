@@ -1,0 +1,1 @@
+export { ManageAttendeesModal } from "./ManageAttendeesModal";

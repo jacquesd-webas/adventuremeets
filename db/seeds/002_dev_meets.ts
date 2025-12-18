@@ -48,7 +48,7 @@ export async function seed(knex: Knex): Promise<void> {
       waitlist_size: 5,
       cost_cents: 0,
       deposit_cents: 0,
-      status_id: 2, // Published
+      status_id: 4, // Closed
       allow_guests: true,
       max_guests: 2,
       is_virtual: false,
@@ -84,12 +84,14 @@ export async function seed(knex: Knex): Promise<void> {
       waitlist_size: 3,
       cost_cents: 0,
       deposit_cents: 0,
-      status_id: 2,
+      status_id: 3, // Open
       is_virtual: false
     },
     {
       name: "Camping Meet",
-      description: "Weekend basecamp with campfire and stargazing.",
+      description:
+        "Settle into a relaxed weekend basecamp with a crackling campfire, shared meals, and plenty of time to wander the pines. We will arrive Friday afternoon, set up tents, and take a gentle walk to orient ourselves before sunset. Bring a headlamp, a warm layer for the evening, and your favorite campfire snack to share.\n\nOn Saturday we will explore a longer loop at an easy pace, with breaks for coffee, photos, and a lakeside lunch. This is a social hike rather than a speed mission, so expect a steady but comfortable tempo and lots of conversation along the way. If you have a camera or binoculars, bring them along for birding and stargazing after dinner.\n\nSunday morning is unhurried and flexible: optional sunrise walk, lazy brunch, and a slow pack-up. We will do a final sweep of the site to leave no trace before heading home. If you are new to camping, let us know and we will help you plan gear and food; experienced campers are welcome to share tips and tricks."
+      ,
       location: "Pine Grove Campground",
       startOffsetDays: 3,
       durationHours: 24,
@@ -97,7 +99,7 @@ export async function seed(knex: Knex): Promise<void> {
       waitlist_size: 6,
       cost_cents: 2000,
       deposit_cents: 1000,
-      status_id: 2,
+      status_id: 3, // Open
       allow_guests: true,
       max_guests: 2,
       is_virtual: false,
@@ -115,7 +117,7 @@ export async function seed(knex: Knex): Promise<void> {
       waitlist_size: 0,
       cost_cents: 0,
       deposit_cents: 0,
-      status_id: 3, // Closed
+      status_id: 7, // Completed
       is_virtual: true
     },
     {
@@ -128,7 +130,7 @@ export async function seed(knex: Knex): Promise<void> {
       waitlist_size: 4,
       cost_cents: 0,
       deposit_cents: 0,
-      status_id: 3,
+      status_id: 3, // Open
       is_virtual: false,
       has_indemnity: true,
       indemnity:

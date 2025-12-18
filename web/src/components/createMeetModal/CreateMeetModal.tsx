@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { Box, Button, IconButton, Paper, Portal, Stack, Step, StepLabel, Stepper, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  IconButton,
+  Paper,
+  Portal,
+  Stack,
+  Step,
+  StepLabel,
+  Stepper,
+  Typography,
+  useMediaQuery,
+  useTheme
+} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { steps, initialState, CreateMeetState } from "./CreateMeetState";
 import { BasicInfoStep } from "./BasicInfoStep";
@@ -11,6 +24,7 @@ import { LimitsStep } from "./LimitsStep";
 import { CostsStep } from "./CostsStep";
 import { ResponsesStep } from "./ResponsesStep";
 import { FinishStep } from "./FinishStep";
+import { ImageStep } from "./ImageStep";
 import { useApi } from "../../hooks/useApi";
 import { useMe } from "../../hooks/useMe";
 import { useUsers } from "../../hooks/useUsers";
@@ -119,6 +133,8 @@ const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
 };
 
 export function CreateMeetModal({ open, onClose, onCreated, meetId: meetIdProp }: CreateMeetModalProps) {
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const [activeStep, setActiveStep] = useState(0);
   const [state, setState] = useState<CreateMeetState>(initialState);
   const [meetId, setMeetId] = useState<string | null>(null);
@@ -248,6 +264,29 @@ export function CreateMeetModal({ open, onClose, onCreated, meetId: meetIdProp }
   };
 
   const saveStep = async (step: number) => {
+    if (step === 7 && meetId) {
+      if (!state.imageFile) {
+        return false;
+      }
+      const formData = new FormData();
+      formData.append("file", state.imageFile);
+      formData.append("isPrimary", "true");
+      const headers: Record<string, string> = {};
+      const token = typeof window !== "undefined" ? window.localStorage.getItem("accessToken") : null;
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      const res = await fetch(`${api.baseUrl}/meets/${meetId}/images`, {
+        method: "POST",
+        headers,
+        body: formData
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || "Failed to upload image");
+      }
+      return true;
+    }
     const payload = buildPayloadForStep(state, meetId ? step : 0);
     if (!meetId) {
       const created = await api.post<Record<string, any>>("/meets", payload);
@@ -345,6 +384,8 @@ export function CreateMeetModal({ open, onClose, onCreated, meetId: meetIdProp }
       case 6:
         return <ResponsesStep state={state} setState={(fn) => setState(fn)} />;
       case 7:
+        return <ImageStep state={state} setState={(fn) => setState(fn)} />;
+      case 8:
         return <FinishStep shareCode={shareCode} missingFields={missingPublishFields} />;
       default:
         return <Typography color="text.secondary">Form coming soon.</Typography>;
@@ -362,18 +403,19 @@ export function CreateMeetModal({ open, onClose, onCreated, meetId: meetIdProp }
           bgcolor: "rgba(15,23,42,0.45)",
           display: "flex",
           justifyContent: "center",
-          alignItems: "center",
+          alignItems: fullScreen ? "stretch" : "center",
           zIndex: 1400
         }}
       >
         <Paper
           elevation={4}
           sx={{
-            width: "min(960px, 94vw)",
-            height: "90vh",
-            p: 3,
+            width: fullScreen ? "100%" : "min(960px, 94vw)",
+            height: fullScreen ? "100%" : "90vh",
+            p: fullScreen ? 2 : 3,
             display: "flex",
-            flexDirection: "column"
+            flexDirection: "column",
+            borderRadius: fullScreen ? 0 : 3
           }}
         >
           <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>

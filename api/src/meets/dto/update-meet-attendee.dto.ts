@@ -32,4 +32,9 @@ export class UpdateMeetAttendeeDto {
   @IsOptional()
   @IsString()
   indemnityMinors?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  status?: string;
 }

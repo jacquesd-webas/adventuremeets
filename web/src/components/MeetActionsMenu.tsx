@@ -8,6 +8,7 @@ import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
+import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import { MouseEvent, useState } from "react";
 
 type MeetActionsMenuProps = {
@@ -21,15 +22,17 @@ type MeetActionsMenuProps = {
   onPostpone?: (meetId: string) => void;
   onOpen?: (meetId: string) => void;
   onCheckin?: (meetId: string) => void;
+  onCloseMeet?: (meetId: string) => void;
 };
 
 const shouldShowEdit = (statusId?: number) => statusId === 1 || statusId === 6;
 const shouldShowAttendees = (statusId?: number) => statusId === 3;
-const shouldShowReports = (statusId?: number) => statusId === 5;
+const shouldShowReports = (statusId?: number) => statusId === 5 || statusId === 7;
 const isDraft = (statusId?: number) => statusId === 1;
 const isPublished = (statusId?: number) => statusId === 2;
 const isOpen = (statusId?: number) => statusId === 3;
 const isClosed = (statusId?: number) => statusId === 4;
+const isCompleted = (statusId?: number) => statusId === 7;
 
 export function MeetActionsMenu({
   meetId,
@@ -41,7 +44,8 @@ export function MeetActionsMenu({
   onReports,
   onPostpone,
   onOpen,
-  onCheckin
+  onCheckin,
+  onCloseMeet
 }: MeetActionsMenuProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -82,7 +86,7 @@ export function MeetActionsMenu({
             <ListItemText>Open meet</ListItemText>
           </MenuItem>
         ) : null}
-        {shouldShowEdit(statusId) ? (
+        {!isCompleted(statusId) && shouldShowEdit(statusId) ? (
           <MenuItem onClick={(event) => handleAction(event, onEdit)}>
             <ListItemIcon>
               <EditOutlinedIcon fontSize="small" />
@@ -90,7 +94,7 @@ export function MeetActionsMenu({
             <ListItemText>Edit</ListItemText>
           </MenuItem>
         ) : null}
-        {shouldShowAttendees(statusId) || isClosed(statusId) ? (
+        {!isCompleted(statusId) && (shouldShowAttendees(statusId) || isClosed(statusId)) ? (
           <MenuItem onClick={(event) => handleAction(event, onAttendees)}>
             <ListItemIcon>
               <PeopleOutlineIcon fontSize="small" />
@@ -98,7 +102,7 @@ export function MeetActionsMenu({
             <ListItemText>Attendees</ListItemText>
           </MenuItem>
         ) : null}
-        {isClosed(statusId) ? (
+        {!isCompleted(statusId) && isClosed(statusId) ? (
           <MenuItem onClick={(event) => handleAction(event, onCheckin)}>
             <ListItemIcon>
               <FactCheckOutlinedIcon fontSize="small" />
@@ -106,7 +110,7 @@ export function MeetActionsMenu({
             <ListItemText>Check-in</ListItemText>
           </MenuItem>
         ) : null}
-        {isOpen(statusId) ? (
+        {!isCompleted(statusId) && isOpen(statusId) ? (
           <MenuItem onClick={(event) => handleAction(event, onPostpone)}>
             <ListItemIcon>
               <PauseCircleOutlineIcon fontSize="small" />
@@ -114,7 +118,15 @@ export function MeetActionsMenu({
             <ListItemText>Postpone</ListItemText>
           </MenuItem>
         ) : null}
-        {isClosed(statusId) ? (
+        {!isCompleted(statusId) && isOpen(statusId) ? (
+          <MenuItem onClick={(event) => handleAction(event, onCloseMeet)}>
+            <ListItemIcon>
+              <BlockOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Close meet</ListItemText>
+          </MenuItem>
+        ) : null}
+        {!isCompleted(statusId) && isClosed(statusId) ? (
           <MenuItem onClick={(event) => handleAction(event, onPostpone)}>
             <ListItemIcon>
               <PauseCircleOutlineIcon fontSize="small" />
@@ -130,7 +142,7 @@ export function MeetActionsMenu({
             <ListItemText>Reports</ListItemText>
           </MenuItem>
         ) : null}
-        {isPublished(statusId) || isOpen(statusId) ? (
+        {!isCompleted(statusId) && (isPublished(statusId) || isOpen(statusId)) ? (
           <MenuItem onClick={(event) => handleAction(event, onPreview)}>
             <ListItemIcon>
               <OpenInNewOutlinedIcon fontSize="small" />
@@ -138,7 +150,7 @@ export function MeetActionsMenu({
             <ListItemText>Preview</ListItemText>
           </MenuItem>
         ) : null}
-        {isPublished(statusId) || isOpen(statusId) || isDraft(statusId) || isClosed(statusId) ? (
+        {!isCompleted(statusId) && (isPublished(statusId) || isOpen(statusId) || isDraft(statusId) || isClosed(statusId)) ? (
           <MenuItem onClick={(event) => handleAction(event, onDelete)}>
             <ListItemIcon>
               <DeleteOutlineIcon fontSize="small" />

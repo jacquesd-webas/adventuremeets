@@ -7,7 +7,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  Button
+  Button,
 } from "@mui/material";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -20,14 +20,34 @@ import { MeetStatus } from "../components/MeetStatus";
 import { ManageAttendeesModal } from "../components/manageAttendeesModal";
 import { ReportsModal } from "../components/reportsModal";
 import { MeetActionsMenu } from "../components/MeetActionsMenu";
+import {
+  ConfirmCancelMeetDialog,
+  ConfirmCloseMeetDialog,
+  ConfirmDeleteMeetDialog,
+  ConfirmOpenMeetDialog,
+  ConfirmPostponeMeetDialog
+} from "../components/confirmActions";
+import { useUpdateMeetStatus } from "../hooks/useUpdateMeetStatus";
+import { useApi } from "../hooks/useApi";
 
 function PlanPage() {
   const [showModal, setShowModal] = useState(false);
   const [showAttendeesModal, setShowAttendeesModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
-  const { data: meets, isLoading, refetch } = useFetchMeets({ view: "plan", page: 1, limit: 50 });
+  const [pendingAction, setPendingAction] = useState<{
+    type: "open" | "postpone" | "close" | "cancel" | "delete";
+    meetId: string;
+  } | null>(null);
+  const {
+    data: meets,
+    isLoading,
+    refetch,
+  } = useFetchMeets({ view: "all", page: 1, limit: 50 });
   const navigate = useNavigate();
+  const { updateStatusAsync, isLoading: isUpdatingStatus } =
+    useUpdateMeetStatus();
+  const api = useApi();
   const handleRowAction = (meet: any) => {
     const statusId = meet?.status_id;
     setSelectedMeetId(meet.id);
@@ -39,7 +59,7 @@ function PlanPage() {
       setShowAttendeesModal(true);
       return;
     }
-    if (statusId === 4 || statusId === 5) {
+    if (statusId === 4 || statusId === 5 || statusId === 7) {
       setShowReportsModal(true);
       return;
     }
@@ -49,7 +69,7 @@ function PlanPage() {
     <Stack spacing={2}>
       <Heading
         title="Plan"
-        subtitle="Manage draft, published, and postponed meets."
+        subtitle="Manage all meets from one place."
         actionComponent={
           <Button
             variant="outlined"
@@ -97,9 +117,11 @@ function PlanPage() {
                   <TableCell>
                     <Stack direction="row" spacing={1} alignItems="center">
                       <AccessTimeIcon fontSize="small" color="disabled" />
-                      {((meet as any).start_time || (meet as any).start) ? (
+                      {(meet as any).start_time || (meet as any).start ? (
                         <Typography variant="body2">
-                          {new Date((meet as any).start_time || (meet as any).start).toLocaleString()}
+                          {new Date(
+                            (meet as any).start_time || (meet as any).start
+                          ).toLocaleString()}
                         </Typography>
                       ) : null}
                     </Stack>
@@ -107,14 +129,23 @@ function PlanPage() {
                   <TableCell>
                     <Stack direction="row" spacing={1} alignItems="center">
                       <PlaceIcon fontSize="small" color="disabled" />
-                      <Typography variant="body2">{(meet as any).location}</Typography>
+                      <Typography variant="body2">
+                        {(meet as any).location}
+                      </Typography>
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    <MeetStatus statusId={(meet as any).status_id} fallbackLabel={(meet as any).status || "Scheduled"} />
+                    <MeetStatus
+                      statusId={(meet as any).status_id}
+                      fallbackLabel={(meet as any).status || "Scheduled"}
+                    />
                   </TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      justifyContent="flex-end"
+                    >
                       <MeetActionsMenu
                         meetId={meet.id}
                         statusId={(meet as any).status_id}
@@ -122,7 +153,11 @@ function PlanPage() {
                           setSelectedMeetId(meet.id);
                           setShowModal(true);
                         }}
-                        onPreview={() => navigate(`/meets/${(meet as any).share_code || meet.id}`)}
+                        onPreview={() =>
+                          navigate(
+                            `/meets/${(meet as any).share_code || meet.id}?preview=true`
+                          )
+                        }
                         onAttendees={() => {
                           setSelectedMeetId(meet.id);
                           setShowAttendeesModal(true);
@@ -134,9 +169,30 @@ function PlanPage() {
                         onCheckin={() => {
                           navigate(`/meet/${meet.id}/checkin`);
                         }}
-                        onOpen={() => {}}
-                        onPostpone={() => {}}
-                        onDelete={() => {}}
+                        onOpen={() =>
+                          setPendingAction({ type: "open", meetId: meet.id })
+                        }
+                        onPostpone={() =>
+                          setPendingAction({
+                            type: "postpone",
+                            meetId: meet.id,
+                          })
+                        }
+                        onCloseMeet={() =>
+                          setPendingAction({
+                            type: "close",
+                            meetId: meet.id,
+                          })
+                        }
+                        onDelete={() =>
+                          setPendingAction({
+                            type:
+                              (meet as any).status_id === 1
+                                ? "delete"
+                                : "cancel",
+                            meetId: meet.id,
+                          })
+                        }
                       />
                     </Stack>
                   </TableCell>
@@ -178,6 +234,61 @@ function PlanPage() {
           setShowReportsModal(false);
           setSelectedMeetId(null);
         }}
+      />
+      <ConfirmOpenMeetDialog
+        open={pendingAction?.type === "open"}
+        onClose={() => setPendingAction(null)}
+        onConfirm={async () => {
+          if (!pendingAction) return;
+          await updateStatusAsync({ meetId: pendingAction.meetId, statusId: 3 });
+          setPendingAction(null);
+          await refetch();
+        }}
+        isLoading={isUpdatingStatus}
+      />
+      <ConfirmPostponeMeetDialog
+        open={pendingAction?.type === "postpone"}
+        onClose={() => setPendingAction(null)}
+        onConfirm={async (_message) => {
+          if (!pendingAction) return;
+          await updateStatusAsync({ meetId: pendingAction.meetId, statusId: 6 });
+          setPendingAction(null);
+          await refetch();
+        }}
+        isLoading={isUpdatingStatus}
+      />
+      <ConfirmCloseMeetDialog
+        open={pendingAction?.type === "close"}
+        onClose={() => setPendingAction(null)}
+        onConfirm={async () => {
+          if (!pendingAction) return;
+          await updateStatusAsync({ meetId: pendingAction.meetId, statusId: 4 });
+          setPendingAction(null);
+          await refetch();
+        }}
+        isLoading={isUpdatingStatus}
+      />
+      <ConfirmCancelMeetDialog
+        open={pendingAction?.type === "cancel"}
+        onClose={() => setPendingAction(null)}
+        onConfirm={async () => {
+          if (!pendingAction) return;
+          await updateStatusAsync({ meetId: pendingAction.meetId, statusId: 5 });
+          setPendingAction(null);
+          await refetch();
+        }}
+        isLoading={isUpdatingStatus}
+      />
+      <ConfirmDeleteMeetDialog
+        open={pendingAction?.type === "delete"}
+        onClose={() => setPendingAction(null)}
+        onConfirm={async () => {
+          if (!pendingAction) return;
+          await api.del(`/meets/${pendingAction.meetId}`);
+          setPendingAction(null);
+          await refetch();
+        }}
+        isLoading={isUpdatingStatus}
       />
     </Stack>
   );

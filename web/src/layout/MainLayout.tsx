@@ -5,8 +5,7 @@ import { useMe } from "../hooks/useMe";
 
 const navItems = [
   { label: "Dashboard", path: "/" },
-  { label: "Plan", path: "/plan" },
-  { label: "Reports", path: "/reports" }
+  { label: "Plan", path: "/plan" }
 ];
 
 function MainLayout() {

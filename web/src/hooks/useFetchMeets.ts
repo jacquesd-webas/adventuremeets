@@ -20,7 +20,7 @@ export type Meet = {
 type MeetsResponse = { meets: Meet[] } | Meet[];
 
 type UseFetchMeetsOptions = {
-  upcoming?: boolean;
+  view?: "reports" | "plan" | "all";
   page?: number;
   limit?: number;
 };
@@ -35,13 +35,13 @@ type MeetsApiResponse = {
 export function useFetchMeets(options: UseFetchMeetsOptions = {}) {
   const api = useApi();
 
-  const { upcoming = false, page = 1, limit = 20 } = options;
+  const { view = "all", page = 1, limit = 20 } = options;
 
   const query = useQuery({
-    queryKey: ["meets", { upcoming, page, limit }],
+    queryKey: ["meets", { view, page, limit }],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (upcoming) params.set("upcoming", "true");
+      if (view !== "all") params.set("view", view);
       params.set("page", String(page));
       params.set("limit", String(limit));
       const res = await api.get<MeetsResponse | MeetsApiResponse>(`/meets?${params.toString()}`);

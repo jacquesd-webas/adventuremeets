@@ -14,7 +14,9 @@ import {
   ListItemText,
   Paper,
   Stack,
-  Typography
+  Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
@@ -28,10 +30,22 @@ type ManageAttendeesModalProps = {
   meetId?: string | null;
 };
 
-export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesModalProps) {
-  const { data: attendees, isLoading, refetch } = useFetchMeetAttendees(meetId, open);
+export function ManageAttendeesModal({
+  open,
+  onClose,
+  meetId,
+}: ManageAttendeesModalProps) {
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+  const {
+    data: attendees,
+    isLoading,
+    refetch,
+  } = useFetchMeetAttendees(meetId, open);
   const api = useApi();
-  const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(null);
+  const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
+    null
+  );
   const [isUpdating, setIsUpdating] = useState(false);
   const [waitlistSize, setWaitlistSize] = useState<number | null>(null);
 
@@ -40,7 +54,10 @@ export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesM
       setSelectedAttendeeId(null);
       return;
     }
-    if (attendees.length && !attendees.some((attendee) => attendee.id === selectedAttendeeId)) {
+    if (
+      attendees.length &&
+      !attendees.some((attendee) => attendee.id === selectedAttendeeId)
+    ) {
       setSelectedAttendeeId(attendees[0].id);
     }
   }, [attendees, open, selectedAttendeeId]);
@@ -68,7 +85,8 @@ export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesM
   }, [api, meetId, open]);
 
   const selectedAttendee = useMemo(
-    () => attendees.find((attendee) => attendee.id === selectedAttendeeId) || null,
+    () =>
+      attendees.find((attendee) => attendee.id === selectedAttendeeId) || null,
     [attendees, selectedAttendeeId]
   );
   const attendeeLabel = (attendee: any) =>
@@ -77,7 +95,9 @@ export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesM
     if (!meetId || !selectedAttendeeId) return;
     setIsUpdating(true);
     try {
-      await api.patch(`/meets/${meetId}/attendees/${selectedAttendeeId}`, { status });
+      await api.patch(`/meets/${meetId}/attendees/${selectedAttendeeId}`, {
+        status,
+      });
       await refetch();
     } finally {
       setIsUpdating(false);
@@ -97,20 +117,50 @@ export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesM
   }, [attendees]);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="md"
+      fullScreen={fullScreen}
+    >
       <DialogTitle>Manage attendees</DialogTitle>
       <DialogContent sx={{ pb: 2 }}>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ minHeight: 360 }}>
-          <Paper variant="outlined" sx={{ width: { xs: "100%", md: 280 }, flexShrink: 0 }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{ minHeight: 360 }}
+        >
+          <Paper
+            variant="outlined"
+            sx={{ width: { xs: "100%", md: 280 }, flexShrink: 0 }}
+          >
             <Box sx={{ p: 2 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                spacing={1}
+              >
                 <Typography variant="subtitle2" color="text.secondary">
                   Attendees
                 </Typography>
                 <Stack direction="row" spacing={1}>
-                  <Chip size="small" color="success" label={statusCounts.accepted} />
-                  <Chip size="small" color="error" label={statusCounts.rejected} />
-                  <Chip size="small" color="warning" label={statusCounts.waitlisted} />
+                  <Chip
+                    size="small"
+                    color="success"
+                    label={statusCounts.accepted}
+                  />
+                  <Chip
+                    size="small"
+                    color="error"
+                    label={statusCounts.rejected}
+                  />
+                  <Chip
+                    size="small"
+                    color="warning"
+                    label={statusCounts.waitlisted}
+                  />
                 </Stack>
               </Stack>
             </Box>
@@ -136,13 +186,31 @@ export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesM
                       onClick={() => setSelectedAttendeeId(attendee.id)}
                     >
                       {isConfirmed || isRejected || isWaitlisted ? (
-                        <Box sx={{ width: 32, height: 32, mr: 1.5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Box
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            mr: 1.5,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
                           {isConfirmed ? (
-                            <CheckCircleOutlineIcon fontSize="large" color="success" />
+                            <CheckCircleOutlineIcon
+                              fontSize="large"
+                              color="success"
+                            />
                           ) : isWaitlisted ? (
-                            <CheckCircleOutlineIcon fontSize="large" color="warning" />
+                            <CheckCircleOutlineIcon
+                              fontSize="large"
+                              color="warning"
+                            />
                           ) : (
-                            <CancelOutlinedIcon fontSize="large" color="error" />
+                            <CancelOutlinedIcon
+                              fontSize="large"
+                              color="error"
+                            />
                           )}
                         </Box>
                       ) : (
@@ -175,8 +243,15 @@ export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesM
             ) : (
               <Stack spacing={2}>
                 <Box>
-                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
-                    <Typography variant="h6">{attendeeLabel(selectedAttendee)}</Typography>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    spacing={2}
+                  >
+                    <Typography variant="h6">
+                      {attendeeLabel(selectedAttendee)}
+                    </Typography>
                     <Stack direction="row" spacing={1}>
                       <ButtonGroup
                         variant="outlined"
@@ -184,41 +259,85 @@ export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesM
                         disabled={!selectedAttendee || isUpdating}
                         aria-label="Update attendee status"
                       >
-                        <Button color="success" onClick={() => handleUpdateStatus("confirmed")}>
-                          Accept
-                        </Button>
-                        <Button color="error" onClick={() => handleUpdateStatus("canceled")}>
-                          Reject
-                        </Button>
-                        <Button color="warning" onClick={() => handleUpdateStatus("waitlisted")}>
-                          Waitlist
-                        </Button>
+                        {selectedAttendee.status !== "confirmed" ? (
+                          <Button
+                            color="success"
+                            onClick={() => handleUpdateStatus("confirmed")}
+                          >
+                            Accept
+                          </Button>
+                        ) : null}
+                        {selectedAttendee.status !== "canceled" ? (
+                          <Button
+                            color="error"
+                            onClick={() => handleUpdateStatus("canceled")}
+                          >
+                            Reject
+                          </Button>
+                        ) : null}
+                        {selectedAttendee.status !== "waitlisted" ? (
+                          <Button
+                            color="warning"
+                            onClick={() => handleUpdateStatus("waitlisted")}
+                          >
+                            Waitlist
+                          </Button>
+                        ) : null}
                       </ButtonGroup>
                     </Stack>
                   </Stack>
-                  <Stack direction="row" spacing={1} alignItems="center" mt={1} flexWrap="wrap">
-                    {selectedAttendee.email ? <Chip size="small" label={selectedAttendee.email} /> : null}
-                    {selectedAttendee.phone ? <Chip size="small" label={selectedAttendee.phone} /> : null}
-                    {selectedAttendee.guests ? <Chip size="small" label={`Guests: ${selectedAttendee.guests}`} /> : null}
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    mt={1}
+                    flexWrap="wrap"
+                  >
+                    {selectedAttendee.email ? (
+                      <Chip size="small" label={selectedAttendee.email} />
+                    ) : null}
+                    {selectedAttendee.phone ? (
+                      <Chip size="small" label={selectedAttendee.phone} />
+                    ) : null}
+                    {selectedAttendee.guests ? (
+                      <Chip
+                        size="small"
+                        label={`Guests: ${selectedAttendee.guests}`}
+                      />
+                    ) : null}
                   </Stack>
                 </Box>
                 <Divider />
                 <Box>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  <Typography
+                    variant="subtitle2"
+                    color="text.secondary"
+                    gutterBottom
+                  >
                     Indemnity
                   </Typography>
                   <Typography variant="body2">
-                    {selectedAttendee.indemnity_accepted ? "Accepted" : "Not accepted"}
+                    {selectedAttendee.indemnity_accepted
+                      ? "Accepted"
+                      : "Not accepted"}
                   </Typography>
                   {selectedAttendee.indemnity_minors ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mt: 1 }}
+                    >
                       Minors: {selectedAttendee.indemnity_minors}
                     </Typography>
                   ) : null}
                 </Box>
                 <Divider />
                 <Box>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  <Typography
+                    variant="subtitle2"
+                    color="text.secondary"
+                    gutterBottom
+                  >
                     Responses
                   </Typography>
                   {selectedAttendee.metaValues?.length ? (
@@ -240,13 +359,23 @@ export function ManageAttendeesModal({ open, onClose, meetId }: ManageAttendeesM
                     </Typography>
                   )}
                 </Box>
+                <Box>
+                  <Button variant="outlined" disabled={!selectedAttendee}>
+                    Message {attendeeLabel(selectedAttendee)}
+                  </Button>
+                </Box>
               </Stack>
             )}
           </Paper>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>
+          <Button variant="outlined">Send Message to All Attendees</Button>
+        </Box>
+        <Button variant="contained" onClick={onClose}>
+          Close
+        </Button>
       </DialogActions>
     </Dialog>
   );

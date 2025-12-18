@@ -123,6 +123,15 @@ export class MeetDto {
   @ApiPropertyOptional()
   organizerName?: string;
 
+  @ApiPropertyOptional()
+  attendeeCount?: number;
+
+  @ApiPropertyOptional()
+  waitlistCount?: number;
+
+  @ApiPropertyOptional()
+  confirmedCount?: number;
+
   @ApiPropertyOptional({ type: [MeetMetaDefinitionDto] })
   metaDefinitions?: MeetMetaDefinitionDto[];
 }

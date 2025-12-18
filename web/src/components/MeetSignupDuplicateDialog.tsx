@@ -5,6 +5,8 @@ import {
   DialogContent,
   DialogTitle,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 
 type MeetSignupDuplicateDialogProps = {
@@ -20,8 +22,10 @@ export function MeetSignupDuplicateDialog({
   onRemove,
   onUpdate,
 }: MeetSignupDuplicateDialogProps) {
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   return (
-    <Dialog open={open} onClose={onClose}>
+    <Dialog open={open} onClose={onClose} fullScreen={fullScreen}>
       <DialogTitle>Already signed up</DialogTitle>
       <DialogContent>
         <Typography color="text.secondary">

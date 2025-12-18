@@ -10,6 +10,7 @@ type MeetSignupSheet = {
   end: string;
   status: string;
   organizerName?: string;
+  capacity?: number;
   indemnityText?: string;
   requiresIndemnity?: boolean;
   allowGuests?: boolean;
@@ -44,6 +45,7 @@ type MeetApi = {
   organizer_last_name?: string;
   organizerFirstName?: string;
   organizerLastName?: string;
+  capacity?: number;
   indemnity_text?: string;
   indemnityText?: string;
   requires_indemnity?: boolean;
@@ -80,9 +82,11 @@ type MeetApi = {
 const statusLabels: Record<number, string> = {
   1: "Draft",
   2: "Published",
-  3: "Closed",
-  4: "Cancelled",
-  5: "Postponed"
+  3: "Open",
+  4: "Closed",
+  5: "Cancelled",
+  6: "Postponed",
+  7: "Completed"
 };
 
 function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
@@ -105,6 +109,7 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
     end,
     status,
     organizerName,
+    capacity: apiMeet.capacity,
     indemnityText: apiMeet.indemnityText || apiMeet.indemnity_text || apiMeet.indemnity,
     requiresIndemnity:
       apiMeet.requiresIndemnity ??
