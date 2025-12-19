@@ -2,6 +2,7 @@ import { AppBar, Avatar, Box, Container, IconButton, Menu, MenuItem, Stack, Tool
 import { useMemo, useState, MouseEvent } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useMe } from "../hooks/useMe";
+import { ProfileModal } from "../components/ProfileModal";
 
 const navItems = [
   { label: "Dashboard", path: "/" },
@@ -12,6 +13,7 @@ function MainLayout() {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { user } = useMe();
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const displayName = useMemo(() => {
     if (!user) return "";
@@ -40,6 +42,11 @@ function MainLayout() {
     handleMenuClose();
   };
 
+  const handleProfile = () => {
+    setProfileOpen(true);
+    handleMenuClose();
+  };
+
   const handleLogout = () => {
     window.localStorage.removeItem("accessToken");
     window.localStorage.removeItem("refreshToken");
@@ -51,7 +58,7 @@ function MainLayout() {
     <Box sx={{ flexGrow: 1 }}>
       <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
         <Toolbar>
-          <Box component="img" src="/static/meetplanner-mark.svg" alt="Logo" sx={{ height: 36, mr: 3 }} />
+          <Box component="img" src="/static/adventuremeets-logo.svg" alt="AdventureMeets logo" sx={{ height: 36, mr: 3 }} />
           <Stack direction="row" spacing={2} alignItems="center">
             {navItems.map((item) => (
               <Box
@@ -77,7 +84,7 @@ function MainLayout() {
             </IconButton>
           </Tooltip>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose} transformOrigin={{ vertical: "top", horizontal: "right" }}>
-            <MenuItem onClick={() => handleNavigate("/profile")}>Profile</MenuItem>
+            <MenuItem onClick={handleProfile}>Profile</MenuItem>
             <MenuItem onClick={handleLogout}>Logout</MenuItem>
           </Menu>
         </Toolbar>
@@ -85,6 +92,7 @@ function MainLayout() {
       <Container maxWidth="lg" sx={{ py: 3 }}>
         <Outlet />
       </Container>
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </Box>
   );
 }

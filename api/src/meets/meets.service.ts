@@ -98,6 +98,11 @@ export class MeetsService {
     if (!meet) {
       throw new NotFoundException('Meet not found');
     }
+    const image = await this.db
+      .getClient()('meet_images')
+      .where({ meet_id: meet.id })
+      .orderBy([{ column: 'is_primary', order: 'desc' }, { column: 'created_at', order: 'desc' }])
+      .first();
     const metaDefinitions = await this.db
       .getClient()('meet_meta_definitions')
       .where({ meet_id: meet.id })
@@ -111,7 +116,7 @@ export class MeetsService {
         'position',
         'config',
       );
-    return this.toMeetDto(meet, metaDefinitions);
+    return this.toMeetDto({ ...meet, image_url: image?.url }, metaDefinitions);
   }
 
   async create(dto: CreateMeetDto) {
@@ -412,6 +417,7 @@ export class MeetsService {
       capacity: meet.capacity ?? undefined,
       waitlistSize: meet.waitlist_size ?? undefined,
       statusId: meet.status_id ?? undefined,
+      status_id: meet.status_id ?? undefined,
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,
@@ -428,6 +434,7 @@ export class MeetsService {
       depositCents: meet.deposit_cents ?? undefined,
       shareCode: meet.share_code ?? undefined,
       organizerName: meet.organizer_name ?? undefined,
+      imageUrl: meet.image_url ?? meet.imageUrl ?? undefined,
       attendeeCount,
       confirmedCount: attendeeCount,
       waitlistCount,

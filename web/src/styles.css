@@ -19,8 +19,8 @@ body {
   background-color: #f7f8fb;
   background-image: url("/static/background.png");
   background-repeat: no-repeat;
-  background-position: center center;
-  background-size: 100% 100%;
+  background-position: center top;
+  background-size: cover;
   background-attachment: fixed;
 }
 

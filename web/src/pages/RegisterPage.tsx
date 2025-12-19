@@ -12,6 +12,7 @@ import {
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { useState } from "react";
+import ReCAPTCHA from "react-google-recaptcha";
 import { useRegister } from "../hooks/useRegister";
 import { useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/AuthSocialButtons";
@@ -37,15 +38,26 @@ function RegisterPage() {
   const api = useApi();
   const navigate = useNavigate();
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
+  const captchaRequired = Boolean(recaptchaSiteKey);
+  const chooseMethod = (method: null | "google" | "microsoft" | "facebook" | "email") => {
+    setSelectedMethod(method);
+    setCaptchaToken(null);
+  };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (captchaRequired && !captchaToken) {
+      return;
+    }
     registerAsync({
       firstName,
       lastName,
       phone: buildInternationalPhone(phoneCountry, phoneLocal),
       email,
-      password
+      password,
+      captchaToken: captchaToken || undefined
     })
       .then(() => navigate("/"))
       .catch((err) => {
@@ -76,9 +88,9 @@ function RegisterPage() {
     >
       <Box sx={{ textAlign: "center", mb: 4 }}>
         <img
-          src="/static/meetplanner-logo.svg"
-          alt="Meetplanner logo"
-          width={350}
+          src="/static/adventuremeets-logo.svg"
+          alt="AdventureMeets logo"
+          width={320}
           height="auto"
         />
       </Box>
@@ -88,14 +100,14 @@ function RegisterPage() {
           Create account
         </Typography>
         {!selectedMethod && (
-          <AuthSocialButtons showEmail onSelect={setSelectedMethod} />
+          <AuthSocialButtons showEmail onSelect={chooseMethod} />
         )}
         {selectedMethod && selectedMethod !== "email" && (
           <Stack spacing={2}>
             <Alert severity="info">
               Continue with {selectedMethod} is not configured yet.
             </Alert>
-            <Button variant="text" onClick={() => setSelectedMethod(null)}>
+            <Button variant="text" onClick={() => chooseMethod(null)}>
               Choose another method
             </Button>
           </Stack>
@@ -167,16 +179,29 @@ function RegisterPage() {
                     ),
                   }}
                 />
+                {captchaRequired ? (
+                  <Box display="flex" justifyContent="center">
+                    <ReCAPTCHA
+                      sitekey={recaptchaSiteKey}
+                      onChange={(token) => setCaptchaToken(token)}
+                      onExpired={() => setCaptchaToken(null)}
+                    />
+                  </Box>
+                ) : (
+                  <Alert severity="warning">
+                    reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to enable.
+                  </Alert>
+                )}
                 <Button
                   type="submit"
                   variant="contained"
                   size="large"
                   sx={{ textTransform: "uppercase" }}
-                  disabled={Boolean(emailError)}
+                  disabled={Boolean(emailError) || (captchaRequired && !captchaToken) || isLoading}
                 >
                   {isLoading ? "Creating..." : "Create account"}
                 </Button>
-                <Button variant="text" onClick={() => setSelectedMethod(null)}>
+                <Button variant="text" onClick={() => chooseMethod(null)}>
                   Choose another method
                 </Button>
               </Stack>

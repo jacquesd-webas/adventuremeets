@@ -13,7 +13,7 @@ export class DatabaseService implements OnModuleDestroy {
         port: Number(process.env.DB_PORT) || 5432,
         user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'postgres',
-        database: process.env.DB_NAME || 'meetplanner',
+        database: process.env.DB_NAME || 'adventuremeets',
         ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
       },
       pool: {

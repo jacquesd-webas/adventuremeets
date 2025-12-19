@@ -101,6 +101,9 @@ export class MeetsController {
     if (!file) {
       throw new BadRequestException('Image file is required');
     }
+    if (!file.mimetype?.startsWith('image/')) {
+      throw new BadRequestException('Only image uploads are allowed');
+    }
     return this.meetsService.addImage(id, file, dto);
   }
 

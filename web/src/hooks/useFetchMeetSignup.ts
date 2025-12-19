@@ -9,12 +9,14 @@ type MeetSignupSheet = {
   start: string;
   end: string;
   status: string;
+  status_id: number;
   organizerName?: string;
   capacity?: number;
   indemnityText?: string;
   requiresIndemnity?: boolean;
   allowGuests?: boolean;
   maxGuests?: number | null;
+  imageUrl?: string;
   metaDefinitions?: {
     id: string;
     field_key?: string;
@@ -86,15 +88,20 @@ const statusLabels: Record<number, string> = {
   4: "Closed",
   5: "Cancelled",
   6: "Postponed",
-  7: "Completed"
+  7: "Completed",
 };
 
 function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
   const start = apiMeet.start_time || apiMeet.startTime || "";
   const end = apiMeet.end_time || apiMeet.endTime || "";
-  const status = apiMeet.status || (apiMeet.status_id ? statusLabels[apiMeet.status_id] : "Open");
+  const status =
+    apiMeet.status ||
+    (apiMeet.status_id ? statusLabels[apiMeet.status_id] : "Open");
   const organizerName =
-    [apiMeet.organizerFirstName || apiMeet.organizer_first_name, apiMeet.organizerLastName || apiMeet.organizer_last_name]
+    [
+      apiMeet.organizerFirstName || apiMeet.organizer_first_name,
+      apiMeet.organizerLastName || apiMeet.organizer_last_name,
+    ]
       .filter(Boolean)
       .join(" ") ||
     apiMeet.organizer ||
@@ -108,9 +115,11 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
     start,
     end,
     status,
+    status_id: apiMeet.status_id,
     organizerName,
     capacity: apiMeet.capacity,
-    indemnityText: apiMeet.indemnityText || apiMeet.indemnity_text || apiMeet.indemnity,
+    indemnityText:
+      apiMeet.indemnityText || apiMeet.indemnity_text || apiMeet.indemnity,
     requiresIndemnity:
       apiMeet.requiresIndemnity ??
       apiMeet.requires_indemnity ??
@@ -118,11 +127,16 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
       apiMeet.has_indemnity,
     allowGuests: apiMeet.allowGuests ?? apiMeet.allow_guests,
     maxGuests: apiMeet.maxGuests ?? apiMeet.max_guests ?? null,
-    metaDefinitions: (apiMeet.metaDefinitions || apiMeet.meta_definitions || []).map((definition) => ({
+    imageUrl: (apiMeet as any).imageUrl || (apiMeet as any).image_url,
+    metaDefinitions: (
+      apiMeet.metaDefinitions ||
+      apiMeet.meta_definitions ||
+      []
+    ).map((definition) => ({
       ...definition,
       field_key: definition.field_key || definition.fieldKey || "",
-      field_type: definition.field_type || definition.fieldType || ""
-    }))
+      field_type: definition.field_type || definition.fieldType || "",
+    })),
   };
 }
 
@@ -135,11 +149,11 @@ export function useFetchMeetSignup(code?: string) {
       const res = await api.get<MeetApi>(`/meets/${code}`);
       return mapMeet(res);
     },
-    enabled: Boolean(code)
+    enabled: Boolean(code),
   });
   return {
     data: query.data ?? null,
     isLoading: query.isLoading,
-    error: query.error ? (query.error as Error).message : null
+    error: query.error ? (query.error as Error).message : null,
   };
 }

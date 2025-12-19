@@ -1,4 +1,4 @@
-# Meetplanner Skeleton
+# AdventureMeets Skeleton
 
 Scaffolded monorepo with APIs, database migrations, and a Vite SPA. Everything is dockerized for local development.
 

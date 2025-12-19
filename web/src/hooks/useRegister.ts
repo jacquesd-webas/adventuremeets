@@ -7,6 +7,7 @@ type RegisterPayload = {
   phone: string;
   email: string;
   password: string;
+  captchaToken?: string;
 };
 
 type RegisterResponse = {

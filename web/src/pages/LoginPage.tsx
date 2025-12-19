@@ -45,9 +45,9 @@ function LoginPage() {
     >
       <Box sx={{ textAlign: "center", mb: 4 }}>
         <img
-          src="/static/meetplanner-logo.svg"
-          alt="Meetplanner logo"
-          width={350}
+          src="/static/adventuremeets-logo.svg"
+          alt="AdventureMeets logo"
+          width={320}
           height="auto"
         />
       </Box>

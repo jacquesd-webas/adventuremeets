@@ -21,7 +21,7 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('Meet Planner API')
+    .setTitle('AdventureMeets API')
     .setVersion('1.0')
     .addBearerAuth(
       {

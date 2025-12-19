@@ -6,6 +6,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { HealthModule } from './health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { MeetsModule } from './meets/meets.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { MeetsModule } from './meets/meets.module';
     HealthModule,
     DatabaseModule,
     MeetsModule,
+    OrganizationsModule,
   ],
   controllers: [],
   providers: [

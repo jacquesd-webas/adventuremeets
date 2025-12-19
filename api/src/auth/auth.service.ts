@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, UnauthorizedException, BadRequestException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { UsersService } from "../users/users.service";
@@ -94,12 +94,41 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto): Promise<TokenPair> {
+    await this.verifyCaptchaIfNeeded(dto);
     const created = await this.usersService.create(dto);
     const user = await this.usersService.findById(created.id);
     return {
       accessToken: this.signAccessToken(user as any),
       refreshToken: this.signRefreshToken(user as any)
     };
+  }
+
+  private async verifyCaptchaIfNeeded(dto: RegisterDto) {
+    const secret = process.env.RECAPTCHA_SECRET;
+    // Only enforce for email/password flow; IDP-based registrations can bypass.
+    const isEmailMethod = !dto.idpProvider;
+    if (!secret || !isEmailMethod) {
+      return;
+    }
+    if (!dto.captchaToken) {
+      throw new BadRequestException("Captcha is required");
+    }
+    const params = new URLSearchParams({
+      secret,
+      response: dto.captchaToken,
+    });
+    const res = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+    if (!res.ok) {
+      throw new UnauthorizedException("Captcha verification failed");
+    }
+    const data = await res.json();
+    if (!data.success) {
+      throw new UnauthorizedException("Captcha verification failed");
+    }
   }
 
   async getGoogleAuthUrl(redirectUri?: string, state?: string) {

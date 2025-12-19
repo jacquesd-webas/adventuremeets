@@ -12,6 +12,7 @@ export class UsersService {
   async create(dto: CreateUserDto) {
     const id = uuid();
     const now = new Date().toISOString();
+    const trx = await this.database.getClient().transaction();
 
     if (dto.password?.startsWith("$2a$")) {
       // do nothing, password is already hashed
@@ -20,43 +21,55 @@ export class UsersService {
       dto.password = await bcrypt.hash(dto.password, 10);
     }
 
-    const trx = await this.database.getClient().transaction();
+    try {
+      await trx("users").insert({
+        id,
+        email: dto.email,
+        email_verified: false,
+        first_name: dto.firstName || null,
+        last_name: dto.lastName || null,
+        phone: dto.phone || null,
+        password_hash: dto.password || null,
+        idp_provider: dto.idpProvider || null,
+        idp_subject: dto.idpSubject || null,
+        idp_profile: dto.idpProfile || null,
+        created_at: now,
+        updated_at: now
+      });
 
-    await this.database.getClient()("users").insert({
-      id,
-      email: dto.email,
-      email_verified: false,
-      first_name: dto.firstName || null,
-      last_name: dto.lastName || null,
-      phone: dto.phone || null,
-      password_hash: dto.password || null,
-      idp_provider: dto.idpProvider || null,
-      idp_subject: dto.idpSubject || null,
-      idp_profile: dto.idpProfile || null,
-      created_at: now,
-      updated_at: now
-    });
+      let organizationId = dto.organizationId;
+      if (!organizationId) { 
+        // create a new personal organization for this user
+        const orgNameBase = (dto.firstName || dto.lastName)
+          ? `${dto.firstName ?? ""} ${dto.lastName ?? ""}`.trim()
+          : dto.email?.split("@")[0] || "Member";
+        const orgName = `Private Organisation (${orgNameBase})`;
+        const createdOrg = await trx("organizations")
+          .insert({
+            name: orgName,
+            created_at: now,
+            updated_at: now
+          })
+          .returning("id");
+        const newOrgId = Array.isArray(createdOrg) ? (createdOrg[0] as any).id : (createdOrg as any).id;
+        organizationId = newOrgId;
+      }
 
-    let organizationId = dto.organizationId;
-    if (!organizationId) {
-      const defaultOrg = await this.database.getClient()("organizations").orderBy("created_at", "asc").first("id");
-      organizationId = defaultOrg?.id;
+      await trx("user_organization_memberships").insert({
+        user_id: id,
+        organization_id: organizationId,
+        role: "member",
+        role_id: 4,
+        status: "active",
+        created_at: now,
+        updated_at: now
+      });
+
+      await trx.commit();
+    } catch (err) {
+      await trx.rollback();
+      throw err;
     }
-    if (!organizationId) {
-      throw new NotFoundException("No organization available for user registration");
-    }
-
-    await this.database.getClient()("user_organization_memberships").insert({
-      user_id: id,
-      organization_id: organizationId,
-      role: "member",
-      role_id: 4,
-      status: "active",
-      created_at: now,
-      updated_at: now
-    });
-
-    await trx.commit();
     
     return this.findById(id);
   }

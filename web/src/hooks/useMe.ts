@@ -6,6 +6,8 @@ type AuthMeResponse = {
   email: string;
   firstName?: string;
   lastName?: string;
+  phone?: string;
+  organizationIds?: string[];
   idp_profile?: {
     name?: string;
   };

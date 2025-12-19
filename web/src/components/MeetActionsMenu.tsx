@@ -25,7 +25,8 @@ type MeetActionsMenuProps = {
   onCloseMeet?: (meetId: string) => void;
 };
 
-const shouldShowEdit = (statusId?: number) => statusId === 1 || statusId === 6;
+// Allow editing until the meet is opened; include draft, published, and postponed
+const shouldShowEdit = (statusId?: number) => statusId === 1 || statusId === 2 || statusId === 6;
 const shouldShowAttendees = (statusId?: number) => statusId === 3;
 const shouldShowReports = (statusId?: number) => statusId === 5 || statusId === 7;
 const isDraft = (statusId?: number) => statusId === 1;

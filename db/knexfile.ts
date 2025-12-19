@@ -6,7 +6,7 @@ const {
   DB_PORT = 5432,
   DB_USER = 'postgres',
   DB_PASSWORD = 'postgres',
-  DB_NAME = 'meetplanner',
+  DB_NAME = 'adventuremeets',
 } = process.env;
 
 /** @type {import('knex').Knex.Config} */

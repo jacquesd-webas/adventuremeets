@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Client } from 'minio';
 
 @Injectable()
@@ -29,14 +29,19 @@ export class MinioService {
   }
 
   async upload(objectKey: string, buffer: Buffer, contentType: string) {
-    await this.ensureBucket();
-    await this.client.putObject(this.bucket, objectKey, buffer, {
-      'Content-Type': contentType
-    });
-    return {
-      objectKey,
-      url: `${this.publicUrl}/${this.bucket}/${objectKey}`
-    };
+    try {
+      await this.ensureBucket();
+      await this.client.putObject(this.bucket, objectKey, buffer, {
+        'Content-Type': contentType || 'application/octet-stream'
+      });
+      return {
+        objectKey,
+        url: `${this.publicUrl}/${this.bucket}/${objectKey}`
+      };
+    } catch (error: any) {
+      const message = error?.message || 'Failed to upload object';
+      throw new BadRequestException(message);
+    }
   }
 
   private async ensureBucket() {
@@ -45,6 +50,19 @@ export class MinioService {
     if (!exists) {
       await this.client.makeBucket(this.bucket);
     }
+    // Ensure public read for objects
+    const policy = {
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Effect: "Allow",
+          Principal: "*",
+          Action: ["s3:GetObject"],
+          Resource: [`arn:aws:s3:::${this.bucket}/*`]
+        }
+      ]
+    };
+    await this.client.setBucketPolicy(this.bucket, JSON.stringify(policy));
     this.bucketReady = true;
   }
 }

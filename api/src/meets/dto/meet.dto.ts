@@ -75,6 +75,9 @@ export class MeetDto {
   @ApiPropertyOptional()
   statusId?: number;
 
+  @ApiPropertyOptional({ description: 'Status id (alias)', required: false })
+  status_id?: number;
+
   @ApiPropertyOptional()
   autoPlacement?: boolean;
 
@@ -122,6 +125,9 @@ export class MeetDto {
 
   @ApiPropertyOptional()
   organizerName?: string;
+
+  @ApiPropertyOptional()
+  imageUrl?: string;
 
   @ApiPropertyOptional()
   attendeeCount?: number;
