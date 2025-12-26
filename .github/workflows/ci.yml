@@ -9,7 +9,7 @@ on:
 
 env:
   DOCKER_IMAGES: api db_migrate web
-  WEB_ARCHiVES: web
+  WEB_ARCHIVES: web
 
 jobs:
   metadata:
@@ -18,6 +18,32 @@ jobs:
       version: ${{ steps.set-version.outputs.version }}
       is_release_tag: ${{ steps.set-version.outputs.is_release_tag }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify required env/vars.list and env/secrets.list are set
+        shell: bash
+        run: |
+          missing=0
+          for file in env/vars.list env/secrets.list; do
+            while IFS= read -r raw || [ -n "$raw" ]; do
+              line="${raw%%#*}"
+              line="${line#"${line%%[![:space:]]*}"}"
+              line="${line%"${line##*[![:space:]]}"}"
+              [ -z "$line" ] && continue
+              var="$line"
+              val="${!var}"
+              if [ -z "$val" ]; then
+                echo "::error file=$file::Environment variable '$var' is not set"
+                missing=1
+              fi
+            done < "$file"
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "One or more required variables are missing."
+            exit 1
+          fi
+
       - name: Determine version
         id: set-version
         shell: bash
@@ -189,7 +215,17 @@ jobs:
           retention-days: 1
 
       - name: Login to registry
-        run: echo ${{ secrets.CI_REGISTRY_PAT }} | docker login ${{ vars.CI_REGISTRY_HOST }} -u ${{ vars.CI_REGISTRY_USER }} --password-stdin
+        env:
+          REG_HOST: ${{ env.DOCKER_REGISTRY_HOST }}
+          REG_USER: ${{ vars.CI_REGISTRY_USER }}
+          REG_PAT: ${{ secrets.CI_REGISTRY_PAT }}
+        shell: bash
+        run: |
+          if [ -z "$REG_HOST" ] || [ -z "$REG_USER" ] || [ -z "$REG_PAT" ]; then
+            echo "::error::Registry host/user/token not configured"
+            exit 1
+          fi
+          echo "$REG_PAT" | docker login "$REG_HOST" -u "$REG_USER" --password-stdin
 
       - name: Build and push api image
         uses: docker/build-push-action@v5
