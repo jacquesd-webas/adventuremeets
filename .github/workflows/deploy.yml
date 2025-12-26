@@ -1,0 +1,70 @@
+name: Adventure Meets Swarm Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare environment
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          VERSION="${VERSION#v}"
+          if [ -z "$VERSION" ]; then
+            echo "Unable to determine version from ref ${GITHUB_REF}. Please trigger the workflow from the desired tag (e.g. v0.6.1)." >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "DEPLOYMENT_TYPE=${{ inputs.environment }}" >> $GITHUB_ENV
+          echo "STACK_NAME=adventuremeets" >> $GITHUB_ENV
+          echo "DEPLOY_DIR=adventuremeets.fringecoding.co.za" >> $GITHUB_ENV
+          echo "STACK_FILE=stack-deploy-${{ inputs.environment }}.yml" >> $GITHUB_ENV
+
+      - name: Stage CI/CD Variables
+        shell: bash
+        run: |
+          echo "CI_REGISTRY_HOST=${{ vars.CI_REGISTRY_HOST }}" >> $GITHUB_ENV
+          echo "CI_REGISTRY_USER=${{ vars.CI_REGISTRY_USER }}" >> $GITHUB_ENV
+          echo "DB_HOST=${{ vars.DB_HOST }}" >> $GITHUB_ENV
+          echo "DB_USER=${{ vars.DB_USER }}" >> $GITHUB_ENV
+          echo "EMAIL_FROM_ADDRESS=${{ vars.EMAIL_FROM_ADDRESS }}" >> $GITHUB_ENV
+          echo "EMAIL_FROM_NAME=${{ vars.EMAIL_FROM_NAME }}" >> $GITHUB_ENV
+          echo "EMAIL_HOST=${{ vars.EMAIL_HOST }}" >> $GITHUB_ENV
+          echo "EMAIL_PORT=${{ vars.EMAIL_PORT }}" >> $GITHUB_ENV
+          echo "EMAIL_SECURE=${{ vars.EMAIL_SECURE }}" >> $GITHUB_ENV
+          echo "EMAIL_USER=${{ vars.EMAIL_USER }}" >> $GITHUB_ENV
+          echo "FRONTEND_URL=${{ vars.FRONTEND_URL }}" >> $GITHUB_ENV
+
+      - name: Stage Secrets
+        shell: bash
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
+          echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> $GITHUB_ENV
+          echo "ENCODED_SSH_KEY=${{ secrets.ENCODED_SSH_KEY }}" >> $GITHUB_ENV
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> $GITHUB_ENV
+          echo "CI_REGISTRY_PAT=${{ secrets.CI_REGISTRY_PAT }}" >> $GITHUB_ENV
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Push stack definition
+        run: sh ./ci/02_update_stack_def.sh ${{ env.STACK_FILE }} ${{ env.DEPLOY_DIR }} ${{ env.VERSION }}
+
+      - name: Update Environment Configuration
+        run: sh ./ci/03_update_env.sh ${{ env.DEPLOYMENT_TYPE }} ${{ env.VERSION }}
+
+      - name: Deploy stack
+        run: sh ./ci/05_deploy.sh ${{ env.DEPLOY_DIR }} ${{ env.VERSION }} ${{ secrets.CI_REGISTRY_USER }} ${{ secrets.CI_REGISTRY_PAT }} ${{ env.STACK_NAME }}

@@ -21,7 +21,8 @@
   <path d="M98 92L138 30L178 92H158L138 58L118 92H98Z" fill="url(#peakBlue)"/>
   <path d="M158 92L198 40L238 92H218L198 64L178 92H158Z" fill="#c46a21"/>
   <!-- Trail line -->
-  <path d="M60 92C90 70 140 70 190 92" stroke="#1b1b1b" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+  <!-- Gentle trail arch -->
+  <path d="M60 92C95 72 135 72 188 92" stroke="#6b7f8a" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
   <!-- Brand text -->
   <text x="32" y="110" fill="#111" font-family="Inter, 'Segoe UI', sans-serif" font-size="22" font-weight="800" letter-spacing="0.4">AdventureMeets</text>
 </svg>

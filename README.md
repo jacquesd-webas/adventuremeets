@@ -13,8 +13,10 @@ Scaffolded monorepo with APIs, database migrations, and a Vite SPA. Everything i
 1. Copy env: `cp env/.env.example env/.env` and adjust secrets/ports.
 2. Install per app: `npm install` inside `api/`, `web/`, `db/`, and `packages/shared` (shared builds on prepare).
 3. Build and run stacks: `docker-compose up --build`.
-4. Apply migrations in the API container: `docker-compose exec api npm run migrate`.
-5. Visit API on `http://localhost:3000/health` and web on `http://localhost:5173`.
+   - API runs on `http://localhost:3000`
+   - Web runs on `http://localhost:5173`
+4. Apply migrations/seeds inside the API container: `docker-compose exec api npm run migrate`.
+5. MinIO console at `http://localhost:9001` (root/minioadmin creds by default).
 
 ## Testing
 - API: Jest setup with `@nestjs/testing` (see `api/jest.config.ts` and `api/test` folder).

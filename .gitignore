@@ -4,8 +4,7 @@ dist
 coverage
 *.log
 *.tsbuildinfo
-/env/.env
-/env/.env.local
-/env/.env.development
 /.eslintcache
 /tmp
+**/.env
+**/.env.*

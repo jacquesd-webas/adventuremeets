@@ -1,3 +1,10 @@
 {
-    "editor.formatOnSave": true
+  "eslint.useFlatConfig": true,
+  "eslint.validate": ["typescript", "typescriptreact", "javascript"],
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "eslint.packageManager": "pnpm",
+  "eslint.format.enable": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  }
 }

@@ -13,7 +13,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  async findAll(@User() user?: UserProfile & { organizationIds?: string[] | null }) {
+  async findAll(@User() user: UserProfile & { organizationIds?: string[] | null }) {
     if (!user?.organizationIds) {
       throw new ForbiddenException("No organization IDs found for user");
     }
@@ -22,7 +22,7 @@ export class UsersController {
   }
 
   @Get(":id")
-  async findOne(@User() user?: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string) {
+  async findOne(@User() user: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string) {
     if (!user?.organizationIds) {
       throw new ForbiddenException("No organization IDs found for user");
     }
@@ -35,7 +35,7 @@ export class UsersController {
   }
 
   @Post()
-  async create(@User() user?: UserProfile & { organizationIds?: string[] | null }, @Body() body: CreateUserDto) {
+  async create(@User() user: UserProfile & { organizationIds?: string[] | null }, @Body() body: CreateUserDto) {
     if (!user?.organizationIds) {
       throw new ForbiddenException("No organization IDs found for user");
     }
@@ -53,7 +53,7 @@ export class UsersController {
   }
 
   @Patch(":id")
-  async update(@User() user?: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string, @Body() body: UpdateUserDto) {
+  async update(@User() user: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string, @Body() body: UpdateUserDto) {
     if (!user?.organizationIds) {
       throw new ForbiddenException("No organization IDs found for user");
     }
@@ -69,7 +69,7 @@ export class UsersController {
   }
 
   @Delete(":id")
-  async remove(@User() user?: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string) {
+  async remove(@User() user: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string) {
     const existingUser = await this.usersService.findById(id);
     if (!existingUser) {
       throw new NotFoundException("User not found in your organizations");

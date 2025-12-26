@@ -21,5 +21,8 @@ RUN npm run build
 
 FROM nginx:1.25-alpine
 COPY --from=builder /app/web/dist /usr/share/nginx/html
+COPY web/start.sh /start.sh
+RUN chmod +x /start.sh
+ENTRYPOINT ["/start.sh"]
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

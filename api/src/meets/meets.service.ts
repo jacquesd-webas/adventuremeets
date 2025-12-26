@@ -137,27 +137,31 @@ export class MeetsService {
   async update(id: string, dto: UpdateMeetDto) {
     const currencyId = await this.resolveCurrencyId(dto.currencyId, dto.currencyCode);
     const updated = await this.db.getClient().transaction(async (trx) => {
-      const [meet] = await trx('meets').where({ id }).update(this.toDbRecord({ ...dto, currencyId }), ['*']);
+      const updatedRows = (await trx('meets')
+        .where({ id })
+        .update(this.toDbRecord({ ...dto, currencyId }), ['*'])) as unknown;
+      const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
       if (!meet) {
         throw new NotFoundException('Meet not found');
       }
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, id, dto.metaDefinitions);
       }
-      return meet;
+      return meet as any;
     });
     return updated;
   }
 
   async updateStatus(id: string, statusId: number) {
-    const [updated] = await this.db
+    const updatedRows = (await this.db
       .getClient()('meets')
       .where({ id })
-      .update({ status_id: statusId, updated_at: new Date().toISOString() }, ['*']);
+      .update({ status_id: statusId, updated_at: new Date().toISOString() }, ['*'])) as unknown;
+    const updated = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
     if (!updated) {
       throw new NotFoundException('Meet not found');
     }
-    return updated;
+    return updated as any;
   }
 
   async remove(id: string) {
@@ -287,7 +291,7 @@ export class MeetsService {
     return { attendee: updated };
   }
 
-  async addImage(meetId: string, file: Express.Multer.File, dto: CreateMeetImageDto) {
+  async addImage(meetId: string, file: any, dto: CreateMeetImageDto) {
     const extension = file.mimetype.split('/')[1] || 'jpg';
     const objectKey = `meets/${meetId}/${uuid()}.${extension}`;
     const uploaded = await this.minio.upload(objectKey, file.buffer, file.mimetype);

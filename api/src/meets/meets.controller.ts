@@ -97,7 +97,7 @@ export class MeetsController {
 
   @Post(':id/images')
   @UseInterceptors(FileInterceptor('file'))
-  addImage(@Param('id') id: string, @UploadedFile() file: Express.Multer.File, @Body() dto: CreateMeetImageDto) {
+  addImage(@Param('id') id: string, @UploadedFile() file: any, @Body() dto: CreateMeetImageDto) {
     if (!file) {
       throw new BadRequestException('Image file is required');
     }

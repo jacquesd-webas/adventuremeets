@@ -1,0 +1,23 @@
+FROM node:20-alpine
+
+WORKDIR /app/db
+
+# Tools to check database readiness
+RUN apk add --no-cache postgresql-client
+
+# Setup pnpm and install dependencies
+RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY db/package.json db/pnpm-lock.yaml db/tsconfig.json db/knexfile.ts ./
+RUN pnpm install
+
+# Copy necessary files for migrations and seeds
+COPY db/migrations ./migrations
+COPY db/seeds ./seeds
+COPY db/migrate.sh ./migrate.sh
+COPY db/backup.sh ./backup.sh
+
+# start.sh runs the latest migrations and seeds if DB_SEED_DATA is set
+COPY db/start.sh /start.sh
+RUN chmod +x /start.sh ./migrate.sh ./backup.sh
+ENTRYPOINT ["/start.sh"]
+CMD ["./migrate.sh"]

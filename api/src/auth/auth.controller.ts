@@ -1,4 +1,13 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+  Query,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
@@ -13,16 +22,16 @@ import { GoogleAuthUrlDto } from "./dto/google-auth-url.dto";
 import { GoogleAuthCodeDto } from "./dto/google-auth-code.dto";
 import { GoogleIdTokenDto } from "./dto/google-id-token.dto";
 
-@ApiTags('Auth')
-@Controller('auth')
+@ApiTags("Auth")
+@Controller("auth")
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly usersService: UsersService,
+    private readonly usersService: UsersService
   ) {}
 
   @Public()
-  @Post('login')
+  @Post("login")
   async login(@Body() dto: LoginDto): Promise<TokenPair> {
     return this.authService.login(dto);
   }
@@ -46,7 +55,10 @@ export class AuthController {
   @Public()
   @Get("google/url")
   async googleUrl(@Query() query: GoogleAuthUrlDto) {
-    const url = await this.authService.getGoogleAuthUrl(query.redirectUri, query.state);
+    const url = await this.authService.getGoogleAuthUrl(
+      query.redirectUri,
+      query.state
+    );
     return { url };
   }
 
@@ -63,23 +75,26 @@ export class AuthController {
   }
 
   @Public()
-  @Post('refresh')
+  @Post("refresh")
   async refresh(@Body() dto: RefreshDto): Promise<TokenPair> {
     return this.authService.refresh(dto);
   }
 
   @ApiBearerAuth()
-  @Get('me')
+  @Get("me")
   async me(@User() user: UserProfile): Promise<UserProfile> {
     if (!user) {
-      throw new UnauthorizedException('Unauthorized');
+      throw new UnauthorizedException("Unauthorized");
     }
     const full = await this.usersService.findById(user.id);
     if (!full) {
-      throw new ForbiddenException('User not found');
+      throw new ForbiddenException("User not found");
     }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash, ...rest } = full;
-    const organizationIds = await this.usersService.findOrganizationIds(user.id);
+    const organizationIds = await this.usersService.findOrganizationIds(
+      user.id
+    );
     return { ...(rest as UserProfile), organizationIds } as UserProfile;
   }
 }

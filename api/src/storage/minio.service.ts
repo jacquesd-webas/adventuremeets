@@ -31,7 +31,7 @@ export class MinioService {
   async upload(objectKey: string, buffer: Buffer, contentType: string) {
     try {
       await this.ensureBucket();
-      await this.client.putObject(this.bucket, objectKey, buffer, {
+      await this.client.putObject(this.bucket, objectKey, buffer, buffer.length, {
         'Content-Type': contentType || 'application/octet-stream'
       });
       return {

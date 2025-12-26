@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@meetplanner/shared':
-        specifier: file:../packages/shared
-        version: file:../packages/shared
       '@nestjs/common':
         specifier: ^10.2.0
         version: 10.4.20(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.1.14)(rxjs@7.8.2)
@@ -386,9 +383,6 @@ packages:
   '@lukeed/csprng@1.1.0':
     resolution: {integrity: sha512-Z7C/xXCiGWsg0KuKsHTKJxbWhpI3Vs5GwLfOean7MGyVFGqdRgBbAjOCh6u4bbjPc/8MJ2pZmK/0DLdCbivLDA==}
     engines: {node: '>=8'}
-
-  '@meetplanner/shared@file:../packages/shared':
-    resolution: {directory: ../packages/shared, type: directory}
 
   '@microsoft/tsdoc@0.15.1':
     resolution: {integrity: sha512-4aErSrCR/On/e5G2hDP0wjooqDdauzEbIq8hIkIe5pXV0rtWJZvdCEKL0ykZxex+IxIwBp0eGeV48hQN07dXtw==}
@@ -2778,8 +2772,6 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   '@lukeed/csprng@1.1.0': {}
-
-  '@meetplanner/shared@file:../packages/shared': {}
 
   '@microsoft/tsdoc@0.15.1': {}
 
