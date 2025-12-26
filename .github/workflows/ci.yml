@@ -7,6 +7,10 @@ on:
     tags:
       - "*"
 
+env:
+  DOCKER_IMAGES: api db_migrate web
+  WEB_ARCHiVES: web
+
 jobs:
   metadata:
     runs-on: ubuntu-latest
@@ -41,7 +45,7 @@ jobs:
           name: build-version
           path: build_version.txt
 
-  build-api:
+  build-docker:
     runs-on: ubuntu-latest
     needs: metadata
     if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
@@ -59,6 +63,7 @@ jobs:
           key: buildx-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             buildx-${{ runner.os }}-
+          retention-days: 1
 
       - name: Build images via ci/01_build_docker.sh
         env:
@@ -68,7 +73,7 @@ jobs:
           BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
         run: |
           mkdir -p /tmp/.buildx-cache /tmp/.buildx-cache-new
-          ci/01_build_docker.sh api db_migrate
+          ci/01_build_docker.sh ${{ env.DOCKER_IMAGES }}
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
@@ -99,9 +104,10 @@ jobs:
           key: pnpm-store-build-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
           restore-keys: |
             pnpm-store-build-${{ runner.os }}-
+          retention-days: 1
 
       - name: Install web dependencies
-        working-directory: web
+        working-directory: ${{ env.WEB_DIRECTORY:-web}}
         run: pnpm install --frozen-lockfile
 
       - name: Build web via ci/01_build_web.sh
@@ -143,6 +149,7 @@ jobs:
           key: pnpm-store-tests-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             pnpm-store-tests-${{ runner.os }}-
+          retention-days: 1
 
       - name: Install API dependencies
         working-directory: api
@@ -152,13 +159,11 @@ jobs:
         working-directory: api
         run: pnpm run build
 
-      - name: Install web dependencies
-        working-directory: web
-        run: pnpm install --frozen-lockfile
-
-      - name: Build web
-        working-directory: web
-        run: pnpm run build
+      - name: Build web via ci/01_build_web.sh
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          ci/01_build_web.sh web
 
   publish-docker:
     runs-on: ubuntu-latest
@@ -178,6 +183,7 @@ jobs:
           key: buildx-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             buildx-${{ runner.os }}-
+          retention-days: 1
 
       - name: Login to registry
         run: echo ${{ secrets.CI_REGISTRY_PAT }} | docker login ${{ vars.CI_REGISTRY_HOST }} -u ${{ vars.CI_REGISTRY_USER }} --password-stdin
