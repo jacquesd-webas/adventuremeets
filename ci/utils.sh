@@ -56,7 +56,7 @@ get_app_site() {
   
   local environment=${ENVIRONMENT:-development}
   if [ "$environment" = "production" ]; then
-    echo "${app_name}.apps.fringecoding.com"return
+    echo "${app_name}.apps.fringecoding.com"
     return
   elif [ "$environment" = "testing" ]; then
     echo "${app_name}-testing.apps.fringecoding.com"
