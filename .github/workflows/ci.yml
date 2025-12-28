@@ -64,8 +64,6 @@ jobs:
   build-docker:
     runs-on: ubuntu-latest
     needs: metadata
-    env:
-      ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -92,14 +90,15 @@ jobs:
           ci/01_build_docker.sh ${{ env.DOCKER_IMAGES }}
 
       - name: Save docker images to dist
+        env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           ci/01_save_docker.sh ${{ env.DOCKER_IMAGES }}
 
   build-web:
     runs-on: ubuntu-latest
     needs: [ metadata ]
-    env:
-      ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -121,6 +120,7 @@ jobs:
 
       - name: Build web tarball
         env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}    
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           ci/01_build_web.sh ${{ env.WEB_ARCHIVES }}
@@ -136,8 +136,6 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     needs: [ metadata, build-docker, build-web ]
-    env:
-      ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -180,6 +178,7 @@ jobs:
 
       - name: Build web via ci/01_build_web.sh
         env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           ci/01_build_web.sh web
@@ -188,8 +187,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [metadata, build-docker, tests]
     if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
-    env:
-      ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -216,6 +213,7 @@ jobs:
 
       - name: Publish images via ci/03_publish_docker.sh
         env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
           VERSION: ${{ needs.metadata.outputs.version }}
         run: ci/03_publish_docker.sh ${{ env.DOCKER_IMAGES }}
 
@@ -223,7 +221,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [metadata, build-web, tests]
     env:
-      ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
       WEB_STAGE_DIR: staging
       WEB_HOST: webapps1.fringecoding.com
       WEB_USER: webdeploy
@@ -253,6 +250,9 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Upload web bundle to staging
+        env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           WEB_STAGE_DIR=${WEB_STAGE_DIR} WEB_HOST=${WEB_HOST} WEB_USER=${WEB_USER} \
             sh ./ci/03_publish_web.sh ${{ needs.metadata.outputs.version }}
