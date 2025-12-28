@@ -29,8 +29,8 @@ trap 'rm -f "$ENV_TMP_FILE"' EXIT
 
 ENV_TARGET_PATH="${DEPLOY_USER}@${WEB_HOST}:${DEPLOY_DIR}/.env"
 
-echo "Generating environment file for ${DEPLOYMENT_TYPE}"
-"$ENV_DIR/make-env.sh" "$DEPLOYMENT_TYPE" "$ENV_TMP_FILE"
+echo "Generating environment file for ${DEPLOYMENT_TYPE} at ${ENV_TMP_FILE}"
+./$ENV_DIR/make-env.sh $DEPLOYMENT_TYPE $ENV_TMP_FILE
 
 echo "scp command: scp $SSH_ARGS $ENV_TMP_FILE $ENV_TARGET_PATH"
 echo "Updating environment file on ${WEB_HOST}"
