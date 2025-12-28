@@ -76,9 +76,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dist
-          key: dist-${{ runner.os }}-${{ github.sha }}
+          key: docker-dist-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            dist-${{ runner.os }}-
+            docker-dist-${{ runner.os }}-
           retention-days: 1
 
       - name: Build docker images
@@ -130,9 +130,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dist
-          key: web-build-${{ github.sha }}
+          key: web-dist-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            web-build-
+            web-dist-${{ runner.os }}-
 
   tests:
     runs-on: ubuntu-latest
@@ -191,9 +191,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dist
-          key: dist-${{ runner.os }}-${{ github.sha }}
+          key: docker-dist-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            dist-${{ runner.os }}-
+            docker-dist-${{ runner.os }}-
           retention-days: 1
 
       - name: Load cached docker images if present
@@ -221,13 +221,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore web build cache
+      - name: Restore dist cache (web tarball)
         uses: actions/cache@v4
         with:
           path: dist
-          key: web-build-${{ github.sha }}
+          key: web-dist-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            web-build-
+            web-dist-${{ runner.os }}-
 
       - name: Verify web bundle exists
         run: |

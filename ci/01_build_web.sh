@@ -49,7 +49,7 @@ for DIR in $WEB_PROJECTS; do
       WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
     else
       echo "Non-production environment, using latest tag for web archive."
-      WAR_FILE="${APP_NAME}-${DIR}-latest.tgz"
+      WAR_FILE="${APP_NAME}-${ENVIRONMENT}-${DIR}-latest.tgz"
     fi
     echo "Creating war file $CI_DIR/../dist/$WAR_FILE"
     mkdir -p $CI_DIR/../dist

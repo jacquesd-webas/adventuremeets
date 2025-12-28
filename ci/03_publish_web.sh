@@ -5,7 +5,8 @@
 
 set -e
 
-CI_DIR=$(dirname $0)
+CI_DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT_DIR=$(cd "$CI_DIR/.." && pwd)
 . $CI_DIR/config.sh
 . $CI_DIR/utils.sh
 
@@ -34,19 +35,17 @@ echo "Using environment: ${ENVIRONMENT}"
 echo "Publishing web archives..."
 for DIR in $WEB_PROJECTS; do
     echo "Publishing $DIR..."
-    cd $DIR
     if [ $ENVIRONMENT = "production" ]; then
       WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
     else
       echo "Non-production environment, using latest tag for web archive."
-      WAR_FILE="${APP_NAME}-${DIR}-latest.tgz"
+      WAR_FILE="${APP_NAME}-${ENVIRONMENT}-${DIR}-latest.tgz"
     fi
-    if [ ! -f "$CI_DIR/../dist/${WAR_FILE}" ]; then
+    if [ ! -f "$ROOT_DIR/dist/${WAR_FILE}" ]; then
       echo "Web archive $WAR_FILE not found in dist directory."
       exit 1
     fi
     echo "Uploading $WAR_FILE to ${WEB_HOST}:${WEB_STAGE_DIR}/${WAR_FILE}"
-    scp $SSH_ARGS $CI_DIR/../dist/${WAR_FILE} ${WEB_USER}@${WEB_HOST}:./${WEB_STAGE_DIR}/${WAR_FILE}
+    scp $SSH_ARGS "$ROOT_DIR/dist/${WAR_FILE}" ${WEB_USER}@${WEB_HOST}:./${WEB_STAGE_DIR}/${WAR_FILE}
     echo "Web bundle uploaded."
 done
-
