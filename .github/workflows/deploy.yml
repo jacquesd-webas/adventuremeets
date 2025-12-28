@@ -11,11 +11,14 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      # Environment comes from the workflow_dispatch input; defaults to "production"
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Prepare environment
+      - name: Prepare version
         run: |
           VERSION="${GITHUB_REF_NAME}"
           VERSION="${VERSION#v}"
@@ -24,10 +27,6 @@ jobs:
             exit 1
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "DEPLOYMENT_TYPE=${{ inputs.environment }}" >> $GITHUB_ENV
-          echo "STACK_NAME=adventuremeets" >> $GITHUB_ENV
-          echo "DEPLOY_DIR=adventuremeets.fringecoding.co.za" >> $GITHUB_ENV
-          echo "STACK_FILE=stack-deploy-${{ inputs.environment }}.yml" >> $GITHUB_ENV
 
       - name: Stage CI/CD Variables
         shell: bash
@@ -83,10 +82,10 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Push stack definition
-        run: sh ./ci/04_update_stack_def.sh stack-deploy-${{ env.DEPLOYMENT_TYPE }}.yml
+        run: sh ./ci/04_update_stack_def.sh stack-deploy-${{ env.ENVIRONMENT }}.yml
 
       - name: Update Environment Configuration
-        run: sh ./ci/04_update_env.sh ${{ env.DEPLOYMENT_TYPE }}
+        run: sh ./ci/04_update_env.sh ${{ env.ENVIRONMENT }}
 
       - name: Deploy stack
-        run: sh ./ci/05_deploy_swarm.sh stack-deploy-${{ env.DEPLOYMENT_TYPE }}.yml
+        run: sh ./ci/05_deploy_swarm.sh stack-deploy-${{ env.ENVIRONMENT }}.yml

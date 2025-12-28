@@ -6,8 +6,6 @@ CI_DIR=$(dirname $0)
 . $CI_DIR/config.sh
 . $CI_DIR/utils.sh
 
-# Args
-DEPLOYMENT_TYPE=${1:-production}
 
 DEPLOY_DIR=$(get_app_site "${APP_SITE:-}")
 ENV_DIR=$CI_DIR/../env
