@@ -61,8 +61,12 @@ get_app_site() {
   elif [ "$environment" = "testing" ]; then
     echo "${app_name}-testing.apps.fringecoding.com"
     return
-  else [ "$environment" = "development" ]; then
+  elif [ "$environment" = "development" ]; then
     echo "${app_name}-development.apps.fringecoding.com"
+    return
+  else 
+    # Default to dev site for unknown environments
+    echo "${app_name}-dev.apps.fringecoding.com"
     return
   fi
 }
