@@ -61,10 +61,10 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Push stack definition
-        run: sh ./ci/02_update_stack_def.sh ${{ env.STACK_FILE }} ${{ env.DEPLOY_DIR }} ${{ env.VERSION }}
+        run: sh ./ci/04_update_stack_def.sh ${{ env.STACK_FILE }} ${{ env.DEPLOY_DIR }} ${{ env.VERSION }}
 
       - name: Update Environment Configuration
-        run: sh ./ci/03_update_env.sh ${{ env.DEPLOYMENT_TYPE }} ${{ env.VERSION }}
+        run: sh ./ci/04_update_env.sh ${{ env.DEPLOYMENT_TYPE }} ${{ env.VERSION }}
 
       - name: Deploy stack
         run: sh ./ci/05_deploy.sh ${{ env.DEPLOY_DIR }} ${{ env.VERSION }} ${{ secrets.CI_REGISTRY_USER }} ${{ secrets.CI_REGISTRY_PAT }} ${{ env.STACK_NAME }}
