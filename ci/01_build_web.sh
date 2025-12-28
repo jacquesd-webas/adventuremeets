@@ -36,7 +36,7 @@ ENV_DIR="$CI_DIR/../env"
 echo "Building web archives..."
 for DIR in $WEB_PROJECTS; do
     echo "Creating ${ENVIRONMENT} environment..."
-    sh $ENV_DIR/make_env.sh $ENVIRONMENT $DIR/.env
+    sh $ENV_DIR/make-env.sh $ENVIRONMENT $DIR/.env
     echo "Building $DIR..."
     cd $DIR
     NPM=$(get_package_manager)

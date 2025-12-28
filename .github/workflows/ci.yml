@@ -173,7 +173,7 @@ jobs:
           ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          ci/02_test_list.sh
+          ci/02_test_lint.sh
           ci/02_test_node.sh
 
   publish-docker:
