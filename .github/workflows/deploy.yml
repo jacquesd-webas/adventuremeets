@@ -85,7 +85,10 @@ jobs:
         run: sh ./ci/04_update_stack_def.sh stack-deploy-${{ env.ENVIRONMENT }}.yml
 
       - name: Update Environment Configuration
-        run: sh ./ci/04_update_env.sh ${{ env.ENVIRONMENT }}
+        run: sh ./ci/04_update_env.sh
+
+      - name: Deploy DB Migrations
+        run: sh ./ci/06_deploy_db_migrations.sh
 
       - name: Deploy stack
-        run: sh ./ci/05_deploy_swarm.sh stack-deploy-${{ env.ENVIRONMENT }}.yml
+        run: sh ./ci/05_deploy_swarm.sh
