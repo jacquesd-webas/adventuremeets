@@ -15,7 +15,7 @@ STACK_DEPLOY_FILE=${1:-stack-deploy.yml}
 
 # Stack deploy directory and filename
 STACK_DEPLOY_SRC_FILE="$CI_DIR/$STACK_DEPLOY_FILE"
-STACK_DEPLOY_DEST_FILE="${TARGET_DIR}/stack-deploy.yml"
+STACK_DEPLOY_DEST_FILE="${SITE_NAME}/stack-deploy.yml"
 
 # Copy the stack deploy file to the remote host
 echo "Updating $STACK_DEPLOY_FILE for '$APP_NAME:$VERSION' from $STACK_DEPLOY_SRC_FILE to $WEB_HOST:$STACK_DEPLOY_DEST_FILE"
