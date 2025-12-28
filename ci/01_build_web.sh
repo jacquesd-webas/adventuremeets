@@ -40,6 +40,7 @@ for DIR in $WEB_PROJECTS; do
     echo "Building $DIR..."
     cd $DIR
     NPM=$(get_package_manager)
+    $NPM install
     $NPM run build
     cd $OLDPWD
     if [ $ENVIRONMENT = "production" ]; then
