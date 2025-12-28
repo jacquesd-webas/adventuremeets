@@ -4,7 +4,7 @@
 
 CI_DIR=$(dirname $0)
 . "$CI_DIR/config.sh"
-source $CI_DIR/utils.sh
+. $CI_DIR/utils.sh
 
 APP_NAME=$(get_app_name "${APP_NAME:-}")
 

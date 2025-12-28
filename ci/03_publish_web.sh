@@ -4,8 +4,8 @@
 # Requires web-build.tar.gz artifact present at build time.
 
 CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+. $CI_DIR/config.sh
+. $CI_DIR/utils.sh
 
 VERSION=$(get_app_version "${VERSION:-}")
 APP_NAME=$(get_app_name "${APP_NAME:-}")

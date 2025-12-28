@@ -3,8 +3,8 @@
 set -eu
 
 CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+. $CI_DIR/config.sh
+. $CI_DIR/utils.sh
 
 # Args
 DEPLOYMENT_TYPE=${1:-production}

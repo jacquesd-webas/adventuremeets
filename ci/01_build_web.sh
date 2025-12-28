@@ -11,8 +11,8 @@
 #   WEB_PROJECTS="web web-admin" ci/01_build_war.sh
 
 CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+. $CI_DIR/config.sh
+. $CI_DIR/utils.sh
 
 WEB_PROJECTS_ARGS=$@
 if [ ! -z "$WEB_PROJECTS_ARGS" ]; then

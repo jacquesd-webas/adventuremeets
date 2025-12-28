@@ -3,8 +3,8 @@
 # Script to update the stack definition file on the remote webapp server
 
 CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+. $CI_DIR/config.sh
+. $CI_DIR/utils.sh
 
 SITE_NAME=$(get_app_site "${APP_SITE:-}")
 VERSION=$(get_app_version "${VERSION:-}")
