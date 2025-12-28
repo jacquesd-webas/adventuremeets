@@ -33,6 +33,7 @@ for DIR in $NODE_PROJECTS; do
     echo "Testing $DIR..."
     cd $DIR
     NPM=$(get_package_manager)
+    $NPM install
     $NPM test
     cd $OLDPWD
 done

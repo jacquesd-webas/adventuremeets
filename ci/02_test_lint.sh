@@ -33,6 +33,7 @@ for DIR in $NODE_PROJECTS; do
     echo "Linting $DIR..."
     cd $DIR
     NPM=$(get_package_manager)
+    $NPM install
     $NPM lint
     cd $OLDPWD
 done
