@@ -9,8 +9,8 @@
 #   ci/02_test_node.sh api common
 #   NODE_PROJECTS="api common" ci/02_test_node.sh
 
-source $(dirname $0)/config.sh
-source $(dirname $0)/utils.sh
+. $(dirname $0)/config.sh
+. $(dirname $0)/utils.sh
 
 NODE_PROJECTS_ARGS=$@
 if [ ! -z "$NODE_PROJECTS_ARGS" ]; then
