@@ -180,7 +180,6 @@ jobs:
   publish-docker:
     runs-on: ubuntu-latest
     needs: [metadata, build-docker, tests]
-    if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
