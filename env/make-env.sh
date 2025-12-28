@@ -34,12 +34,9 @@ BASE_FRIENDLY_NAME="${BASE_FILE#"$PWD"/}"
 ENV_FRIENDLY_NAME="${ENV_FILE#"$PWD"/}"
 
 for DIRENT in $OUTPUT_DIRS_OR_FILES; do
-  if echo $DIRENT | grep -q '/\.env/'; then
+  if echo $DIRENT | grep -q '\.env'; then
     # 1. Could be specifying file directly
     OUTPUT_FILES="$OUTPUT_FILES $DIRENT"
-    if [ ! -d $(dirname "$DIRENT") ]; then
-      echo "Warning: Output directory $(dirname "$DIRENT") does not exist; skipping."
-    fi
   elif [ -d "$DIRENT" ]; then
     # 2. Could be specifying directory with full path
     OUTPUT_FILES="$OUTPUT_FILES $DIRENT/.env"

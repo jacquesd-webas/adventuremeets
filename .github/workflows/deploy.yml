@@ -67,4 +67,4 @@ jobs:
         run: sh ./ci/04_update_env.sh ${{ env.DEPLOYMENT_TYPE }} ${{ env.VERSION }}
 
       - name: Deploy stack
-        run: sh ./ci/05_deploy.sh ${{ env.DEPLOY_DIR }} ${{ env.VERSION }} ${{ secrets.CI_REGISTRY_USER }} ${{ secrets.CI_REGISTRY_PAT }} ${{ env.STACK_NAME }}
+        run: sh ./ci/05_deploy_swarm.sh ${{ env.DEPLOY_DIR }} ${{ env.VERSION }} ${{ secrets.CI_REGISTRY_USER }} ${{ secrets.CI_REGISTRY_PAT }} ${{ env.STACK_NAME }}
