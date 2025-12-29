@@ -33,7 +33,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
+      - "9005:9000"
     volumes:
       - minio_data:/data
     networks:
