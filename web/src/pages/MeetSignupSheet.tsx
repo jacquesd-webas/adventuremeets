@@ -17,6 +17,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PlaceIcon from "@mui/icons-material/Place";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import AttachMoneyOutlinedIcon from "@mui/icons-material/AttachMoneyOutlined";
 import { useParams, useSearchParams } from "react-router-dom";
 import LinkIcon from "@mui/icons-material/Link";
 import { useEffect, useState } from "react";
@@ -402,7 +403,12 @@ function MeetSignupSheet() {
   const isOpenMeet = meet?.status_id === MeetStatus.Open;
   const shareLink =
     typeof window !== "undefined" ? `${window.location.origin}/meets/${code}` : "";
+  const costLabel =
+    typeof meet?.costCents === "number"
+      ? `${meet?.currencySymbol || ""}${(meet.costCents / 100).toFixed(2)}`
+      : null;
 
+  console.log({ currencySymbol: meet?.currencySymbol, costCents: meet?.costCents, costLabel });
   if (!isLoading && !meet) {
     return <MeetNotFound />;
   }
@@ -672,6 +678,12 @@ function MeetSignupSheet() {
                           </Typography>
                         </Stack>
                       )}
+                      {costLabel && (
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <AttachMoneyOutlinedIcon fontSize="small" color="disabled" />
+                          <Typography variant="body2">{costLabel}</Typography>
+                        </Stack>
+                      )}
                     </Stack>
                   </Stack>
                   <Typography
@@ -714,6 +726,12 @@ function MeetSignupSheet() {
                         <Typography variant="body2">
                           {meet.capacity} spots
                         </Typography>
+                      </Stack>
+                    )}
+                    {costLabel && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <AttachMoneyOutlinedIcon fontSize="small" color="disabled" />
+                        <Typography variant="body2">{costLabel}</Typography>
                       </Stack>
                     )}
                   </Stack>

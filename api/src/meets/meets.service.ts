@@ -80,8 +80,11 @@ export class MeetsService {
       .getClient()('meets as m')
       .leftJoin('users as u', 'u.id', 'm.organizer_id')
       .leftJoin(attendeeCounts, 'ma.meet_id', 'm.id')
+      .leftJoin('currencies as c', 'c.id', 'm.currency_id')
       .select(
         'm.*',
+        'c.symbol as currency_symbol',
+        'c.code as currency_code',
         this.db.getClient().raw('coalesce(ma.attendee_count, 0) as attendee_count'),
         this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count'),
         this.db.getClient().raw(
@@ -434,8 +437,9 @@ export class MeetsService {
       indemnity: meet.indemnity ?? undefined,
       allowMinorIndemnity: meet.allow_minor_indemnity ?? undefined,
       currencyId: meet.currency_id ?? undefined,
-      costCents: meet.cost_cents ?? undefined,
-      depositCents: meet.deposit_cents ?? undefined,
+      currencySymbol: meet.currency_symbol ?? undefined,
+      costCents: meet.cost_cents != null ? Number(meet.cost_cents) : undefined,
+      depositCents: meet.deposit_cents != null ? Number(meet.deposit_cents) : undefined,
       shareCode: meet.share_code ?? undefined,
       organizerName: meet.organizer_name ?? undefined,
       imageUrl: meet.image_url ?? meet.imageUrl ?? undefined,

@@ -115,6 +115,9 @@ export class MeetDto {
   currencyId?: number | null;
 
   @ApiPropertyOptional()
+  currencySymbol?: string;
+
+  @ApiPropertyOptional()
   costCents?: number;
 
   @ApiPropertyOptional()

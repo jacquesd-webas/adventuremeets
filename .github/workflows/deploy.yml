@@ -14,6 +14,7 @@ jobs:
     env:
       # Environment comes from the workflow_dispatch input; defaults to "production"
       ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+      USE_COMPOSE: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -90,8 +91,13 @@ jobs:
       - name: Deploy DB Migrations
         run: sh ./ci/05_deploy_db_migrations.sh
 
-      - name: Deploy stack
+      - name: Deploy stack on swarm
+        if: env.USE_COMPOSE != 'true'
         run: sh ./ci/05_deploy_swarm.sh
+
+      - name: Deploy stack via docker-compose
+        if: env.USE_COMPOSE == 'true'
+        run: sh ./ci/05_deploy_compose.sh
       
       - name: Deploy webpack
         run: sh ./ci/05_deploy_web.sh
