@@ -362,7 +362,6 @@ function MeetSignupSheet() {
     metaValues,
   } = state;
 
-  console.log({ meetStatusId: meet?.status_id });
   useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -408,7 +407,6 @@ function MeetSignupSheet() {
       ? `${meet?.currencySymbol || ""}${(meet.costCents / 100).toFixed(2)}`
       : null;
 
-  console.log({ currencySymbol: meet?.currencySymbol, costCents: meet?.costCents, costLabel });
   if (!isLoading && !meet) {
     return <MeetNotFound />;
   }
