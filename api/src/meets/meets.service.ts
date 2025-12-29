@@ -20,8 +20,9 @@ export class MeetsService {
     const attendeeCounts = this.db
       .getClient()('meet_attendees')
       .select('meet_id')
-      .count<{ meet_id: string; attendee_count: string; waitlist_count: string }[]>('* as attendee_count')
+      .count<{ meet_id: string; attendee_count: string; waitlist_count: string; checked_in_count: string }[]>('* as attendee_count')
       .select(this.db.getClient().raw(`sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`))
+      .select(this.db.getClient().raw(`sum(case when status = 'checked-in' then 1 else 0 end) as checked_in_count`))
       .groupBy('meet_id')
       .as('ma');
     const query = this.db
@@ -30,7 +31,8 @@ export class MeetsService {
       .select(
         'm.*',
         this.db.getClient().raw('coalesce(ma.attendee_count, 0) as attendee_count'),
-        this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count')
+        this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count'),
+        this.db.getClient().raw('coalesce(ma.checked_in_count, 0) as checked_in_count')
       );
     if (view === 'reports') {
       query.whereIn('m.status_id', [4, 5, 7]);
@@ -55,12 +57,13 @@ export class MeetsService {
     const total = Number(count);
     const items = await query.limit(limit).offset((page - 1) * limit);
     const enrichedItems = items.map((item) => {
-      const attendeeCount = Number(item.attendee_count ?? 0);
+      const confirmedCount = Number(item.attendee_count ?? 0);
       const waitlistCount = Number(item.waitlist_count ?? 0);
+      const attendedCount = Number((item as any).checked_in_count ?? 0);
       return {
         ...item,
-        attendeeCount,
-        confirmedCount: attendeeCount,
+        attendeeCount: attendedCount,
+        confirmedCount,
         waitlistCount,
       };
     });
@@ -72,8 +75,9 @@ export class MeetsService {
     const attendeeCounts = this.db
       .getClient()('meet_attendees')
       .select('meet_id')
-      .count<{ meet_id: string; attendee_count: string; waitlist_count: string }[]>('* as attendee_count')
+      .count<{ meet_id: string; attendee_count: string; waitlist_count: string; checked_in_count: string }[]>('* as attendee_count')
       .select(this.db.getClient().raw(`sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`))
+      .select(this.db.getClient().raw(`sum(case when status = 'checked-in' then 1 else 0 end) as checked_in_count`))
       .groupBy('meet_id')
       .as('ma');
     let query = this.db
@@ -87,6 +91,7 @@ export class MeetsService {
         'c.code as currency_code',
         this.db.getClient().raw('coalesce(ma.attendee_count, 0) as attendee_count'),
         this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count'),
+        this.db.getClient().raw('coalesce(ma.checked_in_count, 0) as checked_in_count'),
         this.db.getClient().raw(`concat(coalesce(u.first_name, ''), ' ', coalesce(u.last_name, '')) as organizer_name`),
         'u.first_name as organizer_first_name',
         'u.last_name as organizer_last_name'
@@ -404,7 +409,8 @@ export class MeetsService {
   }
 
   private toMeetDto(meet: Record<string, any>, metaDefinitions: Record<string, any>[]): MeetDto {
-    const attendeeCount = Number(meet.attendee_count ?? 0);
+    const confirmedCount = Number(meet.attendee_count ?? 0);
+    const attendedCount = Number((meet as any).checked_in_count ?? 0);
     const waitlistCount = Number(meet.waitlist_count ?? 0);
     return {
       id: meet.id,
@@ -445,8 +451,8 @@ export class MeetsService {
       organizerFirstName: meet.organizer_first_name || undefined,
       organizerLastName: meet.organizer_last_name || undefined,
       imageUrl: meet.image_url ?? meet.imageUrl ?? undefined,
-      attendeeCount,
-      confirmedCount: attendeeCount,
+      attendeeCount: attendedCount,
+      confirmedCount,
       waitlistCount,
       metaDefinitions: metaDefinitions.map((definition) => ({
         id: definition.id,
