@@ -23,6 +23,15 @@ services:
       - adventuremeets
     deploy:
       replicas: 1
+
+  worker:
+    image: fringecoding/adventuremeets_worker:${VERSION:-latest}
+    env_file:
+      - ./.env
+    networks:
+      - adventuremeets
+    deploy:
+      replicas: 1
       
   minio:
     image: minio/minio:latest

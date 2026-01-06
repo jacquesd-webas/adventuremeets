@@ -21,6 +21,7 @@ env:
   JWT_SECRET: ${{ secrets.JWT_SECRET }}
   VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
   RECAPTCHA_SECRET: ${{ secrets.RECAPTCHA_SECRET }}
+  WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
 
 jobs:
   metadata:
