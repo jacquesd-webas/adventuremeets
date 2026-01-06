@@ -449,7 +449,6 @@ export class MeetsService {
       capacity: meet.capacity ?? undefined,
       waitlistSize: meet.waitlist_size ?? undefined,
       statusId: meet.status_id ?? undefined,
-      status_id: meet.status_id ?? undefined,
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,

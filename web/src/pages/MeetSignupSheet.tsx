@@ -142,9 +142,9 @@ function MeetSignupFormFields({
 }: MeetSignupFormProps) {
   return (
     <Stack spacing={2} mt={2}>
-      <LabeledField label="Full name" required>
+      <LabeledField label="Name" required>
         <TextField
-          placeholder="Your full name"
+          placeholder="Your name"
           value={fullName}
           onChange={(e) => setField("fullName", e.target.value)}
           fullWidth

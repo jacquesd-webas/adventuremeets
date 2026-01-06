@@ -1,4 +1,11 @@
 services:
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "25:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    restart: unless-stopped
+
   db:
     image: postgres:15-alpine
     env_file:
