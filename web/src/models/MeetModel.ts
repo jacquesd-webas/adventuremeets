@@ -21,6 +21,7 @@ export type MeetModel = {
   confirmMessage?: string;
   rejectMessage?: string;
   statusId?: number;
+  timesTbc?: boolean;
 };
 
 export default MeetModel;

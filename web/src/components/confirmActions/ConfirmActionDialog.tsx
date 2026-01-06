@@ -16,6 +16,7 @@ type ConfirmActionDialogProps = {
   cancelText?: string;
   onConfirm: () => void;
   onClose: () => void;
+  zIndex?: number;
 };
 
 export default function ConfirmActionDialog({
@@ -26,9 +27,16 @@ export default function ConfirmActionDialog({
   cancelText = "Cancel",
   onConfirm,
   onClose,
+  zIndex = 1600,
 }: ConfirmActionDialogProps) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      sx={{ zIndex }}
+    >
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <DialogContentText>

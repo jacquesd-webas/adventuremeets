@@ -384,6 +384,7 @@ export class MeetsService {
       cost_cents: this.toCents(dto.costCents),
       deposit_cents: this.toCents(dto.depositCents),
       share_code: dto.shareCode,
+      times_tbc: dto.timesTbc,
     };
     if (now) {
       record.created_at = now;
@@ -455,7 +456,7 @@ export class MeetsService {
       maxGuests: meet.max_guests ?? undefined,
       isVirtual: meet.is_virtual ?? undefined,
       confirmMessage: meet.confirm_message ?? undefined,
-      rejectMessage: meet.reject_message ?? undefined,
+      rejectMessage: meet.reject_message ?? meet.rejectMessage ?? undefined,
       waitlistMessage: meet.waitlist_message ?? undefined,
       hasIndemnity: meet.has_indemnity ?? undefined,
       indemnity: meet.indemnity ?? undefined,
@@ -473,6 +474,7 @@ export class MeetsService {
       confirmedCount: Number(meet.confirmed_count ?? 0),
       waitlistCount: Number(meet.waitlist_count ?? 0),
       checkedInCount: Number(meet.checked_in_count ?? 0),
+      timesTbc: meet.times_tbc ?? meet.timesTbc ?? undefined,
       metaDefinitions: metaDefinitions.map((definition) => ({
         id: definition.id,
         fieldKey: definition.field_key,

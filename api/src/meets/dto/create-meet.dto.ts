@@ -190,6 +190,11 @@ export class CreateMeetDto {
   @Min(0)
   depositCents?: number;
 
+  @ApiPropertyOptional({ description: 'Times to be confirmed' })
+  @IsOptional()
+  @IsBoolean()
+  timesTbc?: boolean;
+
   @ApiPropertyOptional({ type: [MeetMetaDefinitionInputDto] })
   @IsOptional()
   @ValidateNested({ each: true })

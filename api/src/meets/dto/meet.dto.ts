@@ -150,6 +150,9 @@ export class MeetDto {
   @ApiPropertyOptional()
   checkedInCount?: number;
 
+  @ApiPropertyOptional()
+  timesTbc?: boolean;
+
   @ApiPropertyOptional({ type: [MeetMetaDefinitionDto] })
   metaDefinitions?: MeetMetaDefinitionDto[];
 }

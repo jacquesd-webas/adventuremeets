@@ -50,6 +50,7 @@ export type CreateMeetState = {
   questions: QuestionField[];
   imageFile: File | null;
   imagePreview: string;
+  statusId: number | null;
 };
 
 export const initialState: CreateMeetState = {
@@ -64,8 +65,8 @@ export const initialState: CreateMeetState = {
   openingDate: "",
   closingDate: "",
   capacity: "",
-  waitlistSize: "",
-  autoApprove: true,
+  waitlistSize: 0,
+  autoApprove: false,
   autoCloseWaitlist: false,
   allowGuests: false,
   maxGuests: "",
@@ -81,7 +82,8 @@ export const initialState: CreateMeetState = {
   duration: "",
   questions: [],
   imageFile: null,
-  imagePreview: ""
+  imagePreview: "",
+  statusId: null
 };
 
 export type StepProps = {
