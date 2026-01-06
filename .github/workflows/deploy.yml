@@ -14,7 +14,7 @@ jobs:
     env:
       # Environment comes from the workflow_dispatch input; defaults to "production"
       ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
-      USE_COMPOSE: false
+      USE_COMPOSE: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
