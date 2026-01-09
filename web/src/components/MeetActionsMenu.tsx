@@ -1,3 +1,4 @@
+import { MouseEvent, useState } from "react";
 import {
   Box,
   Drawer,
@@ -19,7 +20,6 @@ import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
-import { MouseEvent, useState } from "react";
 import { PendingAction } from "./MeetActionsDialogs";
 import MeetStatusEnum from "../models/MeetStatusEnum";
 import { useNavigate } from "react-router-dom";
@@ -130,7 +130,9 @@ export function MeetActionsMenu({
   ) => (
     <>
       {shouldShow("attendees", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "attendees")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "attendees")}
+        >
           <ListItemIcon>
             <PeopleOutlineIcon fontSize="small" />
           </ListItemIcon>
@@ -138,7 +140,9 @@ export function MeetActionsMenu({
         </MenuItem>
       )}
       {shouldShow("open", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "open")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "open")}
+        >
           <ListItemIcon>
             <LockOpenOutlinedIcon fontSize="small" />
           </ListItemIcon>
@@ -149,7 +153,8 @@ export function MeetActionsMenu({
         <MenuItem
           onClick={(event) =>
             (onItemClick || handleAction)(event, "preview", () => {
-              if (previewLinkCode) nav(`/meets/${previewLinkCode}?preview=true`);
+              if (previewLinkCode)
+                nav(`/meets/${previewLinkCode}?preview=true`);
             })
           }
         >
@@ -160,7 +165,9 @@ export function MeetActionsMenu({
         </MenuItem>
       )}
       {shouldShow("edit", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "edit")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "edit")}
+        >
           <ListItemIcon>
             <EditOutlinedIcon fontSize="small" />
           </ListItemIcon>
@@ -168,7 +175,9 @@ export function MeetActionsMenu({
         </MenuItem>
       )}
       {shouldShow("checkin", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "checkin")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "checkin")}
+        >
           <ListItemIcon>
             <FactCheckOutlinedIcon fontSize="small" />
           </ListItemIcon>
@@ -176,7 +185,9 @@ export function MeetActionsMenu({
         </MenuItem>
       )}
       {shouldShow("close", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "close")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "close")}
+        >
           <ListItemIcon>
             <FactCheckOutlinedIcon fontSize="small" />
           </ListItemIcon>
@@ -184,7 +195,9 @@ export function MeetActionsMenu({
         </MenuItem>
       )}
       {shouldShow("postpone", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "postpone")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "postpone")}
+        >
           <ListItemIcon>
             <PauseCircleOutlineIcon fontSize="small" />
           </ListItemIcon>
@@ -192,7 +205,9 @@ export function MeetActionsMenu({
         </MenuItem>
       )}
       {shouldShow("cancel", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "cancel")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "cancel")}
+        >
           <ListItemIcon>
             <BlockOutlinedIcon fontSize="small" />
           </ListItemIcon>
@@ -200,7 +215,9 @@ export function MeetActionsMenu({
         </MenuItem>
       )}
       {shouldShow("report", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "report")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "report")}
+        >
           <ListItemIcon>
             <AssessmentOutlinedIcon fontSize="small" />
           </ListItemIcon>
@@ -208,7 +225,9 @@ export function MeetActionsMenu({
         </MenuItem>
       )}
       {shouldShow("delete", statusId) && (
-        <MenuItem onClick={(event) => (onItemClick || handleAction)(event, "delete")}>
+        <MenuItem
+          onClick={(event) => (onItemClick || handleAction)(event, "delete")}
+        >
           <ListItemIcon>
             <DeleteOutlineIcon fontSize="small" />
           </ListItemIcon>

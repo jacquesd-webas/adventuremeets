@@ -81,6 +81,12 @@ function MeetActionsDialogs({
       case "edit":
         setShowMeetModal(false);
         break;
+      case "attendees":
+        setShowAttendeesModal(false);
+        break;
+      case "report":
+        setShowReportsModal(false);
+        break;
       case "close":
         setIsCloseDialogOpen(false);
         break;
@@ -95,6 +101,10 @@ function MeetActionsDialogs({
         break;
       case "delete":
         setIsDeleteDialogOpen(false);
+        break;
+      case "preview":
+        break;
+      case "checkin":
         break;
       default:
         break;
@@ -194,6 +204,7 @@ function MeetActionsDialogs({
         onClose={() => {
           setShowMeetModal(false);
           setSelectedMeetId(null);
+          setPendingAction(null);
         }}
       />
       <ManageAttendeesModal
@@ -202,6 +213,7 @@ function MeetActionsDialogs({
         onClose={() => {
           setShowAttendeesModal(false);
           setSelectedMeetId(null);
+          setPendingAction(null);
         }}
       />
       <ReportsModal
@@ -210,6 +222,7 @@ function MeetActionsDialogs({
         onClose={() => {
           setShowReportsModal(false);
           setSelectedMeetId(null);
+          setPendingAction(null);
         }}
       />
     </>

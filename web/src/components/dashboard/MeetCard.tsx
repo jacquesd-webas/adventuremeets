@@ -86,12 +86,8 @@ export function MeetCard({
     <Paper
       variant="outlined"
       sx={{ p: 2, cursor: isMobile ? "default" : "pointer" }}
-      onClick={(e) => {
-        if (isMobile) {
-          e.stopPropagation();
-          setSelectedMeetId(meet.id);
-          setPendingAction("attendees");
-        } else if (typeof onClick === "function") {
+      onClick={() => {
+        if (!isMobile && typeof onClick === "function") {
           onClick();
         }
       }}
@@ -108,16 +104,7 @@ export function MeetCard({
           {meet.name}
         </Typography>
         <Chip label={statusLabel} color={isUpcoming ? "primary" : "default"} size="small" />
-        <Box
-          sx={{ ml: 0.5 }}
-          onClick={(e) => {
-            if (isMobile) {
-              e.stopPropagation();
-              setSelectedMeetId(meet.id);
-              setPendingAction("attendees");
-            }
-          }}
-        >
+        <Box sx={{ ml: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <MeetActionsMenu
             meetId={meet.id}
             statusId={meet.statusId}
