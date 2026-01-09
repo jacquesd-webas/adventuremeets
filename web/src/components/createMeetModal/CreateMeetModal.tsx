@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -170,6 +170,7 @@ export function CreateMeetModal({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showSteps, setShowSteps] = useState(!fullScreen);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const api = useApi();
   const { save: saveMeet, isSaving } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
@@ -556,6 +557,26 @@ export function CreateMeetModal({
     }
   };
 
+  const handleTouchStart = (event: React.TouchEvent) => {
+    if (!fullScreen) return;
+    const touch = event.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    if (!fullScreen || !touchStart.current) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - touchStart.current.x;
+    const dy = touch.clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) < 40 || Math.abs(dx) <= Math.abs(dy)) return;
+    if (dx > 0) {
+      setShowSteps(true);
+    } else {
+      setShowSteps(false);
+    }
+  };
+
   const handleCancel = () => {
     if (isDirty) {
       setPendingClose(true);
@@ -680,6 +701,8 @@ export function CreateMeetModal({
           alignItems: fullScreen ? "stretch" : "center",
           zIndex: 1400,
         }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         <Paper
           elevation={4}
