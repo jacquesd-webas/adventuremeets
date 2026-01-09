@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Box, Button, Container, Grid } from "@mui/material";
+import { Box, Button, Container, Grid, useMediaQuery, useTheme } from "@mui/material";
 import { Heading } from "../components/Heading";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
@@ -10,12 +10,15 @@ import {
   PendingAction,
 } from "../components/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
+import { MobileDashboardTitle } from "../components/dashboard/MobileDashboardTitle";
 
 function DashboardPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(
     null
   );
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { data: meets, isLoading } = useFetchMeets({
     view: "all",
     page: 1,
@@ -58,20 +61,24 @@ function DashboardPage() {
         flexDirection: "column",
       }}
     >
-      <Heading
-        title="Dashboard"
-        subtitle="View upcoming and past meets that you are organising."
-        actionComponent={
-          <Button
-            variant="contained"
-            onClick={() => {
-              setPendingAction("create");
-            }}
-          >
-            New Meet
-          </Button>
-        }
-      />
+      {isMobile ? (
+        <MobileDashboardTitle onNewMeet={() => setPendingAction("create")} />
+      ) : (
+        <Heading
+          title="Dashboard"
+          subtitle="View upcoming and past meets that you are organising."
+          actionComponent={
+            <Button
+              variant="contained"
+              onClick={() => {
+                setPendingAction("create");
+              }}
+            >
+              New Meet
+            </Button>
+          }
+        />
+      )}
 
       <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
         <Grid container spacing={3}>

@@ -4,15 +4,22 @@ set -eu
 
 # Args: environment name (e.g., development, production) and optional output paths
 
+ENV_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 if [ "$#" -gt 0 ]; then
   ENVIRONMENT="$1"
   shift
 else
-  echo "No environment specified. Assuming 'development'."
-  ENVIRONMENT="development"
+  if [ -f $ENV_DIR/local.env ]; then
+    echo "No environment specified. Assuming 'local'"
+    ENVIRONMENT="local"
+  else
+    echo "No environment specified. Assuming 'development'."
+    ENVIRONMENT="development"
+  fi
 fi
 
-if [ "$ENVIRONMENT" != "development" ] && [ "$ENVIRONMENT" != "production" ] && [ "$ENVIRONMENT" != "testing" ]; then
+if [ "$ENVIRONMENT" != "development" ] && [ "$ENVIRONMENT" != "production" ] && [ "$ENVIRONMENT" != "testing" ] && [ "$ENVIRONMENT" != "local" ]; then
   echo "Warning: Unrecognized environment '$ENVIRONMENT'."
   exit 1
 fi
@@ -23,7 +30,6 @@ OUTPUT_DIRS_OR_FILES=$@
 
 # Vars: paths
 
-ENV_DIR="$(cd "$(dirname "$0")" && pwd)"
 BASE_FILE="${ENV_DIR}/base.env"
 ENV_FILE="${ENV_DIR}/${ENVIRONMENT}.env"
 VARS_FILE="${ENV_DIR}/vars.list"

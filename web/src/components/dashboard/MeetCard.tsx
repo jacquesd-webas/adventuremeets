@@ -1,4 +1,4 @@
-import { Box, Chip, Paper, Stack, Typography } from "@mui/material";
+import { Box, Chip, Paper, Stack, Typography, useMediaQuery, useTheme } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import HistoryIcon from "@mui/icons-material/History";
 import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
@@ -77,14 +77,24 @@ export function MeetCard({
   setSelectedMeetId,
   setPendingAction,
 }: MeetCardProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isUpcoming = new Date(meet.endTime) >= new Date();
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
   const rangeLabel = formatRange(meet.startTime, meet.endTime);
   return (
     <Paper
       variant="outlined"
-      sx={{ p: 2, cursor: "pointer" }}
-      onClick={() => typeof onClick === "function" && onClick()}
+      sx={{ p: 2, cursor: isMobile ? "default" : "pointer" }}
+      onClick={(e) => {
+        if (isMobile) {
+          e.stopPropagation();
+          setSelectedMeetId(meet.id);
+          setPendingAction("attendees");
+        } else if (typeof onClick === "function") {
+          onClick();
+        }
+      }}
     >
       <Stack direction="row" alignItems="center" spacing={1}>
         {isUpcoming ? (
@@ -97,12 +107,17 @@ export function MeetCard({
         <Typography variant="h6" sx={{ flex: 1 }}>
           {meet.name}
         </Typography>
-        <Chip
-          label={statusLabel}
-          color={isUpcoming ? "primary" : "default"}
-          size="small"
-        />
-        <Box sx={{ ml: 0.5 }}>
+        <Chip label={statusLabel} color={isUpcoming ? "primary" : "default"} size="small" />
+        <Box
+          sx={{ ml: 0.5 }}
+          onClick={(e) => {
+            if (isMobile) {
+              e.stopPropagation();
+              setSelectedMeetId(meet.id);
+              setPendingAction("attendees");
+            }
+          }}
+        >
           <MeetActionsMenu
             meetId={meet.id}
             statusId={meet.statusId}

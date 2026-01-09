@@ -1,4 +1,4 @@
-import { AppBar, Avatar, Box, Container, IconButton, Menu, MenuItem, Stack, Toolbar, Tooltip } from "@mui/material";
+import { AppBar, Avatar, Box, Container, IconButton, Menu, MenuItem, Stack, Toolbar, Tooltip, useMediaQuery, useTheme } from "@mui/material";
 import { useMemo, useState, MouseEvent } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useMe } from "../hooks/useMe";
@@ -11,6 +11,8 @@ const navItems = [
 
 function MainLayout() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { user } = useMe();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -56,40 +58,42 @@ function MainLayout() {
 
   return (
     <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
-        <Toolbar>
-          <Box component="img" src="/static/adventuremeets-logo.svg" alt="AdventureMeets logo" sx={{ height: 36, mr: 3 }} />
-          <Stack direction="row" spacing={2} alignItems="center">
-            {navItems.map((item) => (
-              <Box
-                key={item.path}
-                component="button"
-                onClick={() => handleNavigate(item.path)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "0.95rem",
-                  fontWeight: 600
-                }}
-              >
-                {item.label}
-              </Box>
-            ))}
-          </Stack>
-          <Box sx={{ flexGrow: 1 }} />
-          <Tooltip title="Account">
-            <IconButton onClick={handleAvatarClick} size="small" sx={{ ml: 2 }}>
-              <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
-            </IconButton>
-          </Tooltip>
-          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose} transformOrigin={{ vertical: "top", horizontal: "right" }}>
-            <MenuItem onClick={handleProfile}>Profile</MenuItem>
-            <MenuItem onClick={handleLogout}>Logout</MenuItem>
-          </Menu>
-        </Toolbar>
-      </AppBar>
-      <Container maxWidth="lg" sx={{ py: 3 }}>
+      {!isMobile && (
+        <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
+          <Toolbar>
+            <Box component="img" src="/static/adventuremeets-logo.svg" alt="AdventureMeets logo" sx={{ height: 36, mr: 3 }} />
+            <Stack direction="row" spacing={2} alignItems="center">
+              {navItems.map((item) => (
+                <Box
+                  key={item.path}
+                  component="button"
+                  onClick={() => handleNavigate(item.path)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "0.95rem",
+                    fontWeight: 600
+                  }}
+                >
+                  {item.label}
+                </Box>
+              ))}
+            </Stack>
+            <Box sx={{ flexGrow: 1 }} />
+            <Tooltip title="Account">
+              <IconButton onClick={handleAvatarClick} size="small" sx={{ ml: 2 }}>
+                <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
+              </IconButton>
+            </Tooltip>
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose} transformOrigin={{ vertical: "top", horizontal: "right" }}>
+              <MenuItem onClick={handleProfile}>Profile</MenuItem>
+              <MenuItem onClick={handleLogout}>Logout</MenuItem>
+            </Menu>
+          </Toolbar>
+        </AppBar>
+      )}
+      <Container maxWidth={isMobile ? false : "lg"} disableGutters={isMobile} sx={{ py: isMobile ? 1 : 3, px: isMobile ? 1.5 : 0 }}>
         <Outlet />
       </Container>
       <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />

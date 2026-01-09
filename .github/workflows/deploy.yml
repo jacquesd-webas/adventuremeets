@@ -1,4 +1,4 @@
-name: Adventure Meets Swarm Deployment
+name: adventuremeets Swarm Deployment
 
 on:
   workflow_dispatch:
@@ -88,6 +88,9 @@ jobs:
       - name: Update Environment Configuration
         run: sh ./ci/04_update_env.sh
 
+      - name: Create database
+        run: sh ./ci/05_create_database.sh
+
       - name: Deploy DB Migrations
         run: sh ./ci/05_deploy_db_migrations.sh
 
@@ -98,6 +101,6 @@ jobs:
       - name: Deploy stack via docker-compose
         if: env.USE_COMPOSE == 'true'
         run: sh ./ci/05_deploy_compose.sh
-      
+
       - name: Deploy webpack
         run: sh ./ci/05_deploy_web.sh

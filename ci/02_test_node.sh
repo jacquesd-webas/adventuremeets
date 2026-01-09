@@ -27,7 +27,7 @@ else
 fi
 
 ENVIRONMENT=${ENVIRONMENT:-development}
-echo "Using ENVIRONMENT=$ENVIRONMENT"
+echo "Using environment: ${ENVIRONMENT}"
 
 for DIR in $NODE_PROJECTS; do
     echo "Testing $DIR..."

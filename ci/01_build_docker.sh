@@ -35,7 +35,10 @@ if [ -z "$DOCKER_IMAGES" ]; then
 fi
 
 ENVIRONMENT=${ENVIRONMENT:-development}
-echo "Using environment: ${ENVIRONMENT}"
+echo "Creating environment: ${ENVIRONMENT}"
+cd $CI_DIR/..
+sh ./env/make-env.sh $ENVIRONMENT $DOCKER_IMAGES
+cd $OLDPWD
 
 # Build with Buildx/Bake so we can use cache across steps/jobs.
 COMPOSE_FILE=${COMPOSE_FILE:-docker-compose.yml}

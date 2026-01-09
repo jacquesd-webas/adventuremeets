@@ -34,18 +34,32 @@ echo "Using environment: ${ENVIRONMENT}"
 
 echo "Publishing web archives..."
 for DIR in $WEB_PROJECTS; do
+    SRC_FILE="${APP_NAME}-${ENVIRONMENT}-${DIR}-latest.tgz"
     echo "Publishing $DIR..."
     if [ $ENVIRONMENT = "production" ]; then
       WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
-    else
+    elif [ $ENVIRONMENT = "testing" ]; then
+      if echo "$VERSION" | grep -Eq '(^[0-9]+\.[0-9]+\.[0-9]+$|beta)'; then
+        WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
+      else
+        echo "Version $VERSION is not a beta release. Skipped web publish for testing environment."
+      fi
+    elif [ $ENVIRONMENT = "development" ]; then
+      if echo "$VERSION" | grep -Eq '(^[0-9]+\.[0-9]+\.[0-9]+$|alpha)'; then
+        WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
+      else
+        echo "Version $VERSION is not an alpha release. Skipped web publish for development environment."
+      fi
+    fi
+    if [ -z "$WAR_FILE" ]; then
       echo "Non-production environment, using latest tag for web archive."
       WAR_FILE="${APP_NAME}-${ENVIRONMENT}-${DIR}-latest.tgz"
     fi
-    if [ ! -f "$ROOT_DIR/dist/${WAR_FILE}" ]; then
-      echo "Web archive $WAR_FILE not found in dist directory."
+    if [ ! -f "$ROOT_DIR/dist/${SRC_FILE}" ]; then
+      echo "Web archive $SRC_FILE not found in dist directory."
       exit 1
     fi
-    echo "Uploading $WAR_FILE to ${WEB_HOST}:${WEB_STAGE_DIR}/${WAR_FILE}"
-    scp $SSH_ARGS "$ROOT_DIR/dist/${WAR_FILE}" ${WEB_USER}@${WEB_HOST}:./${WEB_STAGE_DIR}/${WAR_FILE}
+    echo "Uploading $SRC_FILE --> ${WEB_HOST}:${WEB_STAGE_DIR}/${WAR_FILE}"
+    scp $SSH_ARGS "$ROOT_DIR/dist/${SRC_FILE}" ${WEB_USER}@${WEB_HOST}:./${WEB_STAGE_DIR}/${WAR_FILE}
     echo "Web bundle uploaded."
 done

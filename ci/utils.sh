@@ -74,6 +74,8 @@ get_app_site() {
 get_package_manager() {
   if [ -f "pnpm-lock.yaml" ]; then
     echo "pnpm"
+  elif [ -f "../pnpm-lock.yaml" ]; then
+    echo "pnpm"
   elif [ -f "yarn.lock" ]; then
     echo "yarn"
   elif [ -f "package-lock.json" ]; then
