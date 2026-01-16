@@ -40,9 +40,8 @@ ENV_DIR="$CI_DIR/../env"
 
 echo "Building web archives..."
 for DIR in $WEB_PROJECTS; do
-    echo "Building $DIR..."
+    echo "Building in $DIR/"
     cd $DIR
-    . .env
     NPM=$(get_package_manager)
     $NPM install
     $NPM run build
