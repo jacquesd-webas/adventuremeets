@@ -1,14 +1,20 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfirmCancelMeetDialog } from "../ConfirmCancelMeetDialog";
 
 describe("ConfirmCancelMeetDialog", () => {
   it("renders copy and triggers confirm/close", () => {
     const onConfirm = vi.fn();
     const onClose = vi.fn();
-    render(<ConfirmCancelMeetDialog open onConfirm={onConfirm} onClose={onClose} />);
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ConfirmCancelMeetDialog open onConfirm={onConfirm} onClose={onClose} />
+      </QueryClientProvider>
+    );
 
     expect(screen.getAllByText(/Cancel meet/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Cancelling will prevent participants/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cancelling will notify all confirmed attendees/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByText(/Cancel meet/i)[0]);
     fireEvent.click(screen.getAllByRole("button", { name: /Cancel meet/i })[0]);
