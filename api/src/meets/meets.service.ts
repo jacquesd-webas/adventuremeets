@@ -75,6 +75,11 @@ export class MeetsService {
         "m.*",
         this.db
           .getClient()
+          .raw(
+            "(select url from meet_images where meet_id = m.id and is_primary = true order by created_at desc, id desc limit 1) as primary_image_url"
+          ),
+        this.db
+          .getClient()
           .raw("coalesce(ma.attendee_count, 0) as attendee_count"),
         this.db
           .getClient()
@@ -189,6 +194,14 @@ export class MeetsService {
     if (!meet) {
       throw new NotFoundException("Meet not found");
     }
+    const image = await this.db
+      .getClient()("meet_images")
+      .where({ meet_id: meet.id, is_primary: true })
+      .orderBy([
+        { column: "created_at", order: "desc" },
+        { column: "id", order: "desc" },
+      ])
+      .first();
     const metaDefinitions = await this.db
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meet.id })
@@ -202,7 +215,11 @@ export class MeetsService {
         "position",
         "config"
       );
-    return this.toMeetDto({ ...meet }, metaDefinitions);
+    const meetWithImage = {
+      ...meet,
+      image_url: image?.url ?? meet.image_url ?? undefined,
+    };
+    return this.toMeetDto(meetWithImage, metaDefinitions);
   }
 
   async create(dto: CreateMeetDto) {
@@ -576,7 +593,7 @@ export class MeetsService {
       organizerName: meet.organizer_name ?? undefined,
       organizerFirstName: meet.organizer_first_name || undefined,
       organizerLastName: meet.organizer_last_name || undefined,
-      imageUrl: meet.image_url ?? meet.imageUrl ?? undefined,
+      imageUrl: meet.primary_image_url ?? undefined,
       attendeeCount: Number(meet.attendee_count ?? 0),
       confirmedCount: Number(meet.confirmed_count ?? 0),
       waitlistCount: Number(meet.waitlist_count ?? 0),

@@ -24,5 +24,10 @@ echo "Deploying stack for '$APP_NAME:$VERSION'..."
 ssh $SSH_ARGS $DEPLOY_USER@$WEB_HOST <<EOF
 cd $SITE_NAME
 
+# Load .env so swarm variable substitution picks up secrets/vars
+set -a
+. ./.env
+set +a
+
 VERSION=${VERSION} docker stack deploy -c stack-deploy.yml ${APP_NAME}
 EOF

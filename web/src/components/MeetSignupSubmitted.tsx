@@ -1,4 +1,11 @@
-import { Box, Button, Container, Paper, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Container,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 
 export function MeetSignupSubmitted() {
@@ -14,7 +21,7 @@ export function MeetSignupSubmitted() {
               bgcolor: "#16a34a",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center"
+              justifyContent: "center",
             }}
           >
             <CheckCircleIcon sx={{ color: "#ffffff", fontSize: 64 }} />
@@ -27,9 +34,8 @@ export function MeetSignupSubmitted() {
             organizer when meet attendance has been finalized.
           </Typography>
           <Typography color="text.secondary">
-            Should you wish to make changes or withdraw your application, please
-            use the link e-mailed to you, or create a profile to manage your
-            meets.
+            If you wish you can create a profile to make future meet signups
+            faster.
           </Typography>
           <Button variant="contained" href="/profile/create">
             Create Profile
