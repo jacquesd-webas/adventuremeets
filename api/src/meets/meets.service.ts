@@ -593,7 +593,7 @@ export class MeetsService {
       organizerName: meet.organizer_name ?? undefined,
       organizerFirstName: meet.organizer_first_name || undefined,
       organizerLastName: meet.organizer_last_name || undefined,
-      imageUrl: meet.primary_image_url ?? undefined,
+      imageUrl: meet.primary_image_url ?? meet.image_url ?? undefined,
       attendeeCount: Number(meet.attendee_count ?? 0),
       confirmedCount: Number(meet.confirmed_count ?? 0),
       waitlistCount: Number(meet.waitlist_count ?? 0),
