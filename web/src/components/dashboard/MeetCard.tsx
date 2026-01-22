@@ -14,10 +14,10 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import formatRange from "../../helpers/formatRange";
-import Meet from "../../models/MeetModel";
+import Meet from "../../types/MeetModel";
 import { MeetActionsMenu } from "../MeetActionsMenu";
 import { PendingAction } from "../MeetActionsDialogs";
-import MeetStatusEnum from "../../models/MeetStatusEnum";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../MeetStatus";
 
 type MeetCardProps = {

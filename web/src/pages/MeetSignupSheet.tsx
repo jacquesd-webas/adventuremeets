@@ -13,13 +13,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import PlaceIcon from "@mui/icons-material/Place";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
-import AttachMoneyOutlinedIcon from "@mui/icons-material/AttachMoneyOutlined";
 import { useParams, useSearchParams } from "react-router-dom";
-import LinkIcon from "@mui/icons-material/Link";
 import { useEffect, useState } from "react";
 import { MeetNotFound } from "../components/MeetNotFound";
 import { MeetStatus } from "../constants/meetStatus";
@@ -37,6 +31,10 @@ import {
   getDefaultPhoneCountry,
 } from "../components/InternationalPhoneField";
 import { EmailField } from "../components/EmailField";
+import { MeetInfoSummary } from "../components/MeetInfoSummary";
+import { NameField } from "../components/NameField";
+import { PreviewBanner } from "../components/PreviewBanner";
+import { formatFriendlyTimestamp } from "../helpers/formatFriendlyTimestamp";
 
 function LabeledField({
   label,
@@ -77,11 +75,20 @@ type MeetSignupFormProps = {
   setPhoneLocal: (value: string) => void;
 };
 
-function MeetStatusAlert({ statusId }: { statusId?: number }) {
+function MeetStatusAlert({
+  statusId,
+  openingDate,
+}: {
+  statusId?: number;
+  openingDate?: string;
+}) {
   let text = "";
   let severity: "info" | "warning" | "error" = "info";
   if (statusId === MeetStatus.Published) {
-    text = "This meet is not yet open for bookings.";
+    const openLabel = openingDate ? formatFriendlyTimestamp(openingDate) : "";
+    text = openLabel
+      ? `This meet is not yet open for bookings. Booking opens ${openLabel}.`
+      : "This meet is not yet open for bookings.";
     severity = "warning";
   } else if (statusId === MeetStatus.Closed) {
     text = "This meet is closed and no longer accepting bookings.";
@@ -141,19 +148,10 @@ function MeetSignupFormFields({
   return (
     <Stack spacing={2} mt={2}>
       <LabeledField label="Name" required>
-        <TextField
-          placeholder="Your name"
+        <NameField
+          required
           value={fullName}
-          onChange={(e) => setField("fullName", e.target.value)}
-          fullWidth
-          InputProps={{
-            startAdornment: (
-              <PersonOutlineIcon
-                fontSize="small"
-                sx={{ mr: 1, color: "text.disabled" }}
-              />
-            ),
-          }}
+          onChange={(value) => setField("fullName", value)}
         />
       </LabeledField>
       <LabeledField label="Email" required>
@@ -369,44 +367,11 @@ function MeetSignupSheet() {
     };
   }, []);
 
-  const startDate = meet?.start ? new Date(meet.start) : null;
-  const endDate = meet?.end ? new Date(meet.end) : null;
-
-  const dateLabel =
-    startDate &&
-    new Intl.DateTimeFormat("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    }).format(startDate);
-
-  const startTimeLabel =
-    startDate &&
-    startDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-
-  const durationLabel =
-    startDate && endDate
-      ? (() => {
-          const diffMs = endDate.getTime() - startDate.getTime();
-          const totalMinutes = Math.max(0, Math.round(diffMs / 60000));
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
-          return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
-        })()
-      : null;
-
-  const imageUrl = meet?.imageUrl || null;
-  const hasImage = Boolean(imageUrl);
   const isOpenMeet = meet?.statusId === MeetStatus.Open;
   const shareLink =
     typeof window !== "undefined"
       ? `${window.location.origin}/meets/${code}`
       : "";
-  const costLabel =
-    typeof meet?.costCents === "number"
-      ? `${meet?.currencySymbol || ""}${(meet.costCents / 100).toFixed(2)}`
-      : null;
 
   if (!isLoading && !meet) {
     return <MeetNotFound />;
@@ -554,30 +519,7 @@ function MeetSignupSheet() {
 
   return (
     <Box sx={{ height: "100vh", position: "relative" }}>
-      {isPreview ? (
-        <Box
-          sx={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 2,
-            bgcolor: "warning.light",
-            px: 2,
-            py: 1.5,
-            boxShadow: 1,
-          }}
-        >
-          <Typography
-            variant="body2"
-            align="center"
-            color="text.primary"
-            fontWeight={600}
-          >
-            PREVIEW ONLY - No changes will be saved on this form
-          </Typography>
-        </Box>
-      ) : null}
+      {isPreview ? <PreviewBanner /> : null}
       <Container
         maxWidth={isMobile ? false : "md"}
         disableGutters={isMobile}
@@ -603,163 +545,25 @@ function MeetSignupSheet() {
             <Typography color="text.secondary">Loading meet...</Typography>
           ) : (
             <Stack spacing={1.5}>
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                justifyContent="space-between"
-              >
-                <Typography variant="h4" fontWeight={700}>
-                  {meet.name}
-                </Typography>
-                {isPreview ? (
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<LinkIcon fontSize="small" />}
-                    aria-label="Copy share link"
-                    onClick={async () => {
-                      if (!shareLink) return;
-                      try {
-                        await navigator.clipboard.writeText(shareLink);
-                      } catch (err) {
-                        console.error("Failed to copy share link", err);
-                      }
-                    }}
-                  >
-                    Copy link
-                  </Button>
-                ) : (
-                  <Button variant="outlined" size="small" href="/login">
-                    Login
-                  </Button>
-                )}
-              </Stack>
-              {dateLabel && (
-                <Typography variant="subtitle1" color="text.secondary">
-                  {dateLabel}
-                </Typography>
+              <MeetInfoSummary
+                meet={meet}
+                isPreview={isPreview}
+                shareLink={shareLink}
+                onCopyLink={async () => {
+                  if (!shareLink) return;
+                  try {
+                    await navigator.clipboard.writeText(shareLink);
+                  } catch (err) {
+                    console.error("Failed to copy share link", err);
+                  }
+                }}
+              />
+              {!isPreview && (
+                <MeetStatusAlert
+                  statusId={meet.statusId}
+                  openingDate={meet.openingDate}
+                />
               )}
-              {hasImage ? (
-                <>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={2}
-                    alignItems="flex-start"
-                    mt={1}
-                  >
-                    <Box
-                      component="img"
-                      src={imageUrl}
-                      alt="Meet preview"
-                      sx={{
-                        width: 180,
-                        height: 130,
-                        borderRadius: 2,
-                        objectFit: "cover",
-                      }}
-                    />
-                    <Stack spacing={1}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <PersonOutlineIcon fontSize="small" color="disabled" />
-                        <Typography variant="body2">
-                          {meet.organizerName}
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <AccessTimeIcon fontSize="small" color="disabled" />
-                        <Typography variant="body2">
-                          {startTimeLabel} ({durationLabel || "Duration TBD"})
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <PlaceIcon fontSize="small" color="disabled" />
-                        <Typography variant="body2">{meet.location}</Typography>
-                      </Stack>
-                      {typeof meet.capacity === "number" && (
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <GroupOutlinedIcon
-                            fontSize="small"
-                            color="disabled"
-                          />
-                          <Typography variant="body2">
-                            {meet.capacity} spots
-                          </Typography>
-                        </Stack>
-                      )}
-                      {costLabel && (
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <AttachMoneyOutlinedIcon
-                            fontSize="small"
-                            color="disabled"
-                          />
-                          <Typography variant="body2">{costLabel}</Typography>
-                        </Stack>
-                      )}
-                    </Stack>
-                  </Stack>
-                  <Typography
-                    variant="body1"
-                    color="text.secondary"
-                    sx={{ mt: 1, whiteSpace: "pre-line" }}
-                  >
-                    {meet.description}
-                  </Typography>
-                </>
-              ) : (
-                <>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={2}
-                    alignItems="center"
-                    justifyContent="flex-start"
-                    flexWrap="wrap"
-                    mt={1}
-                  >
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <PersonOutlineIcon fontSize="small" color="disabled" />
-                      <Typography variant="body2">
-                        {meet.organizerName}
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <AccessTimeIcon fontSize="small" color="disabled" />
-                      <Typography variant="body2">
-                        {startTimeLabel} ({durationLabel || "Duration TBD"})
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <PlaceIcon fontSize="small" color="disabled" />
-                      <Typography variant="body2">{meet.location}</Typography>
-                    </Stack>
-                    {typeof meet.capacity === "number" && (
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <GroupOutlinedIcon fontSize="small" color="disabled" />
-                        <Typography variant="body2">
-                          {meet.capacity} spots
-                        </Typography>
-                      </Stack>
-                    )}
-                    {costLabel && (
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <AttachMoneyOutlinedIcon
-                          fontSize="small"
-                          color="disabled"
-                        />
-                        <Typography variant="body2">{costLabel}</Typography>
-                      </Stack>
-                    )}
-                  </Stack>
-                  <Typography
-                    variant="body1"
-                    color="text.secondary"
-                    sx={{ whiteSpace: "pre-line" }}
-                  >
-                    {meet.description}
-                  </Typography>
-                </>
-              )}
-              {!isPreview && <MeetStatusAlert statusId={meet.statusId} />}
               {(isOpenMeet || isPreview) && (
                 <MeetSignupFormFields
                   meet={meet}

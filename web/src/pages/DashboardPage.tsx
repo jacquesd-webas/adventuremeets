@@ -1,10 +1,17 @@
 import { useMemo, useState } from "react";
-import { Box, Button, Container, Grid, useMediaQuery, useTheme } from "@mui/material";
+import {
+  Box,
+  Button,
+  Container,
+  Grid,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
 import { Heading } from "../components/Heading";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
-import Meet from "../models/MeetModel";
-import MeetStatusEnum from "../models/MeetStatusEnum";
+import Meet from "../types/MeetModel";
+import MeetStatusEnum from "../types/MeetStatusEnum";
 import {
   MeetActionsDialogs,
   PendingAction,

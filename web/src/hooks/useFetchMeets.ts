@@ -1,6 +1,6 @@
 import { useApi } from "./useApi";
 import { useQuery } from "@tanstack/react-query";
-import Meet from "../models/MeetModel";
+import Meet from "../types/MeetModel";
 
 type MeetsResponse = { meets: Meet[] } | Meet[];
 

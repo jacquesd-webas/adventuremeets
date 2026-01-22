@@ -294,6 +294,18 @@ export class MeetsService {
     return { statuses };
   }
 
+  async findAttendeeStatus(idOrCode: string, attendeeId: string) {
+    const meet = await this.findOne(idOrCode);
+    const attendee = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meet.id, id: attendeeId })
+      .first();
+    if (!attendee) {
+      throw new NotFoundException("Attendee not found");
+    }
+    return { meet, attendee: this.toAttendeeDto(attendee) };
+  }
+
   async listAttendees(meetId: string, filter?: string) {
     const attendeesQuery = this.db
       .getClient()("meet_attendees")
@@ -326,7 +338,7 @@ export class MeetsService {
       return acc;
     }, {});
     const attendeesWithValues = attendees.map((attendee) => ({
-      ...attendee,
+      ...this.toAttendeeDto(attendee),
       metaValues: metaDefinitions.map((definition) => ({
         definitionId: definition.id,
         label: definition.label,
@@ -358,7 +370,7 @@ export class MeetsService {
       query.andWhere({ phone });
     }
     const attendee = await query.first();
-    return { attendee: attendee || null };
+    return { attendee: attendee ? this.toAttendeeDto(attendee) : null };
   }
 
   async addAttendee(meetId: string, dto: CreateMeetAttendeeDto) {
@@ -396,7 +408,7 @@ export class MeetsService {
       }
       return attendee;
     });
-    return { attendee: created };
+    return { attendee: this.toAttendeeDto(created) };
   }
 
   async updateAttendee(
@@ -423,7 +435,7 @@ export class MeetsService {
     if (!updated) {
       throw new NotFoundException("Attendee not found");
     }
-    return { attendee: updated };
+    return { attendee: this.toAttendeeDto(updated) };
   }
 
   async addImage(meetId: string, file: any, dto: CreateMeetImageDto) {
@@ -633,5 +645,25 @@ export class MeetsService {
     if (cleaned.length > 0) {
       await trx("meet_meta_definitions").insert(cleaned);
     }
+  }
+
+  private toAttendeeDto(attendee: Record<string, any>) {
+    return {
+      id: attendee.id,
+      meetId: attendee.meet_id ?? undefined,
+      userId: attendee.user_id ?? undefined,
+      status: attendee.status ?? undefined,
+      sequence: attendee.sequence ?? undefined,
+      respondedAt: attendee.responded_at ?? undefined,
+      notifiedAt: attendee.notified_at ?? undefined,
+      name: attendee.name ?? undefined,
+      phone: attendee.phone ?? undefined,
+      email: attendee.email ?? undefined,
+      guests: attendee.guests ?? undefined,
+      indemnityAccepted: attendee.indemnity_accepted ?? undefined,
+      indemnityMinors: attendee.indemnity_minors ?? undefined,
+      createdAt: attendee.created_at ?? undefined,
+      updatedAt: attendee.updated_at ?? undefined,
+    };
   }
 }

@@ -2,7 +2,6 @@ import {
   Avatar,
   Box,
   Button,
-  ButtonGroup,
   Chip,
   Dialog,
   DialogActions,
@@ -25,13 +24,14 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
-import MeetModel from "../../models/MeetModel";
+import Meet from "../../types/MeetModel";
+import { AttendeeActionButtons } from "./AttendeeActionButtons";
 
 type ManageAttendeesModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
-  meet?: MeetModel | null;
+  meet?: Meet | null;
 };
 
 export function ManageAttendeesModal({
@@ -56,6 +56,7 @@ export function ManageAttendeesModal({
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [meetName, setMeetName] = useState<string | null>(null);
+  const [meetDetails, setMeetDetails] = useState<Meet | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageAttendeeIds, setMessageAttendeeIds] = useState<
     string[] | undefined
@@ -90,6 +91,7 @@ export function ManageAttendeesModal({
           : null;
       setMeetStatus(!Number.isNaN(statusNum || NaN) ? statusNum : null);
       setMeetName(meet?.name || null);
+      setMeetDetails(meet);
       return;
     }
 
@@ -108,10 +110,12 @@ export function ManageAttendeesModal({
             : null;
         setMeetStatus(!Number.isNaN(statusNum || NaN) ? statusNum : null);
         setMeetName(m?.name || null);
+        setMeetDetails(m || null);
       })
       .catch(() => {
         if (!isActive) return;
         setMeetStatus(null);
+        setMeetDetails(null);
       });
     return () => {
       isActive = false;
@@ -297,37 +301,10 @@ export function ManageAttendeesModal({
                       {attendeeLabel(selectedAttendee)}
                     </Typography>
                     <Stack direction="row" spacing={1}>
-                      <ButtonGroup
-                        variant="outlined"
-                        size="small"
-                        disabled={!selectedAttendee || isUpdating}
-                        aria-label="Update attendee status"
-                      >
-                        {selectedAttendee.status !== "confirmed" ? (
-                          <Button
-                            color="success"
-                            onClick={() => handleUpdateStatus("confirmed")}
-                          >
-                            Accept
-                          </Button>
-                        ) : null}
-                        {selectedAttendee.status !== "rejected" ? (
-                          <Button
-                            color="error"
-                            onClick={() => handleUpdateStatus("rejected")}
-                          >
-                            Reject
-                          </Button>
-                        ) : null}
-                        {selectedAttendee.status !== "waitlisted" ? (
-                          <Button
-                            color="warning"
-                            onClick={() => handleUpdateStatus("waitlisted")}
-                          >
-                            Waitlist
-                          </Button>
-                        ) : null}
-                      </ButtonGroup>
+                      <AttendeeActionButtons
+                        attendee={selectedAttendee}
+                        onUpdateStatus={handleUpdateStatus}
+                      />
                     </Stack>
                   </Stack>
                   <Stack
@@ -361,17 +338,17 @@ export function ManageAttendeesModal({
                     Indemnity
                   </Typography>
                   <Typography variant="body2">
-                    {selectedAttendee.indemnity_accepted
+                    {selectedAttendee.indemnityAccepted
                       ? "Accepted"
                       : "Not accepted"}
                   </Typography>
-                  {selectedAttendee.indemnity_minors ? (
+                  {selectedAttendee.indemnityMinors ? (
                     <Typography
                       variant="body2"
                       color="text.secondary"
                       sx={{ mt: 1 }}
                     >
-                      Minors: {selectedAttendee.indemnity_minors}
+                      Minors: {selectedAttendee.indemnityMinors}
                     </Typography>
                   ) : null}
                 </Box>
@@ -443,6 +420,7 @@ export function ManageAttendeesModal({
           open={messageOpen}
           onClose={() => setMessageOpen(false)}
           meetId={meetId}
+          meet={meetDetails}
           attendeeIds={messageAttendeeIds}
           attendees={attendees}
         />
@@ -450,8 +428,8 @@ export function ManageAttendeesModal({
       <ConfirmClosedStatusDialog
         open={confirmDialog}
         status={pendingStatus}
-        meet={{ id: meetId, name: meetName }}
-        attendeeId={selectedAttendeeId}
+        meet={meetDetails || { id: meetId, name: meetName }}
+        attendee={attendees.find((a) => a.id === selectedAttendeeId)!}
         onClose={() => {
           setConfirmDialog(false);
           setPendingStatus(null);

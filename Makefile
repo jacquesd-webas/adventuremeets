@@ -10,7 +10,7 @@ up:
 	$(COMPOSE) up -d db minio
 
 migrate:
-	$(COMPOSE) run --rm db_migrate
+	$(COMPOSE) run --build --rm db_migrate
 
 env:
 	./env/make-env.sh development

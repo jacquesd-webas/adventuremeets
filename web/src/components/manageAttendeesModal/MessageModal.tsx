@@ -6,17 +6,22 @@ import {
   Stack,
   TextField,
   Button,
+  Box,
+  Typography,
   FormControlLabel,
   Switch,
 } from "@mui/material";
-import { useState } from "react";
-import { useApi } from "../../hooks/useApi";
+import { useEffect, useMemo, useState } from "react";
 import { useSnackbar } from "notistack";
+import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
+import { useDefaultMessage } from "../../hooks/useDefaultMessage";
+import Meet from "../../types/MeetModel";
 
 type MessageModalProps = {
   open: boolean;
   onClose: () => void;
   meetId: string;
+  meet?: Meet | null;
   attendeeIds?: string[];
   attendees?: { id: string; status?: string }[];
   defaultSubject?: string;
@@ -26,23 +31,100 @@ export function MessageModal({
   open,
   onClose,
   meetId,
+  meet,
   attendeeIds,
   attendees,
   defaultSubject = "",
 }: MessageModalProps) {
-  const api = useApi();
   const { enqueueSnackbar } = useSnackbar();
+  const { notifyAttendeeAsync, isLoading } = useNotifyAttendee();
   const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState("");
-  const [isSending, setIsSending] = useState(false);
+  const [autoResponse, setAutoResponse] = useState(false);
+  const [manualSubject, setManualSubject] = useState(defaultSubject);
+  const [manualBody, setManualBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [includeConfirmed, setIncludeConfirmed] = useState(true);
   const [includeWaitlisted, setIncludeWaitlisted] = useState(false);
   const [includeRejected, setIncludeRejected] = useState(false);
 
+  const attendeeStatus =
+    attendeeIds && attendeeIds.length === 1
+      ? attendees?.find((att) => att.id === attendeeIds[0])?.status
+      : undefined;
+  const defaultMessageOptions = useMemo(
+    () => ({
+      meetName: meet?.name,
+      confirmMessage: meet?.confirmMessage,
+      waitlistMessage: meet?.waitlistMessage,
+      rejectMessage: meet?.rejectMessage,
+    }),
+    [meet?.name, meet?.confirmMessage, meet?.waitlistMessage, meet?.rejectMessage]
+  );
+  const singleAttendeeDefault = useDefaultMessage(
+    attendeeStatus,
+    defaultMessageOptions
+  );
+  const confirmedDefault = useDefaultMessage(
+    "confirmed",
+    defaultMessageOptions
+  );
+  const waitlistedDefault = useDefaultMessage(
+    "waitlisted",
+    defaultMessageOptions
+  );
+  const rejectedDefault = useDefaultMessage("rejected", defaultMessageOptions);
+  const { subject: defaultAutoSubject, content: defaultAutoContent } = useMemo(() => {
+    if (attendeeIds && attendeeIds.length === 1) {
+      return singleAttendeeDefault;
+    }
+
+    const selectedDefaults = [];
+    if (includeConfirmed) selectedDefaults.push({ label: "Confirmed", ...confirmedDefault });
+    if (includeWaitlisted) selectedDefaults.push({ label: "Waitlisted", ...waitlistedDefault });
+    if (includeRejected) selectedDefaults.push({ label: "Rejected", ...rejectedDefault });
+
+    if (selectedDefaults.length === 1) {
+      return {
+        subject: selectedDefaults[0].subject,
+        content: selectedDefaults[0].content,
+      };
+    }
+
+    if (selectedDefaults.length > 1) {
+      return {
+        subject: "Meet attendance update",
+        content: selectedDefaults
+          .map((item) => `${item.label} attendees:\n${item.content}`)
+          .join("\n\n"),
+      };
+    }
+
+    return { subject: "", content: "" };
+  }, [
+    attendeeIds,
+    includeConfirmed,
+    includeRejected,
+    includeWaitlisted,
+    singleAttendeeDefault,
+    confirmedDefault,
+    waitlistedDefault,
+    rejectedDefault,
+  ]);
+
+  useEffect(() => {
+    if (autoResponse) {
+      setSubject(defaultAutoSubject);
+      setBody(defaultAutoContent);
+    }
+  }, [autoResponse, defaultAutoSubject, defaultAutoContent]);
+
   const reset = () => {
     setSubject(defaultSubject);
     setBody("");
+    setAutoResponse(false);
+    setManualSubject(defaultSubject);
+    setManualBody("");
     setError(null);
     setIncludeConfirmed(true);
     setIncludeWaitlisted(false);
@@ -60,7 +142,11 @@ export function MessageModal({
         : (attendees || [])
             .filter((att) => {
               const status = (att.status || "").toLowerCase();
-              if (includeConfirmed && ["confirmed", "checked-in", "attended"].includes(status)) return true;
+              if (
+                includeConfirmed &&
+                ["confirmed", "checked-in", "attended"].includes(status)
+              )
+                return true;
               if (includeWaitlisted && status === "waitlisted") return true;
               if (includeRejected && status === "canceled") return true;
               return false;
@@ -70,17 +156,22 @@ export function MessageModal({
       setError("Select at least one recipient group");
       return;
     }
-    if ((!attendeeIds || attendeeIds.length === 0) && !includeConfirmed && !includeWaitlisted && !includeRejected) {
+    if (
+      (!attendeeIds || attendeeIds.length === 0) &&
+      !includeConfirmed &&
+      !includeWaitlisted &&
+      !includeRejected
+    ) {
       setError("Select at least one recipient group");
       return;
     }
-    setIsSending(true);
     setError(null);
     try {
-      await api.post(`/meets/${meetId}/message`, {
+      await notifyAttendeeAsync({
+        meetId,
         subject: subject.trim(),
         text: body,
-        attendee_ids: ids.length ? ids : undefined,
+        attendeeIds: ids.length ? ids : undefined,
       });
       enqueueSnackbar("Message sent", {
         variant: "success",
@@ -90,8 +181,6 @@ export function MessageModal({
       reset();
     } catch (err: any) {
       setError(err?.message || "Failed to send message");
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -105,19 +194,58 @@ export function MessageModal({
               {error}
             </span>
           )}
-          <TextField
-            label="Subject"
-            fullWidth
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-          />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <TextField
+              label="Subject"
+              fullWidth
+              size="small"
+              value={subject}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSubject(value);
+                if (!autoResponse) {
+                  setManualSubject(value);
+                }
+              }}
+              disabled={autoResponse}
+            />
+            <FormControlLabel
+              label={<Typography variant="body2">Auto</Typography>}
+              control={
+                <Switch
+                  checked={autoResponse}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setAutoResponse(checked);
+                    if (checked) {
+                      setManualSubject(subject);
+                      setManualBody(body);
+                      setSubject(defaultAutoSubject);
+                      setBody(defaultAutoContent);
+                    } else {
+                      setSubject(manualSubject);
+                      setBody(manualBody);
+                    }
+                  }}
+                />
+              }
+              sx={{ m: 0, whiteSpace: "nowrap" }}
+            />
+          </Box>
           <TextField
             label="Message"
             fullWidth
             multiline
             minRows={4}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setBody(value);
+              if (!autoResponse) {
+                setManualBody(value);
+              }
+            }}
+            disabled={autoResponse}
           />
           {!attendeeIds && (
             <Stack direction="column" spacing={1}>
@@ -154,8 +282,18 @@ export function MessageModal({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSend} disabled={isSending}>
-          {isSending ? "Sending..." : "Send"}
+        <Button
+          variant="contained"
+          onClick={handleSend}
+          disabled={
+            isLoading ||
+            (!attendeeIds &&
+              !includeConfirmed &&
+              !includeWaitlisted &&
+              !includeRejected)
+          }
+        >
+          {isLoading ? "Sending..." : "Send"}
         </Button>
       </DialogActions>
     </Dialog>

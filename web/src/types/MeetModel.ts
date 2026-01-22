@@ -1,4 +1,4 @@
-export type MeetModel = {
+export type Meet = {
   id: string;
   name: string;
   description?: string;
@@ -27,4 +27,4 @@ export type MeetModel = {
   confirmedCount?: number;
 };
 
-export default MeetModel;
+export default Meet;

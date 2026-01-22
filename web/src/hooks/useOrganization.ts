@@ -1,10 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
-
-export type Organization = {
-  id: string;
-  name: string;
-};
+import { Organization } from "../types/OrganizationModel";
 
 export function useOrganization(orgId?: string) {
   const api = useApi();
@@ -13,8 +9,26 @@ export function useOrganization(orgId?: string) {
     queryKey: ["organization", orgId],
     enabled: Boolean(orgId),
     queryFn: async () => {
-      const res = await api.get<{ organization: Organization }>(`/organizations/${orgId}`);
-      return res.organization;
+      const res = await api.get<{ organization: any }>(`/organizations/${orgId}`);
+      const org = res.organization;
+      return {
+        id: org.id,
+        name: org.name,
+        createdAt: org.createdAt ?? org.created_at,
+        updatedAt: org.updatedAt ?? org.updated_at,
+        userCount:
+          typeof org.userCount === "number"
+            ? org.userCount
+            : org.user_count != null
+            ? Number(org.user_count)
+            : undefined,
+        templateCount:
+          typeof org.templateCount === "number"
+            ? org.templateCount
+            : org.template_count != null
+            ? Number(org.template_count)
+            : undefined,
+      } as Organization;
     }
   });
 

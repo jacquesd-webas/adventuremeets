@@ -108,6 +108,15 @@ export class MeetsController {
     return meet;
   }
 
+  @Public()
+  @Get(":code/:attendeeId([0-9a-fA-F-]{36})")
+  findAttendeeStatus(
+    @Param("code") code: string,
+    @Param("attendeeId") attendeeId: string
+  ) {
+    return this.meetsService.findAttendeeStatus(code, attendeeId);
+  }
+
   @Post()
   create(@Body() dto: CreateMeetDto, @User() user?: UserProfile) {
     if (!user) {
@@ -234,16 +243,22 @@ export class MeetsController {
     }
     const db = this.db.getClient();
     const ids = Array.isArray(body.attendee_ids) ? body.attendee_ids : [];
-    const recipients =
+    const recipientRows =
       ids.length > 0
         ? await db("meet_attendees")
             .where({ meet_id: id })
             .whereIn("id", ids)
-            .pluck("email")
+            .select("id", "email")
         : await db("meet_attendees")
             .where({ meet_id: id })
             .whereIn("status", ["confirmed", "checked-in", "attended"])
-            .pluck("email");
+            .select("id", "email");
+    const recipients = recipientRows
+      .map((row) => row.email)
+      .filter((email): email is string => Boolean(email));
+    const recipientIds = recipientRows
+      .filter((row) => row.email)
+      .map((row) => row.id);
     if (!recipients || recipients.length === 0) {
       throw new NotFoundException("No recipients found");
     }
@@ -261,6 +276,13 @@ export class MeetsController {
         })
       )
     );
+    if (recipientIds.length > 0) {
+      await db("meet_attendees")
+        .where({ meet_id: id })
+        .whereIn("id", recipientIds)
+        .whereNull("responded_at")
+        .update({ responded_at: new Date().toISOString() });
+    }
     return { status: "sent", count: recipients.length };
   }
 }

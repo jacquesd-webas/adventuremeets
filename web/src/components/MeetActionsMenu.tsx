@@ -21,7 +21,7 @@ import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import { PendingAction } from "./MeetActionsDialogs";
-import MeetStatusEnum from "../models/MeetStatusEnum";
+import MeetStatusEnum from "../types/MeetStatusEnum";
 import { useNavigate } from "react-router-dom";
 
 type MeetActionsMenuProps = {
@@ -187,7 +187,13 @@ export function MeetActionsMenu({
       )}
       {shouldShow("checkin", statusId) && (
         <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "checkin")}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (meetId) {
+              nav(`/meet/${meetId}/checkin`);
+            }
+            handleClose();
+          }}
         >
           <ListItemIcon>
             <FactCheckOutlinedIcon fontSize="small" />

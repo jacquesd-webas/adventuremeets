@@ -14,11 +14,12 @@ import type { ReactNode } from "react";
 type ConfirmActionDialogProps = {
   open: boolean;
   title: string;
-  description: string;
+  description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm: () => void;
   onClose: () => void;
+  isSubmitting?: boolean;
   isLoading?: boolean;
   children?: ReactNode;
 };
@@ -43,9 +44,11 @@ export function ConfirmActionDialog({
     <>
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
-        <Typography variant="body2" color="text.secondary">
-          {description}
-        </Typography>
+        {description && (
+          <Typography variant="body2" color="text.secondary">
+            {description}
+          </Typography>
+        )}
         {children}
       </DialogContent>
       <DialogActions>
@@ -64,11 +67,22 @@ export function ConfirmActionDialog({
   );
 
   return fullScreen ? (
-    <Drawer anchor="bottom" open={open} onClose={onClose} sx={{ zIndex: dialogZIndex }}>
+    <Drawer
+      anchor="bottom"
+      open={open}
+      onClose={onClose}
+      sx={{ zIndex: dialogZIndex }}
+    >
       {content}
     </Drawer>
   ) : (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" sx={{ zIndex: dialogZIndex }}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="xs"
+      sx={{ zIndex: dialogZIndex }}
+    >
       {content}
     </Dialog>
   );

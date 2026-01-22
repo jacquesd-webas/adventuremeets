@@ -114,6 +114,18 @@ export class UsersService {
     return rows.map((row) => row.organization_id);
   }
 
+  async findOrganizationRoles(userId: string) {
+    const rows = await this.database
+      .getClient()("user_organization_memberships")
+      .where({ user_id: userId, status: "active" })
+      .orderBy("created_at", "asc")
+      .select("organization_id", "role");
+    return rows.map((row) => ({
+      organizationId: row.organization_id,
+      role: row.role,
+    }));
+  }
+
   async update(id: string, dto: UpdateUserDto) {
     const updates: any = { updated_at: new Date().toISOString() };
 

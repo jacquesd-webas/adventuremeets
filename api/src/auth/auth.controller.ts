@@ -95,6 +95,15 @@ export class AuthController {
     const organizationIds = await this.usersService.findOrganizationIds(
       user.id
     );
-    return { ...(rest as UserProfile), organizationIds } as UserProfile;
+    const orgRoles = await this.usersService.findOrganizationRoles(user.id);
+    const roles = organizationIds.map((orgId) => {
+      const role = orgRoles.find((row) => row.organizationId === orgId)?.role;
+      return role || "member";
+    });
+    return {
+      ...(rest as UserProfile),
+      organizationIds,
+      roles,
+    } as UserProfile;
   }
 }

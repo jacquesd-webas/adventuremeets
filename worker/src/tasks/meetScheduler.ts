@@ -19,18 +19,27 @@ function createDb(): Knex {
       user: process.env.DB_USER || "postgres",
       password: process.env.DB_PASSWORD || "postgres",
       database: process.env.DB_NAME || "adventuremeets",
-      ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
+      ssl:
+        process.env.DB_SSL === "true"
+          ? { rejectUnauthorized: false }
+          : undefined,
     },
     pool: { min: 1, max: 5 },
   });
 }
 
-const apiBase = (process.env.API_BASE_URL || process.env.API_BASEURL || "").replace(/\/$/, "");
+const apiBase = (
+  process.env.API_BASE_URL ||
+  process.env.API_BASEURL ||
+  ""
+).replace(/\/$/, "");
 const workerApiKey = process.env.WORKER_API_KEY || "";
 
 async function updateStatusViaApi(ids: string[], statusId: number) {
   if (!apiBase || !workerApiKey) {
-    console.error("API_BASE_URL or WORKER_API_KEY is not set; skipping status updates");
+    console.error(
+      "API_BASE_URL or WORKER_API_KEY is not set; skipping status updates"
+    );
     return 0;
   }
   let updated = 0;
@@ -46,7 +55,9 @@ async function updateStatusViaApi(ids: string[], statusId: number) {
       });
       if (!res.ok) {
         const text = await res.text();
-        console.error(`Failed to update meet ${id} status: ${res.status} ${text}`);
+        console.error(
+          `Failed to update meet ${id} status: ${res.status} ${text}`
+        );
       } else {
         updated += 1;
       }
@@ -66,7 +77,7 @@ async function openScheduledMeets(db: Knex) {
   return updateStatusViaApi(ids, STATUS.Open);
 }
 
-async function closeScheduledMeets(db: Knex) {
+async function closeOpenMeets(db: Knex) {
   const ids = await db("meets")
     .where({ status_id: STATUS.Open })
     .whereNotNull("closing_date")
@@ -86,7 +97,7 @@ async function closeWhenWaitlistFull(db: Knex) {
   const ids = await db("meets as m")
     .leftJoin(waitlistSubquery, "m.id", "wl.meet_id")
     .where("m.status_id", STATUS.Open)
-    .whereNotNull("m.waitlist_size")
+    .where("m.waitlist_size", ">", 0)
     .whereRaw("coalesce(wl.waitlisted, 0) >= m.waitlist_size")
     .pluck<string>("m.id");
   return updateStatusViaApi(ids, STATUS.Closed);
@@ -105,7 +116,7 @@ export async function runMeetScheduler() {
   const db = createDb();
   try {
     const opened = await openScheduledMeets(db);
-    const closed = await closeScheduledMeets(db);
+    const closed = await closeOpenMeets(db);
     const waitlistClosed = await closeWhenWaitlistFull(db);
     const archived = await archiveEndedMeets(db);
 
@@ -119,8 +130,8 @@ export async function runMeetScheduler() {
           timestamp: new Date().toISOString(),
         },
         null,
-        2,
-      ),
+        2
+      )
     );
   } finally {
     await db.destroy();

@@ -17,10 +17,11 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useState, ChangeEvent } from "react";
-import { useMe } from "../hooks/useMe";
+import { useMe } from "../hooks/useFetchMe";
 import { useUpdateUser } from "../hooks/useUpdateUser";
 import { useOrganization } from "../hooks/useOrganization";
 import { useUpdateOrganization } from "../hooks/useUpdateOrganization";
+import { useAuth } from "../context/AuthContext";
 
 type ProfileModalProps = {
   open: boolean;
@@ -28,7 +29,7 @@ type ProfileModalProps = {
 };
 
 export function ProfileModal({ open, onClose }: ProfileModalProps) {
-  const { user } = useMe();
+  const { user } = useAuth();
   const {
     updateUserAsync,
     isLoading: isUserSaving,
@@ -354,8 +355,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   </Avatar>
                   <Box>
                     <Typography variant="body2" color="text.secondary">
-                      Upload an image to use as your avatar. (Save functionality
-                      will be wired once backend is ready.)
+                      Upload an image to use as your avatar. (Coming soon!)
                     </Typography>
                     <Button variant="outlined" component="label">
                       Choose file
