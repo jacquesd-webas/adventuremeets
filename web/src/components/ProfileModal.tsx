@@ -17,9 +17,8 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useState, ChangeEvent } from "react";
-import { useMe } from "../hooks/useFetchMe";
 import { useUpdateUser } from "../hooks/useUpdateUser";
-import { useOrganization } from "../hooks/useOrganization";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useUpdateOrganization } from "../hooks/useUpdateOrganization";
 import { useAuth } from "../context/AuthContext";
 
@@ -35,12 +34,14 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     isLoading: isUserSaving,
     error: userError,
   } = useUpdateUser();
-  const primaryOrgId = user?.organizationIds?.[0];
+  const primaryOrgId = user?.organizations
+    ? Object.keys(user.organizations)[0]
+    : undefined;
   const {
     organization,
     isLoading: orgLoading,
     error: orgError,
-  } = useOrganization(primaryOrgId);
+  } = useFetchOrganization(primaryOrgId);
   const {
     updateOrganizationAsync,
     isLoading: orgSaving,

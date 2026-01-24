@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Box,
-  FormControl,
-  MenuItem,
-  Select,
-  Typography,
-} from "@mui/material";
+import { Box, FormControl, MenuItem, Select, Typography } from "@mui/material";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import { useAuth } from "../../context/AuthContext";
 import { useFetchOrganizationTemplates } from "../../hooks/useFetchOrganizationTemplates";
@@ -23,7 +17,9 @@ export function SelectTemplate({
   onApply,
 }: SelectTemplateProps) {
   const { user } = useAuth();
-  const resolvedOrgId = organizationId || user?.organizationIds?.[0];
+  const resolvedOrgId =
+    organizationId ||
+    (user?.organizations ? Object.keys(user.organizations)[0] : undefined);
   const [selectedId, setSelectedId] = useState("");
 
   const {
@@ -45,7 +41,6 @@ export function SelectTemplate({
     [templates]
   );
 
-  console.log({ templates, template, selectedId, options });
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
       <FormControl size="small" sx={{ minWidth: 220 }}>
@@ -53,10 +48,7 @@ export function SelectTemplate({
           aria-label="Template"
           value={selectedId}
           displayEmpty
-          onChange={(event) => {
-            console.log({ selectedId: event.target.value });
-            setSelectedId(event.target.value);
-          }}
+          onChange={(event) => setSelectedId(event.target.value)}
           disabled={!resolvedOrgId || isLoading}
           MenuProps={{ sx: { zIndex: 1501 } }}
           renderValue={(value) => {

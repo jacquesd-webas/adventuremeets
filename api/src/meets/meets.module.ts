@@ -6,9 +6,10 @@ import { DatabaseModule } from '../database/database.module';
 import { MinioService } from '../storage/minio.service';
 import { IncomingMailController } from './incoming-mail.controller';
 import { EmailModule } from '../email/email.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [DatabaseModule, EmailModule],
+  imports: [DatabaseModule, EmailModule, AuthModule],
   controllers: [MeetsController, MeetAttendeesController, IncomingMailController],
   providers: [MeetsService, MinioService],
   exports: [MeetsService],

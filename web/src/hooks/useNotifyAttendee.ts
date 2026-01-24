@@ -17,7 +17,7 @@ export function useNotifyAttendee() {
     mutationFn: async ({ meetId, attendeeIds, ...payload }) => {
       return api.post(`/meets/${meetId}/message`, {
         ...payload,
-        attendee_ids: attendeeIds?.length ? attendeeIds : undefined,
+        attendeeIds: attendeeIds?.length ? attendeeIds : undefined,
       });
     },
     onError: (err) => {

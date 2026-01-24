@@ -40,6 +40,9 @@ export class MeetDto {
   organizationId?: string;
 
   @ApiPropertyOptional()
+  canViewAllMeets?: boolean;
+
+  @ApiPropertyOptional()
   location?: string;
 
   @ApiPropertyOptional()

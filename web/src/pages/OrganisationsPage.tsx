@@ -18,32 +18,40 @@ import { useMemo, useState } from "react";
 import { useFetchOrganisations } from "../hooks/useFetchOrganisations";
 import { Link as RouterLink } from "react-router-dom";
 import { Organization } from "../types/OrganizationModel";
-import { shortTimestamp } from "../helpers/formatFriendlyTimestamp";
+import { formatFriendlyTimestamp } from "../helpers/formatFriendlyTimestamp";
+import { useAuth } from "../context/AuthContext";
+import { RoleChip } from "../components/RoleChip";
+import { OrganizationActions } from "../components/OrganizationActions";
 
 type Order = "asc" | "desc";
+type OrgRow = Organization & { role?: string };
+type OrderBy = keyof OrgRow | "actions";
 
 const columns: Array<{
-  id: keyof Organization | "id";
+  id: OrderBy;
   label: string;
   sortable: boolean;
+  hidden?: boolean;
+  align?: "left" | "center" | "right";
 }> = [
+  { id: "id", label: "ID", sortable: true, hidden: true },
   { id: "name", label: "Name", sortable: true },
-  { id: "userCount", label: "Users", sortable: true },
-  { id: "templateCount", label: "Templates", sortable: true },
-  { id: "id", label: "ID", sortable: true },
+  { id: "role", label: "", sortable: false, align: "center" },
+  { id: "userCount", label: "Users", sortable: true, align: "right" },
+  { id: "templateCount", label: "Templates", sortable: true, align: "right" },
   { id: "createdAt", label: "Created", sortable: true },
-  { id: "updatedAt", label: "Updated", sortable: true },
+  { id: "actions", label: "Actions", sortable: false, align: "right" },
 ];
 
 const compareValues = (
-  a: Organization,
-  b: Organization,
-  orderBy: keyof Organization
+  a: OrgRow,
+  b: OrgRow,
+  orderBy: OrderBy
 ) => {
   const aVal = a[orderBy];
   const bVal = b[orderBy];
 
-  if (orderBy === "createdAt" || orderBy === "updatedAt") {
+  if (orderBy === "createdAt") {
     const aTime = aVal ? new Date(aVal).getTime() : 0;
     const bTime = bVal ? new Date(bVal).getTime() : 0;
     return aTime - bTime;
@@ -62,9 +70,10 @@ const compareValues = (
 };
 
 function OrganisationsPage() {
+  const { user } = useAuth();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [orderBy, setOrderBy] = useState<keyof Organization>("name");
+  const [orderBy, setOrderBy] = useState<OrderBy>("name");
   const [order, setOrder] = useState<Order>("asc");
 
   const { data, total, isLoading, error } = useFetchOrganisations({
@@ -74,20 +83,28 @@ function OrganisationsPage() {
     sortOrder: order,
   });
 
+  const rows = useMemo<OrgRow[]>(() => {
+    const orgRoles = user?.organizations || {};
+    return data.map((org) => ({
+      ...org,
+      role: orgRoles[org.id] || "member",
+    }));
+  }, [data, user?.organizations]);
+
   const sortedRows = useMemo(() => {
-    if (!orderBy) return data;
-    const items = [...data];
+    if (!orderBy) return rows;
+    const items = [...rows];
     items.sort((a, b) =>
       order === "asc"
         ? compareValues(a, b, orderBy)
         : -compareValues(a, b, orderBy)
     );
     return items;
-  }, [data, order, orderBy]);
+  }, [rows, order, orderBy]);
 
-  const rowCount = total || data.length;
+  const rowCount = total || rows.length;
 
-  const handleSort = (property: keyof Organization) => {
+  const handleSort = (property: OrderBy) => {
     if (orderBy === property) {
       setOrder(order === "asc" ? "desc" : "asc");
       return;
@@ -129,14 +146,16 @@ function OrganisationsPage() {
                 <TableHead>
                   <TableRow>
                     {columns.map((column) => (
-                      <TableCell key={column.id}>
+                      <TableCell
+                        key={column.id}
+                        sx={column.hidden ? { display: "none" } : undefined}
+                        align={column.align}
+                      >
                         {column.sortable ? (
                           <TableSortLabel
                             active={orderBy === column.id}
                             direction={orderBy === column.id ? order : "asc"}
-                            onClick={() =>
-                              handleSort(column.id as keyof Organization)
-                            }
+                            onClick={() => handleSort(column.id)}
                           >
                             {column.label}
                           </TableSortLabel>
@@ -159,31 +178,60 @@ function OrganisationsPage() {
                   ) : (
                     sortedRows.map((row) => (
                       <TableRow key={row.id} hover>
+                        {/*
+                          Actions and links are admin-only; keep the data visible but disable interaction.
+                        */}
+                        <TableCell sx={{ display: "none" }}>{row.id}</TableCell>
                         <TableCell>{row.name}</TableCell>
-                        <TableCell>
+                        <TableCell align="center">
+                          <RoleChip role={row.role} />
+                        </TableCell>
+                        <TableCell align="right">
                           <Link
                             component={RouterLink}
                             to={`/admin/organizations/${row.id}/members`}
                             underline="hover"
+                            aria-disabled={row.role !== "admin"}
+                            sx={
+                              row.role !== "admin"
+                                ? {
+                                    color: "text.disabled",
+                                    pointerEvents: "none",
+                                  }
+                                : undefined
+                            }
                           >
                             {row.userCount ?? 0}
                           </Link>
                         </TableCell>
-                        <TableCell>
+                        <TableCell align="right">
                           <Link
                             component={RouterLink}
                             to={`/admin/organizations/${row.id}/templates`}
                             underline="hover"
+                            aria-disabled={row.role !== "admin"}
+                            sx={
+                              row.role !== "admin"
+                                ? {
+                                    color: "text.disabled",
+                                    pointerEvents: "none",
+                                  }
+                                : undefined
+                            }
                           >
                             {row.templateCount ?? 0}
                           </Link>
                         </TableCell>
-                        <TableCell>{row.id}</TableCell>
                         <TableCell>
-                          {row.createdAt ? shortTimestamp(row.createdAt) : "—"}
+                          {row.createdAt
+                            ? formatFriendlyTimestamp(row.createdAt)
+                            : "—"}
                         </TableCell>
-                        <TableCell>
-                          {row.updatedAt ? shortTimestamp(row.updatedAt) : "—"}
+                        <TableCell align="right">
+                          <OrganizationActions
+                            organizationId={row.id}
+                            disabled={row.role !== "admin"}
+                          />
                         </TableCell>
                       </TableRow>
                     ))

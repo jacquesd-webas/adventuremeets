@@ -5,12 +5,13 @@ import Meet from "../../types/MeetModel";
 import { Attendee } from "../../types/AttendeeModel";
 import { useUpdateAttendeeStatus } from "../../hooks/useUpdateAttendeeStatus";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
+import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 
 type ConfirmClosedStatusDialogProps = {
   open: boolean;
   meet: Meet;
   attendee?: Attendee;
-  status?: string | null;
+  status?: AttendeeStatusEnum | null;
   onClose: () => void;
   onDone: () => void;
 };

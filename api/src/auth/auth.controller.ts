@@ -92,18 +92,21 @@ export class AuthController {
     }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash, ...rest } = full;
-    const organizationIds = await this.usersService.findOrganizationIds(
-      user.id
-    );
+    const organizationIds = await this.usersService.findOrganizationIds(user.id);
     const orgRoles = await this.usersService.findOrganizationRoles(user.id);
-    const roles = organizationIds.map((orgId) => {
-      const role = orgRoles.find((row) => row.organizationId === orgId)?.role;
-      return role || "member";
-    });
+    const organizations = organizationIds.reduce<Record<string, string>>(
+      (acc, orgId) => {
+        const role =
+          orgRoles.find((row) => row.organizationId === orgId)?.role ||
+          "member";
+        acc[orgId] = role;
+        return acc;
+      },
+      {}
+    );
     return {
       ...(rest as UserProfile),
-      organizationIds,
-      roles,
+      organizations,
     } as UserProfile;
   }
 }

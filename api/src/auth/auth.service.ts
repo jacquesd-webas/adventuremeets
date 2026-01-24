@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, BadRequestException } from "@nestjs/common";
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { UsersService } from "../users/users.service";
@@ -29,7 +35,44 @@ type GoogleIdTokenPayload = {
 
 @Injectable()
 export class AuthService {
+  hasRole(
+    user: UserProfile,
+    organizationId: string,
+    requiredRole: "member" | "organizer" | "admin"
+  ): boolean {
+    const role = user.organizations?.[organizationId];
+    if (!role) return false;
+    if (requiredRole === "member") {
+      return role === "member" || role === "organizer" || role === "admin";
+    }
+    if (requiredRole === "organizer") {
+      return role === "organizer" || role === "admin";
+    }
+    return role === "admin";
+  }
+
+  getUserOrganizationIds(
+    user: UserProfile,
+    minRole?: "member" | "organizer" | "admin"
+  ): string[] {
+    const entries = Object.entries(user.organizations || {});
+    if (!minRole || minRole === "member") {
+      return entries
+        .filter(([, role]) =>
+          ["member", "organizer", "admin"].includes(role)
+        )
+        .map(([id]) => id);
+    }
+    if (minRole === "organizer") {
+      return entries
+        .filter(([, role]) => role === "organizer" || role === "admin")
+        .map(([id]) => id);
+    }
+    return entries.filter(([, role]) => role === "admin").map(([id]) => id);
+  }
+
   constructor(
+    @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
   ) {}
@@ -50,7 +93,12 @@ export class AuthService {
   }
 
   private signAccessToken(user: UserProfile): string {
-    const roles = Array.isArray((user as any).roles) ? (user as any).roles : [];
+    const rolesFromMap = user.organizations
+      ? Object.values(user.organizations)
+      : [];
+    const roles = Array.isArray((user as any).roles)
+      ? (user as any).roles
+      : rolesFromMap;
     return this.jwtService.sign({
       sub: user.id,
       email: user.email,

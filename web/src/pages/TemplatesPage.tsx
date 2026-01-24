@@ -9,7 +9,7 @@ import {
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { useParams } from "react-router-dom";
 import { useFetchOrganizationTemplates } from "../hooks/useFetchOrganizationTemplates";
-import { useOrganization } from "../hooks/useOrganization";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { shortTimestamp } from "../helpers/formatFriendlyTimestamp";
 import { useState } from "react";
 import { CreateOrEditTemplateModal } from "../components/templates/CreateOrEditTemplateModal";
@@ -19,7 +19,7 @@ import { useDeleteTemplate } from "../hooks/useDeleteTemplate";
 function TemplatesPage() {
   const { id } = useParams();
   const { data, isLoading, error } = useFetchOrganizationTemplates(id);
-  const { organization } = useOrganization(id);
+  const { organization } = useFetchOrganization(id);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null

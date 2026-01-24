@@ -1,6 +1,17 @@
-import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Delete } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Delete,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { User } from "../auth/decorators/user.decorator";
+import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { OrganizationsService } from "./organizations.service";
 import { CreateTemplateDto } from "./dto/create-template.dto";
@@ -11,53 +22,78 @@ import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 @ApiBearerAuth()
 @Controller(["organizations", "organisations"])
 export class OrganizationsController {
-  constructor(private readonly organizationsService: OrganizationsService) {}
-
-  private assertMembership(user: UserProfile & { organizationIds?: string[] | null } | undefined, orgId: string) {
-    if (!user?.organizationIds || !user.organizationIds.includes(orgId)) {
-      throw new ForbiddenException("Not part of this organization");
-    }
-  }
+  constructor(
+    private readonly organizationsService: OrganizationsService,
+    private readonly authService: AuthService
+  ) {}
 
   @Get()
-  async findAll(@User() user: UserProfile & { organizationIds?: string[] | null }) {
-    if (!user?.organizationIds) {
-      throw new ForbiddenException("No organization IDs found for user");
+  async findAll(@User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    const organizationIds = this.authService.getUserOrganizationIds(user);
+    if (!organizationIds.length) {
+      return [];
     }
     const organizations = await this.organizationsService.findAllByIds(
-      user.organizationIds || []
+      organizationIds
     );
     return { organizations };
   }
 
   @Get(":id")
-  async findOne(@User() user: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string) {
-    this.assertMembership(user, id);
+  async findOne(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "member")) {
+      throw new ForbiddenException("You are not a member of this organization");
+    }
+
     const organization = await this.organizationsService.findById(id);
     return { organization };
   }
 
   @Get(":id/members")
-  async findMembers(@User() user: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string) {
-    this.assertMembership(user, id);
+  async findMembers(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization"
+      );
+    }
+
     const members = await this.organizationsService.findMembers(id);
     return { members };
   }
 
   @Get(":id/templates")
-  async findTemplates(@User() user: UserProfile & { organizationIds?: string[] | null }, @Param("id") id: string) {
-    this.assertMembership(user, id);
+  async findTemplates(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization"
+      );
+    }
     const templates = await this.organizationsService.findTemplates(id);
     return { templates };
   }
 
   @Get(":id/templates/:templateId")
   async findTemplate(
-    @User() user: UserProfile & { organizationIds?: string[] | null },
     @Param("id") id: string,
-    @Param("templateId") templateId: string
+    @Param("templateId") templateId: string,
+    @User() user?: UserProfile
   ) {
-    this.assertMembership(user, id);
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization"
+      );
+    }
+
     const template = await this.organizationsService.findTemplateById(
       id,
       templateId
@@ -67,23 +103,37 @@ export class OrganizationsController {
 
   @Post(":id/templates")
   async createTemplate(
-    @User() user: UserProfile & { organizationIds?: string[] | null },
     @Param("id") id: string,
-    @Body() body: CreateTemplateDto
+    @Body() body: CreateTemplateDto,
+    @User() user?: UserProfile
   ) {
-    this.assertMembership(user, id);
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization"
+      );
+    }
+
     const template = await this.organizationsService.createTemplate(id, body);
     return { template };
   }
 
   @Patch(":id/templates/:templateId")
   async updateTemplate(
-    @User() user: UserProfile & { organizationIds?: string[] | null },
     @Param("id") id: string,
     @Param("templateId") templateId: string,
-    @Body() body: UpdateTemplateDto
+    @Body() body: UpdateTemplateDto,
+    @User() user?: UserProfile
   ) {
-    this.assertMembership(user, id);
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization"
+      );
+    }
+
     const template = await this.organizationsService.updateTemplate(
       id,
       templateId,
@@ -94,22 +144,33 @@ export class OrganizationsController {
 
   @Delete(":id/templates/:templateId")
   async deleteTemplate(
-    @User() user: UserProfile & { organizationIds?: string[] | null },
     @Param("id") id: string,
-    @Param("templateId") templateId: string
+    @Param("templateId") templateId: string,
+    @User() user: UserProfile
   ) {
-    this.assertMembership(user, id);
-    return this.organizationsService.deleteTemplate(id, templateId);
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization"
+      );
+    }
+    return await this.organizationsService.deleteTemplate(id, templateId);
   }
 
   @Patch(":id")
   async update(
-    @User() user: UserProfile & { organizationIds?: string[] | null },
     @Param("id") id: string,
-    @Body() dto: UpdateOrganizationDto
+    @Body() dto: UpdateOrganizationDto,
+    @User() user?: UserProfile
   ) {
-    this.assertMembership(user, id);
-    const organization = await this.organizationsService.update(id, dto);
-    return { organization };
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization"
+      );
+    }
+    return await this.organizationsService.update(id, dto);
   }
 }

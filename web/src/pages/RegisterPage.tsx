@@ -11,10 +11,10 @@ import {
 } from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReCAPTCHA from "react-google-recaptcha";
 import { useRegister } from "../hooks/useRegister";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/AuthSocialButtons";
 import { EmailField } from "../components/EmailField";
 import {
@@ -27,6 +27,8 @@ import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
 
 function RegisterPage() {
+  const location = useLocation();
+  const prefillApplied = useRef(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneCountry, setPhoneCountry] = useState(() => {
@@ -36,6 +38,11 @@ function RegisterPage() {
   const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [pendingMeetLink, setPendingMeetLink] = useState<{
+    meetId: string;
+    attendeeId: string;
+  } | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<
     null | "google" | "microsoft" | "facebook" | "email"
   >(null);
@@ -56,6 +63,47 @@ function RegisterPage() {
     setCaptchaToken(null);
   };
 
+  useEffect(() => {
+    if (prefillApplied.current) return;
+    const state = (location.state || {}) as {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phoneCountry?: string;
+      phoneLocal?: string;
+      organizationId?: string;
+      meetId?: string;
+      attendeeId?: string;
+    };
+    if (
+      state.firstName ||
+      state.lastName ||
+      state.email ||
+      state.phoneCountry ||
+      state.phoneLocal ||
+      state.organizationId ||
+      state.meetId ||
+      state.attendeeId
+    ) {
+      setFirstName(state.firstName || "");
+      setLastName(state.lastName || "");
+      setEmail(state.email || "");
+      if (state.phoneCountry) {
+        setPhoneCountry(state.phoneCountry);
+      }
+      setPhoneLocal(state.phoneLocal || "");
+      setOrganizationId(state.organizationId || "");
+      if (state.meetId && state.attendeeId) {
+        setPendingMeetLink({
+          meetId: state.meetId,
+          attendeeId: state.attendeeId,
+        });
+      }
+      setSelectedMethod("email");
+      prefillApplied.current = true;
+    }
+  }, [location.state]);
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (captchaRequired && !captchaToken) {
@@ -67,9 +115,19 @@ function RegisterPage() {
       phone: buildInternationalPhone(phoneCountry, phoneLocal),
       email,
       password,
+      organizationId: organizationId || undefined,
       captchaToken: captchaToken || undefined,
     })
-      .then(() => navigate("/"))
+      .then(async () => {
+        if (pendingMeetLink) {
+          const me = await api.get<{ id: string }>("/auth/me");
+          await api.patch(
+            `/meets/${pendingMeetLink.meetId}/attendees/${pendingMeetLink.attendeeId}`,
+            { userId: me.id }
+          );
+        }
+        navigate("/");
+      })
       .catch((err) => {
         console.error("Registration failed", err);
       });

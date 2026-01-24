@@ -16,7 +16,7 @@ import {
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useFetchOrganizationMembers } from "../hooks/useFetchOrganizationMembers";
-import { useOrganization } from "../hooks/useOrganization";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { OrganizationMember } from "../types/MemberModel";
 import { shortTimestamp } from "../helpers/formatFriendlyTimestamp";
 
@@ -40,8 +40,12 @@ const compareValues = (
   orderBy: keyof OrganizationMember | "name"
 ) => {
   if (orderBy === "name") {
-    const aName = `${a.firstName || ""} ${a.lastName || ""}`.trim().toLowerCase();
-    const bName = `${b.firstName || ""} ${b.lastName || ""}`.trim().toLowerCase();
+    const aName = `${a.firstName || ""} ${a.lastName || ""}`
+      .trim()
+      .toLowerCase();
+    const bName = `${b.firstName || ""} ${b.lastName || ""}`
+      .trim()
+      .toLowerCase();
     return aName.localeCompare(bName);
   }
 
@@ -60,12 +64,12 @@ function MembersPage() {
   const { id } = useParams();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [orderBy, setOrderBy] = useState<
-    keyof OrganizationMember | "name"
-  >("name");
+  const [orderBy, setOrderBy] = useState<keyof OrganizationMember | "name">(
+    "name"
+  );
   const [order, setOrder] = useState<Order>("asc");
   const { data, isLoading, error } = useFetchOrganizationMembers(id);
-  const { organization } = useOrganization(id);
+  const { organization } = useFetchOrganization(id);
 
   const sortedRows = useMemo(() => {
     const items = [...data];
@@ -91,9 +95,7 @@ function MembersPage() {
     setOrder("asc");
   };
 
-  const title = organization?.name
-    ? `${organization.name} Members`
-    : "Members";
+  const title = organization?.name ? `${organization.name} Members` : "Members";
 
   return (
     <Stack spacing={3}>
@@ -165,9 +167,7 @@ function MembersPage() {
                         <TableCell>{row.role}</TableCell>
                         <TableCell>{row.status}</TableCell>
                         <TableCell>
-                          {row.createdAt
-                            ? shortTimestamp(row.createdAt)
-                            : "—"}
+                          {row.createdAt ? shortTimestamp(row.createdAt) : "—"}
                         </TableCell>
                       </TableRow>
                     ))

@@ -4,8 +4,7 @@ export type Me = {
   firstName?: string;
   lastName?: string;
   phone?: string;
-  organizationIds?: string[];
-  roles?: string[];
+  organizations?: Record<string, string>;
   idp_profile?: {
     name?: string;
   };

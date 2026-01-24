@@ -8,6 +8,7 @@ import { ConfirmDeleteMeetDialog } from "./confirmActions/ConfirmDeleteMeetDialo
 import { CreateMeetModal } from "./createMeetModal/CreateMeetModal";
 import { ManageAttendeesModal } from "./manageAttendeesModal";
 import { ReportsModal } from "./reportsModal";
+import MeetActionsEnum from "../types/MeetActionsEnum";
 
 export type PendingAction =
   | "close"
@@ -75,34 +76,34 @@ function MeetActionsDialogs({
   // Common handler to close dialogs and reset state
   const handleClose = () => {
     switch (pendingAction) {
-      case "create":
+      case MeetActionsEnum.Create:
         setShowMeetModal(false);
         break;
-      case "edit":
+      case MeetActionsEnum.Edit:
         setShowMeetModal(false);
         break;
-      case "attendees":
+      case MeetActionsEnum.Attendees:
         setShowAttendeesModal(false);
         break;
-      case "report":
+      case MeetActionsEnum.Report:
         setShowReportsModal(false);
         break;
-      case "checkin":
+      case MeetActionsEnum.Checkin:
         setShowAttendeesModal(false);
         break;
-      case "close":
+      case MeetActionsEnum.Close:
         setIsCloseDialogOpen(false);
         break;
-      case "cancel":
+      case MeetActionsEnum.Cancel:
         setIsCancelDialogOpen(false);
         break;
-      case "open":
+      case MeetActionsEnum.Open:
         setIsOpenDialogOpen(false);
         break;
-      case "postpone":
+      case MeetActionsEnum.Postpone:
         setIsPostponeDialogOpen(false);
         break;
-      case "delete":
+      case MeetActionsEnum.Delete:
         setIsDeleteDialogOpen(false);
         break;
       default:

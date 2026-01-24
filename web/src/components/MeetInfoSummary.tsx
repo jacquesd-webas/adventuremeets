@@ -27,6 +27,7 @@ type MeetInfoSummaryProps = {
   isPreview: boolean;
   shareLink: string;
   loginHref?: string;
+  onLoginClick?: () => void;
   onCopyLink: () => void;
 };
 
@@ -35,6 +36,7 @@ export function MeetInfoSummary({
   isPreview,
   shareLink,
   loginHref = "/login",
+  onLoginClick,
   onCopyLink,
 }: MeetInfoSummaryProps) {
   const startDate = meet.start ? new Date(meet.start) : null;
@@ -89,7 +91,12 @@ export function MeetInfoSummary({
             Copy link
           </Button>
         ) : (
-          <Button variant="outlined" size="small" href={loginHref}>
+          <Button
+            variant="outlined"
+            size="small"
+            href={!onLoginClick ? loginHref : undefined}
+            onClick={onLoginClick}
+          >
             Login
           </Button>
         )}

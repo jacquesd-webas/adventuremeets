@@ -16,11 +16,11 @@ import { useSnackbar } from "notistack";
 import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import Meet from "../../types/MeetModel";
+import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 
 type MessageModalProps = {
   open: boolean;
   onClose: () => void;
-  meetId: string;
   meet?: Meet | null;
   attendeeIds?: string[];
   attendees?: { id: string; status?: string }[];
@@ -30,7 +30,6 @@ type MessageModalProps = {
 export function MessageModal({
   open,
   onClose,
-  meetId,
   meet,
   attendeeIds,
   attendees,
@@ -50,7 +49,8 @@ export function MessageModal({
 
   const attendeeStatus =
     attendeeIds && attendeeIds.length === 1
-      ? attendees?.find((att) => att.id === attendeeIds[0])?.status
+      ? (attendees?.find((att) => att.id === attendeeIds[0])
+          ?.status as AttendeeStatusEnum)
       : undefined;
   const defaultMessageOptions = useMemo(
     () => ({
@@ -59,58 +59,70 @@ export function MessageModal({
       waitlistMessage: meet?.waitlistMessage,
       rejectMessage: meet?.rejectMessage,
     }),
-    [meet?.name, meet?.confirmMessage, meet?.waitlistMessage, meet?.rejectMessage]
+    [
+      meet?.name,
+      meet?.confirmMessage,
+      meet?.waitlistMessage,
+      meet?.rejectMessage,
+    ]
   );
   const singleAttendeeDefault = useDefaultMessage(
     attendeeStatus,
     defaultMessageOptions
   );
   const confirmedDefault = useDefaultMessage(
-    "confirmed",
+    AttendeeStatusEnum.Confirmed,
     defaultMessageOptions
   );
   const waitlistedDefault = useDefaultMessage(
-    "waitlisted",
+    AttendeeStatusEnum.Waitlisted,
     defaultMessageOptions
   );
-  const rejectedDefault = useDefaultMessage("rejected", defaultMessageOptions);
-  const { subject: defaultAutoSubject, content: defaultAutoContent } = useMemo(() => {
-    if (attendeeIds && attendeeIds.length === 1) {
-      return singleAttendeeDefault;
-    }
+  const rejectedDefault = useDefaultMessage(
+    AttendeeStatusEnum.Rejected,
+    defaultMessageOptions
+  );
+  const { subject: defaultAutoSubject, content: defaultAutoContent } =
+    useMemo(() => {
+      if (attendeeIds && attendeeIds.length === 1) {
+        return singleAttendeeDefault;
+      }
 
-    const selectedDefaults = [];
-    if (includeConfirmed) selectedDefaults.push({ label: "Confirmed", ...confirmedDefault });
-    if (includeWaitlisted) selectedDefaults.push({ label: "Waitlisted", ...waitlistedDefault });
-    if (includeRejected) selectedDefaults.push({ label: "Rejected", ...rejectedDefault });
+      const selectedDefaults = [];
+      if (includeConfirmed)
+        selectedDefaults.push({ label: "Confirmed", ...confirmedDefault });
+      if (includeWaitlisted)
+        selectedDefaults.push({ label: "Waitlisted", ...waitlistedDefault });
+      if (includeRejected)
+        selectedDefaults.push({ label: "Rejected", ...rejectedDefault });
 
-    if (selectedDefaults.length === 1) {
-      return {
-        subject: selectedDefaults[0].subject,
-        content: selectedDefaults[0].content,
-      };
-    }
+      if (selectedDefaults.length === 1) {
+        return {
+          subject: selectedDefaults[0].subject,
+          content: selectedDefaults[0].content,
+        };
+      }
 
-    if (selectedDefaults.length > 1) {
-      return {
-        subject: "Meet attendance update",
-        content: selectedDefaults
-          .map((item) => `${item.label} attendees:\n${item.content}`)
-          .join("\n\n"),
-      };
-    }
+      if (selectedDefaults.length > 1) {
+        return {
+          subject: "Meet attendance update",
+          content: selectedDefaults
+            .map((item) => `${item.label} attendees:\n${item.content}`)
+            .join("\n\n"),
+        };
+      }
 
-    return { subject: "", content: "" };
-  }, [
-    attendeeIds,
-    includeConfirmed,
-    includeRejected,
-    includeWaitlisted,
-    singleAttendeeDefault,
-    confirmedDefault,
-    waitlistedDefault,
-    rejectedDefault,
-  ]);
+      return { subject: "", content: "" };
+    }, [
+      attendeeIds,
+      includeConfirmed,
+      includeRejected,
+      includeWaitlisted,
+      singleAttendeeDefault,
+      confirmedDefault,
+      waitlistedDefault,
+      rejectedDefault,
+    ]);
 
   useEffect(() => {
     if (autoResponse) {
@@ -168,7 +180,7 @@ export function MessageModal({
     setError(null);
     try {
       await notifyAttendeeAsync({
-        meetId,
+        meetId: meet.id,
         subject: subject.trim(),
         text: body,
         attendeeIds: ids.length ? ids : undefined,

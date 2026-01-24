@@ -8,6 +8,7 @@ type MeetSignupSheet = {
   location: string;
   start: string;
   end: string;
+  organizationId?: string;
   openingDate?: string;
   status: string;
   statusId: number;
@@ -41,6 +42,7 @@ type MeetApi = {
   location: string;
   startTime?: string;
   endTime?: string;
+  organizationId?: string;
   openingDate?: string;
   status?: string;
   statusId?: number;
@@ -96,6 +98,7 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
   const start = apiMeet.startTime || "";
   const end = apiMeet.endTime || "";
   const openingDate = apiMeet.openingDate || undefined;
+  const organizationId = apiMeet.organizationId || undefined;
   const status =
     apiMeet.status ||
     (apiMeet.statusId ? statusLabels[apiMeet.statusId] : "Open");
@@ -117,6 +120,7 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
     location: apiMeet.location,
     start,
     end,
+    organizationId,
     openingDate,
     status,
     statusId: apiMeet.statusId,

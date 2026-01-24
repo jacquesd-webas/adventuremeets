@@ -306,6 +306,17 @@ export class MeetsService {
     return { meet, attendee: this.toAttendeeDto(attendee) };
   }
 
+  async getAttendeeContactById(attendeeId: string) {
+    const attendee = await this.db
+      .getClient()("meet_attendees")
+      .where({ id: attendeeId })
+      .first("email", "phone", "name");
+    if (!attendee) {
+      throw new NotFoundException("Attendee not found");
+    }
+    return attendee;
+  }
+
   async listAttendees(meetId: string, filter?: string) {
     const attendeesQuery = this.db
       .getClient()("meet_attendees")
@@ -428,6 +439,9 @@ export class MeetsService {
           indemnity_accepted: dto.indemnityAccepted,
           indemnity_minors: dto.indemnityMinors,
           status: dto.status,
+          user_id: dto.userId,
+          paid_full_at: dto.paidFullAt,
+          paid_deposit_at: dto.paidDepositAt,
           updated_at: new Date().toISOString(),
         },
         ["*"]
@@ -436,6 +450,17 @@ export class MeetsService {
       throw new NotFoundException("Attendee not found");
     }
     return { attendee: this.toAttendeeDto(updated) };
+  }
+
+  async updateAttendeesNotified(meetId: string, attendeeIds: string[]) {
+    const updatedRows = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId })
+      .whereIn("id", attendeeIds)
+      .update({
+        responded_at: new Date().toISOString(),
+      });
+    return { updated: updatedRows };
   }
 
   async addImage(meetId: string, file: any, dto: CreateMeetImageDto) {
@@ -573,6 +598,7 @@ export class MeetsService {
       description: meet.description ?? undefined,
       organizerId: meet.organizer_id,
       organizationId: meet.organization_id ?? undefined,
+      canViewAllMeets: meet.can_view_all_meets ?? undefined,
       location: meet.location ?? undefined,
       locationLat: meet.location_lat ?? undefined,
       locationLong: meet.location_long ?? undefined,
@@ -662,6 +688,8 @@ export class MeetsService {
       guests: attendee.guests ?? undefined,
       indemnityAccepted: attendee.indemnity_accepted ?? undefined,
       indemnityMinors: attendee.indemnity_minors ?? undefined,
+      paidFullAt: attendee.paid_full_at ?? undefined,
+      paidDepositAt: attendee.paid_deposit_at ?? undefined,
       createdAt: attendee.created_at ?? undefined,
       updatedAt: attendee.updated_at ?? undefined,
     };

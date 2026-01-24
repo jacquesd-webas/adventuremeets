@@ -14,18 +14,23 @@ import {
   Paper,
   Stack,
   Typography,
+  CircularProgress,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
-import { useApi } from "../../hooks/useApi";
+import { useFetchMeet } from "../../hooks/useFetchMeet";
+import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
 import Meet from "../../types/MeetModel";
 import { AttendeeActionButtons } from "./AttendeeActionButtons";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
+import { A } from "vitest/dist/reporters-5f784f42";
+import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 
 type ManageAttendeesModalProps = {
   open: boolean;
@@ -38,7 +43,6 @@ export function ManageAttendeesModal({
   open,
   onClose,
   meetId,
-  meet,
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -47,16 +51,16 @@ export function ManageAttendeesModal({
     isLoading,
     refetch,
   } = useFetchMeetAttendees(meetId, open);
-  const api = useApi();
+  const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
+  const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
     null
   );
   const [isUpdating, setIsUpdating] = useState(false);
-  const [meetStatus, setMeetStatus] = useState<number | null>(null);
-  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<AttendeeStatusEnum | null>(
+    null
+  );
   const [confirmDialog, setConfirmDialog] = useState(false);
-  const [meetName, setMeetName] = useState<string | null>(null);
-  const [meetDetails, setMeetDetails] = useState<Meet | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageAttendeeIds, setMessageAttendeeIds] = useState<
     string[] | undefined
@@ -75,52 +79,17 @@ export function ManageAttendeesModal({
     }
   }, [attendees, open, selectedAttendeeId]);
 
-  useEffect(() => {
-    if (!open || (!meetId && !meet)) {
-      return;
-    }
-
-    if (meet) {
-      const statusVal =
-        typeof meet.statusId !== "undefined" ? meet.statusId : null;
-      const statusNum =
-        typeof statusVal === "number"
-          ? statusVal
-          : statusVal != null
-          ? Number(statusVal)
-          : null;
-      setMeetStatus(!Number.isNaN(statusNum || NaN) ? statusNum : null);
-      setMeetName(meet?.name || null);
-      setMeetDetails(meet);
-      return;
-    }
-
-    let isActive = true;
-    api
-      .get(`/meets/${meetId}`)
-      .then((m: any) => {
-        if (!isActive) return;
-        const statusVal =
-          typeof m?.statusId !== "undefined" ? m.statusId : null;
-        const statusNum =
-          typeof statusVal === "number"
-            ? statusVal
-            : statusVal != null
-            ? Number(statusVal)
-            : null;
-        setMeetStatus(!Number.isNaN(statusNum || NaN) ? statusNum : null);
-        setMeetName(m?.name || null);
-        setMeetDetails(m || null);
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setMeetStatus(null);
-        setMeetDetails(null);
-      });
-    return () => {
-      isActive = false;
-    };
-  }, [api, meet, meetId, open]);
+  const meetStatus = useMemo(() => {
+    const statusVal =
+      typeof meet?.statusId !== "undefined" ? meet.statusId : null;
+    const statusNum =
+      typeof statusVal === "number"
+        ? statusVal
+        : statusVal != null
+        ? Number(statusVal)
+        : null;
+    return !Number.isNaN(statusNum || NaN) ? statusNum : null;
+  }, [meet]);
 
   const selectedAttendee = useMemo(
     () =>
@@ -133,7 +102,9 @@ export function ManageAttendeesModal({
     if (!meetId || !selectedAttendeeId) return;
     setIsUpdating(true);
     try {
-      await api.patch(`/meets/${meetId}/attendees/${selectedAttendeeId}`, {
+      await updateMeetAttendeeAsync({
+        meetId,
+        attendeeId: selectedAttendeeId,
         status,
       });
       await refetch();
@@ -142,8 +113,23 @@ export function ManageAttendeesModal({
     }
   };
 
-  const handleUpdateStatus = (status: string) => {
-    const isClosed = meetStatus === 4; // Closed status id
+  const handleAttendeePaid = async () => {
+    if (!meetId || !selectedAttendeeId) return;
+    setIsUpdating(true);
+    try {
+      await updateMeetAttendeeAsync({
+        meetId,
+        attendeeId: selectedAttendeeId,
+        paidFullAt: new Date().toISOString(),
+      });
+      await refetch();
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUpdateStatus = (status: AttendeeStatusEnum) => {
+    const isClosed = meetStatus === MeetStatusEnum.Closed;
     if (isClosed) {
       setPendingStatus(status);
       setConfirmDialog(true);
@@ -300,10 +286,14 @@ export function ManageAttendeesModal({
                     <Typography variant="h6">
                       {attendeeLabel(selectedAttendee)}
                     </Typography>
-                    <Stack direction="row" spacing={1}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      {isUpdating && <CircularProgress size={18} />}
                       <AttendeeActionButtons
                         attendee={selectedAttendee}
                         onUpdateStatus={handleUpdateStatus}
+                        onPaid={
+                          meet?.costCents ? handleAttendeePaid : undefined
+                        }
                       />
                     </Stack>
                   </Stack>
@@ -415,33 +405,35 @@ export function ManageAttendeesModal({
           Close
         </Button>
       </DialogActions>
-      {meetId && (
+      {meet && (
         <MessageModal
           open={messageOpen}
           onClose={() => setMessageOpen(false)}
-          meetId={meetId}
-          meet={meetDetails}
+          meetId={meet.id}
+          meet={meet}
           attendeeIds={messageAttendeeIds}
           attendees={attendees}
         />
       )}
-      <ConfirmClosedStatusDialog
-        open={confirmDialog}
-        status={pendingStatus}
-        meet={meetDetails || { id: meetId, name: meetName }}
-        attendee={attendees.find((a) => a.id === selectedAttendeeId)!}
-        onClose={() => {
-          setConfirmDialog(false);
-          setPendingStatus(null);
-          setIsUpdating(false);
-        }}
-        onDone={async () => {
-          setConfirmDialog(false);
-          setPendingStatus(null);
-          setIsUpdating(false);
-          await refetch();
-        }}
-      />
+      {meet && (
+        <ConfirmClosedStatusDialog
+          open={confirmDialog}
+          status={pendingStatus}
+          meet={meet}
+          attendee={attendees.find((a) => a.id === selectedAttendeeId)!}
+          onClose={() => {
+            setConfirmDialog(false);
+            setPendingStatus(null);
+            setIsUpdating(false);
+          }}
+          onDone={async () => {
+            setConfirmDialog(false);
+            setPendingStatus(null);
+            setIsUpdating(false);
+            await refetch();
+          }}
+        />
+      )}
     </Dialog>
   );
 }

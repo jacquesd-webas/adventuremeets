@@ -12,6 +12,8 @@ export type Attendee = {
   guests: number;
   indemnityAccepted: boolean;
   indemnityMinors?: string;
+  paidFullAt?: string;
+  paidDepositAt?: string;
   createdAt: string;
   updatedAt: string;
   metaValues: Array<MetaValue>;

@@ -19,10 +19,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       return null;
     }
-    const organizationIds = await this.usersService.findOrganizationIds(user.id);
+    const organizationIds = await this.usersService.findOrganizationIds(
+      user.id
+    );
+    const orgRoles = await this.usersService.findOrganizationRoles(user.id);
+    const organizations = organizationIds.reduce<Record<string, string>>(
+      (acc, orgId) => {
+        const role =
+          orgRoles.find((row) => row.organizationId === orgId)?.role ||
+          "member";
+        acc[orgId] = role;
+        return acc;
+      },
+      {}
+    );
     return {
       ...user,
-      organizationIds,
+      organizations,
       organizationId: organizationIds[0] ?? null,
     } as UserProfile;
   }

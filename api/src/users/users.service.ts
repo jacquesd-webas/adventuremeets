@@ -29,6 +29,11 @@ export class UsersService {
         first_name: dto.firstName || null,
         last_name: dto.lastName || null,
         phone: dto.phone || null,
+        ice_phone: dto.icePhone || null,
+        ice_name: dto.iceName || null,
+        ice_medical_aid: dto.iceMedicalAid || null,
+        ice_medical_aid_number: dto.iceMedicalAidNumber || null,
+        ice_dob: dto.iceDob || null,
         password_hash: dto.password || null,
         idp_provider: dto.idpProvider || null,
         idp_subject: dto.idpSubject || null,
@@ -142,6 +147,21 @@ export class UsersService {
     if (dto.phone !== undefined) {
       updates.phone = dto.phone;
     }
+    if (dto.icePhone !== undefined) {
+      updates.ice_phone = dto.icePhone;
+    }
+    if (dto.iceName !== undefined) {
+      updates.ice_name = dto.iceName;
+    }
+    if (dto.iceMedicalAid !== undefined) {
+      updates.ice_medical_aid = dto.iceMedicalAid;
+    }
+    if (dto.iceMedicalAidNumber !== undefined) {
+      updates.ice_medical_aid_number = dto.iceMedicalAidNumber;
+    }
+    if (dto.iceDob !== undefined) {
+      updates.ice_dob = dto.iceDob;
+    }
     if (dto.email !== undefined) {
       updates.email = dto.email;
     }
@@ -174,11 +194,27 @@ export class UsersService {
   private stripSensitive(user: any) {
     // omit password_hash for API responses
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password_hash, passwordHash, first_name, last_name, ...rest } = user;
+    const {
+      password_hash,
+      passwordHash,
+      first_name,
+      last_name,
+      ice_phone,
+      ice_name,
+      ice_medical_aid,
+      ice_medical_aid_number,
+      ice_dob,
+      ...rest
+    } = user;
     return {
       ...rest,
       firstName: first_name ?? rest.firstName,
-      lastName: last_name ?? rest.lastName
+      lastName: last_name ?? rest.lastName,
+      icePhone: ice_phone ?? rest.icePhone,
+      iceName: ice_name ?? rest.iceName,
+      iceMedicalAid: ice_medical_aid ?? rest.iceMedicalAid,
+      iceMedicalAidNumber: ice_medical_aid_number ?? rest.iceMedicalAidNumber,
+      iceDob: ice_dob ?? rest.iceDob,
     };
   }
 }

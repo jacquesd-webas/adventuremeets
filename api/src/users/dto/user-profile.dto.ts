@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty } from "@nestjs/swagger";
 
 export class UserProfile {
   @ApiProperty()
@@ -16,42 +16,77 @@ export class UserProfile {
   @ApiProperty({ required: false })
   phone?: string;
 
-  @ApiProperty({ type: [String] })
-  roles: string[];
-
-  @ApiProperty({ type: [String] })
-  studios: string[];
-
-  @ApiProperty({ type: [String], required: false })
-  organizationIds?: string[];
+  @ApiProperty({ required: false })
+  icePhone?: string;
 
   @ApiProperty({ required: false })
-  organizationId?: string | null;
+  iceName?: string;
+
+  @ApiProperty({ required: false })
+  iceMedicalAid?: string;
+
+  @ApiProperty({ required: false })
+  iceMedicalAidNumber?: string;
+
+  @ApiProperty({ required: false })
+  iceDob?: string;
 
   @ApiProperty({
     required: false,
-    type: 'object',
-    properties: {
-      isSuperuser: { type: 'boolean' },
-      users: { type: 'string' },
-      studios: { type: 'string' },
-      roles: { type: 'string' },
-      games: { type: 'string' },
-    },
+    type: "object",
+    additionalProperties: { type: "string" },
   })
-  permissions?: {
-    isSuperuser: boolean;
-    users: string;
-    studios: string;
-    roles: string;
-    games: string;
-  };
+  organizations?: Record<string, string>;
 
   constructor() {
-    this.roles = [];
-    this.studios = [];
+    this.organizations = {};
+    this.hasRole = this.hasRole.bind(this);
+    this.getOrganizationIds = this.getOrganizationIds.bind(this);
   }
 
   // Internal use only; not exposed in /me response.
   passwordHash?: string;
+
+  hasRole = (
+    organizationId: string,
+    requiredRole: "member" | "organizer" | "admin"
+  ): boolean => {
+    if (!this.organizations || !this.organizations[organizationId]) {
+      return false;
+    }
+    const userRole = this.organizations[organizationId];
+    if (requiredRole === "member") {
+      return (
+        userRole === "member" ||
+        userRole === "organizer" ||
+        userRole === "admin"
+      );
+    }
+    if (requiredRole === "organizer") {
+      return userRole === "organizer" || userRole === "admin";
+    }
+
+    return this.organizations[organizationId] === requiredRole;
+  };
+
+  getOrganizationIds = (
+    minRole?: "member" | "organizer" | "admin"
+  ): string[] => {
+    // admin
+    if (minRole === "admin") {
+      return Object.entries(this.organizations || {})
+        .filter(([_, r]) => r === "admin")
+        .map(([id, _]) => id);
+    }
+    // organizer
+    if (minRole === "organizer") {
+      return Object.entries(this.organizations || {})
+        .filter(([_, r]) => r === "organizer" || r === "admin")
+        .map(([id, _]) => id);
+    }
+    // member
+    return Object.entries(this.organizations || {})
+      .filter(([_, r]) => r === "member" || r === "organizer" || r === "admin")
+      .map(([id, _]) => id);
+  };
 }

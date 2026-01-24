@@ -1,15 +1,18 @@
 import {
+  Alert,
   Box,
+  Button,
   Container,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
+  MenuItem,
   Paper,
   Stack,
-  Typography,
-  FormControlLabel,
   Switch,
-  Button,
   TextField,
-  MenuItem,
-  Alert,
+  Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -34,6 +37,7 @@ import { EmailField } from "../components/EmailField";
 import { MeetInfoSummary } from "../components/MeetInfoSummary";
 import { NameField } from "../components/NameField";
 import { PreviewBanner } from "../components/PreviewBanner";
+import { LoginForm } from "../components/auth/LoginForm";
 import { formatFriendlyTimestamp } from "../helpers/formatFriendlyTimestamp";
 
 function LabeledField({
@@ -337,6 +341,9 @@ function MeetSignupSheet() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [submitted, setSubmitted] = useState(false);
+  const [submittedAttendeeId, setSubmittedAttendeeId] = useState<string | null>(
+    null
+  );
   const [existingAttendee, setExistingAttendee] = useState<{
     id: string;
   } | null>(null);
@@ -350,6 +357,7 @@ function MeetSignupSheet() {
     email: string;
     phone: string;
   } | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
   const {
     indemnityAccepted,
     fullName,
@@ -405,7 +413,16 @@ function MeetSignupSheet() {
           </Box>
         ) : null}
         <Box sx={{ pt: isPreview ? 10 : 0 }}>
-          <MeetSignupSubmitted />
+          <MeetSignupSubmitted
+            firstName={fullName.trim().split(/\s+/)[0] || ""}
+            lastName={fullName.trim().split(/\s+/).slice(1).join(" ") || ""}
+            email={email}
+            phoneCountry={phoneCountry}
+            phoneLocal={phoneLocal}
+            organizationId={meet?.organizationId}
+            meetId={meet?.id}
+            attendeeId={submittedAttendeeId || undefined}
+          />
         </Box>
       </Box>
     );
@@ -482,7 +499,7 @@ function MeetSignupSheet() {
       .filter((value): value is { definitionId: string; value: string } =>
         Boolean(value)
       );
-    await addAttendeeAsync({
+    const res = await addAttendeeAsync({
       meetId: meet.id,
       name: fullName,
       email,
@@ -492,6 +509,7 @@ function MeetSignupSheet() {
       indemnityMinors: "",
       metaValues: metaPayload,
     });
+    setSubmittedAttendeeId(res?.attendee?.id ?? null);
     setSubmitted(true);
   };
 
@@ -506,6 +524,7 @@ function MeetSignupSheet() {
       indemnityAccepted: indemnityAccepted,
       indemnityMinors: "",
     });
+    setSubmittedAttendeeId(existingAttendee.id);
     setShowDuplicateModal(false);
     setSubmitted(true);
   };
@@ -513,6 +532,7 @@ function MeetSignupSheet() {
   const handleRemove = async () => {
     if (!meet || !existingAttendee) return;
     await api.del(`/meets/${meet.id}/attendees/${existingAttendee.id}`);
+    setSubmittedAttendeeId(null);
     setShowDuplicateModal(false);
     setSubmitted(true);
   };
@@ -549,6 +569,7 @@ function MeetSignupSheet() {
                 meet={meet}
                 isPreview={isPreview}
                 shareLink={shareLink}
+                onLoginClick={() => setLoginOpen(true)}
                 onCopyLink={async () => {
                   if (!shareLink) return;
                   try {
@@ -594,6 +615,17 @@ function MeetSignupSheet() {
           onRemove={handleRemove}
           onUpdate={handleUpdate}
         />
+        <Dialog
+          open={loginOpen}
+          onClose={() => setLoginOpen(false)}
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle>Login</DialogTitle>
+          <DialogContent sx={{ pt: 2 }}>
+            <LoginForm onSuccess={() => setLoginOpen(false)} submitLabel="Login" />
+          </DialogContent>
+        </Dialog>
       </Container>
     </Box>
   );

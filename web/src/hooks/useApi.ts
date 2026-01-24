@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 type Json = Record<string, any> | Array<any>;
 
 type ApiOptions = {
@@ -8,49 +6,74 @@ type ApiOptions = {
 };
 
 export function useApi(options: ApiOptions = {}) {
-  const envBaseUrl = import.meta.env.VITE_API_BASEURL || import.meta.env.API_BASEURL;
-  const baseNoSlash = (options.baseUrl || envBaseUrl || "http://localhost:3000").replace(/\/+$/, "");
-  const baseUrl = baseNoSlash.endsWith("/api/v1") ? baseNoSlash : `${baseNoSlash}/api/v1`;
-  const storedToken = typeof window !== "undefined" ? window.localStorage.getItem("accessToken") : null;
-  const storedRefresh = typeof window !== "undefined" ? window.localStorage.getItem("refreshToken") : null;
-  const token = options.token || storedToken || undefined;
-  
-  const headers = useMemo(() => {
-    const common: Record<string, string> = {
-      "Content-Type": "application/json"
-    };
-    if (token) {
-      common.Authorization = `Bearer ${token}`;
-    }
-    return common;
-  }, [token]);
+  const envBaseUrl =
+    import.meta.env.VITE_API_BASEURL || import.meta.env.API_BASEURL;
+  const baseNoSlash = (
+    options.baseUrl ||
+    envBaseUrl ||
+    "http://localhost:3000"
+  ).replace(/\/+$/, "");
+  const baseUrl = baseNoSlash.endsWith("/api/v1")
+    ? baseNoSlash
+    : `${baseNoSlash}/api/v1`;
+  const getAccessToken = () =>
+    options.token ||
+    (typeof window !== "undefined"
+      ? window.localStorage.getItem("accessToken")
+      : null) ||
+    undefined;
+  const getRefreshToken = () =>
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("refreshToken")
+      : null;
 
   async function refreshToken(): Promise<string | null> {
-    if (!storedRefresh) return null;
+    const refreshTokenValue = getRefreshToken();
+    if (!refreshTokenValue) return null;
     const res = await fetch(`${baseUrl}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: storedRefresh })
+      body: JSON.stringify({ refreshToken: refreshTokenValue }),
     });
     if (!res.ok) return null;
     const data = await res.json();
-    if (data?.accessToken && data?.refreshToken && typeof window !== "undefined") {
+    if (
+      data?.accessToken &&
+      data?.refreshToken &&
+      typeof window !== "undefined"
+    ) {
       window.localStorage.setItem("accessToken", data.accessToken);
       window.localStorage.setItem("refreshToken", data.refreshToken);
     }
     return data?.accessToken || null;
   }
 
-  async function request<T>(path: string, init?: RequestInit, isRetry = false): Promise<T> {
+  const buildHeaders = (tokenOverride?: string | null) => {
+    const common: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    const token = tokenOverride ?? options.token ?? null;
+    if (token) {
+      common.Authorization = `Bearer ${token}`;
+    }
+    return common;
+  };
+
+  async function request<T>(
+    path: string,
+    init?: RequestInit,
+    isRetry = false
+  ): Promise<T> {
+    const token = getAccessToken();
+    const headers: Record<string, string> = buildHeaders(token);
     const res = await fetch(`${baseUrl}${path}`, {
       ...init,
       headers: {
         ...headers,
-        ...(init?.headers || {})
-      }
+      },
     });
     if (res.status === 401 && typeof window !== "undefined") {
-      if (!isRetry && storedRefresh) {
+      if (!isRetry && getRefreshToken()) {
         const newToken = await refreshToken();
         if (newToken) {
           return request<T>(
@@ -58,9 +81,9 @@ export function useApi(options: ApiOptions = {}) {
             {
               ...init,
               headers: {
-                ...init?.headers,
-                Authorization: `Bearer ${newToken}`
-              }
+                ...headers,
+                Authorization: `Bearer ${newToken}`,
+              },
             },
             true
           );
@@ -91,7 +114,7 @@ export function useApi(options: ApiOptions = {}) {
     return request<T>(path, {
       ...init,
       method: "POST",
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
     });
   }
 
@@ -99,7 +122,7 @@ export function useApi(options: ApiOptions = {}) {
     return request<T>(path, {
       ...init,
       method: "PATCH",
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
     });
   }
 

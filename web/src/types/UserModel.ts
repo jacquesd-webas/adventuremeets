@@ -8,4 +8,5 @@ export type User = {
   updatedAt?: string;
   lastLoginAt?: string;
   emailVerified?: boolean;
+  isDisabled?: boolean;
 };

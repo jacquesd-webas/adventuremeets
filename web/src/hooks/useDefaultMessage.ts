@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { AttendeeStatusEnum } from "../types/AttendeeStatusEnum";
 
 type DefaultMessageOptions = {
   meetName?: string;
@@ -7,19 +8,19 @@ type DefaultMessageOptions = {
   rejectMessage?: string;
 };
 
-const createMessageContent = (status: string) => {
-  if (status === "confirmed") {
+const createMessageContent = (status: AttendeeStatusEnum) => {
+  if (status === AttendeeStatusEnum.Confirmed) {
     return "Your attendance has been confirmed for the meet. Looking forward to seeing you there!";
-  } else if (status === "waitlisted") {
+  } else if (status === AttendeeStatusEnum.Waitlisted) {
     return "You have been waitlisted for the meet. If a spot opens up, the organizer will notify you.";
-  } else if (status === "rejected") {
+  } else if (status === AttendeeStatusEnum.Rejected) {
     return "Unfortunately, the meet organizer has not been able to accept your application. This is usually due to capacity limits being reached.";
   }
   return "";
 };
 
 export function useDefaultMessage(
-  status?: string | null,
+  status?: AttendeeStatusEnum | null,
   options?: DefaultMessageOptions
 ) {
   return useMemo(() => {
@@ -27,7 +28,7 @@ export function useDefaultMessage(
       return { subject: "", content: "" };
     }
 
-    if (status === "confirmed") {
+    if (status === AttendeeStatusEnum.Confirmed) {
       return {
         subject: options?.meetName
           ? `Confirmed: ${options.meetName}`
@@ -35,7 +36,7 @@ export function useDefaultMessage(
         content: options?.confirmMessage || createMessageContent(status),
       };
     }
-    if (status === "waitlisted") {
+    if (status === AttendeeStatusEnum.Waitlisted) {
       return {
         subject: options?.meetName
           ? `Waitlist: ${options.meetName}`
@@ -43,7 +44,7 @@ export function useDefaultMessage(
         content: options?.waitlistMessage || createMessageContent(status),
       };
     }
-    if (status === "rejected") {
+    if (status === AttendeeStatusEnum.Rejected) {
       return {
         subject: options?.meetName
           ? `Update: ${options.meetName}`
