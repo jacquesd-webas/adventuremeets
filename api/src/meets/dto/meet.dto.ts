@@ -153,6 +153,15 @@ export class MeetDto {
   @ApiPropertyOptional()
   timesTbc?: boolean;
 
+  @ApiPropertyOptional()
+  isHidden?: boolean;
+
+  @ApiPropertyOptional()
+  myAttendeeStatus?: string;
+
+  @ApiPropertyOptional()
+  isHidden?: boolean;
+
   @ApiPropertyOptional({ type: [MeetMetaDefinitionDto] })
   metaDefinitions?: MeetMetaDefinitionDto[];
 }

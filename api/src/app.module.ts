@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { MeetsModule } from './meets/meets.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { EmailModule } from './email/email.module';
+import { TypesModule } from './types/types.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EmailModule } from './email/email.module';
     MeetsModule,
     OrganizationsModule,
     EmailModule,
+    TypesModule,
   ],
   controllers: [],
   providers: [

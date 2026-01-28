@@ -67,13 +67,27 @@ export class OrganizationsController {
     return { members };
   }
 
+  @Get(":id/organizers")
+  async findOrganizers(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "organizer")) {
+      throw new ForbiddenException(
+        "You are not an organizer for this organization"
+      );
+    }
+
+    const organizers = await this.organizationsService.findOrganizers(id);
+    return { organizers };
+  }
+
   @Get(":id/templates")
   async findTemplates(@Param("id") id: string, @User() user?: UserProfile) {
     if (!user) throw new UnauthorizedException();
 
-    if (!this.authService.hasRole(user, id, "admin")) {
+    if (!this.authService.hasRole(user, id, "organizer")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization"
+        "You are not an organizer for this organization"
       );
     }
     const templates = await this.organizationsService.findTemplates(id);

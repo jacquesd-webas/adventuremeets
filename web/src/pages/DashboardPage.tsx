@@ -18,20 +18,38 @@ import {
 } from "../components/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
 import { MobileDashboardTitle } from "../components/dashboard/MobileDashboardTitle";
+import { useCurrentOrganization } from "../context/OrganizationContext";
+import { CreatePrivateOrganizationDialog } from "../components/CreatePrivateOrganizationDialog";
 
 function DashboardPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(
     null
   );
+  const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const { currentOrganizationId, currentOrganizationRole } =
+    useCurrentOrganization();
   const { data: meets, isLoading } = useFetchMeets({
-    view: "all",
+    view: currentOrganizationRole === "member" ? "my" : "all",
     page: 1,
     limit: 50,
+    organizationId: currentOrganizationId || undefined,
   });
   const { getName: getStatusName } = useMeetStatusLookup();
+
+  const isOrganizer =
+    currentOrganizationRole === "organizer" ||
+    currentOrganizationRole === "admin";
+
+  const handleNewMeet = () => {
+    if (!isOrganizer) {
+      setShowCreateOrgDialog(true);
+      return;
+    }
+    setPendingAction("create");
+  };
 
   const { upcoming, past, draft, columns } = useMemo(() => {
     const now = new Date();
@@ -69,18 +87,13 @@ function DashboardPage() {
       }}
     >
       {isMobile ? (
-        <MobileDashboardTitle onNewMeet={() => setPendingAction("create")} />
+        <MobileDashboardTitle onNewMeet={handleNewMeet} />
       ) : (
         <Heading
           title="Dashboard"
-          subtitle="View upcoming and past meets that you are organising."
+          subtitle="View upcoming and past meets that you are organising or attending."
           actionComponent={
-            <Button
-              variant="contained"
-              onClick={() => {
-                setPendingAction("create");
-              }}
-            >
+            <Button variant="contained" onClick={handleNewMeet}>
               New Meet
             </Button>
           }
@@ -129,12 +142,19 @@ function DashboardPage() {
           )}
         </Grid>
       </Box>
-      <MeetActionsDialogs
-        meetId={selectedMeetId || null}
-        pendingAction={pendingAction || undefined}
-        setPendingAction={setPendingAction}
-        setSelectedMeetId={setSelectedMeetId}
-      />
+      {isOrganizer ? (
+        <MeetActionsDialogs
+          meetId={selectedMeetId || null}
+          pendingAction={pendingAction || undefined}
+          setPendingAction={setPendingAction}
+          setSelectedMeetId={setSelectedMeetId}
+        />
+      ) : (
+        <CreatePrivateOrganizationDialog
+          open={showCreateOrgDialog}
+          onClose={() => setShowCreateOrgDialog(false)}
+        />
+      )}
     </Container>
   );
 }

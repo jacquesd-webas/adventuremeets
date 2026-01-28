@@ -31,7 +31,9 @@ export class MeetsService {
     view = "all",
     page = 1,
     limit = 20,
-    organizationIds: string[] = []
+    organizationIds: string[] = [],
+    includeHidden = false,
+    userId?: string
   ) {
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
@@ -71,6 +73,16 @@ export class MeetsService {
     const query = this.db
       .getClient()("meets as m")
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
+      .modify((builder) => {
+        if (!userId) return;
+        builder.leftJoin("meet_attendees as ua", function () {
+          this.on("ua.meet_id", "=", "m.id").andOn(
+            "ua.user_id",
+            "=",
+            builder.client.raw("?", [userId])
+          );
+        });
+      })
       .select(
         "m.*",
         this.db
@@ -89,8 +101,23 @@ export class MeetsService {
           .raw("coalesce(ma.waitlist_count, 0) as waitlist_count"),
         this.db
           .getClient()
-          .raw("coalesce(ma.checked_in_count, 0) as checked_in_count")
+          .raw("coalesce(ma.checked_in_count, 0) as checked_in_count"),
+        userId
+          ? this.db.getClient().raw("ua.status as my_attendee_status")
+          : this.db.getClient().raw("null as my_attendee_status")
       );
+    if (view === "my") {
+      // either the user is attending or the meet is still open
+      query.where((qb) => {
+        qb.whereExists(function () {
+          this.select("*")
+            .from("meet_attendees as ma2")
+            .whereRaw("ma2.meet_id = m.id")
+            .andWhere("ma2.user_id", userId!);
+        });
+        qb.orWhere("m.status_id", "3"); // Open
+      });
+    }
     if (view === "reports") {
       query.whereIn("m.status_id", [4, 5, 7]);
     }
@@ -112,14 +139,18 @@ export class MeetsService {
       query.whereIn("m.organization_id", organizationIds);
       totalQuery.whereIn("organization_id", organizationIds);
     }
+    if (!includeHidden) {
+      query.where("m.is_hidden", false);
+      totalQuery.where("is_hidden", false);
+    }
     const [{ count }] = await totalQuery;
     const total = Number(count);
-    const items = await query.limit(limit).offset((page - 1) * limit);
-    const dtoItems = items.map((item) => this.toMeetDto(item, []));
-    return { items: dtoItems, total, page, limit };
+    const meets = await query.limit(limit).offset((page - 1) * limit);
+    const dtoMeets = meets.map((item: any) => this.toMeetDto(item, []));
+    return { meets: dtoMeets, total, page, limit };
   }
 
-  async findOne(idOrCode: string): Promise<MeetDto> {
+  async findOne(idOrCode: string, userId?: string): Promise<MeetDto> {
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
       .select("meet_id")
@@ -160,6 +191,16 @@ export class MeetsService {
       .leftJoin("users as u", "u.id", "m.organizer_id")
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
       .leftJoin("currencies as c", "c.id", "m.currency_id")
+      .modify((builder) => {
+        if (!userId) return;
+        builder.leftJoin("meet_attendees as ua", function () {
+          this.on("ua.meet_id", "=", "m.id").andOn(
+            "ua.user_id",
+            "=",
+            builder.client.raw("?", [userId])
+          );
+        });
+      })
       .select(
         "m.*",
         "c.symbol as currency_symbol",
@@ -182,7 +223,10 @@ export class MeetsService {
             `concat(coalesce(u.first_name, ''), ' ', coalesce(u.last_name, '')) as organizer_name`
           ),
         "u.first_name as organizer_first_name",
-        "u.last_name as organizer_last_name"
+        "u.last_name as organizer_last_name",
+        userId
+          ? this.db.getClient().raw("ua.status as my_attendee_status")
+          : this.db.getClient().raw("null as my_attendee_status")
       );
 
     if (idOrCode.match(/^[0-9a-fA-F-]{36}$/)) {
@@ -237,6 +281,48 @@ export class MeetsService {
       );
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, meet.id, dto.metaDefinitions);
+      }
+      if (dto.organizerId) {
+        const [attendee] = await trx("meet_attendees").insert(
+          {
+            meet_id: meet.id,
+            user_id: dto.organizerId,
+            status: "confirmed",
+            created_at: now,
+            updated_at: now,
+          },
+          ["*"]
+        );
+        const previousAnswers = await this.findPreviousAnswers(
+          dto.organizerId,
+          meet.id,
+          trx
+        );
+        const metaDefinitions = await trx("meet_meta_definitions")
+          .where({ meet_id: meet.id })
+          .select("id", "field_key");
+        const metaRecords = metaDefinitions
+          .map((definition) => {
+            const value = previousAnswers[definition.field_key];
+            if (value === undefined || value === null || value === "") {
+              return null;
+            }
+            return {
+              meet_id: meet.id,
+              attendee_id: attendee.id,
+              meta_definition_id: definition.id,
+              value,
+            };
+          })
+          .filter(Boolean) as Array<{
+          meet_id: string;
+          attendee_id: string;
+          meta_definition_id: string;
+          value: string;
+        }>;
+        if (metaRecords.length > 0) {
+          await trx("meet_meta_values").insert(metaRecords);
+        }
       }
       return meet;
     });
@@ -294,16 +380,19 @@ export class MeetsService {
     return { statuses };
   }
 
+  // This method can be called without authentication if the user has the share code and attendee ID
+  // so do not share info that should be private
   async findAttendeeStatus(idOrCode: string, attendeeId: string) {
     const meet = await this.findOne(idOrCode);
     const attendee = await this.db
       .getClient()("meet_attendees")
+      .select("id", "user_id", "status", "email", "phone", "name")
       .where({ meet_id: meet.id, id: attendeeId })
       .first();
     if (!attendee) {
       throw new NotFoundException("Attendee not found");
     }
-    return { meet, attendee: this.toAttendeeDto(attendee) };
+    return { attendee: this.toAttendeeDto(attendee) };
   }
 
   async getAttendeeContactById(attendeeId: string) {
@@ -382,6 +471,35 @@ export class MeetsService {
     }
     const attendee = await query.first();
     return { attendee: attendee ? this.toAttendeeDto(attendee) : null };
+  }
+
+  async findPreviousAnswers(
+    userId: string,
+    meetId: string,
+    trx?: any
+  ): Promise<Record<string, string>> {
+    const db = trx ?? this.db.getClient();
+    const definitions = await db("meet_meta_definitions")
+      .where({ meet_id: meetId })
+      .select("field_key");
+    const fieldKeys = definitions.map((definition) => definition.field_key);
+    if (!fieldKeys.length) {
+      return {};
+    }
+    const rows = await db("meet_meta_values as mv")
+      .join("meet_meta_definitions as md", "md.id", "mv.meta_definition_id")
+      .join("meet_attendees as ma", "ma.id", "mv.attendee_id")
+      .where("ma.user_id", userId)
+      .whereIn("md.field_key", fieldKeys)
+      .orderBy("mv.updated_at", "desc")
+      .orderBy("mv.created_at", "desc")
+      .select("md.field_key", "mv.value");
+    return rows.reduce<Record<string, string>>((acc, row) => {
+      if (!acc[row.field_key]) {
+        acc[row.field_key] = row.value;
+      }
+      return acc;
+    }, {});
   }
 
   async addAttendee(meetId: string, dto: CreateMeetAttendeeDto) {
@@ -536,6 +654,7 @@ export class MeetsService {
       deposit_cents: this.toCents(dto.depositCents),
       share_code: dto.shareCode,
       times_tbc: dto.timesTbc,
+      is_hidden: dto.isHidden,
     };
     if (now) {
       record.created_at = now;
@@ -637,6 +756,8 @@ export class MeetsService {
       waitlistCount: Number(meet.waitlist_count ?? 0),
       checkedInCount: Number(meet.checked_in_count ?? 0),
       timesTbc: meet.times_tbc ?? meet.timesTbc ?? undefined,
+      isHidden: meet.is_hidden ?? undefined,
+      myAttendeeStatus: meet.my_attendee_status ?? undefined,
       metaDefinitions: metaDefinitions.map((definition) => ({
         id: definition.id,
         fieldKey: definition.field_key,

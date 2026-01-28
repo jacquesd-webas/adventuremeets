@@ -43,11 +43,7 @@ const columns: Array<{
   { id: "actions", label: "Actions", sortable: false, align: "right" },
 ];
 
-const compareValues = (
-  a: OrgRow,
-  b: OrgRow,
-  orderBy: OrderBy
-) => {
+const compareValues = (a: OrgRow, b: OrgRow, orderBy: OrderBy) => {
   const aVal = a[orderBy];
   const bVal = b[orderBy];
 
@@ -76,7 +72,12 @@ function OrganisationsPage() {
   const [orderBy, setOrderBy] = useState<OrderBy>("name");
   const [order, setOrder] = useState<Order>("asc");
 
-  const { data, total, isLoading, error } = useFetchOrganisations({
+  const {
+    data: organizations,
+    total,
+    isLoading,
+    error,
+  } = useFetchOrganisations({
     page: page + 1,
     limit: rowsPerPage,
     sortBy: orderBy,
@@ -85,12 +86,11 @@ function OrganisationsPage() {
 
   const rows = useMemo<OrgRow[]>(() => {
     const orgRoles = user?.organizations || {};
-    return data.map((org) => ({
+    return organizations.map((org) => ({
       ...org,
       role: orgRoles[org.id] || "member",
     }));
-  }, [data, user?.organizations]);
-
+  }, [organizations, user?.organizations]);
   const sortedRows = useMemo(() => {
     if (!orderBy) return rows;
     const items = [...rows];

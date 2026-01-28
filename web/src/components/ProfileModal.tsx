@@ -38,7 +38,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     ? Object.keys(user.organizations)[0]
     : undefined;
   const {
-    organization,
+    data: organization,
     isLoading: orgLoading,
     error: orgError,
   } = useFetchOrganization(primaryOrgId);

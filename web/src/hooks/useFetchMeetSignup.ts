@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 
+// TODO: clean this up
+
 type MeetSignupSheet = {
   id: string;
   name: string;

@@ -18,8 +18,12 @@ import { useDeleteTemplate } from "../hooks/useDeleteTemplate";
 
 function TemplatesPage() {
   const { id } = useParams();
-  const { data, isLoading, error } = useFetchOrganizationTemplates(id);
-  const { organization } = useFetchOrganization(id);
+  const {
+    data: templates,
+    isLoading,
+    error,
+  } = useFetchOrganizationTemplates(id);
+  const { data: organization } = useFetchOrganization(id);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null
@@ -124,7 +128,7 @@ function TemplatesPage() {
           </Box>
         ) : (
           <DataGrid
-            rows={data}
+            rows={templates}
             columns={columns}
             autoHeight
             disableRowSelectionOnClick

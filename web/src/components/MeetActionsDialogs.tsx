@@ -9,27 +9,15 @@ import { CreateMeetModal } from "./createMeetModal/CreateMeetModal";
 import { ManageAttendeesModal } from "./manageAttendeesModal";
 import { ReportsModal } from "./reportsModal";
 import MeetActionsEnum from "../types/MeetActionsEnum";
-
-export type PendingAction =
-  | "close"
-  | "cancel"
-  | "open"
-  | "postpone"
-  | "delete"
-  | "create"
-  | "attendees"
-  | "checkin"
-  | "edit"
-  | "report"
-  | "preview";
+import { MeetInfoModal } from "./MeetInfoModal";
 
 type MeetActionsDialogsProps = {
   meetId: string | null;
-  pendingAction?: PendingAction;
-  setPendingAction: (action: PendingAction | null) => void;
+  pendingAction?: MeetActionsEnum | null;
+  setPendingAction: (action: MeetActionsEnum | null) => void;
   setSelectedMeetId: (meetId: string | null) => void;
   onActionConfirm?: (
-    action: PendingAction,
+    action: MeetActionsEnum,
     meetId: string | null
   ) => Promise<void> | void;
 };
@@ -47,6 +35,7 @@ function MeetActionsDialogs({
   const [isPostponeDialogOpen, setIsPostponeDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
+  const [showMeetInfoModal, setShowMeetInfoModal] = React.useState(false);
   const [showMeetModal, setShowMeetModal] = React.useState(false);
   const [showAttendeesModal, setShowAttendeesModal] = React.useState(false);
   const [showReportsModal, setShowReportsModal] = React.useState(false);
@@ -58,8 +47,11 @@ function MeetActionsDialogs({
     isPostponeDialogOpen ||
     isDeleteDialogOpen ||
     showMeetModal ||
+    showMeetInfoModal ||
     showAttendeesModal ||
     showReportsModal;
+
+  console.log({ pendingAction, meetId, showMeetInfoModal });
 
   // Prevent background scroll when any dialog/modal is open
   React.useEffect(() => {
@@ -106,6 +98,9 @@ function MeetActionsDialogs({
       case MeetActionsEnum.Delete:
         setIsDeleteDialogOpen(false);
         break;
+      case MeetActionsEnum.Details:
+        setShowMeetInfoModal(false);
+        break;
       default:
         break;
     }
@@ -148,6 +143,13 @@ function MeetActionsDialogs({
         setIsDeleteDialogOpen(true);
         break;
       case "preview":
+        // redirects to preview page
+        break;
+      case "details":
+        setShowMeetInfoModal(true);
+        break;
+      case "apply":
+        // redirects to apply page
         break;
       default:
         break;
@@ -218,6 +220,16 @@ function MeetActionsDialogs({
         meetId={meetId}
         onClose={() => {
           setShowReportsModal(false);
+          setSelectedMeetId(null);
+          setPendingAction(null);
+        }}
+      />
+
+      <MeetInfoModal
+        open={showMeetInfoModal}
+        meetId={meetId}
+        onClose={() => {
+          setShowMeetInfoModal(false);
           setSelectedMeetId(null);
           setPendingAction(null);
         }}

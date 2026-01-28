@@ -5,9 +5,10 @@ import Meet from "../types/MeetModel";
 type MeetsResponse = { meets: Meet[] } | Meet[];
 
 type UseFetchMeetsOptions = {
-  view?: "reports" | "plan" | "all";
+  view?: "reports" | "plan" | "my" | "all";
   page?: number;
   limit?: number;
+  organizationId: string;
 };
 
 type MeetsApiResponse = {
@@ -17,18 +18,19 @@ type MeetsApiResponse = {
   limit: number;
 };
 
-export function useFetchMeets(options: UseFetchMeetsOptions = {}) {
+export function useFetchMeets(options: UseFetchMeetsOptions) {
   const api = useApi();
 
-  const { view = "all", page = 1, limit = 20 } = options;
+  const { view = "all", page = 1, limit = 20, organizationId } = options;
 
   const query = useQuery({
-    queryKey: ["meets", { view, page, limit }],
+    queryKey: ["meets", { view, page, limit, organizationId }],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (view !== "all") params.set("view", view);
       params.set("page", String(page));
       params.set("limit", String(limit));
+      if (organizationId) params.set("organizationId", organizationId);
       const res = await api.get<MeetsResponse | MeetsApiResponse>(
         `/meets?${params.toString()}`
       );

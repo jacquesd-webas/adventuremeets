@@ -70,32 +70,47 @@ export class MeetsController {
     description: "Page size (max 100)",
     example: 20,
   })
+  @ApiQuery({
+    name: "organizationId",
+    required: false,
+    type: String,
+    description: "Restrict to a specific organization",
+  })
   async findAll(
     @Query("view") view = "all",
     @Query("page") page = "1",
     @Query("limit") limit = "20",
+    @Query("organizationId") organizationId?: string,
     @User() user?: UserProfile
   ) {
     if (!user) throw new UnauthorizedException();
+    if (!organizationId)
+      throw new BadRequestException("organizationId is required");
 
-    const normalizedView = String(view || "all").toLowerCase();
+    if (!this.authService.hasRole(user, organizationId, "member")) {
+      throw new ForbiddenException("You are not a member of this organisation");
+    }
+
+    let normalizedView = String(view || "all").toLowerCase();
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.max(
       1,
       Math.min(100, parseInt(limit as string, 10) || 20)
+    );
+    const isOrganizer = this.authService.hasRole(
+      user,
+      organizationId,
+      "organizer"
     );
 
     return await this.meetsService.findAll(
       normalizedView,
       pageNum,
       limitNum,
-      this.authService.getUserOrganizationIds(user)
+      [organizationId],
+      isOrganizer,
+      user.id
     );
-  }
-
-  @Get("statuses")
-  async listStatuses() {
-    return await this.meetsService.listStatuses();
   }
 
   @Get(":id([0-9a-fA-F-]{36})")
@@ -105,7 +120,7 @@ export class MeetsController {
   ): Promise<MeetDto> {
     if (!user) throw new UnauthorizedException();
 
-    const meet = await this.meetsService.findOne(id);
+    const meet = await this.meetsService.findOne(id, user.id);
     if (!meet) {
       throw new NotFoundException("Meet not found in your organizations");
     }
@@ -124,7 +139,7 @@ export class MeetsController {
   }
 
   @Public()
-  @Get(":code/:attendeeId([0-9a-fA-F-]{36})")
+  @Get(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
   async findAttendeeStatus(
     @Param("code") code: string,
     @Param("attendeeId") attendeeId: string

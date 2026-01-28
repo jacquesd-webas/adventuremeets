@@ -3,6 +3,7 @@ import { MetaValue } from "./MetaValueModel";
 export type Attendee = {
   id: string;
   meetId: string;
+  userId?: string;
   status: string;
   sequence: number;
   respondedAt: string;

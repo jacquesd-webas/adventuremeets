@@ -35,7 +35,7 @@ export function useFetchOrganization(orgId?: string) {
   });
 
   return {
-    organization: query.data ?? null,
+    data: query.data ?? null,
     isLoading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
   };

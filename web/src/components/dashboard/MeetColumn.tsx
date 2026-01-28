@@ -1,4 +1,4 @@
-import { Paper, Stack, Typography } from "@mui/material";
+import { Paper, Stack, Typography, useTheme } from "@mui/material";
 import Meet from "../../types/MeetModel";
 import { MeetCard } from "./MeetCard";
 import { PendingAction } from "../MeetActionsDialogs";
@@ -24,9 +24,23 @@ export function MeetColumn({
 }: MeetColumnProps) {
   return (
     <>
-      <Typography variant="subtitle1" sx={{ mb: 1 }}>
-        {title}
-      </Typography>
+      <Paper
+        variant="outlined"
+        sx={{
+          mb: 1,
+          px: 2,
+          py: 1,
+          borderRadius: "5px",
+          backgroundColor: "rgba(255, 255, 255, 0.70)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          borderColor: "divider",
+        }}
+      >
+        <Typography variant="subtitle1" fontWeight={600}>
+          {title}
+        </Typography>
+      </Paper>
       <Stack spacing={2}>
         {isLoading ? (
           <Typography variant="body2" color="text.secondary">

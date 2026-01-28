@@ -10,5 +10,7 @@ export enum MeetActionsEnum {
   Attendees = "attendees",
   Checkin = "checkin",
   Report = "report",
+  Details = "details",
+  Apply = "apply",
 }
 export default MeetActionsEnum;

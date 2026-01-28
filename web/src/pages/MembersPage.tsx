@@ -68,18 +68,18 @@ function MembersPage() {
     "name"
   );
   const [order, setOrder] = useState<Order>("asc");
-  const { data, isLoading, error } = useFetchOrganizationMembers(id);
-  const { organization } = useFetchOrganization(id);
+  const { data: members, isLoading, error } = useFetchOrganizationMembers(id);
+  const { data: organization } = useFetchOrganization(id);
 
   const sortedRows = useMemo(() => {
-    const items = [...data];
+    const items = [...members];
     items.sort((a, b) =>
       order === "asc"
         ? compareValues(a, b, orderBy)
         : -compareValues(a, b, orderBy)
     );
     return items;
-  }, [data, order, orderBy]);
+  }, [members, order, orderBy]);
 
   const pagedRows = useMemo(() => {
     const start = page * rowsPerPage;

@@ -6,6 +6,7 @@ import App from "./App";
 import { NotistackProvider } from "./components/NotistackProvider";
 import { ThemeModeProvider } from "./context/ThemeModeContext";
 import { AuthProvider } from "./context/AuthContext";
+import { OrganizationProvider } from "./context/OrganizationContext";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -22,9 +23,11 @@ ReactDOM.createRoot(root).render(
       <BrowserRouter>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <NotistackProvider>
-              <App />
-            </NotistackProvider>
+            <OrganizationProvider>
+              <NotistackProvider>
+                <App />
+              </NotistackProvider>
+            </OrganizationProvider>
           </AuthProvider>
         </QueryClientProvider>
       </BrowserRouter>

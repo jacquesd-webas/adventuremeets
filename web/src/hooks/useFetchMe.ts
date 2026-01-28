@@ -30,7 +30,7 @@ export function useFetchMe({ onUnauthorized, enabled = true }: Options) {
   }, [query.error, onUnauthorized]);
 
   return {
-    user: query.data ?? null,
+    data: query.data ?? null,
     isLoading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
     refetch: query.refetch,

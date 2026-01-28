@@ -118,7 +118,7 @@ export async function runMeetScheduler() {
     const opened = await openScheduledMeets(db);
     const closed = await closeOpenMeets(db);
     const waitlistClosed = await closeWhenWaitlistFull(db);
-    const archived = await archiveEndedMeets(db);
+    const archived = 0;
 
     console.log(
       JSON.stringify(

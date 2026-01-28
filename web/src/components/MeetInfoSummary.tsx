@@ -1,6 +1,9 @@
 import {
+  Avatar,
   Box,
   Button,
+  Chip,
+  IconButton,
   Stack,
   Typography,
 } from "@mui/material";
@@ -10,37 +13,42 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import AttachMoneyOutlinedIcon from "@mui/icons-material/AttachMoneyOutlined";
 import LinkIcon from "@mui/icons-material/Link";
+import CloseIcon from "@mui/icons-material/Close";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import Meet from "../types/MeetModel";
 
 type MeetInfoSummaryProps = {
-  meet: {
-    name: string;
-    description?: string;
-    organizerName?: string;
-    location?: string;
-    capacity?: number;
-    start?: string;
-    end?: string;
-    costCents?: number | null;
-    currencySymbol?: string;
-    imageUrl?: string | null;
-  };
+  meet: Meet;
   isPreview: boolean;
-  shareLink: string;
   loginHref?: string;
   onLoginClick?: () => void;
-  onCopyLink: () => void;
+  onCopyLink?: () => void;
+  descriptionMaxLines?: number;
+  showMoreChip?: boolean;
+  showUserAction?: boolean;
+  actionSlot?: ReactNode;
+  onClose?: () => void;
 };
 
 export function MeetInfoSummary({
   meet,
   isPreview,
-  shareLink,
   loginHref = "/login",
   onLoginClick,
   onCopyLink,
+  descriptionMaxLines,
+  showMoreChip = false,
+  showUserAction = true,
+  actionSlot,
+  onClose,
 }: MeetInfoSummaryProps) {
-  const startDate = meet.start ? new Date(meet.start) : null;
-  const endDate = meet.end ? new Date(meet.end) : null;
+  const { user, isAuthenticated, logout } = useAuth();
+  const descriptionRef = useRef<HTMLParagraphElement | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const startDate = meet.startTime ? new Date(meet.startTime) : null;
+  const endDate = meet.endTime ? new Date(meet.endTime) : null;
   const dateLabel =
     startDate &&
     new Intl.DateTimeFormat("en-US", {
@@ -67,6 +75,71 @@ export function MeetInfoSummary({
       ? `${meet.currencySymbol || ""}${(meet.costCents / 100).toFixed(2)}`
       : null;
   const hasImage = Boolean(meet.imageUrl);
+  const displayName = useMemo(() => {
+    if (!user) return "";
+    const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
+    if (name) return name;
+    if (user.idp_profile?.name) return user.idp_profile.name;
+    if (user.email) return user.email.split("@")[0];
+    return "";
+  }, [user]);
+  const initials = useMemo(() => {
+    if (!displayName) return "MP";
+    const parts = displayName.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }, [displayName]);
+  const shouldClamp = Boolean(descriptionMaxLines) && !isExpanded;
+
+  useEffect(() => {
+    if (!descriptionRef.current || !descriptionMaxLines) {
+      setIsTruncated(false);
+      return;
+    }
+    const el = descriptionRef.current;
+    setIsTruncated(el.scrollHeight > el.clientHeight + 1);
+  }, [descriptionMaxLines, meet.description, isExpanded]);
+
+  const renderDescription = () => (
+    <Stack spacing={1} alignItems="flex-start">
+      <Typography
+        ref={descriptionRef}
+        variant="body1"
+        color="text.secondary"
+        sx={{
+          whiteSpace: "pre-line",
+          ...(shouldClamp && {
+            display: "-webkit-box",
+            WebkitLineClamp: descriptionMaxLines,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }),
+        }}
+      >
+        {meet.description}
+      </Typography>
+      {showMoreChip && descriptionMaxLines && isTruncated && (
+        <Chip
+          label={"show more"}
+          size="small"
+          variant="outlined"
+          onClick={() => {
+            setIsTruncated(false), setIsExpanded(true);
+          }}
+        />
+      )}
+      {showMoreChip && descriptionMaxLines && isExpanded && (
+        <Chip
+          label={"show less"}
+          size="small"
+          variant="outlined"
+          onClick={() => {
+            setIsTruncated(true), setIsExpanded(false);
+          }}
+        />
+      )}
+    </Stack>
+  );
 
   return (
     <>
@@ -79,27 +152,43 @@ export function MeetInfoSummary({
         <Typography variant="h4" fontWeight={700}>
           {meet.name}
         </Typography>
-        {isPreview ? (
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<LinkIcon fontSize="small" />}
-            aria-label="Copy share link"
-            onClick={onCopyLink}
-            disabled={!shareLink}
-          >
-            Copy link
-          </Button>
-        ) : (
-          <Button
-            variant="outlined"
-            size="small"
-            href={!onLoginClick ? loginHref : undefined}
-            onClick={onLoginClick}
-          >
-            Login
-          </Button>
-        )}
+        {actionSlot ? (
+          actionSlot
+        ) : onClose ? (
+          <IconButton onClick={onClose} size="small" aria-label="Close">
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        ) : showUserAction ? (
+          isPreview && typeof onCopyLink === "function" ? (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<LinkIcon fontSize="small" />}
+              aria-label="Copy share link"
+              onClick={onCopyLink}
+              disabled={!meet.shareCode}
+            >
+              Copy link
+            </Button>
+          ) : isAuthenticated ? (
+            <Avatar
+              role="button"
+              sx={{ width: 36, height: 36, cursor: "pointer" }}
+              onClick={() => void logout()}
+            >
+              {initials}
+            </Avatar>
+          ) : (
+            <Button
+              variant="outlined"
+              size="small"
+              href={!onLoginClick ? loginHref : undefined}
+              onClick={onLoginClick}
+            >
+              Login
+            </Button>
+          )
+        ) : null}
       </Stack>
       {dateLabel && (
         <Typography variant="subtitle1" color="text.secondary">
@@ -154,13 +243,7 @@ export function MeetInfoSummary({
               )}
             </Stack>
           </Stack>
-          <Typography
-            variant="body1"
-            color="text.secondary"
-            sx={{ mt: 1, whiteSpace: "pre-line" }}
-          >
-            {meet.description}
-          </Typography>
+          {renderDescription()}
         </>
       ) : (
         <>
@@ -199,13 +282,7 @@ export function MeetInfoSummary({
               </Stack>
             )}
           </Stack>
-          <Typography
-            variant="body1"
-            color="text.secondary"
-            sx={{ whiteSpace: "pre-line" }}
-          >
-            {meet.description}
-          </Typography>
+          {renderDescription()}
         </>
       )}
     </>

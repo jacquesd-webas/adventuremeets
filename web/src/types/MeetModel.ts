@@ -5,6 +5,7 @@ export type Meet = {
   location?: string;
   startTime?: string;
   endTime?: string;
+  openingDate?: string;
   status?: string;
   organizerId?: string;
   organizerName?: string;
@@ -25,6 +26,10 @@ export type Meet = {
   attendeeCount?: number;
   waitlistCount?: number;
   confirmedCount?: number;
+  checkedInCount?: number;
+  isHidden?: boolean;
+  myAttendeeStatus?: string;
+  organizationId?: string;
 };
 
 export default Meet;

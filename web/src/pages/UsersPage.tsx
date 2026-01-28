@@ -33,14 +33,14 @@ const columns: Array<{
   { id: "createdAt", label: "Created", sortable: true },
 ];
 
-const compareValues = (
-  a: User,
-  b: User,
-  orderBy: keyof User | "name"
-) => {
+const compareValues = (a: User, b: User, orderBy: keyof User | "name") => {
   if (orderBy === "name") {
-    const aName = `${a.firstName || ""} ${a.lastName || ""}`.trim().toLowerCase();
-    const bName = `${b.firstName || ""} ${b.lastName || ""}`.trim().toLowerCase();
+    const aName = `${a.firstName || ""} ${a.lastName || ""}`
+      .trim()
+      .toLowerCase();
+    const bName = `${b.firstName || ""} ${b.lastName || ""}`
+      .trim()
+      .toLowerCase();
     return aName.localeCompare(bName);
   }
 
@@ -67,17 +67,17 @@ function UsersPage() {
   const [orderBy, setOrderBy] = useState<keyof User | "name">("name");
   const [order, setOrder] = useState<Order>("asc");
 
-  const { data, isLoading, error } = useFetchUsers();
+  const { data: users, isLoading, error } = useFetchUsers();
 
   const sortedRows = useMemo(() => {
-    const items = [...data];
+    const items = [...users];
     items.sort((a, b) =>
       order === "asc"
         ? compareValues(a, b, orderBy)
         : -compareValues(a, b, orderBy)
     );
     return items;
-  }, [data, order, orderBy]);
+  }, [users, order, orderBy]);
 
   const pagedRows = useMemo(() => {
     const start = page * rowsPerPage;
@@ -170,9 +170,7 @@ function UsersPage() {
                             : "—"}
                         </TableCell>
                         <TableCell>
-                          {row.createdAt
-                            ? shortTimestamp(row.createdAt)
-                            : "—"}
+                          {row.createdAt ? shortTimestamp(row.createdAt) : "—"}
                         </TableCell>
                       </TableRow>
                     ))
@@ -182,7 +180,7 @@ function UsersPage() {
             </TableContainer>
             <TablePagination
               component="div"
-              count={data.length}
+              count={users.length}
               page={page}
               onPageChange={(_, nextPage) => setPage(nextPage)}
               rowsPerPage={rowsPerPage}

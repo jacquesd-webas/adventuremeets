@@ -91,6 +91,37 @@ export class OrganizationsService {
     }));
   }
 
+  async findOrganizers(orgId: string) {
+    const rows = await this.database
+      .getClient()("users as u")
+      .join("user_organization_memberships as uom", "uom.user_id", "u.id")
+      .where("uom.organization_id", orgId)
+      .whereIn("uom.role", ["organizer", "admin"])
+      .orderBy("u.last_name", "asc")
+      .orderBy("u.first_name", "asc")
+      .select(
+        "u.id",
+        "u.email",
+        "u.first_name",
+        "u.last_name",
+        "uom.role",
+        "uom.status",
+        "uom.created_at",
+        "uom.updated_at"
+      );
+
+    return rows.map((row) => ({
+      id: row.id,
+      email: row.email,
+      firstName: row.first_name ?? row.firstName,
+      lastName: row.last_name ?? row.lastName,
+      role: row.role,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
   async findTemplates(orgId: string) {
     const rows = await this.database
       .getClient()("templates")

@@ -30,11 +30,13 @@ import { FinishStep } from "./FinishStep";
 import { ImageStep } from "./ImageStep";
 import { useApi } from "../../hooks/useApi";
 import { useSaveMeet } from "../../hooks/useSaveMeet";
-import { useUsers } from "../../hooks/useUsers";
+import { useFetchUsers } from "../../hooks/useFetchUsers";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { getLocaleDefaults } from "../../helpers/locale";
 import { useAuth } from "../../context/AuthContext";
+import { useFetchOrganizers } from "../../hooks/useFetchOrganizers";
+import { useCurrentOrganization } from "../../context/OrganizationContext";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -175,7 +177,8 @@ export function CreateMeetModal({
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
-  const { users } = useUsers();
+  const { currentOrganizationId } = useCurrentOrganization();
+  const { data: users } = useFetchOrganizers(currentOrganizationId);
   const { data: fetchedMeet, isLoading: isFetchingMeet } = useFetchMeet(
     meetIdProp,
     Boolean(open && meetIdProp)

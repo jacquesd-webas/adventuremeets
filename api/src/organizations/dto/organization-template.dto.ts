@@ -2,13 +2,13 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class OrganizationTemplateDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  organizationId: string;
+  organizationId!: string;
 
   @ApiProperty()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional()
   description?: string;

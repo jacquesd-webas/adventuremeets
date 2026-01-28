@@ -20,9 +20,12 @@ import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import { PendingAction } from "./MeetActionsDialogs";
 import MeetStatusEnum from "../types/MeetStatusEnum";
 import { useNavigate } from "react-router-dom";
+import { useCurrentOrganization } from "../context/OrganizationContext";
 
 type MeetActionsMenuProps = {
   meetId: string;
@@ -76,6 +79,10 @@ const shouldShow = (action: PendingAction, statusId: number) => {
         statusId === MeetStatusEnum.Open ||
         statusId === MeetStatusEnum.Closed
       );
+    case "details":
+      return true;
+    case "apply":
+      return statusId === MeetStatusEnum.Open;
   }
 };
 
@@ -92,6 +99,7 @@ export function MeetActionsMenu({
   const open = Boolean(anchorEl);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const nav = useNavigate();
+  const { currentOrganizationRole } = useCurrentOrganization();
 
   // If the viewport switches while a menu is open, convert to the appropriate UI.
   useEffect(() => {
@@ -140,116 +148,170 @@ export function MeetActionsMenu({
     ) => void
   ) => (
     <>
-      {shouldShow("attendees", statusId) && (
-        <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "attendees")}
-        >
-          <ListItemIcon>
-            <PeopleOutlineIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Attendees</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("open", statusId) && (
-        <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "open")}
-        >
-          <ListItemIcon>
-            <LockOpenOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Open meet</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("preview", statusId) && (
-        <MenuItem
-          onClick={(event) =>
-            (onItemClick || handleAction)(event, "preview", () => {
-              if (previewLinkCode)
-                nav(`/meets/${previewLinkCode}?preview=true`);
-            })
-          }
-        >
-          <ListItemIcon>
-            <OpenInNewOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Preview</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("edit", statusId) && (
-        <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "edit")}
-        >
-          <ListItemIcon>
-            <EditOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Edit</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("checkin", statusId) && (
-        <MenuItem
-          onClick={(event) => {
-            event.stopPropagation();
-            if (meetId) {
-              nav(`/meet/${meetId}/checkin`);
-            }
-            handleClose();
-          }}
-        >
-          <ListItemIcon>
-            <FactCheckOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Check-in</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("close", statusId) && (
-        <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "close")}
-        >
-          <ListItemIcon>
-            <FactCheckOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Close meet</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("postpone", statusId) && (
-        <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "postpone")}
-        >
-          <ListItemIcon>
-            <PauseCircleOutlineIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Postpone</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("cancel", statusId) && (
-        <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "cancel")}
-        >
-          <ListItemIcon>
-            <BlockOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Cancel meet</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("report", statusId) && (
-        <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "report")}
-        >
-          <ListItemIcon>
-            <AssessmentOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Reports</ListItemText>
-        </MenuItem>
-      )}
-      {shouldShow("delete", statusId) && (
-        <MenuItem
-          onClick={(event) => (onItemClick || handleAction)(event, "delete")}
-        >
-          <ListItemIcon>
-            <DeleteOutlineIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Delete</ListItemText>
-        </MenuItem>
+      {currentOrganizationRole === "member" ? (
+        <>
+          {shouldShow("details", statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, "details")
+              }
+            >
+              <ListItemIcon>
+                <InfoOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Meet details</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("apply", statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, () => {
+                  if (previewLinkCode) {
+                    window.open(
+                      `/meets/${previewLinkCode}`,
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
+                  }
+                })
+              }
+            >
+              <ListItemIcon>
+                <HowToRegOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Apply to meet</ListItemText>
+            </MenuItem>
+          )}
+        </>
+      ) : (
+        <>
+          {shouldShow("attendees", statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, "attendees")
+              }
+            >
+              <ListItemIcon>
+                <PeopleOutlineIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Attendees</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("open", statusId) && (
+            <MenuItem
+              onClick={(event) => (onItemClick || handleAction)(event, "open")}
+            >
+              <ListItemIcon>
+                <LockOpenOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Open meet</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("preview", statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, "preview", () => {
+                  if (previewLinkCode) {
+                    window.open(
+                      `/meets/${previewLinkCode}?preview=true`,
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
+                  }
+                })
+              }
+            >
+              <ListItemIcon>
+                <OpenInNewOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Preview</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("edit", statusId) && (
+            <MenuItem
+              onClick={(event) => (onItemClick || handleAction)(event, "edit")}
+            >
+              <ListItemIcon>
+                <EditOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Edit</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("checkin", statusId) && (
+            <MenuItem
+              onClick={(event) => {
+                event.stopPropagation();
+                if (meetId) {
+                  nav(`/meet/${meetId}/checkin`);
+                }
+                handleClose();
+              }}
+            >
+              <ListItemIcon>
+                <FactCheckOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Check-in</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("close", statusId) && (
+            <MenuItem
+              onClick={(event) => (onItemClick || handleAction)(event, "close")}
+            >
+              <ListItemIcon>
+                <FactCheckOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Close meet</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("postpone", statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, "postpone")
+              }
+            >
+              <ListItemIcon>
+                <PauseCircleOutlineIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Postpone</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("cancel", statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, "cancel")
+              }
+            >
+              <ListItemIcon>
+                <BlockOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Cancel meet</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("report", statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, "report")
+              }
+            >
+              <ListItemIcon>
+                <AssessmentOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Reports</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow("delete", statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, "delete")
+              }
+            >
+              <ListItemIcon>
+                <DeleteOutlineIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Delete</ListItemText>
+            </MenuItem>
+          )}
+        </>
       )}
     </>
   );

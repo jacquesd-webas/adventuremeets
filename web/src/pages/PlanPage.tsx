@@ -21,22 +21,25 @@ import {
 } from "../components/MeetActionsDialogs";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { defaultPendingAction } from "../helpers/defaultPendingAction";
+import { useCurrentOrganization } from "../context/OrganizationContext";
 
 function PlanPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(
     null
   );
+  const { currentOrganizationId } = useCurrentOrganization();
   const { data: meets, isLoading } = useFetchMeets({
     view: "all",
     page: 1,
     limit: 50,
+    organizationId: currentOrganizationId,
   });
 
   return (
     <Stack spacing={2}>
       <Heading
-        title="Plan"
+        title="Meets List"
         subtitle="Manage all meets from one place."
         actionComponent={
           <Button

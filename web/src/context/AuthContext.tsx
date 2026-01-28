@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useFetchMe } from "../hooks/useFetchMe";
 import { useApi } from "../hooks/useApi";
+import { useQueryClient } from "@tanstack/react-query";
 import { Me } from "../types/MeModel";
 
 type AuthContextValue = {
@@ -15,7 +16,7 @@ type AuthContextValue = {
   isLoading: boolean;
   isAuthenticated: boolean;
   refreshSession: () => Promise<void>;
-  logout: () => Promise<void>;
+  logout: () => void;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: Props) {
   const api = useApi();
   const refreshInFlight = useRef(false);
   const refetchRef = useRef<() => Promise<unknown>>(async () => undefined);
+  const queryClient = useQueryClient();
 
   const handleUnauthorized = useCallback(async () => {
     if (refreshInFlight.current) return;
@@ -50,7 +52,11 @@ export function AuthProvider({ children }: Props) {
     }
   }, [api]);
 
-  const { user, isLoading, refetch } = useFetchMe({
+  const {
+    data: user,
+    isLoading,
+    refetch,
+  } = useFetchMe({
     onUnauthorized: handleUnauthorized,
   });
   refetchRef.current = refetch;
@@ -59,10 +65,14 @@ export function AuthProvider({ children }: Props) {
     await refetch();
   }, [refetch]);
 
-  const logout = useCallback(async () => {
-    (await api.post("/auth/logout")) || "/auth/logout";
-    refetch();
-  }, [api, refetch]);
+  const logout = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("accessToken");
+      window.localStorage.removeItem("refreshToken");
+    }
+    queryClient.setQueryData(["auth", "me"], null);
+    queryClient.clear();
+  }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

@@ -2,6 +2,7 @@ import {
   AppBar,
   Avatar,
   Box,
+  Button,
   Container,
   IconButton,
   ListItemIcon,
@@ -10,6 +11,7 @@ import {
   Stack,
   Toolbar,
   Tooltip,
+  Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -24,10 +26,14 @@ import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCurrentOrganization } from "../context/OrganizationContext";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
+import { ChooseOrganizationModal } from "../components/ChooseOrganizationModal";
 
 const navItems = [
   { label: "Dashboard", path: "/" },
-  { label: "Plan", path: "/plan" },
+  { label: "Calendar", path: "/calendar" },
+  { label: "List", path: "/plan" },
 ];
 
 function MainLayout() {
@@ -36,11 +42,21 @@ function MainLayout() {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [adminAnchorEl, setAdminAnchorEl] = useState<null | HTMLElement>(null);
+  const [orgModalOpen, setOrgModalOpen] = useState(false);
+
   const { user } = useAuth();
+  const { currentOrganizationId, organizationIds, currentOrganizationRole } =
+    useCurrentOrganization();
+  const { data: organization } = useFetchOrganization(
+    currentOrganizationId || undefined
+  );
   const [profileOpen, setProfileOpen] = useState(false);
   const { mode, toggleMode } = useThemeMode();
   const queryClient = useQueryClient();
-  const isAdmin = Boolean(user?.roles?.includes("admin"));
+  const isAdmin = Boolean(
+    user?.organizations && Object.values(user.organizations).includes("admin")
+  );
+  const isCurrentOrgAdmin = currentOrganizationRole === "admin";
 
   const displayName = useMemo(() => {
     if (!user) return "";
@@ -74,8 +90,8 @@ function MainLayout() {
     handleAdminClose();
   };
   const handleAdminTemplates = () => {
-    if (user?.organizationIds?.length) {
-      navigate(`/admin/organizations/${user.organizationIds[0]}/templates`);
+    if (currentOrganizationId) {
+      navigate(`/admin/organizations/${currentOrganizationId}/templates`);
     }
     handleAdminClose();
   };
@@ -159,6 +175,27 @@ function MainLayout() {
               )}
             </Stack>
             <Box sx={{ flexGrow: 1 }} />
+            {organizationIds.length > 1 && (
+              <Button
+                onClick={() => setOrgModalOpen(true)}
+                variant="outlined"
+                color="primary"
+                size="small"
+                sx={{
+                  mr: 2,
+                  maxWidth: 240,
+                  textTransform: "none",
+                  fontWeight: 600,
+                  justifyContent: "flex-start",
+                }}
+              >
+                <Typography variant="body2" noWrap>
+                  {currentOrganizationId
+                    ? organization?.name || "Organisation"
+                    : "No Organisation"}
+                </Typography>
+              </Button>
+            )}
             <Tooltip title="Account">
               <IconButton
                 onClick={handleAvatarClick}
@@ -211,11 +248,14 @@ function MainLayout() {
                 </MenuItem>
                 <MenuItem
                   onClick={handleAdminTemplates}
-                  disabled={!user?.organizationIds?.length}
+                  disabled={!organizationIds.length || !isCurrentOrgAdmin}
                 >
                   Templates
                 </MenuItem>
-                <MenuItem onClick={() => handleAdminNavigate("/admin/users")}>
+                <MenuItem
+                  onClick={() => handleAdminNavigate("/admin/users")}
+                  disabled={!isCurrentOrgAdmin}
+                >
                   Users
                 </MenuItem>
               </Menu>
@@ -237,6 +277,10 @@ function MainLayout() {
         <Outlet />
       </Container>
       <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <ChooseOrganizationModal
+        open={orgModalOpen || !currentOrganizationId}
+        onClose={() => setOrgModalOpen(false)}
+      />
     </Box>
   );
 }

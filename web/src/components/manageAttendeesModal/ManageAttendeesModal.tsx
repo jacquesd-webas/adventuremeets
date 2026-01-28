@@ -24,6 +24,8 @@ import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import QuestionMarkOutlinedIcon from "@mui/icons-material/QuestionMarkOutlined";
+import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccountOutlined";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
 import Meet from "../../types/MeetModel";
@@ -150,6 +152,8 @@ export function ManageAttendeesModal({
     );
   }, [attendees]);
 
+  // TODO: Refactor this component into smaller components
+
   return (
     <Dialog
       open={open}
@@ -210,16 +214,22 @@ export function ManageAttendeesModal({
                 attendees.map((attendee) => {
                   const label = attendeeLabel(attendee);
                   const subLabel = attendee.email || attendee.phone || "";
-                  const isConfirmed = attendee.status === "confirmed";
+                  const isConfirmed =
+                    attendee.status === "confirmed" ||
+                    attendee.status === "attended" ||
+                    attendee.status === "checked-in";
                   const isRejected = attendee.status === "rejected";
+                  const isPending = attendee.status === "pending";
                   const isWaitlisted = attendee.status === "waitlisted";
+                  const isOrganizer =
+                    attendee && meet && attendee.userId === meet.organizerId;
                   return (
                     <ListItemButton
                       key={attendee.id}
                       selected={attendee.id === selectedAttendeeId}
                       onClick={() => setSelectedAttendeeId(attendee.id)}
                     >
-                      {isConfirmed || isRejected || isWaitlisted ? (
+                      {!isPending ? (
                         <Box
                           sx={{
                             width: 32,
@@ -230,7 +240,12 @@ export function ManageAttendeesModal({
                             justifyContent: "center",
                           }}
                         >
-                          {isConfirmed ? (
+                          {isOrganizer ? (
+                            <SupervisorAccountOutlinedIcon
+                              fontSize="large"
+                              color="primary"
+                            />
+                          ) : isConfirmed ? (
                             <CheckCircleOutlineIcon
                               fontSize="large"
                               color="success"
@@ -240,10 +255,15 @@ export function ManageAttendeesModal({
                               fontSize="large"
                               color="warning"
                             />
-                          ) : (
+                          ) : isRejected ? (
                             <CancelOutlinedIcon
                               fontSize="large"
                               color="error"
+                            />
+                          ) : (
+                            <QuestionMarkOutlinedIcon
+                              fontSize="large"
+                              color="disabled"
                             />
                           )}
                         </Box>
@@ -288,13 +308,21 @@ export function ManageAttendeesModal({
                     </Typography>
                     <Stack direction="row" spacing={1} alignItems="center">
                       {isUpdating && <CircularProgress size={18} />}
-                      <AttendeeActionButtons
-                        attendee={selectedAttendee}
-                        onUpdateStatus={handleUpdateStatus}
-                        onPaid={
-                          meet?.costCents ? handleAttendeePaid : undefined
-                        }
-                      />
+                      {selectedAttendee &&
+                      meet &&
+                      selectedAttendee.userId === meet.organizerId ? (
+                        <Button variant="outlined" disabled>
+                          Organiser
+                        </Button>
+                      ) : (
+                        <AttendeeActionButtons
+                          attendee={selectedAttendee}
+                          onUpdateStatus={handleUpdateStatus}
+                          onPaid={
+                            meet?.costCents ? handleAttendeePaid : undefined
+                          }
+                        />
+                      )}
                     </Stack>
                   </Stack>
                   <Stack
