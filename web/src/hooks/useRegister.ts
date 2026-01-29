@@ -9,7 +9,7 @@ type RegisterPayload = {
   password: string;
   organizationId?: string;
   captchaToken?: string;
-  attendeeeId?: string;
+  attendeeId?: string;
 };
 
 type RegisterResponse = {

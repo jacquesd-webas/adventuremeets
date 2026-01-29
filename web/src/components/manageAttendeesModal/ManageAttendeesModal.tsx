@@ -142,10 +142,14 @@ export function ManageAttendeesModal({
   const statusCounts = useMemo(() => {
     return attendees.reduce(
       (acc, attendee) => {
-        const status = attendee.status || "pending";
-        if (status === "confirmed") acc.accepted += 1;
-        if (status === "rejected") acc.rejected += 1;
-        if (status === "waitlisted") acc.waitlisted += 1;
+        const status = attendee.status || AttendeeStatusEnum.Pending;
+        if (status === AttendeeStatusEnum.Confirmed) acc.accepted += 1;
+        if (
+          status === AttendeeStatusEnum.Rejected ||
+          status === AttendeeStatusEnum.Cancelled
+        )
+          acc.rejected += 1;
+        if (status === AttendeeStatusEnum.Waitlisted) acc.waitlisted += 1;
         return acc;
       },
       { accepted: 0, rejected: 0, waitlisted: 0 }
@@ -215,12 +219,16 @@ export function ManageAttendeesModal({
                   const label = attendeeLabel(attendee);
                   const subLabel = attendee.email || attendee.phone || "";
                   const isConfirmed =
-                    attendee.status === "confirmed" ||
-                    attendee.status === "attended" ||
-                    attendee.status === "checked-in";
-                  const isRejected = attendee.status === "rejected";
-                  const isPending = attendee.status === "pending";
-                  const isWaitlisted = attendee.status === "waitlisted";
+                    attendee.status === AttendeeStatusEnum.Confirmed ||
+                    attendee.status === AttendeeStatusEnum.Attended ||
+                    attendee.status === AttendeeStatusEnum.CheckedIn;
+                  const isRejected =
+                    attendee.status === AttendeeStatusEnum.Rejected ||
+                    attendee.status === AttendeeStatusEnum.Cancelled;
+                  const isPending =
+                    attendee.status === AttendeeStatusEnum.Pending;
+                  const isWaitlisted =
+                    attendee.status === AttendeeStatusEnum.Waitlisted;
                   const isOrganizer =
                     attendee && meet && attendee.userId === meet.organizerId;
                   return (
@@ -437,7 +445,6 @@ export function ManageAttendeesModal({
         <MessageModal
           open={messageOpen}
           onClose={() => setMessageOpen(false)}
-          meetId={meet.id}
           meet={meet}
           attendeeIds={messageAttendeeIds}
           attendees={attendees}

@@ -61,6 +61,19 @@ export class AuthService {
     return role === "admin";
   }
 
+  hasAtLeastOneRole(
+    user: UserProfile,
+    organizationIds: string[],
+    requiredRole: "member" | "organizer" | "admin"
+  ): boolean {
+    for (const orgId of organizationIds) {
+      if (this.hasRole(user, orgId, requiredRole)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   getUserOrganizationIds(
     user: UserProfile,
     minRole?: "member" | "organizer" | "admin"

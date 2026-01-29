@@ -75,7 +75,10 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
     case "checkin":
       return statusId === MeetStatusEnum.Closed;
     case "report":
-      return statusId === MeetStatusEnum.Completed;
+      return (
+        statusId === MeetStatusEnum.Completed ||
+        statusId === MeetStatusEnum.Closed
+      );
     case "preview":
       return (
         statusId === MeetStatusEnum.Published ||

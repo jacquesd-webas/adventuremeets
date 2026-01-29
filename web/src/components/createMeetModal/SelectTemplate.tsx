@@ -112,6 +112,7 @@ const mapDefinitionsToQuestions = (
       type: fieldType,
       label: definition.label || "",
       required: Boolean(definition.required),
+      includeInReports: definition.config?.includeInReports ?? false,
       options:
         fieldType === "select"
           ? (definition.config?.options as string[]) || []

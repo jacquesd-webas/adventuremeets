@@ -83,6 +83,7 @@ export class UsersService {
   }
 
   async findById(id: string) {
+    // TODO: join on organization memberships { organizationId, role }
     const user = await this.database.getClient()("users").where({ id }).first();
     if (!user) {
       throw new NotFoundException("User not found");

@@ -56,9 +56,9 @@ export class UsersController {
     if (!existingUser) {
       throw new NotFoundException("User not found in your organizations");
     }
-    if (
-      !this.authService.hasRole(user, existingUser.organizationId!, "admin")
-    ) {
+    // Check the user is admin for at least one of the existing users organizations
+    const organizationsIds = this.authService.getUserOrganizationIds(user);
+    if (!this.authService.hasAtLeastOneRole(user, organizationsIds, "admin")) {
       throw new ForbiddenException(
         "You are not an administrator for this organization"
       );
@@ -104,9 +104,10 @@ export class UsersController {
       if (!body.organizationId) {
         throw new BadRequestException("organizationId is required");
       }
-      // Check that user is admin for the users existing organization
+      // Check that user is admin for at least one of the users organizations
+      const organizationsIds = this.authService.getUserOrganizationIds(user);
       if (
-        !this.authService.hasRole(user, existingUser.organizationId!, "admin")
+        !this.authService.hasAtLeastOneRole(user, organizationsIds, "admin")
       ) {
         throw new ForbiddenException(
           "You are not an administrator for the user's organization"
@@ -170,9 +171,10 @@ export class UsersController {
     if (!existingUser) {
       throw new NotFoundException("User not found in your organizations");
     }
-    if (
-      !this.authService.hasRole(user, existingUser.organizationId!, "admin")
-    ) {
+
+    // Check the user is admin for at least one of the existing users organizations
+    const organizationsIds = this.authService.getUserOrganizationIds(user);
+    if (!this.authService.hasAtLeastOneRole(user, organizationsIds, "admin")) {
       throw new ForbiddenException(
         "You are not an administrator for this organization"
       );

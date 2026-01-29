@@ -153,14 +153,24 @@ export function MessageModal({
         ? attendeeIds
         : (attendees || [])
             .filter((att) => {
-              const status = (att.status || "").toLowerCase();
+              const status = att.status as AttendeeStatusEnum;
               if (
                 includeConfirmed &&
-                ["confirmed", "checked-in", "attended"].includes(status)
+                [
+                  AttendeeStatusEnum.Confirmed,
+                  AttendeeStatusEnum.CheckedIn,
+                  AttendeeStatusEnum.Attended,
+                ].includes(status)
               )
                 return true;
-              if (includeWaitlisted && status === "waitlisted") return true;
-              if (includeRejected && status === "canceled") return true;
+              if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
+                return true;
+              if (
+                includeRejected &&
+                (status === AttendeeStatusEnum.Rejected ||
+                  status === AttendeeStatusEnum.Cancelled)
+              )
+                return true;
               return false;
             })
             .map((att) => att.id);

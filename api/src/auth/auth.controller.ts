@@ -91,16 +91,13 @@ export class AuthController {
     if (!fullUser) {
       throw new ForbiddenException("User not found");
     }
-    const organizationIds = await this.usersService.findOrganizationIds(
-      user.id
-    );
     const orgRoles = await this.usersService.findOrganizationRoles(user.id);
-    const organizations = organizationIds.reduce<Record<string, string>>(
-      (acc, orgId) => {
+    const organizations = orgRoles.reduce<Record<string, string>>(
+      (acc, org) => {
         const role =
-          orgRoles.find((row) => row.organizationId === orgId)?.role ||
-          "member";
-        acc[orgId] = role;
+          orgRoles.find((row) => row.organizationId === org.organizationId)
+            ?.role || "member";
+        acc[org.organizationId] = role;
         return acc;
       },
       {}

@@ -37,6 +37,7 @@ type TemplateQuestionField = {
   type: "text" | "select" | "switch" | "checkbox";
   label: string;
   required?: boolean;
+  includeInReports?: boolean;
   options?: string[];
   fieldKey?: string;
   optionsInput?: string;
@@ -91,6 +92,7 @@ export function CreateOrEditTemplateModal({
       type,
       label: "",
       optionsInput: "",
+      includeInReports: false,
     };
     if (type === "select") {
       newField.options = [];
@@ -135,23 +137,28 @@ export function CreateOrEditTemplateModal({
       return;
     }
     setError(null);
-    const payload = {
+        const payload = {
       name: name.trim(),
       description: description.trim() || undefined,
-      metaDefinitions: questions.map((question, index) => ({
-        id: question.id,
-        fieldKey:
-          question.fieldKey ||
-          buildFieldKey(question.label) ||
-          question.id ||
-          `field_${index + 1}`,
-        label: question.label,
-        fieldType: question.type,
-        required: Boolean(question.required),
-        config:
-          question.type === "select" ? { options: question.options ?? [] } : {},
-      })),
-    };
+          metaDefinitions: questions.map((question, index) => ({
+            id: question.id,
+            fieldKey:
+              question.fieldKey ||
+              buildFieldKey(question.label) ||
+              question.id ||
+              `field_${index + 1}`,
+            label: question.label,
+            fieldType: question.type,
+            required: Boolean(question.required),
+            config:
+              question.type === "select"
+                ? {
+                    options: question.options ?? [],
+                    includeInReports: Boolean(question.includeInReports),
+                  }
+                : { includeInReports: Boolean(question.includeInReports) },
+          })),
+        };
     try {
       if (templateId) {
         await updateTemplateAsync({
@@ -353,19 +360,34 @@ export function CreateOrEditTemplateModal({
                                 fullWidth
                               />
                             )}
-                            <FormControlLabel
-                              control={
-                                <Switch
-                                  checked={Boolean(field.required)}
-                                  onChange={(e) =>
-                                    updateField(field.id, {
-                                      required: e.target.checked,
-                                    })
-                                  }
-                                />
-                              }
-                              label="Required"
-                            />
+                            <Stack direction="row" spacing={2} alignItems="center">
+                              <FormControlLabel
+                                control={
+                                  <Switch
+                                    checked={Boolean(field.required)}
+                                    onChange={(e) =>
+                                      updateField(field.id, {
+                                        required: e.target.checked,
+                                      })
+                                    }
+                                  />
+                                }
+                                label="Required"
+                              />
+                              <FormControlLabel
+                                control={
+                                  <Switch
+                                    checked={Boolean(field.includeInReports)}
+                                    onChange={(e) =>
+                                      updateField(field.id, {
+                                        includeInReports: e.target.checked,
+                                      })
+                                    }
+                                  />
+                                }
+                                label="Include in reports"
+                              />
+                            </Stack>
                           </Stack>
                         </Paper>
                       ))}
@@ -428,6 +450,7 @@ const mapDefinitionsToQuestions = (
       type: fieldType,
       label: definition.label || "",
       required: Boolean(definition.required),
+      includeInReports: definition.config?.includeInReports ?? false,
       options:
         fieldType === "select"
           ? (definition.config?.options as string[]) || []

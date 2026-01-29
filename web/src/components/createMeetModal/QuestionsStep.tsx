@@ -23,6 +23,7 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
       type,
       label: "",
       optionsInput: "",
+      includeInReports: false,
     };
     if (type === "select") {
       newField.options = [];
@@ -150,17 +151,32 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
                   fullWidth
                 />
               )}
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={Boolean(field.required)}
-                    onChange={(e) =>
-                      updateField(field.id, { required: e.target.checked })
-                    }
-                  />
-                }
-                label="Required"
-              />
+              <Stack direction="row" spacing={2} alignItems="center">
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={Boolean(field.required)}
+                      onChange={(e) =>
+                        updateField(field.id, { required: e.target.checked })
+                      }
+                    />
+                  }
+                  label="Required"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={Boolean(field.includeInReports)}
+                      onChange={(e) =>
+                        updateField(field.id, {
+                          includeInReports: e.target.checked,
+                        })
+                      }
+                    />
+                  }
+                  label="Include in reports"
+                />
+              </Stack>
             </Stack>
           </Paper>
         ))}

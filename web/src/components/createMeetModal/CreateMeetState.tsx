@@ -15,6 +15,7 @@ export type QuestionField = {
   type: "text" | "select" | "switch" | "checkbox";
   label: string;
   required?: boolean;
+  includeInReports?: boolean;
   options?: string[];
   fieldKey?: string;
   optionsInput?: string;

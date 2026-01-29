@@ -135,6 +135,7 @@ const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
           type: definition.fieldType ?? definition.field_type ?? "text", // XXX TODO: fix this
           label: definition.label ?? "",
           required: definition.required ?? false,
+          includeInReports: definition.config?.includeInReports ?? false,
           options: Array.isArray(definition.config?.options)
             ? definition.config.options
             : [],
@@ -412,8 +413,11 @@ export function CreateMeetModal({
             required: Boolean(question.required),
             config:
               question.type === "select"
-                ? { options: question.options ?? [] }
-                : {},
+                ? {
+                    options: question.options ?? [],
+                    includeInReports: Boolean(question.includeInReports),
+                  }
+                : { includeInReports: Boolean(question.includeInReports) },
           })),
         };
       case 4:
