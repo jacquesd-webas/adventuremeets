@@ -110,6 +110,30 @@ function RegisterPage() {
     }
   }, [location.state]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const orgFromQuery = params.get("org") || "";
+    if (orgFromQuery) {
+      setOrganizationId(orgFromQuery);
+    }
+    let isActive = true;
+    const readOrgHeader = async () => {
+      try {
+        const res = await fetch(window.location.href, { method: "HEAD" });
+        const orgFromHeader = res.headers.get("X-Organization-Id") || "";
+        if (orgFromHeader && isActive) {
+          setOrganizationId(orgFromHeader);
+        }
+      } catch (err) {
+        console.warn("Failed to read organization header", err);
+      }
+    };
+    readOrgHeader();
+    return () => {
+      isActive = false;
+    };
+  }, [location.search]);
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (captchaRequired && !captchaToken) {

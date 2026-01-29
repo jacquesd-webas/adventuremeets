@@ -450,11 +450,15 @@ export class MeetsController {
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
+    const content = Buffer.isBuffer(buffer)
+      ? buffer
+      : Buffer.from(buffer as ArrayBuffer);
     const attachment = {
       filename: `${meet.name || "meet"}-report.xlsx`,
-      content: Buffer.from(buffer as ArrayBuffer),
+      content,
       contentType:
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      contentDisposition: "attachment",
     };
 
     await this.emailService.sendEmail({

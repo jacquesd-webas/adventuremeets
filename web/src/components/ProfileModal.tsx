@@ -249,6 +249,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   const inviteLink = currentOrganizationId
     ? `${window.location.origin}/register?org=${currentOrganizationId}`
     : "";
+  const isAdmin = currentOrganizationRole === "admin";
 
   const copyInvite = async () => {
     if (!inviteLink) return;
@@ -357,13 +358,23 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   label="Invite link"
                   value={inviteLink}
                   fullWidth
-                  disabled
+                  type={isAdmin ? "text" : "password"}
+                  InputProps={{
+                    readOnly: true,
+                  }}
+                  inputProps={{
+                    onCopy: (event: React.ClipboardEvent<HTMLInputElement>) => {
+                      if (!isAdmin) {
+                        event.preventDefault();
+                      }
+                    },
+                  }}
                   helperText="Share this link to invite members to your organisation."
                 />
                 <Button
                   variant="outlined"
                   onClick={copyInvite}
-                  disabled={!inviteLink}
+                  disabled={!inviteLink || !isAdmin}
                   sx={{ alignSelf: "flex-start" }}
                 >
                   {inviteCopied ? "Copied!" : "Copy invite link"}
