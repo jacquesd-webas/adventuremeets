@@ -15,9 +15,9 @@ import { MeetsService } from "./meets.service";
 import { CreateMeetAttendeeDto } from "./dto/create-meet-attendee.dto";
 import { Public } from "../auth/decorators/public.decorator";
 import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
-import { User } from "src/auth/decorators/user.decorator";
-import { UserProfile } from "src/users/dto/user-profile.dto";
-import { AuthService } from "src/auth/auth.service";
+import { User } from "../auth/decorators/user.decorator";
+import { UserProfile } from "../users/dto/user-profile.dto";
+import { AuthService } from "../auth/auth.service";
 
 @ApiTags("Meet Attendees")
 @Controller("meets/:meetId/attendees")
