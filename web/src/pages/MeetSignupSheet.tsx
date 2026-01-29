@@ -24,8 +24,8 @@ import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { useAddAttendee } from "../hooks/useAddAttendee";
 import { useCheckMeetAttendee } from "../hooks/useCheckMeetAttendee";
 import { useApi } from "../hooks/useApi";
-import { MeetSignupDuplicateDialog } from "../components/MeetSignupDuplicateDialog";
-import { MeetSignupSubmitted } from "../components/MeetSignupSubmitted";
+import { MeetSignupDuplicateDialog } from "../components/meetSignup/MeetSignupDuplicateDialog";
+import { MeetSignupSubmitted } from "../components/meetSignup/MeetSignupSubmitted";
 import { useMeetSignupSheetState } from "./MeetSignupSheetState";
 import { getLocaleDefaults } from "../helpers/locale";
 import {
@@ -33,10 +33,10 @@ import {
   buildInternationalPhone,
   getDefaultPhoneCountry,
   splitInternationalPhone,
-} from "../components/InternationalPhoneField";
-import { EmailField } from "../components/EmailField";
+} from "../components/meetSignup/InternationalPhoneField";
+import { EmailField } from "../components/meetSignup/EmailField";
 import { MeetInfoSummary } from "../components/MeetInfoSummary";
-import { NameField } from "../components/NameField";
+import { NameField } from "../components/meetSignup/NameField";
 import { PreviewBanner } from "../components/PreviewBanner";
 import { LoginForm } from "../components/auth/LoginForm";
 import { MeetStatusAlert } from "../components/MeetStatusAlert";

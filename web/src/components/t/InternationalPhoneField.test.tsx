@@ -1,5 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { InternationalPhoneField, buildInternationalPhone, getDefaultPhoneCountry } from "../InternationalPhoneField";
+import {
+  InternationalPhoneField,
+  buildInternationalPhone,
+  getDefaultPhoneCountry,
+} from "../meetSignup/InternationalPhoneField";
 
 describe("InternationalPhoneField helpers", () => {
   it("buildInternationalPhone joins dial code and local number", () => {
@@ -37,7 +41,7 @@ describe("InternationalPhoneField component", () => {
     //const option = within(listbox).getByText(/United States/i);
     //fireEvent.click(option);
     //expect(onCountryChange).toHaveBeenCalledWith("ZA");
-//
+    //
     //const input = screen.getByLabelText(/Phone/i);
     //fireEvent.change(input, { target: { value: "5551234" } });
     //expect(onLocalChange).toHaveBeenCalledWith("5551234");

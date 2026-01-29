@@ -3,6 +3,8 @@ export type Meet = {
   name: string;
   description?: string;
   location?: string;
+  locationLat?: number;
+  locationLong?: number;
   startTime?: string;
   endTime?: string;
   openingDate?: string;

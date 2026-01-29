@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   Grid,
   IconButton,
   InputAdornment,
@@ -32,7 +33,7 @@ import {
   getDefaultPhoneCountry,
   InternationalPhoneField,
   splitInternationalPhone,
-} from "./InternationalPhoneField";
+} from "./meetSignup/InternationalPhoneField";
 import { getLocaleDefaults } from "../helpers/locale";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganizationMetaDefinitions } from "../hooks/useFetchOrganizationMetaDefinitions";
@@ -58,7 +59,7 @@ function LabeledField({
     </Stack>
   );
 }
-import { NameField } from "./NameField";
+import { NameField } from "./meetSignup/NameField";
 
 type ProfileModalProps = {
   open: boolean;

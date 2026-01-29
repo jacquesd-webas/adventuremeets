@@ -97,7 +97,10 @@ export function MeetInfoSummary({
   }, [displayName]);
   const shouldClamp = Boolean(descriptionMaxLines) && !isExpanded;
   const mapQuery = useMemo(() => {
-    if (typeof meet.locationLat === "number" && typeof meet.locationLong === "number") {
+    if (
+      typeof meet.locationLat === "number" &&
+      typeof meet.locationLong === "number"
+    ) {
       return `${meet.locationLat},${meet.locationLong}`;
     }
     return meet.location || "";

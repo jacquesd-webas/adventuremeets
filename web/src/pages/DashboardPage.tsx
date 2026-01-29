@@ -12,18 +12,16 @@ import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
 import Meet from "../types/MeetModel";
 import MeetStatusEnum from "../types/MeetStatusEnum";
-import {
-  MeetActionsDialogs,
-  PendingAction,
-} from "../components/MeetActionsDialogs";
+import { MeetActionsDialogs } from "../components/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
 import { MobileDashboardTitle } from "../components/dashboard/MobileDashboardTitle";
 import { useCurrentOrganization } from "../context/organizationContext";
-import { CreatePrivateOrganizationDialog } from "../components/CreatePrivateOrganizationDialog";
+import { CreatePrivateOrganizationDialog } from "../components/auth/CreatePrivateOrganizationDialog";
+import MeetActionsEnum from "../types/MeetActionsEnum";
 
 function DashboardPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+  const [pendingAction, setPendingAction] = useState<MeetActionsEnum | null>(
     null
   );
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
@@ -48,7 +46,7 @@ function DashboardPage() {
       setShowCreateOrgDialog(true);
       return;
     }
-    setPendingAction("create");
+    setPendingAction(MeetActionsEnum.Create);
   };
 
   const { upcoming, past, draft, columns } = useMemo(() => {

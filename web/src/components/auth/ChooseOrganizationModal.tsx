@@ -12,8 +12,8 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useCurrentOrganization } from "../context/organizationContext";
-import { useFetchOrganisations } from "../hooks/useFetchOrganisations";
+import { useCurrentOrganization } from "../../context/organizationContext";
+import { useFetchOrganisations } from "../../hooks/useFetchOrganisations";
 
 type ChooseOrganizationModalProps = {
   open: boolean;

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AuthContext } from "../../context/authContext";
-import { MeetSignupSubmitted } from "../MeetSignupSubmitted";
+import { MeetSignupSubmitted } from "../meetSignup/MeetSignupSubmitted";
 
 describe("MeetSignupSubmitted", () => {
   it("renders confirmation content and CTA", () => {
@@ -21,6 +21,8 @@ describe("MeetSignupSubmitted", () => {
       </MemoryRouter>
     );
     expect(screen.getByText(/Application submitted/i)).toBeInTheDocument();
-    expect(screen.getByText(/Your application has been submitted/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Your application has been submitted/i)
+    ).toBeInTheDocument();
   });
 });

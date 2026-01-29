@@ -28,7 +28,7 @@ import { useAuth } from "../context/authContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
-import { ChooseOrganizationModal } from "../components/ChooseOrganizationModal";
+import { ChooseOrganizationModal } from "../components/auth/ChooseOrganizationModal";
 
 const navItems = [
   { label: "Dashboard", path: "/" },

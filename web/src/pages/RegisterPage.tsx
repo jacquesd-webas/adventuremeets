@@ -16,12 +16,12 @@ import ReCAPTCHA from "react-google-recaptcha";
 import { useRegister } from "../hooks/useRegister";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/AuthSocialButtons";
-import { EmailField } from "../components/EmailField";
+import { EmailField } from "../components/meetSignup/EmailField";
 import {
   InternationalPhoneField,
   buildInternationalPhone,
   getDefaultPhoneCountry,
-} from "../components/InternationalPhoneField";
+} from "../components/meetSignup/InternationalPhoneField";
 import { getLocaleDefaults } from "../helpers/locale";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";

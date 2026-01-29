@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/authContext";
+import { useAuth } from "../../context/authContext";
 
 type MeetSignupSubmittedProps = {
   firstName?: string;
