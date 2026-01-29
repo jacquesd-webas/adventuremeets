@@ -118,7 +118,6 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
             sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
           >
             <Typography variant="h6">Meet report</Typography>
-            <Button onClick={onClose}>Close</Button>
           </Stack>
           <Box sx={{ p: 2, overflow: "auto" }}>
             {isLoading ? (

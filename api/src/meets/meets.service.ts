@@ -285,10 +285,19 @@ export class MeetsService {
         await this.syncMetaDefinitions(trx, meet.id, dto.metaDefinitions);
       }
       if (dto.organizerId) {
+        const organizer = await trx("users")
+          .where({ id: dto.organizerId })
+          .first("first_name", "last_name", "email", "phone");
+        const organizerName = organizer
+          ? `${organizer.first_name ?? ""} ${organizer.last_name ?? ""}`.trim()
+          : "";
         const [attendee] = await trx("meet_attendees").insert(
           {
             meet_id: meet.id,
             user_id: dto.organizerId,
+            name: organizerName || null,
+            email: organizer?.email ?? null,
+            phone: organizer?.phone ?? null,
             status: "confirmed",
             created_at: now,
             updated_at: now,

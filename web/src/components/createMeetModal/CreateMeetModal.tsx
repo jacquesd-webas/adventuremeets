@@ -487,8 +487,8 @@ export function CreateMeetModal({
     if (!meetId && result?.id) {
       setMeetId(result.id);
     }
-    if (result?.shareCode) {
-      setShareCode(result.shareCode ?? null);
+    if (result?.shareCode || result?.share_code) {
+      setShareCode(result.shareCode ?? result.share_code ?? null);
     }
     if (result?.statusId) {
       setState((prev) => ({

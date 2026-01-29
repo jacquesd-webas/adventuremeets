@@ -91,11 +91,17 @@ export function MeetSignupSubmitted({
             <>
               <Typography color="text.secondary">
                 If you wish you can create a profile to make future meet signups
-                faster.
+                faster and manage your applications. Alternatively just use the
+                link below to check the status of your application.
               </Typography>
-              <Button variant="contained" onClick={handleCreateProfile}>
-                Create Profile
-              </Button>
+              <Stack direction="row" spacing={2}>
+                <Button variant="contained" onClick={handleCreateProfile}>
+                  Create Profile
+                </Button>
+                <Button variant="outlined" onClick={handleShowStatus}>
+                  Show Status
+                </Button>
+              </Stack>
             </>
           )}
         </Stack>
