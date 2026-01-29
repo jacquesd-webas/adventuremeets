@@ -7,36 +7,27 @@ type UpdatePayload = {
   name: string;
 };
 
-export function useUpdateOrganization() {
+export function useUpdateOrganization(organizationId?: string | null) {
   const api = useApi();
   const queryClient = useQueryClient();
 
   const mutation = useMutation<Organization, Error, UpdatePayload>({
     mutationFn: async (payload) => {
-      const res = await api.patch<{ organization: any }>(`/organizations/${payload.id}`, { name: payload.name });
-      const org = res.organization;
-      return {
-        id: org.id,
-        name: org.name,
-        createdAt: org.createdAt ?? org.created_at,
-        updatedAt: org.updatedAt ?? org.updated_at,
-        userCount:
-          typeof org.userCount === "number"
-            ? org.userCount
-            : org.user_count != null
-            ? Number(org.user_count)
-            : undefined,
-      } as Organization;
+      const res = await api.patch<{ organization: Organization }>(
+        `/organizations/${organizationId}`,
+        { name: payload.name }
+      );
+      return res?.organization;
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["organization", data.id], data);
-    }
+    },
   });
 
   return {
     updateOrganization: mutation.mutate,
     updateOrganizationAsync: mutation.mutateAsync,
     isLoading: mutation.isPending,
-    error: mutation.error ? mutation.error.message : null
+    error: mutation.error ? mutation.error.message : null,
   };
 }

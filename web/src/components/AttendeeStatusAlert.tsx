@@ -1,4 +1,5 @@
 import { Alert, Stack, Typography } from "@mui/material";
+import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 
 type AttendeeStatusAlertProps = {
   status?: string | null;
@@ -8,17 +9,17 @@ const statusMeta: Record<
   string,
   { label: string; severity: "success" | "info" | "warning" | "error" }
 > = {
-  pending: { label: "Pending", severity: "info" },
-  confirmed: { label: "Confirmed", severity: "success" },
-  waitlisted: { label: "Waitlisted", severity: "warning" },
-  canceled: { label: "Cancelled", severity: "info" },
-  rejected: { label: "Not selected", severity: "warning" },
-  "checked-in": { label: "Checked in", severity: "success" },
-  attended: { label: "Attended", severity: "success" },
+  [AttendeeStatusEnum.Pending]: { label: "Pending", severity: "info" },
+  [AttendeeStatusEnum.Confirmed]: { label: "Confirmed", severity: "success" },
+  [AttendeeStatusEnum.Waitlisted]: { label: "Waitlisted", severity: "warning" },
+  [AttendeeStatusEnum.Cancelled]: { label: "Cancelled", severity: "error" },
+  [AttendeeStatusEnum.Rejected]: { label: "Not selected", severity: "warning" },
+  [AttendeeStatusEnum.CheckedIn]: { label: "Checked in", severity: "success" },
+  [AttendeeStatusEnum.Attended]: { label: "Attended", severity: "success" },
 };
 
 export function AttendeeStatusAlert({ status }: AttendeeStatusAlertProps) {
-  const meta = statusMeta[status || "pending"] || {
+  const meta = statusMeta[status || AttendeeStatusEnum.Pending] || {
     label: status || "Pending",
     severity: "info",
   };

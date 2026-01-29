@@ -15,6 +15,8 @@ type MeetSignupSheet = {
   status: string;
   statusId: number;
   organizerName?: string;
+  organizerEmail?: string;
+  organizerPhone?: string;
   capacity?: number;
   currency?: string;
   currencySymbol?: string;
@@ -52,6 +54,8 @@ type MeetApi = {
   organizerName?: string;
   organizerFirstName?: string;
   organizerLastName?: string;
+  organizerEmail?: string;
+  organizerPhone?: string;
   capacity?: number;
   currency?: string;
   currencyCode?: string;
@@ -127,6 +131,8 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
     status,
     statusId: apiMeet.statusId,
     organizerName,
+    organizerEmail: apiMeet.organizerEmail,
+    organizerPhone: apiMeet.organizerPhone,
     capacity: apiMeet.capacity,
     currency: currencyCode,
     currencySymbol,

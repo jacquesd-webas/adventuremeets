@@ -5,6 +5,7 @@ export enum AttendeeStatusEnum {
   Waitlisted = "waitlisted",
   CheckedIn = "checked-in",
   Attended = "attended",
+  Cancelled = "cancelled",
 }
 
 export default AttendeeStatusEnum;

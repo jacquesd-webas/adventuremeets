@@ -86,13 +86,14 @@ export class AuthController {
     if (!user) {
       throw new UnauthorizedException("Unauthorized");
     }
-    const full = await this.usersService.findById(user.id);
-    if (!full) {
+    // findById already strips out any sensitive info
+    const fullUser = await this.usersService.findById(user.id);
+    if (!fullUser) {
       throw new ForbiddenException("User not found");
     }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...rest } = full;
-    const organizationIds = await this.usersService.findOrganizationIds(user.id);
+    const organizationIds = await this.usersService.findOrganizationIds(
+      user.id
+    );
     const orgRoles = await this.usersService.findOrganizationRoles(user.id);
     const organizations = organizationIds.reduce<Record<string, string>>(
       (acc, orgId) => {
@@ -105,7 +106,7 @@ export class AuthController {
       {}
     );
     return {
-      ...(rest as UserProfile),
+      ...fullUser,
       organizations,
     } as UserProfile;
   }

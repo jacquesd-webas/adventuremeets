@@ -7,9 +7,6 @@ import {
   DialogContent,
   DialogTitle,
   Drawer,
-  IconButton,
-  Menu,
-  MenuItem,
   Popover,
   Stack,
   TextField,
@@ -24,12 +21,23 @@ import { useLogin } from "../hooks/useLogin";
 type MeetSignupUserActionProps = {
   formEmail?: string;
   onLoginClick?: () => void;
+  onLogout?: () => void;
 };
 
-export function MismatchedUserDialog({ open }: { open: boolean }) {
+export function MismatchedUserDialog({
+  open,
+  onLogout,
+}: {
+  open: boolean;
+  onLogout?: () => void;
+}) {
   const { logout } = useAuth();
+  const handleConfirm = () => {
+    onLogout?.();
+    logout();
+  };
   return (
-    <Dialog open={open} onClose={() => logout()}>
+    <Dialog open={open} onClose={handleConfirm}>
       <DialogTitle>Signed Out</DialogTitle>
       <DialogContent>
         <Typography variant="body2">
@@ -47,7 +55,7 @@ export function MismatchedUserDialog({ open }: { open: boolean }) {
         </Typography>
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => logout()}>OK</Button>
+        <Button onClick={handleConfirm}>OK</Button>
       </DialogActions>
     </Dialog>
   );
@@ -56,12 +64,12 @@ export function MismatchedUserDialog({ open }: { open: boolean }) {
 export function MeetSignupUserAction({
   formEmail,
   onLoginClick,
+  onLogout,
 }: MeetSignupUserActionProps) {
   const { user, isAuthenticated, logout, refreshSession } = useAuth();
   const { loginAsync, isLoading, error } = useLogin();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [loginAnchorEl, setLoginAnchorEl] = useState<null | HTMLElement>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [email, setEmail] = useState(formEmail || "");
@@ -83,11 +91,6 @@ export function MeetSignupUserAction({
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   }, [displayName]);
 
-  const handleAvatarClick = (event: MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => setAnchorEl(null);
   const handleLoginClose = () => {
     setLoginAnchorEl(null);
     setLoginOpen(false);
@@ -98,8 +101,8 @@ export function MeetSignupUserAction({
   };
 
   const handleLogout = () => {
+    onLogout?.();
     logout();
-    handleClose();
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -115,7 +118,7 @@ export function MeetSignupUserAction({
   );
 
   if (isMismatchedUser) {
-    return <MismatchedUserDialog open={true} />;
+    return <MismatchedUserDialog open={true} onLogout={onLogout} />;
   }
 
   if (!isAuthenticated) {
@@ -208,13 +211,11 @@ export function MeetSignupUserAction({
   }
 
   return (
-    <>
-      <IconButton onClick={handleAvatarClick} size="small">
-        <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
-      </IconButton>
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
-        <MenuItem onClick={handleLogout}>Logout</MenuItem>
-      </Menu>
-    </>
+    <Stack direction="row" spacing={1} alignItems="center">
+      <Button size="small" variant="outlined" onClick={handleLogout}>
+        Logout
+      </Button>
+      <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
+    </Stack>
   );
 }

@@ -9,6 +9,7 @@ type EmailFieldProps = {
   onBlur?: () => void;
   placeholder?: string;
   fullWidth?: boolean;
+  disabled?: boolean;
 };
 
 export function EmailField({
@@ -18,7 +19,8 @@ export function EmailField({
   onChange,
   onBlur,
   placeholder = "you@example.com",
-  fullWidth = true
+  fullWidth = true,
+  disabled = false
 }: EmailFieldProps) {
   return (
     <TextField
@@ -30,6 +32,7 @@ export function EmailField({
       onBlur={onBlur}
       placeholder={placeholder}
       fullWidth={fullWidth}
+      disabled={disabled}
       InputProps={{
         startAdornment: <EmailOutlinedIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />
       }}

@@ -224,6 +224,8 @@ export class MeetsService {
           ),
         "u.first_name as organizer_first_name",
         "u.last_name as organizer_last_name",
+        "u.email as organizer_email",
+        "u.phone as organizer_phone",
         userId
           ? this.db.getClient().raw("ua.status as my_attendee_status")
           : this.db.getClient().raw("null as my_attendee_status")
@@ -451,6 +453,57 @@ export class MeetsService {
     return { attendees: attendeesWithValues };
   }
 
+  async getReportData(meetId: string) {
+    const attendees = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId })
+      .orderBy([
+        { column: "sequence", order: "asc" },
+        { column: "created_at", order: "asc" },
+      ])
+      .select("*");
+    const metaDefinitions = await this.db
+      .getClient()("meet_meta_definitions")
+      .where({ meet_id: meetId })
+      .orderBy("position", "asc")
+      .select("id", "label", "field_type", "required", "position");
+    const metaValues = await this.db
+      .getClient()("meet_meta_values")
+      .where({ meet_id: meetId })
+      .select("attendee_id", "meta_definition_id", "value");
+    const valuesByAttendee = metaValues.reduce<
+      Record<string, Record<string, string>>
+    >((acc, value) => {
+      if (!acc[value.attendee_id]) {
+        acc[value.attendee_id] = {};
+      }
+      acc[value.attendee_id][value.meta_definition_id] = value.value;
+      return acc;
+    }, {});
+    const attendeesWithValues = attendees.map((attendee) => ({
+      ...this.toAttendeeDto(attendee),
+      metaValues: metaDefinitions.map((definition) => ({
+        definitionId: definition.id,
+        label: definition.label,
+        fieldType: definition.field_type,
+        required: definition.required,
+        position: definition.position,
+        value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
+      })),
+    }));
+    return { attendees: attendeesWithValues, metaDefinitions };
+  }
+
+  async getOrganizerEmail(meetId: string) {
+    const organizer = await this.db
+      .getClient()("meets as m")
+      .leftJoin("users as u", "u.id", "m.organizer_id")
+      .where("m.id", meetId)
+      .select("u.email")
+      .first();
+    return organizer?.email ?? null;
+  }
+
   async findAttendeeByContact(meetId: string, email?: string, phone?: string) {
     if (!email && !phone) {
       throw new BadRequestException("Email or phone is required");
@@ -482,18 +535,23 @@ export class MeetsService {
     const definitions = await db("meet_meta_definitions")
       .where({ meet_id: meetId })
       .select("field_key");
-    const fieldKeys = definitions.map((definition) => definition.field_key);
+    const fieldKeys = definitions.map(
+      (definition: any) => definition.field_key
+    );
     if (!fieldKeys.length) {
       return {};
     }
-    const rows = await db("meet_meta_values as mv")
+    const rows = (await db("meet_meta_values as mv")
       .join("meet_meta_definitions as md", "md.id", "mv.meta_definition_id")
       .join("meet_attendees as ma", "ma.id", "mv.attendee_id")
       .where("ma.user_id", userId)
       .whereIn("md.field_key", fieldKeys)
       .orderBy("mv.updated_at", "desc")
       .orderBy("mv.created_at", "desc")
-      .select("md.field_key", "mv.value");
+      .select("md.field_key", "mv.value")) as Array<{
+      field_key: string;
+      value: string;
+    }>;
     return rows.reduce<Record<string, string>>((acc, row) => {
       if (!acc[row.field_key]) {
         acc[row.field_key] = row.value;
@@ -717,7 +775,6 @@ export class MeetsService {
       description: meet.description ?? undefined,
       organizerId: meet.organizer_id,
       organizationId: meet.organization_id ?? undefined,
-      canViewAllMeets: meet.can_view_all_meets ?? undefined,
       location: meet.location ?? undefined,
       locationLat: meet.location_lat ?? undefined,
       locationLong: meet.location_long ?? undefined,
@@ -750,6 +807,8 @@ export class MeetsService {
       organizerName: meet.organizer_name ?? undefined,
       organizerFirstName: meet.organizer_first_name || undefined,
       organizerLastName: meet.organizer_last_name || undefined,
+      organizerEmail: meet.organizer_email ?? undefined,
+      organizerPhone: meet.organizer_phone ?? undefined,
       imageUrl: meet.primary_image_url ?? meet.image_url ?? undefined,
       attendeeCount: Number(meet.attendee_count ?? 0),
       confirmedCount: Number(meet.confirmed_count ?? 0),

@@ -5,12 +5,17 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogTitle,
+  Drawer,
+  Link,
   Paper,
   Stack,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import { useParams } from "react-router-dom";
 import { MeetInfoSummary } from "../components/MeetInfoSummary";
 import { AttendeeStatusAlert } from "../components/AttendeeStatusAlert";
@@ -20,6 +25,9 @@ import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { MeetNotFound } from "../components/MeetNotFound";
 import { FullPageSpinner } from "../components/FullPageSpinner";
 import { MeetSignupUserAction } from "../components/MeetSignupUserAction";
+import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
+import { useApi } from "../hooks/useApi";
+import { useNotistack } from "../hooks/useNotistack";
 import { useRef, useState } from "react";
 
 export default function AttendeeStatusPage() {
@@ -31,14 +39,38 @@ export default function AttendeeStatusPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { user, isAuthenticated, logout } = useAuth();
   const signOutTriggered = useRef(false);
+  const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const api = useApi();
+  const { error, success } = useNotistack();
 
   const {
     data: meet,
     isLoading: meetLoading,
     error: meetError,
   } = useFetchMeetSignup(code);
-  const { data: attendeeStatusData, isLoading: statusLoading } =
-    useFetchMeetAttendeeStatus(code, attendeeId);
+  const {
+    data: attendeeStatusData,
+    isLoading: statusLoading,
+    refetch: refetchAttendeeStatus,
+  } = useFetchMeetAttendeeStatus(code, attendeeId);
+
+  const handleWithdraw = async () => {
+    if (!code || !attendeeId) return;
+    setIsWithdrawing(true);
+    try {
+      await api.patch(`/meets/${code}/attendeeStatus/${attendeeId}`);
+      await refetchAttendeeStatus();
+      success("Application withdrawn");
+      setIsWithdrawOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      error(`Unable to withdraw application: ${message}`);
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
 
   if (meetLoading || statusLoading) {
     return <FullPageSpinner />;
@@ -104,10 +136,11 @@ export default function AttendeeStatusPage() {
 
             <Box sx={{ width: "100%" }}>
               <Stack
-                direction="row"
+                direction={isMobile ? "column" : "row"}
                 spacing={2}
                 alignItems="center"
                 justifyContent="center"
+                sx={isMobile ? { width: "100%" } : undefined}
               >
                 <Button
                   variant="outlined"
@@ -116,6 +149,7 @@ export default function AttendeeStatusPage() {
                     alert("Not implemented yet!");
                   }}
                   disabled={!isAuthenticated}
+                  fullWidth={isMobile}
                 >
                   Edit Application
                 </Button>
@@ -123,9 +157,15 @@ export default function AttendeeStatusPage() {
                   variant="outlined"
                   color="primary"
                   onClick={() => {
-                    alert("Not implemented yet!");
+                    setIsWithdrawOpen(true);
                   }}
-                  disabled={!isAuthenticated}
+                  disabled={
+                    !isAuthenticated ||
+                    !["pending", "confirmed"].includes(
+                      attendeeStatusData?.attendee.status || ""
+                    )
+                  }
+                  fullWidth={isMobile}
                 >
                   Withdraw Application
                 </Button>
@@ -133,13 +173,125 @@ export default function AttendeeStatusPage() {
                   variant="outlined"
                   color="primary"
                   onClick={() => {
-                    alert("Not implemented yet!");
+                    setIsContactOpen(true);
                   }}
+                  fullWidth={isMobile}
                 >
                   Contact Organiser
                 </Button>
               </Stack>
             </Box>
+
+            {isMobile ? (
+              <Drawer
+                anchor="bottom"
+                open={isContactOpen}
+                onClose={() => setIsContactOpen(false)}
+              >
+                <Box sx={{ p: 2 }}>
+                  <Stack spacing={1.5}>
+                    <Typography variant="subtitle1">
+                      Contact Organiser
+                    </Typography>
+                    <Stack spacing={1}>
+                      <Typography variant="body1" fontWeight="bold">
+                        {meet.organizerName || "Organizer"}
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <EmailOutlinedIcon fontSize="small" />
+                        {meet.organizerEmail ? (
+                          <Link
+                            href={`mailto:${meet.organizerEmail}`}
+                            variant="body2"
+                            underline="hover"
+                          >
+                            {meet.organizerEmail}
+                          </Link>
+                        ) : (
+                          <Typography variant="body2">Not available</Typography>
+                        )}
+                      </Stack>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <PhoneOutlinedIcon fontSize="small" />
+                        {meet.organizerPhone ? (
+                          <Link
+                            href={`tel:${meet.organizerPhone}`}
+                            variant="body2"
+                            underline="hover"
+                          >
+                            {meet.organizerPhone}
+                          </Link>
+                        ) : (
+                          <Typography variant="body2">Not available</Typography>
+                        )}
+                      </Stack>
+                    </Stack>
+                    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                      <Button onClick={() => setIsContactOpen(false)}>
+                        Close
+                      </Button>
+                    </Box>
+                  </Stack>
+                </Box>
+              </Drawer>
+            ) : (
+              <Dialog
+                open={isContactOpen}
+                onClose={() => setIsContactOpen(false)}
+                fullWidth
+                maxWidth="sm"
+              >
+                <DialogTitle>Contact Organiser</DialogTitle>
+                <DialogContent dividers>
+                  <Stack spacing={1}>
+                    <Typography variant="body1" fontWeight="bold">
+                      {meet.organizerName || "Organizer"}
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <EmailOutlinedIcon fontSize="small" />
+                      {meet.organizerEmail ? (
+                        <Link
+                          href={`mailto:${meet.organizerEmail}`}
+                          variant="body2"
+                          underline="hover"
+                        >
+                          {meet.organizerEmail}
+                        </Link>
+                      ) : (
+                        <Typography variant="body2">Not available</Typography>
+                      )}
+                    </Stack>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <PhoneOutlinedIcon fontSize="small" />
+                      {meet.organizerPhone ? (
+                        <Link
+                          href={`tel:${meet.organizerPhone}`}
+                          variant="body2"
+                          underline="hover"
+                        >
+                          {meet.organizerPhone}
+                        </Link>
+                      ) : (
+                        <Typography variant="body2">Not available</Typography>
+                      )}
+                    </Stack>
+                  </Stack>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={() => setIsContactOpen(false)}>Close</Button>
+                </DialogActions>
+              </Dialog>
+            )}
+
+            <ConfirmActionDialog
+              open={isWithdrawOpen}
+              title="Withdraw application?"
+              description="Withdrawing will mark your application as cancelled."
+              confirmLabel="Withdraw application"
+              onConfirm={handleWithdraw}
+              onClose={() => setIsWithdrawOpen(false)}
+              isSubmitting={isWithdrawing}
+            />
 
             {/*
                 <MeetSignupFormFields

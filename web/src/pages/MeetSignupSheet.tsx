@@ -17,7 +17,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { useParams, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MeetNotFound } from "../components/MeetNotFound";
 import { MeetStatus } from "../constants/meetStatus";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
@@ -32,6 +32,7 @@ import {
   InternationalPhoneField,
   buildInternationalPhone,
   getDefaultPhoneCountry,
+  splitInternationalPhone,
 } from "../components/InternationalPhoneField";
 import { EmailField } from "../components/EmailField";
 import { MeetInfoSummary } from "../components/MeetInfoSummary";
@@ -39,6 +40,8 @@ import { NameField } from "../components/NameField";
 import { PreviewBanner } from "../components/PreviewBanner";
 import { LoginForm } from "../components/auth/LoginForm";
 import { MeetStatusAlert } from "../components/MeetStatusAlert";
+import { useAuth } from "../context/AuthContext";
+import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
 import { MeetSignupUserAction } from "../components/MeetSignupUserAction";
 
 function LabeledField({
@@ -66,6 +69,8 @@ type MeetSignupFormProps = {
   email: string;
   phoneCountry: string;
   phoneLocal: string;
+  disableIdentityFields: boolean;
+  disablePhone: boolean;
   wantsGuests: boolean;
   guestCount: number;
   metaValues: Record<string, any>;
@@ -86,6 +91,8 @@ function MeetSignupFormFields({
   email,
   phoneCountry,
   phoneLocal,
+  disableIdentityFields,
+  disablePhone,
   wantsGuests,
   guestCount,
   metaValues,
@@ -106,6 +113,7 @@ function MeetSignupFormFields({
           required
           value={fullName}
           onChange={(value) => setField("fullName", value)}
+          disabled={disableIdentityFields}
         />
       </LabeledField>
       <LabeledField label="Email" required>
@@ -114,6 +122,7 @@ function MeetSignupFormFields({
           value={email}
           onChange={(value) => setField("email", value)}
           onBlur={onCheckDuplicate}
+          disabled={disableIdentityFields}
         />
       </LabeledField>
       <LabeledField label="Phone" required>
@@ -130,6 +139,7 @@ function MeetSignupFormFields({
             setField("phone", buildInternationalPhone(phoneCountry, value));
           }}
           onBlur={onCheckDuplicate}
+          disabled={disablePhone}
         />
       </LabeledField>
       {meet.allowGuests && (
@@ -284,12 +294,16 @@ function MeetSignupSheet() {
   const [searchParams] = useSearchParams();
   const isPreview = searchParams.get("preview") === "true";
   const { data: meet, isLoading } = useFetchMeetSignup(code);
-  const { state, setField, setMetaValue } = useMeetSignupSheetState();
+  const { state, setField, setMetaValue, resetState } =
+    useMeetSignupSheetState();
   const { addAttendeeAsync, isLoading: isSubmitting } = useAddAttendee();
   const { checkAttendeeAsync } = useCheckMeetAttendee();
   const api = useApi();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const { user, isAuthenticated } = useAuth();
+  const suppressAutofillRef = useRef(false);
+  const metaAutofillRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedAttendeeId, setSubmittedAttendeeId] = useState<string | null>(
     null
@@ -316,6 +330,82 @@ function MeetSignupSheet() {
     guestCount,
     metaValues,
   } = state;
+  const disableIdentityFields = Boolean(isAuthenticated);
+  const disablePhone = false;
+
+  const { data: userMetaValues, isLoading: userMetaLoading } =
+    useFetchUserMetaValues(user?.id, meet?.organizationId);
+
+  useEffect(() => {
+    if (!user || !isAuthenticated) return;
+    if (suppressAutofillRef.current) return;
+    const name =
+      [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+      user.idp_profile?.name ||
+      "";
+    if (name) {
+      setField("fullName", name);
+    }
+    if (user.email) {
+      setField("email", user.email);
+    }
+    if (user.phone) {
+      const parsed = splitInternationalPhone(user.phone);
+      setPhoneCountry(parsed.country);
+      setPhoneLocal(parsed.local);
+      setField("phone", buildInternationalPhone(parsed.country, parsed.local));
+    }
+  }, [isAuthenticated, user, setField, setPhoneCountry, setPhoneLocal]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !meet || userMetaLoading) return;
+    if (metaAutofillRef.current) return;
+    if (!userMetaValues.length) {
+      metaAutofillRef.current = true;
+      return;
+    }
+    const byKey = new Map(userMetaValues.map((item) => [item.key, item.value]));
+    (meet.metaDefinitions || []).forEach((field: any) => {
+      const key = field.field_key;
+      const existingValue = metaValues[key];
+      if (
+        existingValue !== undefined &&
+        existingValue !== null &&
+        existingValue !== ""
+      ) {
+        return;
+      }
+      const raw = byKey.get(key);
+      if (raw === undefined) return;
+      if (field.field_type === "checkbox" || field.field_type === "switch") {
+        setMetaValue(key, raw === "true");
+        return;
+      }
+      if (field.field_type === "number") {
+        const parsed = Number(raw);
+        if (!Number.isNaN(parsed)) {
+          setMetaValue(key, parsed);
+        }
+        return;
+      }
+      setMetaValue(key, raw);
+    });
+    metaAutofillRef.current = true;
+  }, [
+    isAuthenticated,
+    meet,
+    metaValues,
+    setMetaValue,
+    userMetaLoading,
+    userMetaValues,
+  ]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      suppressAutofillRef.current = false;
+      metaAutofillRef.current = false;
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const previous = document.body.style.overflow;
@@ -324,6 +414,22 @@ function MeetSignupSheet() {
       document.body.style.overflow = previous;
     };
   }, []);
+
+  const handleLogout = () => {
+    suppressAutofillRef.current = true;
+    resetState();
+    const localeCountry = getLocaleDefaults().countryCode;
+    setPhoneCountry(getDefaultPhoneCountry(localeCountry));
+    setPhoneLocal("");
+    setField("fullName", "");
+    setField("email", "");
+    setField("phone", "");
+    setLastCheckedContact(null);
+    setExistingAttendee(null);
+    setShowDuplicateModal(false);
+    setSubmitted(false);
+    setSubmittedAttendeeId(null);
+  };
 
   const isOpenMeet = meet?.statusId === MeetStatus.Open;
   const shareLink =
@@ -372,6 +478,7 @@ function MeetSignupSheet() {
             organizationId={meet?.organizationId}
             meetId={meet?.id}
             attendeeId={submittedAttendeeId || undefined}
+            shareCode={code}
           />
         </Box>
       </Box>
@@ -518,7 +625,12 @@ function MeetSignupSheet() {
               <MeetInfoSummary
                 meet={meet}
                 isPreview={isPreview}
-                actionSlot={<MeetSignupUserAction formEmail={undefined} />}
+                actionSlot={
+                  <MeetSignupUserAction
+                    formEmail={undefined}
+                    onLogout={handleLogout}
+                  />
+                }
               />
               {!isPreview && (
                 <MeetStatusAlert
@@ -533,6 +645,8 @@ function MeetSignupSheet() {
                   email={email}
                   phoneCountry={phoneCountry}
                   phoneLocal={phoneLocal}
+                  disableIdentityFields={disableIdentityFields}
+                  disablePhone={disablePhone}
                   wantsGuests={wantsGuests}
                   guestCount={guestCount}
                   metaValues={metaValues}

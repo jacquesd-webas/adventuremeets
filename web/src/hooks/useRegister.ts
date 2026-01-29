@@ -9,6 +9,7 @@ type RegisterPayload = {
   password: string;
   organizationId?: string;
   captchaToken?: string;
+  attendeeeId?: string;
 };
 
 type RegisterResponse = {
@@ -26,7 +27,7 @@ export function useRegister() {
     onSuccess: (data) => {
       window.localStorage.setItem("accessToken", data.accessToken);
       window.localStorage.setItem("refreshToken", data.refreshToken);
-    }
+    },
   });
 
   return {
@@ -34,6 +35,6 @@ export function useRegister() {
     registerAsync: mutation.mutateAsync,
     data: mutation.data,
     isLoading: mutation.isPending,
-    error: mutation.error
+    error: mutation.error,
   };
 }

@@ -8,6 +8,7 @@ export type SendEmailOptions = {
   html?: string;
   from?: string;
   replyTo?: string;
+  attachments?: nodemailer.Attachment[];
 };
 
 @Injectable()
@@ -35,7 +36,7 @@ export class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions) {
-    const { to, subject, text, html, from, replyTo } = options;
+    const { to, subject, text, html, from, replyTo, attachments } = options;
     const mailOptions = {
       to,
       subject,
@@ -43,6 +44,7 @@ export class EmailService {
       html,
       from: from || this.defaultFrom,
       replyTo,
+      attachments,
     };
     this.logger.log(
       `Sending email to ${

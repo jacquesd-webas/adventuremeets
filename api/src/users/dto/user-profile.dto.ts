@@ -1,38 +1,55 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsBoolean, IsDateString, IsString } from "class-validator";
 
 export class UserProfile {
   @ApiProperty()
   id!: string;
 
   @ApiProperty()
+  @IsString()
   email!: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsBoolean()
+  emailVerified?: boolean;
+
+  @ApiPropertyOptional()
+  @IsDateString()
+  emailVerifiedAt?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
   firstName?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsString()
   lastName?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsString()
   phone?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsString()
   icePhone?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsString()
   iceName?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsString()
   iceMedicalAid?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsString()
   iceMedicalAidNumber?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsDateString()
   iceDob?: string;
 
-  @ApiProperty({
-    required: false,
+  @ApiPropertyOptional({
     type: "object",
     additionalProperties: { type: "string" },
   })
@@ -40,53 +57,8 @@ export class UserProfile {
 
   constructor() {
     this.organizations = {};
-    this.hasRole = this.hasRole.bind(this);
-    this.getOrganizationIds = this.getOrganizationIds.bind(this);
   }
 
   // Internal use only; not exposed in /me response.
   passwordHash?: string;
-
-  hasRole = (
-    organizationId: string,
-    requiredRole: "member" | "organizer" | "admin"
-  ): boolean => {
-    if (!this.organizations || !this.organizations[organizationId]) {
-      return false;
-    }
-    const userRole = this.organizations[organizationId];
-    if (requiredRole === "member") {
-      return (
-        userRole === "member" ||
-        userRole === "organizer" ||
-        userRole === "admin"
-      );
-    }
-    if (requiredRole === "organizer") {
-      return userRole === "organizer" || userRole === "admin";
-    }
-
-    return this.organizations[organizationId] === requiredRole;
-  };
-
-  getOrganizationIds = (
-    minRole?: "member" | "organizer" | "admin"
-  ): string[] => {
-    // admin
-    if (minRole === "admin") {
-      return Object.entries(this.organizations || {})
-        .filter(([_, r]) => r === "admin")
-        .map(([id, _]) => id);
-    }
-    // organizer
-    if (minRole === "organizer") {
-      return Object.entries(this.organizations || {})
-        .filter(([_, r]) => r === "organizer" || r === "admin")
-        .map(([id, _]) => id);
-    }
-    // member
-    return Object.entries(this.organizations || {})
-      .filter(([_, r]) => r === "member" || r === "organizer" || r === "admin")
-      .map(([id, _]) => id);
-  };
 }

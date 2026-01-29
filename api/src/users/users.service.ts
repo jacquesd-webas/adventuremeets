@@ -39,24 +39,27 @@ export class UsersService {
         idp_subject: dto.idpSubject || null,
         idp_profile: dto.idpProfile || null,
         created_at: now,
-        updated_at: now
+        updated_at: now,
       });
 
       let organizationId = dto.organizationId;
-      if (!organizationId) { 
+      if (!organizationId) {
         // create a new personal organization for this user
-        const orgNameBase = (dto.firstName || dto.lastName)
-          ? `${dto.firstName ?? ""} ${dto.lastName ?? ""}`.trim()
-          : dto.email?.split("@")[0] || "Member";
+        const orgNameBase =
+          dto.firstName || dto.lastName
+            ? `${dto.firstName ?? ""} ${dto.lastName ?? ""}`.trim()
+            : dto.email?.split("@")[0] || "Member";
         const orgName = `Private Organisation (${orgNameBase})`;
         const createdOrg = await trx("organizations")
           .insert({
             name: orgName,
             created_at: now,
-            updated_at: now
+            updated_at: now,
           })
           .returning("id");
-        const newOrgId = Array.isArray(createdOrg) ? (createdOrg[0] as any).id : (createdOrg as any).id;
+        const newOrgId = Array.isArray(createdOrg)
+          ? (createdOrg[0] as any).id
+          : (createdOrg as any).id;
         organizationId = newOrgId;
       }
 
@@ -67,7 +70,7 @@ export class UsersService {
         role_id: 4,
         status: "active",
         created_at: now,
-        updated_at: now
+        updated_at: now,
       });
 
       await trx.commit();
@@ -75,7 +78,7 @@ export class UsersService {
       await trx.rollback();
       throw err;
     }
-    
+
     return this.findById(id);
   }
 
@@ -106,8 +109,19 @@ export class UsersService {
     return this.database.getClient()("users").where({ email }).first();
   }
 
+  async isValidAttendee(attendeeId: string) {
+    const row = await this.database
+      .getClient()("meet_attendees")
+      .where({ id: attendeeId })
+      .first();
+    return Boolean(row);
+  }
+
   async findByIdp(provider: string, subject: string) {
-    return this.database.getClient()("users").where({ idp_provider: provider, idp_subject: subject }).first();
+    return this.database
+      .getClient()("users")
+      .where({ idp_provider: provider, idp_subject: subject })
+      .first();
   }
 
   async findOrganizationIds(userId: string) {
@@ -175,7 +189,11 @@ export class UsersService {
       updates.idp_profile = dto.idpProfile;
     }
 
-    const updated = await this.database.getClient()("users").where({ id }).update(updates).returning("*");
+    const updated = await this.database
+      .getClient()("users")
+      .where({ id })
+      .update(updates)
+      .returning("*");
     const user = updated[0];
     if (!user) {
       throw new NotFoundException("User not found");
@@ -184,37 +202,99 @@ export class UsersService {
   }
 
   async remove(id: string) {
-    const deleted = await this.database.getClient()("users").where({ id }).del();
+    const deleted = await this.database
+      .getClient()("users")
+      .where({ id })
+      .del();
     if (!deleted) {
       throw new NotFoundException("User not found");
     }
     return { deleted: true };
   }
 
-  private stripSensitive(user: any) {
-    // omit password_hash for API responses
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const {
-      password_hash,
-      passwordHash,
-      first_name,
-      last_name,
-      ice_phone,
-      ice_name,
-      ice_medical_aid,
-      ice_medical_aid_number,
-      ice_dob,
-      ...rest
-    } = user;
+  async listUserMetaValues(userId: string, organizationId: string) {
+    return this.database
+      .getClient()("user_meta_values")
+      .where({ user_id: userId, organization_id: organizationId })
+      .orderBy("key", "asc")
+      .select("key", "value");
+  }
+
+  async saveUserMetaValues(
+    userId: string,
+    organizationId: string,
+    values: Array<{ key: string; value?: string | null }>
+  ) {
+    const trx = await this.database.getClient().transaction();
+    try {
+      const keys = values.map((item) => item.key);
+      if (keys.length) {
+        await trx("user_meta_values")
+          .where({ user_id: userId, organization_id: organizationId })
+          .whereIn("key", keys)
+          .del();
+      }
+      if (values.length) {
+        await trx("user_meta_values").insert(
+          values.map((item) => ({
+            user_id: userId,
+            organization_id: organizationId,
+            key: item.key,
+            value: item.value ?? null,
+          }))
+        );
+      }
+      await trx.commit();
+    } catch (err) {
+      await trx.rollback();
+      throw err;
+    }
+    return this.listUserMetaValues(userId, organizationId);
+  }
+
+  async updateLogin(userId: string, options: { isSuccess: boolean }) {
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (options.isSuccess) {
+      updates.last_login_at = new Date().toISOString();
+    }
+    updates.last_login_attempt_at = new Date().toISOString();
+
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        ...updates,
+        ...(options.isSuccess
+          ? { login_attempts: 0 }
+          : {
+              login_attempts: this.database
+                .getClient()
+                .raw("login_attempts + 1"),
+            }),
+      });
+  }
+
+  async linkByEmail(email: string, userId: string) {
+    await this.database
+      .getClient()("meet_attendees")
+      .where({ email })
+      .update({ user_id: userId });
+  }
+
+  private stripSensitive(row: any) {
+    // We only pass some non-sensitive fields back to the user. Sensitive fields like
+    // password and medical info are removed and require a separate method to access.
     return {
-      ...rest,
-      firstName: first_name ?? rest.firstName,
-      lastName: last_name ?? rest.lastName,
-      icePhone: ice_phone ?? rest.icePhone,
-      iceName: ice_name ?? rest.iceName,
-      iceMedicalAid: ice_medical_aid ?? rest.iceMedicalAid,
-      iceMedicalAidNumber: ice_medical_aid_number ?? rest.iceMedicalAidNumber,
-      iceDob: ice_dob ?? rest.iceDob,
+      id: row.id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      email: row.email,
+      phone: row.phone,
+      lastLogin: row.last_login,
+      emailVerified: row.email_verified_at ? true : false,
+      emailVerifiedAt: row.email_verified_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   }
 }

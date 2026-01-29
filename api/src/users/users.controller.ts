@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UnauthorizedException,
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
@@ -18,6 +19,7 @@ import { User } from "../auth/decorators/user.decorator";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "./dto/user-profile.dto";
 import { ForbiddenException } from "@nestjs/common";
+import { UserMetaValuesPayloadDto } from "./dto/user-meta-values.dto";
 
 @ApiTags("Users")
 @Controller("users")
@@ -54,7 +56,9 @@ export class UsersController {
     if (!existingUser) {
       throw new NotFoundException("User not found in your organizations");
     }
-    if (!this.authService.hasRole(user, existingUser.organizationId!, "admin")) {
+    if (
+      !this.authService.hasRole(user, existingUser.organizationId!, "admin")
+    ) {
       throw new ForbiddenException(
         "You are not an administrator for this organization"
       );
@@ -91,22 +95,71 @@ export class UsersController {
     if (!existingUser) {
       throw new NotFoundException("User not found in your organizations");
     }
-    if (!this.authService.hasRole(user, existingUser.organizationId!, "admin")) {
-      throw new ForbiddenException(
-        "You are not an administrator for the user's organization"
-      );
-    }
-    if (!body.organizationId) {
-      throw new BadRequestException("organizationId is required");
-    }
-    if (!this.authService.hasRole(user, body.organizationId, "admin")) {
-      throw new ForbiddenException(
-        "You are not an administrator for this organization"
-      );
+
+    // Allow users to modify their own profile
+    const isModifyingSelf = user.id === id;
+
+    if (!isModifyingSelf) {
+      // OrganizationId is required when not editing your own user
+      if (!body.organizationId) {
+        throw new BadRequestException("organizationId is required");
+      }
+      // Check that user is admin for the users existing organization
+      if (
+        !this.authService.hasRole(user, existingUser.organizationId!, "admin")
+      ) {
+        throw new ForbiddenException(
+          "You are not an administrator for the user's organization"
+        );
+      }
+      // And also that user is admin for whatever organization they are in (weird but could happen)
+      if (!this.authService.hasRole(user, body.organizationId, "admin")) {
+        throw new ForbiddenException(
+          "You are not an administrator for this organization"
+        );
+      }
     }
 
     const updatedUser = await this.usersService.update(id, body);
     return { user: updatedUser };
+  }
+
+  @Get(":id/meta-values")
+  async listMetaValues(
+    @Param("id") id: string,
+    @Query("organizationId") organizationId: string,
+    @User() user?: UserProfile
+  ) {
+    if (!user) throw new UnauthorizedException();
+    if (!organizationId) {
+      throw new BadRequestException("organizationId is required");
+    }
+    if (!this.authService.hasRole(user, organizationId, "member")) {
+      throw new ForbiddenException("You are not a member of this organization");
+    }
+    const metaValues = await this.usersService.listUserMetaValues(
+      id,
+      organizationId
+    );
+    return { metaValues };
+  }
+
+  @Post(":id/meta-values")
+  async saveMetaValues(
+    @Param("id") id: string,
+    @Body() body: UserMetaValuesPayloadDto,
+    @User() user?: UserProfile
+  ) {
+    if (!user) throw new UnauthorizedException();
+    if (!this.authService.hasRole(user, body.organizationId, "member")) {
+      throw new ForbiddenException("You are not a member of this organization");
+    }
+    const metaValues = await this.usersService.saveUserMetaValues(
+      id,
+      body.organizationId,
+      body.values
+    );
+    return { metaValues };
   }
 
   @Delete(":id")
@@ -117,7 +170,9 @@ export class UsersController {
     if (!existingUser) {
       throw new NotFoundException("User not found in your organizations");
     }
-    if (!this.authService.hasRole(user, existingUser.organizationId!, "admin")) {
+    if (
+      !this.authService.hasRole(user, existingUser.organizationId!, "admin")
+    ) {
       throw new ForbiddenException(
         "You are not an administrator for this organization"
       );

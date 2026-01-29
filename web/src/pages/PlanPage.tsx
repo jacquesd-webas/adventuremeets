@@ -15,20 +15,20 @@ import { useState } from "react";
 import { Heading } from "../components/Heading";
 import { MeetStatus } from "../components/MeetStatus";
 import { MeetActionsMenu } from "../components/MeetActionsMenu";
-import {
-  MeetActionsDialogs,
-  PendingAction,
-} from "../components/MeetActionsDialogs";
+import { MeetActionsDialogs } from "../components/MeetActionsDialogs";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { defaultPendingAction } from "../helpers/defaultPendingAction";
+import { MeetActionsEnum } from "../types/MeetActionsEnum";
 import { useCurrentOrganization } from "../context/OrganizationContext";
+import { useAuth } from "../context/AuthContext";
 
 function PlanPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+  const [pendingAction, setPendingAction] = useState<MeetActionsEnum | null>(
     null
   );
   const { currentOrganizationId } = useCurrentOrganization();
+  const { user } = useAuth();
   const { data: meets, isLoading } = useFetchMeets({
     view: "all",
     page: 1,
@@ -45,7 +45,7 @@ function PlanPage() {
           <Button
             variant="outlined"
             onClick={() => {
-              setPendingAction("create");
+              setPendingAction(MeetActionsEnum.Create);
             }}
           >
             New meet
@@ -121,6 +121,7 @@ function PlanPage() {
                       <MeetActionsMenu
                         meetId={meet.id}
                         statusId={meet.statusId}
+                        isOrganizer={meet.organizerId === user?.id}
                         setSelectedMeetId={setSelectedMeetId}
                         setPendingAction={setPendingAction}
                       />

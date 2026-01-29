@@ -15,6 +15,7 @@ import { useState } from "react";
 import { CreateOrEditTemplateModal } from "../components/templates/CreateOrEditTemplateModal";
 import { AdminActionsMenu } from "../components/AdminActionsMenu";
 import { useDeleteTemplate } from "../hooks/useDeleteTemplate";
+import ConfirmActionDialog from "../components/ConfirmActionDialog";
 
 function TemplatesPage() {
   const { id } = useParams();
@@ -28,6 +29,8 @@ function TemplatesPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null
   );
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteTargetName, setDeleteTargetName] = useState<string>("");
   const { deleteTemplateAsync } = useDeleteTemplate();
 
   const columns: GridColDef[] = [
@@ -63,14 +66,8 @@ function TemplatesPage() {
           }}
           onDelete={async () => {
             if (!id) return;
-            const confirmed = window.confirm(
-              "Delete this template? This cannot be undone."
-            );
-            if (!confirmed) return;
-            await deleteTemplateAsync({
-              organizationId: id,
-              templateId: params.row.id,
-            });
+            setDeleteTargetId(params.row.id as string);
+            setDeleteTargetName(params.row.name || "this template");
           }}
         />
       ),
@@ -151,6 +148,25 @@ function TemplatesPage() {
           }}
         />
       )}
+      <ConfirmActionDialog
+        open={Boolean(deleteTargetId)}
+        title="Delete template"
+        description={`Delete ${deleteTargetName}? This cannot be undone.`}
+        confirmLabel="Delete"
+        onClose={() => {
+          setDeleteTargetId(null);
+          setDeleteTargetName("");
+        }}
+        onConfirm={async () => {
+          if (!id || !deleteTargetId) return;
+          await deleteTemplateAsync({
+            organizationId: id,
+            templateId: deleteTargetId,
+          });
+          setDeleteTargetId(null);
+          setDeleteTargetName("");
+        }}
+      />
     </Stack>
   );
 }

@@ -43,25 +43,32 @@ const AttendeeStatus = ({
   isUpcoming: boolean;
 }) => {
   const color =
-    status === "confirmed" || status === "checked-in" || status === "attended"
+    status === AttendeeStatusEnum.Confirmed ||
+    status === AttendeeStatusEnum.CheckedIn ||
+    status === AttendeeStatusEnum.Attended
       ? "success"
-      : status === "waitlisted"
+      : status === AttendeeStatusEnum.Waitlisted
       ? "warning"
-      : status === "rejected"
+      : status === AttendeeStatusEnum.Rejected
       ? "error"
       : "disabled";
 
   const text = isUpcoming
-    ? status === "confirmed" || status === "checked-in" || status === "attended"
+    ? status === AttendeeStatusEnum.Confirmed ||
+      status === AttendeeStatusEnum.CheckedIn ||
+      status === AttendeeStatusEnum.Attended
       ? "Attending"
-      : status === "waitlisted"
+      : status === AttendeeStatusEnum.Waitlisted
       ? "Waitlisted"
-      : status === "rejected"
+      : status === AttendeeStatusEnum.Rejected ||
+        status === AttendeeStatusEnum.Cancelled
       ? "Not accepted"
-      : status === "pending"
+      : status === AttendeeStatusEnum.Pending
       ? "Pending"
       : "Did not apply"
-    : status === "confirmed" || status === "checked-in" || status === "attended"
+    : status === AttendeeStatusEnum.Confirmed ||
+      status === AttendeeStatusEnum.CheckedIn ||
+      status === AttendeeStatusEnum.Attended
     ? "Attended"
     : "Did not attend";
 
@@ -174,6 +181,7 @@ export function MeetCard({
         <Box sx={{ ml: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <MeetActionsMenu
             meetId={meet.id}
+            isOrganizer={isOrganizerForMeet}
             statusId={meet.statusId}
             setSelectedMeetId={setSelectedMeetId}
             setPendingAction={setPendingAction}

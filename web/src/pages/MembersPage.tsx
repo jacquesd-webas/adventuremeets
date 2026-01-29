@@ -177,7 +177,7 @@ function MembersPage() {
             </TableContainer>
             <TablePagination
               component="div"
-              count={data.length}
+              count={members?.length}
               page={page}
               onPageChange={(_, nextPage) => setPage(nextPage)}
               rowsPerPage={rowsPerPage}

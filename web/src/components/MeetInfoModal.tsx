@@ -30,6 +30,8 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
             <MeetStatusAlert
               statusId={meet.statusId}
               openingDate={meet.openingDate}
+              enableApply={true}
+              shareCode={meet.shareCode}
               size="small"
             />
           ) : null}

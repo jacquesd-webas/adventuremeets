@@ -36,6 +36,7 @@ import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { EmailService } from "../email/email.service";
 import { DatabaseService } from "../database/database.service";
+import * as ExcelJS from "exceljs";
 
 @ApiTags("Meets")
 @Controller("meets")
@@ -150,6 +151,18 @@ export class MeetsController {
     );
     if (!attendee) throw new NotFoundException("Meet attendee not found");
     return attendee;
+  }
+
+  @Public()
+  @Patch(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
+  async withdrawAttendee(
+    @Param("code") code: string,
+    @Param("attendeeId") attendeeId: string
+  ) {
+    const meet = await this.meetsService.findOne(code);
+    return this.meetsService.updateAttendee(meet.id, attendeeId, {
+      status: "cancelled",
+    });
   }
 
   @Post()
@@ -368,5 +381,89 @@ export class MeetsController {
 
     await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
     return { status: "sent", count: recipients.length };
+  }
+
+  @Post(":id/report")
+  @ApiOperation({ summary: "Create attendee report and email organizer" })
+  async createReport(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        "Cannot create a report for a meet you do not organize"
+      );
+    }
+
+    const organizerEmail = await this.meetsService.getOrganizerEmail(meet.id);
+    if (!organizerEmail) {
+      throw new BadRequestException("Organizer email not found");
+    }
+
+    const { attendees, metaDefinitions } =
+      await this.meetsService.getReportData(meet.id);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Attendees");
+
+    const baseColumns = [
+      { header: "Attendee ID", key: "id" },
+      { header: "Name", key: "name" },
+      { header: "Email", key: "email" },
+      { header: "Phone", key: "phone" },
+      { header: "Status", key: "status" },
+      { header: "Guests", key: "guests" },
+      { header: "Responded At", key: "respondedAt" },
+      { header: "Notified At", key: "notifiedAt" },
+      { header: "Paid Deposit At", key: "paidDepositAt" },
+      { header: "Paid Full At", key: "paidFullAt" },
+      { header: "Created At", key: "createdAt" },
+      { header: "Updated At", key: "updatedAt" },
+    ];
+    const metaColumns = metaDefinitions.map((definition) => ({
+      header: definition.label,
+      key: `meta_${definition.id}`,
+    }));
+    worksheet.columns = [...baseColumns, ...metaColumns];
+
+    attendees.forEach((attendee: any) => {
+      const row: Record<string, any> = {
+        id: attendee.id,
+        name: attendee.name ?? "",
+        email: attendee.email ?? "",
+        phone: attendee.phone ?? "",
+        status: attendee.status ?? "",
+        guests: attendee.guests ?? "",
+        respondedAt: attendee.respondedAt ?? "",
+        notifiedAt: attendee.notifiedAt ?? "",
+        paidDepositAt: attendee.paidDepositAt ?? "",
+        paidFullAt: attendee.paidFullAt ?? "",
+        createdAt: attendee.createdAt ?? "",
+        updatedAt: attendee.updatedAt ?? "",
+      };
+      attendee.metaValues?.forEach((meta: any) => {
+        row[`meta_${meta.definitionId}`] = meta.value ?? "";
+      });
+      worksheet.addRow(row);
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const attachment = {
+      filename: `${meet.name || "meet"}-report.xlsx`,
+      content: Buffer.from(buffer as ArrayBuffer),
+      contentType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    };
+
+    await this.emailService.sendEmail({
+      to: organizerEmail,
+      subject: `${meet.name} attendee report`,
+      text: `Attached is the attendee report for ${meet.name}.`,
+      attachments: [attachment],
+    });
+
+    return { status: "sent", to: organizerEmail };
   }
 }

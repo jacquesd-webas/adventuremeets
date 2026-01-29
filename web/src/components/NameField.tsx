@@ -9,6 +9,7 @@ type NameFieldProps = {
   onBlur?: () => void;
   placeholder?: string;
   fullWidth?: boolean;
+  disabled?: boolean;
 };
 
 export function NameField({
@@ -19,6 +20,7 @@ export function NameField({
   onBlur,
   placeholder = "Your name",
   fullWidth = true,
+  disabled = false,
 }: NameFieldProps) {
   return (
     <TextField
@@ -29,6 +31,7 @@ export function NameField({
       onBlur={onBlur}
       placeholder={placeholder}
       fullWidth={fullWidth}
+      disabled={disabled}
       InputProps={{
         startAdornment: (
           <PersonOutlineIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />

@@ -94,6 +94,23 @@ export class OrganizationsController {
     return { templates };
   }
 
+  @Get(":id/meta-definitions")
+  async listMetaDefinitions(
+    @Param("id") id: string,
+    @User() user?: UserProfile
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "member")) {
+      throw new ForbiddenException("You are not a member of this organization");
+    }
+
+    const metaDefinitions = await this.organizationsService.listMetaDefinitions(
+      id
+    );
+    return { metaDefinitions };
+  }
+
   @Get(":id/templates/:templateId")
   async findTemplate(
     @Param("id") id: string,
@@ -185,6 +202,7 @@ export class OrganizationsController {
         "You are not an administrator for this organization"
       );
     }
-    return await this.organizationsService.update(id, dto);
+    const organization = await this.organizationsService.update(id, dto);
+    return { organization };
   }
 }

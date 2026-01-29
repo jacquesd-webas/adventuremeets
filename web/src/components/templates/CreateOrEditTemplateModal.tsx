@@ -5,7 +5,11 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  Grid,
   IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
   Paper,
   Stack,
   Switch,
@@ -13,6 +17,8 @@ import {
   Typography,
 } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { useEffect, useState } from "react";
 import { useCreateTemplate } from "../../hooks/useCreateTemplate";
 import { useUpdateTemplate } from "../../hooks/useUpdateTemplate";
@@ -50,6 +56,9 @@ export function CreateOrEditTemplateModal({
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<TemplateQuestionField[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [section, setSection] = useState<
+    "basic" | "questions" | "responses" | "indemnity"
+  >("basic");
 
   useEffect(() => {
     if (!open) return;
@@ -59,14 +68,17 @@ export function CreateOrEditTemplateModal({
       setQuestions(
         mapDefinitionsToQuestions(existingTemplate.metaDefinitions || [])
       );
+      setSection("basic");
     } else if (templateId && !existingTemplate) {
       setName("");
       setDescription("");
       setQuestions([]);
+      setSection("basic");
     } else if (!templateId) {
       setName("");
       setDescription("");
       setQuestions([]);
+      setSection("basic");
     }
     setError(null);
   }, [open, templateId, existingTemplate]);
@@ -86,6 +98,15 @@ export function CreateOrEditTemplateModal({
     setQuestions((prev) => [...prev, newField]);
   };
 
+  const buildFieldKey = (label?: string) => {
+    const cleaned = (label || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+    return cleaned;
+  };
+
   const updateField = (id: string, updates: Partial<TemplateQuestionField>) => {
     setQuestions((prev) =>
       prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
@@ -94,6 +115,18 @@ export function CreateOrEditTemplateModal({
 
   const removeField = (id: string) => {
     setQuestions((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  const moveField = (id: string, direction: "up" | "down") => {
+    setQuestions((prev) => {
+      const index = prev.findIndex((q) => q.id === id);
+      if (index === -1) return prev;
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -107,7 +140,11 @@ export function CreateOrEditTemplateModal({
       description: description.trim() || undefined,
       metaDefinitions: questions.map((question, index) => ({
         id: question.id,
-        fieldKey: question.fieldKey || question.id || `field_${index + 1}`,
+        fieldKey:
+          question.fieldKey ||
+          buildFieldKey(question.label) ||
+          question.id ||
+          `field_${index + 1}`,
         label: question.label,
         fieldType: question.type,
         required: Boolean(question.required),
@@ -144,131 +181,223 @@ export function CreateOrEditTemplateModal({
   const busy = isLoading || isUpdating || isLoadingTemplate;
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="md"
+      PaperProps={{ sx: { height: "80vh" } }}
+    >
       <DialogTitle>{dialogTitle}</DialogTitle>
       <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          {error && <span style={{ color: "#d32f2f" }}>{error}</span>}
-          <TextField
-            label="Name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            fullWidth
-            required
-          />
-          <TextField
-            label="Description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            fullWidth
-          />
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            <i>
-              The template will already have{" "}
-              <strong>Name, Email and Phone number</strong>. You can add
-              additional questions below.
-            </i>
-          </Typography>
-          <Stack spacing={2}>
-            <Stack direction="row" spacing={1} sx={{ width: "100%" }}>
-              <Button
-                variant="outlined"
-                onClick={() => addField("text")}
-                sx={{ flex: 1 }}
-              >
-                Textfield
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => addField("select")}
-                sx={{ flex: 1 }}
-              >
-                Select
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => addField("switch")}
-                sx={{ flex: 1 }}
-              >
-                Switch
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => addField("checkbox")}
-                sx={{ flex: 1 }}
-              >
-                Checkbox
-              </Button>
-            </Stack>
-            <Stack spacing={2}>
-              {questions.map((field) => (
-                <Paper key={field.id} variant="outlined" sx={{ p: 2 }}>
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    mb={1}
-                  >
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      {field.type.charAt(0).toUpperCase() + field.type.slice(1)}{" "}
-                      field
-                    </Typography>
-                    <IconButton
-                      onClick={() => removeField(field.id)}
-                      size="small"
-                    >
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  </Stack>
-                  <Stack spacing={1.5}>
-                    <TextField
-                      label="Label"
-                      placeholder="What should the user see?"
-                      value={field.label}
-                      onChange={(e) =>
-                        updateField(field.id, { label: e.target.value })
-                      }
-                      fullWidth
-                    />
-                    {field.type === "select" && (
-                      <TextField
-                        label="Options (comma separated)"
-                        placeholder="e.g. Beginner, Intermediate, Advanced"
-                        value={
-                          field.optionsInput ??
-                          (field.options?.join(", ") || "")
-                        }
-                        onChange={(e) =>
-                          updateField(field.id, {
-                            optionsInput: e.target.value,
-                            options: e.target.value
-                              .split(",")
-                              .map((o) => o.trim())
-                              .filter(Boolean),
-                          })
-                        }
-                        fullWidth
-                      />
-                    )}
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={Boolean(field.required)}
-                          onChange={(e) =>
-                            updateField(field.id, {
-                              required: e.target.checked,
-                            })
-                          }
-                        />
-                      }
-                      label="Required"
-                    />
-                  </Stack>
-                </Paper>
+        <Grid container spacing={3} sx={{ mt: 1 }}>
+          <Grid item xs={12} md={3}>
+            <List>
+              {[
+                { key: "basic", label: "Basic Info" },
+                { key: "questions", label: "Questions" },
+                { key: "responses", label: "Responses" },
+                { key: "indemnity", label: "Indemnity" },
+              ].map((item) => (
+                <ListItemButton
+                  key={item.key}
+                  selected={section === item.key}
+                  onClick={() =>
+                    setSection(
+                      item.key as "basic" | "questions" | "responses" | "indemnity"
+                    )
+                  }
+                >
+                  <ListItemText primary={item.label} />
+                </ListItemButton>
               ))}
+            </List>
+          </Grid>
+          <Grid item xs={12} md={9}>
+            <Stack spacing={2}>
+              {error && <span style={{ color: "#d32f2f" }}>{error}</span>}
+              {section === "basic" && (
+                <Stack spacing={2}>
+                  <Typography variant="h6" fontWeight={700}>
+                    Basic Info
+                  </Typography>
+                  <TextField
+                    label="Name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    fullWidth
+                    required
+                  />
+                  <TextField
+                    label="Description"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    fullWidth
+                  />
+                </Stack>
+              )}
+
+              {section === "questions" && (
+                <Stack spacing={2}>
+                  <Typography variant="h6" fontWeight={700}>
+                    Questions
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <i>
+                      The template will already have{" "}
+                      <strong>Name, Email and Phone number</strong>. You can add
+                      additional questions below.
+                    </i>
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Stack direction="row" spacing={1} sx={{ width: "100%" }}>
+                      <Button
+                        variant="outlined"
+                        onClick={() => addField("text")}
+                        sx={{ flex: 1 }}
+                      >
+                        Textfield
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => addField("select")}
+                        sx={{ flex: 1 }}
+                      >
+                        Select
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => addField("switch")}
+                        sx={{ flex: 1 }}
+                      >
+                        Switch
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={() => addField("checkbox")}
+                        sx={{ flex: 1 }}
+                      >
+                        Checkbox
+                      </Button>
+                    </Stack>
+                    <Stack spacing={2}>
+                      {questions.map((field, index) => (
+                        <Paper key={field.id} variant="outlined" sx={{ p: 2 }}>
+                          <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="center"
+                            mb={1}
+                          >
+                            <Typography variant="subtitle1" fontWeight={700}>
+                              {field.type.charAt(0).toUpperCase() +
+                                field.type.slice(1)}{" "}
+                              field
+                            </Typography>
+                            <Stack
+                              direction="row"
+                              spacing={0.5}
+                              alignItems="center"
+                            >
+                              <IconButton
+                                onClick={() => moveField(field.id, "up")}
+                                size="small"
+                                disabled={index === 0}
+                              >
+                                <ArrowUpwardIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                onClick={() => moveField(field.id, "down")}
+                                size="small"
+                                disabled={index === questions.length - 1}
+                              >
+                                <ArrowDownwardIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                onClick={() => removeField(field.id)}
+                                size="small"
+                              >
+                                <DeleteOutlineIcon fontSize="small" />
+                              </IconButton>
+                            </Stack>
+                          </Stack>
+                          <Stack spacing={1.5}>
+                            <TextField
+                              label="Label"
+                              placeholder="What should the user see?"
+                              value={field.label}
+                              onChange={(e) =>
+                                updateField(field.id, {
+                                  label: e.target.value,
+                                })
+                              }
+                              fullWidth
+                            />
+                            {field.type === "select" && (
+                              <TextField
+                                label="Options (comma separated)"
+                                placeholder="e.g. Beginner, Intermediate, Advanced"
+                                value={
+                                  field.optionsInput ??
+                                  (field.options?.join(", ") || "")
+                                }
+                                onChange={(e) =>
+                                  updateField(field.id, {
+                                    optionsInput: e.target.value,
+                                    options: e.target.value
+                                      .split(",")
+                                      .map((o) => o.trim())
+                                      .filter(Boolean),
+                                  })
+                                }
+                                fullWidth
+                              />
+                            )}
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={Boolean(field.required)}
+                                  onChange={(e) =>
+                                    updateField(field.id, {
+                                      required: e.target.checked,
+                                    })
+                                  }
+                                />
+                              }
+                              label="Required"
+                            />
+                          </Stack>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Stack>
+                </Stack>
+              )}
+
+              {section === "responses" && (
+                <Stack spacing={2}>
+                  <Typography variant="h6" fontWeight={700}>
+                    Responses
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Response settings will be available soon.
+                  </Typography>
+                </Stack>
+              )}
+
+              {section === "indemnity" && (
+                <Stack spacing={2}>
+                  <Typography variant="h6" fontWeight={700}>
+                    Indemnity
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Indemnity settings will be available soon.
+                  </Typography>
+                </Stack>
+              )}
             </Stack>
-          </Stack>
-        </Stack>
+          </Grid>
+        </Grid>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>

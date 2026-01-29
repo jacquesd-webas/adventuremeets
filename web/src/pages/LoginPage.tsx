@@ -23,7 +23,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const { loginAsync, isLoading, error } = useLogin();
   const { refreshSession } = useAuth();
-  const navigate = useNavigate();
+  const nav = useNavigate();
   const logoSrc = getLogoSrc();
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -31,7 +31,7 @@ function LoginPage() {
     loginAsync({ email, password })
       .then(() => {
         refreshSession();
-        navigate("/");
+        nav("/");
       })
       .catch((err) => {
         console.error("Login failed", err);

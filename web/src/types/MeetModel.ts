@@ -9,6 +9,8 @@ export type Meet = {
   status?: string;
   organizerId?: string;
   organizerName?: string;
+  organizerEmail?: string;
+  organizerPhone?: string;
   imageUrl?: string;
   capacity?: number;
   waitlistSize?: number;

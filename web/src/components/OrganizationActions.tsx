@@ -28,11 +28,13 @@ export function OrganizationActions({
   };
 
   const handleEdit = () => {
+    alert("Not implemented yet!");
     handleClose();
     onEdit?.(organizationId);
   };
 
   const handleDelete = () => {
+    alert("Not implemented yet!");
     handleClose();
     onDelete?.(organizationId);
   };
@@ -65,9 +67,10 @@ export function OrganizationActions({
           <ListItemText>Manage Templates</ListItemText>
         </MenuItem>
         <MenuItem
-          component={RouterLink}
-          to={`/admin/organizations/${organizationId}/theme`}
-          onClick={handleClose}
+          onClick={() => {
+            alert("Not implemented yet!");
+            handleClose();
+          }}
           disabled={disabled}
         >
           <ListItemText>Manage Theme</ListItemText>

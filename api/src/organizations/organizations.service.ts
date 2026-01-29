@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
+import { OrganizationDto } from "./dto/organization.dto";
 
 @Injectable()
 export class OrganizationsService {
@@ -138,6 +139,43 @@ export class OrganizationsService {
       updatedAt: row.updated_at ?? undefined,
       deletedAt: row.deleted_at ?? undefined,
     }));
+  }
+
+  async listMetaDefinitions(orgId: string) {
+    const rows = await this.database
+      .getClient()("organization_meta_definitions as md")
+      .join("templates as t", "t.id", "md.template_id")
+      .where("t.organization_id", orgId)
+      .whereNull("t.deleted_at")
+      .select(
+        "md.field_key",
+        "md.label",
+        "md.field_type",
+        "md.required",
+        "md.config"
+      );
+    const unique = new Map<
+      string,
+      {
+        fieldKey: string;
+        label: string;
+        fieldType: string;
+        required?: boolean;
+        config?: Record<string, any>;
+      }
+    >();
+    rows.forEach((row) => {
+      const key = row.field_key;
+      if (!key || unique.has(key)) return;
+      unique.set(key, {
+        fieldKey: key,
+        label: row.label,
+        fieldType: row.field_type,
+        required: row.required,
+        config: row.config ?? {},
+      });
+    });
+    return Array.from(unique.values());
   }
 
   async findTemplateById(orgId: string, templateId: string) {
@@ -298,6 +336,7 @@ export class OrganizationsService {
       await trx.rollback();
       throw err;
     }
+    // TODO: DTO
     return this.findTemplateById(orgId, templateId);
   }
 
@@ -327,6 +366,29 @@ export class OrganizationsService {
     if (!updated[0]) {
       throw new NotFoundException("Organization not found");
     }
-    return this.findById(id);
+    const row = await this.findById(id);
+    return this.toOrganizationDto(row);
+  }
+
+  private toOrganizationDto(row: any): OrganizationDto {
+    return {
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      templateCount:
+        typeof row.template_count === "number"
+          ? row.template_count
+          : row.template_count != null
+          ? Number(row.template_count)
+          : undefined,
+      userCount:
+        typeof row.user_count === "number"
+          ? row.user_count
+          : row.user_count != null
+          ? Number(row.user_count)
+          : undefined,
+      canViewAllMeets: row.can_view_all_meets ?? undefined,
+    };
   }
 }

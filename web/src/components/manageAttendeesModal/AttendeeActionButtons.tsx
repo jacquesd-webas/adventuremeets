@@ -15,52 +15,71 @@ export function AttendeeActionButtons({
   onPaid,
 }: AttendeeActionButtonsProps) {
   const disabled = attendee == null;
+  const isCheckedIn =
+    attendee?.status === AttendeeStatusEnum.CheckedIn ||
+    attendee?.status === AttendeeStatusEnum.Attended;
+  const isWithdrawn = attendee?.status === AttendeeStatusEnum.Cancelled;
 
   return (
     <>
-      {attendee?.responded_at && (
+      {(attendee?.responded_at || isCheckedIn || isWithdrawn) && (
         <LockIcon
           fontSize="small"
           color="disabled"
           sx={{ mr: 1, alignSelf: "center" }}
         />
       )}
-      <ButtonGroup
-        variant="outlined"
-        size="small"
-        disabled={disabled}
-        aria-label="Update attendee status"
-      >
-        {attendee?.status !== "confirmed" && (
-          <Button
-            color="success"
-            onClick={() => onUpdateStatus(AttendeeStatusEnum.Confirmed)}
-          >
-            Accept
-          </Button>
-        )}
-        {onPaid && attendee?.status === "confirmed" && (
-          <Button color="primary" onClick={onPaid}>
-            Paid
-          </Button>
-        )}
-        {attendee?.status !== "rejected" ? (
-          <Button
-            color="error"
-            onClick={() => onUpdateStatus(AttendeeStatusEnum.Rejected)}
-          >
-            Reject
-          </Button>
-        ) : null}
-        {attendee?.status !== "waitlisted" ? (
-          <Button
-            color="warning"
-            onClick={() => onUpdateStatus(AttendeeStatusEnum.Waitlisted)}
-          >
-            Waitlist
-          </Button>
-        ) : null}
-      </ButtonGroup>
+      {isCheckedIn ? (
+        <Button color="success" variant="outlined" size="small">
+          Checked In
+        </Button>
+      ) : isWithdrawn ? (
+        <Button color="error" variant="outlined" size="small">
+          Withdrawn
+        </Button>
+      ) : (
+        <ButtonGroup
+          variant="outlined"
+          size="small"
+          disabled={disabled}
+          aria-label="Update attendee status"
+        >
+          {attendee?.status !== AttendeeStatusEnum.Confirmed && (
+            <Button
+              color="success"
+              onClick={() => onUpdateStatus(AttendeeStatusEnum.Confirmed)}
+            >
+              Accept
+            </Button>
+          )}
+          {onPaid && attendee?.status === AttendeeStatusEnum.Confirmed && (
+            <Button
+              color="primary"
+              onClick={() => {
+                alert("Not implemented!");
+              }}
+            >
+              Paid
+            </Button>
+          )}
+          {attendee?.status !== AttendeeStatusEnum.Rejected ? (
+            <Button
+              color="error"
+              onClick={() => onUpdateStatus(AttendeeStatusEnum.Rejected)}
+            >
+              Reject
+            </Button>
+          ) : null}
+          {attendee?.status !== AttendeeStatusEnum.Waitlisted ? (
+            <Button
+              color="warning"
+              onClick={() => onUpdateStatus(AttendeeStatusEnum.Waitlisted)}
+            >
+              Waitlist
+            </Button>
+          ) : null}
+        </ButtonGroup>
+      )}
     </>
   );
 }

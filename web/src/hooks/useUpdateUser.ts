@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 
 type UpdateUserPayload = {
   id: string;
+  email?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;

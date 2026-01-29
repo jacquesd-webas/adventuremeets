@@ -8,6 +8,7 @@ import {
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 type MeetSignupSubmittedProps = {
   firstName?: string;
@@ -18,6 +19,7 @@ type MeetSignupSubmittedProps = {
   organizationId?: string;
   meetId?: string;
   attendeeId?: string;
+  shareCode?: string;
 };
 
 export function MeetSignupSubmitted({
@@ -29,10 +31,12 @@ export function MeetSignupSubmitted({
   organizationId,
   meetId,
   attendeeId,
+  shareCode,
 }: MeetSignupSubmittedProps) {
-  const navigate = useNavigate();
+  const nav = useNavigate();
+  const { isAuthenticated } = useAuth();
   const handleCreateProfile = () => {
-    navigate("/register", {
+    nav("/register", {
       state: {
         firstName,
         lastName,
@@ -41,9 +45,14 @@ export function MeetSignupSubmitted({
         phoneLocal,
         organizationId,
         meetId,
+        shareCode,
         attendeeId,
       },
     });
+  };
+  const handleShowStatus = () => {
+    if (!shareCode || !attendeeId) return;
+    nav(`/meets/${shareCode}/${attendeeId}`);
   };
 
   return (
@@ -70,13 +79,25 @@ export function MeetSignupSubmitted({
             Your application has been submitted. You will be notified by the
             organizer when meet attendance has been finalized.
           </Typography>
-          <Typography color="text.secondary">
-            If you wish you can create a profile to make future meet signups
-            faster.
-          </Typography>
-          <Button variant="contained" onClick={handleCreateProfile}>
-            Create Profile
-          </Button>
+          {isAuthenticated ? (
+            <Button
+              variant="contained"
+              onClick={handleShowStatus}
+              disabled={!shareCode || !attendeeId}
+            >
+              Show Status
+            </Button>
+          ) : (
+            <>
+              <Typography color="text.secondary">
+                If you wish you can create a profile to make future meet signups
+                faster.
+              </Typography>
+              <Button variant="contained" onClick={handleCreateProfile}>
+                Create Profile
+              </Button>
+            </>
+          )}
         </Stack>
       </Paper>
     </Container>

@@ -1,10 +1,4 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Stack,
-  TextField,
-} from "@mui/material";
+import { Alert, Box, Button, Stack, TextField } from "@mui/material";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import { useState } from "react";
@@ -17,12 +11,15 @@ type LoginFormProps = {
   submitLabel?: string;
 };
 
-export function LoginForm({ onSuccess, submitLabel = "Login" }: LoginFormProps) {
+export function LoginForm({
+  onSuccess,
+  submitLabel = "Login",
+}: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { loginAsync, isLoading, error } = useLogin();
   const { refreshSession } = useAuth();
-  const navigate = useNavigate();
+  const nav = useNavigate();
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -33,7 +30,7 @@ export function LoginForm({ onSuccess, submitLabel = "Login" }: LoginFormProps) 
           onSuccess();
           return;
         }
-        navigate("/");
+        nav("/");
       })
       .catch((err) => {
         console.error("Login failed", err);
@@ -43,11 +40,7 @@ export function LoginForm({ onSuccess, submitLabel = "Login" }: LoginFormProps) 
   return (
     <Box component="form" onSubmit={handleSubmit}>
       <Stack spacing={2}>
-        {error && (
-          <Alert severity="error">
-            {error.message}
-          </Alert>
-        )}
+        {error && <Alert severity="error">{error.message}</Alert>}
         <TextField
           label="Email"
           type="email"

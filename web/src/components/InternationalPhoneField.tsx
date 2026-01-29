@@ -21,6 +21,28 @@ export function getDefaultPhoneCountry(localeCountry?: string) {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
+export function splitInternationalPhone(value?: string) {
+  if (!value) {
+    return { country: "ZA", local: "" };
+  }
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("+")) {
+    return { country: "ZA", local: trimmed };
+  }
+  const sorted = [...phoneCountryOptions].sort(
+    (a, b) => b.dialCode.length - a.dialCode.length
+  );
+  const match = sorted.find((option) => trimmed.startsWith(option.dialCode));
+  if (!match) {
+    return { country: "ZA", local: trimmed.replace(/^\+/, "") };
+  }
+  return {
+    country: match.code,
+    local: trimmed.slice(match.dialCode.length).trim(),
+  };
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
 export function buildInternationalPhone(countryCode: string, local: string) {
   const option = phoneCountryOptions.find((item) => item.code === countryCode) || phoneCountryOptions[0];
   const trimmedLocal = local.trim();
@@ -36,6 +58,7 @@ type InternationalPhoneFieldProps = {
   onCountryChange: (value: string) => void;
   onLocalChange: (value: string) => void;
   onBlur?: () => void;
+  disabled?: boolean;
 };
 
 export function InternationalPhoneField({
@@ -46,7 +69,8 @@ export function InternationalPhoneField({
   local,
   onCountryChange,
   onLocalChange,
-  onBlur
+  onBlur,
+  disabled = false
 }: InternationalPhoneFieldProps) {
   return (
     <TextField
@@ -56,6 +80,7 @@ export function InternationalPhoneField({
       value={local}
       onChange={(e) => onLocalChange(e.target.value)}
       onBlur={onBlur}
+      disabled={disabled}
       fullWidth
       InputProps={{
         startAdornment: (
@@ -67,6 +92,7 @@ export function InternationalPhoneField({
               disableUnderline
               inputProps={{ "aria-label": "Country selector", "data-testid": "country-select" }}
               sx={{ minWidth: 86 }}
+              disabled={disabled}
             >
               {phoneCountryOptions.map((option) => (
                 <MenuItem key={option.code} value={option.code}>

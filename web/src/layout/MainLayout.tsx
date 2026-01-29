@@ -37,7 +37,7 @@ const navItems = [
 ];
 
 function MainLayout() {
-  const navigate = useNavigate();
+  const nav = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -82,16 +82,16 @@ function MainLayout() {
   const handleAdminClose = () => setAdminAnchorEl(null);
 
   const handleNavigate = (path: string) => {
-    navigate(path);
+    nav(path);
     handleMenuClose();
   };
   const handleAdminNavigate = (path: string) => {
-    navigate(path);
+    nav(path);
     handleAdminClose();
   };
   const handleAdminTemplates = () => {
     if (currentOrganizationId) {
-      navigate(`/admin/organizations/${currentOrganizationId}/templates`);
+      nav(`/admin/organizations/${currentOrganizationId}/templates`);
     }
     handleAdminClose();
   };
@@ -106,7 +106,7 @@ function MainLayout() {
     window.localStorage.removeItem("refreshToken");
     queryClient.clear();
     handleMenuClose();
-    navigate("/login");
+    nav("/login");
   };
 
   const handleToggleMode = () => {

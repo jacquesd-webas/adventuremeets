@@ -22,7 +22,7 @@ import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
-import { PendingAction } from "./MeetActionsDialogs";
+import MeetActionsEnum from "../types/MeetActionsEnum";
 import MeetStatusEnum from "../types/MeetStatusEnum";
 import { useNavigate } from "react-router-dom";
 import { useCurrentOrganization } from "../context/OrganizationContext";
@@ -30,13 +30,14 @@ import { useCurrentOrganization } from "../context/OrganizationContext";
 type MeetActionsMenuProps = {
   meetId: string;
   statusId?: number;
+  isOrganizer?: boolean;
   setSelectedMeetId: (meetId: string | null) => void;
-  setPendingAction: (action: PendingAction | null) => void;
+  setPendingAction: (action: MeetActionsEnum | null) => void;
   previewLinkCode?: string;
 };
 
 // Helper to decide what to show in the menu
-const shouldShow = (action: PendingAction, statusId: number) => {
+const shouldShow = (action: MeetActionsEnum, statusId: number) => {
   switch (action) {
     case "create":
       return false;
@@ -62,12 +63,14 @@ const shouldShow = (action: PendingAction, statusId: number) => {
     case "delete":
       return statusId === MeetStatusEnum.Draft;
     case "postpone":
-      return statusId === MeetStatusEnum.Closed || MeetStatusEnum.Open;
+      return (
+        statusId === MeetStatusEnum.Closed || statusId === MeetStatusEnum.Open
+      );
     case "cancel":
       return (
         statusId === MeetStatusEnum.Closed ||
-        MeetStatusEnum.Open ||
-        MeetStatusEnum.Postponed
+        statusId === MeetStatusEnum.Open ||
+        statusId === MeetStatusEnum.Postponed
       );
     case "checkin":
       return statusId === MeetStatusEnum.Closed;
@@ -89,6 +92,7 @@ const shouldShow = (action: PendingAction, statusId: number) => {
 export function MeetActionsMenu({
   meetId,
   statusId,
+  isOrganizer,
   setSelectedMeetId,
   setPendingAction,
   previewLinkCode,
@@ -99,7 +103,6 @@ export function MeetActionsMenu({
   const open = Boolean(anchorEl);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const nav = useNavigate();
-  const { currentOrganizationRole } = useCurrentOrganization();
 
   // If the viewport switches while a menu is open, convert to the appropriate UI.
   useEffect(() => {
@@ -128,7 +131,7 @@ export function MeetActionsMenu({
 
   const handleAction = (
     event: MouseEvent<HTMLElement>,
-    action: PendingAction,
+    action: MeetActionsEnum,
     onAction?: (meetId: string) => void
   ) => {
     event.stopPropagation();
@@ -143,17 +146,17 @@ export function MeetActionsMenu({
   const renderItems = (
     onItemClick?: (
       event: MouseEvent<HTMLElement>,
-      action: PendingAction,
+      action: MeetActionsEnum,
       handler?: (id: string) => void
     ) => void
   ) => (
     <>
-      {currentOrganizationRole === "member" ? (
+      {!isOrganizer ? (
         <>
-          {shouldShow("details", statusId) && (
+          {shouldShow(MeetActionsEnum.Details, statusId) && (
             <MenuItem
               onClick={(event) =>
-                (onItemClick || handleAction)(event, "details")
+                (onItemClick || handleAction)(event, MeetActionsEnum.Details)
               }
             >
               <ListItemIcon>
@@ -162,18 +165,22 @@ export function MeetActionsMenu({
               <ListItemText>Meet details</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("apply", statusId) && (
+          {shouldShow(MeetActionsEnum.Apply, statusId) && (
             <MenuItem
               onClick={(event) =>
-                (onItemClick || handleAction)(event, () => {
-                  if (previewLinkCode) {
-                    window.open(
-                      `/meets/${previewLinkCode}`,
-                      "_blank",
-                      "noopener,noreferrer"
-                    );
+                (onItemClick || handleAction)(
+                  event,
+                  MeetActionsEnum.Apply,
+                  () => {
+                    if (previewLinkCode) {
+                      window.open(
+                        `/meets/${previewLinkCode}`,
+                        "_blank",
+                        "noopener,noreferrer"
+                      );
+                    }
                   }
-                })
+                )
               }
             >
               <ListItemIcon>
@@ -185,10 +192,22 @@ export function MeetActionsMenu({
         </>
       ) : (
         <>
-          {shouldShow("attendees", statusId) && (
+          {shouldShow(MeetActionsEnum.Details, statusId) && (
             <MenuItem
               onClick={(event) =>
-                (onItemClick || handleAction)(event, "attendees")
+                (onItemClick || handleAction)(event, MeetActionsEnum.Details)
+              }
+            >
+              <ListItemIcon>
+                <InfoOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Meet details</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow(MeetActionsEnum.Attendees, statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, MeetActionsEnum.Attendees)
               }
             >
               <ListItemIcon>
@@ -197,9 +216,11 @@ export function MeetActionsMenu({
               <ListItemText>Attendees</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("open", statusId) && (
+          {shouldShow(MeetActionsEnum.Open, statusId) && (
             <MenuItem
-              onClick={(event) => (onItemClick || handleAction)(event, "open")}
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, MeetActionsEnum.Open)
+              }
             >
               <ListItemIcon>
                 <LockOpenOutlinedIcon fontSize="small" />
@@ -207,18 +228,22 @@ export function MeetActionsMenu({
               <ListItemText>Open meet</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("preview", statusId) && (
+          {shouldShow(MeetActionsEnum.Preview, statusId) && (
             <MenuItem
               onClick={(event) =>
-                (onItemClick || handleAction)(event, "preview", () => {
-                  if (previewLinkCode) {
-                    window.open(
-                      `/meets/${previewLinkCode}?preview=true`,
-                      "_blank",
-                      "noopener,noreferrer"
-                    );
+                (onItemClick || handleAction)(
+                  event,
+                  MeetActionsEnum.Preview,
+                  () => {
+                    if (previewLinkCode) {
+                      window.open(
+                        `/meets/${previewLinkCode}?preview=true`,
+                        "_blank",
+                        "noopener,noreferrer"
+                      );
+                    }
                   }
-                })
+                )
               }
             >
               <ListItemIcon>
@@ -227,9 +252,11 @@ export function MeetActionsMenu({
               <ListItemText>Preview</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("edit", statusId) && (
+          {shouldShow(MeetActionsEnum.Edit, statusId) && (
             <MenuItem
-              onClick={(event) => (onItemClick || handleAction)(event, "edit")}
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, MeetActionsEnum.Edit)
+              }
             >
               <ListItemIcon>
                 <EditOutlinedIcon fontSize="small" />
@@ -237,7 +264,7 @@ export function MeetActionsMenu({
               <ListItemText>Edit</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("checkin", statusId) && (
+          {shouldShow(MeetActionsEnum.Checkin, statusId) && (
             <MenuItem
               onClick={(event) => {
                 event.stopPropagation();
@@ -253,9 +280,11 @@ export function MeetActionsMenu({
               <ListItemText>Check-in</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("close", statusId) && (
+          {shouldShow(MeetActionsEnum.Close, statusId) && (
             <MenuItem
-              onClick={(event) => (onItemClick || handleAction)(event, "close")}
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, MeetActionsEnum.Close)
+              }
             >
               <ListItemIcon>
                 <FactCheckOutlinedIcon fontSize="small" />
@@ -263,10 +292,10 @@ export function MeetActionsMenu({
               <ListItemText>Close meet</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("postpone", statusId) && (
+          {shouldShow(MeetActionsEnum.Postpone, statusId) && (
             <MenuItem
               onClick={(event) =>
-                (onItemClick || handleAction)(event, "postpone")
+                (onItemClick || handleAction)(event, MeetActionsEnum.Postpone)
               }
             >
               <ListItemIcon>
@@ -275,10 +304,10 @@ export function MeetActionsMenu({
               <ListItemText>Postpone</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("cancel", statusId) && (
+          {shouldShow(MeetActionsEnum.Cancel, statusId) && (
             <MenuItem
               onClick={(event) =>
-                (onItemClick || handleAction)(event, "cancel")
+                (onItemClick || handleAction)(event, MeetActionsEnum.Cancel)
               }
             >
               <ListItemIcon>
@@ -287,22 +316,22 @@ export function MeetActionsMenu({
               <ListItemText>Cancel meet</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("report", statusId) && (
+          {shouldShow(MeetActionsEnum.Report, statusId) && (
             <MenuItem
               onClick={(event) =>
-                (onItemClick || handleAction)(event, "report")
+                (onItemClick || handleAction)(event, MeetActionsEnum.Report)
               }
             >
               <ListItemIcon>
                 <AssessmentOutlinedIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Reports</ListItemText>
+              <ListItemText>Generate Report</ListItemText>
             </MenuItem>
           )}
-          {shouldShow("delete", statusId) && (
+          {shouldShow(MeetActionsEnum.Delete, statusId) && (
             <MenuItem
               onClick={(event) =>
-                (onItemClick || handleAction)(event, "delete")
+                (onItemClick || handleAction)(event, MeetActionsEnum.Delete)
               }
             >
               <ListItemIcon>

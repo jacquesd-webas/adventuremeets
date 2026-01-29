@@ -25,6 +25,7 @@ import {
 import { getLocaleDefaults } from "../helpers/locale";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
+import { useAuth } from "../context/AuthContext";
 
 function RegisterPage() {
   const location = useLocation();
@@ -40,22 +41,26 @@ function RegisterPage() {
   const [password, setPassword] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [pendingMeetLink, setPendingMeetLink] = useState<{
-    meetId: string;
     attendeeId: string;
+    shareCode: string;
   } | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<
     null | "google" | "microsoft" | "facebook" | "email"
   >(null);
   const { registerAsync, isLoading, error } = useRegister();
   const api = useApi();
-  const navigate = useNavigate();
+  const nav = useNavigate();
+  const { refreshSession } = useAuth();
   const [emailError, setEmailError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const logoSrc = getLogoSrc();
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
     | string
     | undefined;
-  const captchaRequired = Boolean(recaptchaSiteKey);
+  const captchaRequired =
+    Boolean(recaptchaSiteKey) && !pendingMeetLink?.attendeeId;
+  const shouldShowCaptchaWarning =
+    !recaptchaSiteKey && !pendingMeetLink?.attendeeId;
   const chooseMethod = (
     method: null | "google" | "microsoft" | "facebook" | "email"
   ) => {
@@ -73,6 +78,7 @@ function RegisterPage() {
       phoneLocal?: string;
       organizationId?: string;
       meetId?: string;
+      shareCode?: string;
       attendeeId?: string;
     };
     if (
@@ -82,7 +88,7 @@ function RegisterPage() {
       state.phoneCountry ||
       state.phoneLocal ||
       state.organizationId ||
-      state.meetId ||
+      state.shareCode ||
       state.attendeeId
     ) {
       setFirstName(state.firstName || "");
@@ -93,9 +99,9 @@ function RegisterPage() {
       }
       setPhoneLocal(state.phoneLocal || "");
       setOrganizationId(state.organizationId || "");
-      if (state.meetId && state.attendeeId) {
+      if (state.shareCode && state.attendeeId) {
         setPendingMeetLink({
-          meetId: state.meetId,
+          shareCode: state.shareCode,
           attendeeId: state.attendeeId,
         });
       }
@@ -117,16 +123,17 @@ function RegisterPage() {
       password,
       organizationId: organizationId || undefined,
       captchaToken: captchaToken || undefined,
+      attendeeId: pendingMeetLink?.attendeeId,
     })
       .then(async () => {
+        await refreshSession();
         if (pendingMeetLink) {
-          const me = await api.get<{ id: string }>("/auth/me");
-          await api.patch(
-            `/meets/${pendingMeetLink.meetId}/attendees/${pendingMeetLink.attendeeId}`,
-            { userId: me.id }
+          nav(
+            `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
           );
+        } else {
+          nav("/");
         }
-        navigate("/");
       })
       .catch((err) => {
         console.error("Registration failed", err);
@@ -145,6 +152,9 @@ function RegisterPage() {
     setEmailError(res.exists ? "This email is already registered." : null);
   };
 
+  console.log("RENDER RegisterPage selectedMethod=", selectedMethod);
+  console.log({ captchaRequired, captchaToken });
+  console.log({ error });
   return (
     <Container
       maxWidth="sm"
@@ -256,12 +266,12 @@ function RegisterPage() {
                       onExpired={() => setCaptchaToken(null)}
                     />
                   </Box>
-                ) : (
+                ) : shouldShowCaptchaWarning ? (
                   <Alert severity="warning">
                     reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
                     enable.
                   </Alert>
-                )}
+                ) : null}
                 <Button
                   type="submit"
                   variant="contained"
