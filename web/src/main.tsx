@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { NotistackProvider } from "./components/NotistackProvider";
 import { ThemeModeProvider } from "./context/ThemeModeContext";
-import { AuthProvider } from "./context/AuthContext";
-import { OrganizationProvider } from "./context/OrganizationContext";
+import { AuthProvider } from "./context/AuthProvider";
+import { OrganizationProvider } from "./context/OrganizationProvider";
 import "./styles.css";
 
 const root = document.getElementById("root");
