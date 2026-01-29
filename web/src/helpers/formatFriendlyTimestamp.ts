@@ -8,7 +8,9 @@ const sameDay = (a: Date, b: Date) =>
   a.getMonth() === b.getMonth() &&
   a.getDate() === b.getDate();
 
-export function formatFriendlyTimestamp(input: FriendlyTimestampInput) {
+export default function formatFriendlyTimestamp(
+  input: FriendlyTimestampInput
+) {
   if (!input) return "";
   const date = input instanceof Date ? input : new Date(input);
   if (Number.isNaN(date.getTime())) return "";
