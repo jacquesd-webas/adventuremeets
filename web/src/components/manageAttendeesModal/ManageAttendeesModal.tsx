@@ -51,7 +51,7 @@ export function ManageAttendeesModal({
     data: attendees,
     isLoading,
     refetch,
-  } = useFetchMeetAttendees(meetId, open);
+  } = useFetchMeetAttendees(meetId, open ? "all" : null);
   const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
   const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(

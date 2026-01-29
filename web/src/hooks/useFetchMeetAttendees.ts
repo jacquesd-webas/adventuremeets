@@ -10,12 +10,12 @@ type AttendeeFilter = "all" | "accepted";
 
 export function useFetchMeetAttendees(
   meetId?: string | null,
-  filter: AttendeeFilter = "all"
+  filter: AttendeeFilter | null = "all"
 ) {
   const api = useApi();
   const query = useQuery({
     queryKey: ["meet-attendees", meetId, filter],
-    enabled: Boolean(meetId),
+    enabled: Boolean(meetId) && Boolean(filter),
     queryFn: async () => {
       if (!meetId) return { attendees: [] };
       const params = filter === "accepted" ? "?filter=accepted" : "";
