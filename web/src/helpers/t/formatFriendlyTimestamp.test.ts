@@ -67,7 +67,7 @@ describe("formatFriendlyTimestamp", () => {
   });
 
   it("formats short durations", () => {
-    expect(formatShortDuration(3 * 60 + 26 * 60)).toBe("3h26m");
+    expect(formatShortDuration(3 * 60 * 60 + 26 * 60)).toBe("3h26m");
     expect(formatShortDuration(30 * 60)).toBe("30m");
     expect(formatShortDuration(2 * 60 * 60)).toBe("2h");
   });
