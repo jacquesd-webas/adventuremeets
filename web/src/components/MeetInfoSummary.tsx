@@ -110,6 +110,52 @@ export function MeetInfoSummary({
         mapQuery
       )}&output=embed`
     : "";
+  const linkifyText = (text?: string) => {
+    if (!text) return text;
+    const pattern =
+      /(\bhttps?:\/\/[^\s]+|\bwww\.[^\s]+|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|\+?\d[\d\s().-]{6,}\d)/gi;
+    const parts: ReactNode[] = [];
+    let lastIndex = 0;
+    for (const match of text.matchAll(pattern)) {
+      const matchText = match[0];
+      const index = match.index ?? 0;
+      if (index > lastIndex) {
+        parts.push(text.slice(lastIndex, index));
+      }
+      const lower = matchText.toLowerCase();
+      if (lower.includes("@") && !lower.startsWith("http")) {
+        parts.push(
+          <Link key={`${index}-${matchText}`} href={`mailto:${matchText}`}>
+            {matchText}
+          </Link>
+        );
+      } else if (lower.startsWith("http") || lower.startsWith("www.")) {
+        const href = lower.startsWith("http") ? matchText : `https://${matchText}`;
+        parts.push(
+          <Link
+            key={`${index}-${matchText}`}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {matchText}
+          </Link>
+        );
+      } else {
+        const telValue = matchText.replace(/[^\d+]/g, "");
+        parts.push(
+          <Link key={`${index}-${matchText}`} href={`tel:${telValue}`}>
+            {matchText}
+          </Link>
+        );
+      }
+      lastIndex = index + matchText.length;
+    }
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    return parts;
+  };
 
   useEffect(() => {
     if (!descriptionRef.current || !descriptionMaxLines) {
@@ -136,7 +182,7 @@ export function MeetInfoSummary({
           }),
         }}
       >
-        {meet.description}
+        {linkifyText(meet.description)}
       </Typography>
       {showMoreChip && descriptionMaxLines && isTruncated && (
         <Chip

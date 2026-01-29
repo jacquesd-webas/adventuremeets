@@ -176,9 +176,6 @@ function RegisterPage() {
     setEmailError(res.exists ? "This email is already registered." : null);
   };
 
-  console.log("RENDER RegisterPage selectedMethod=", selectedMethod);
-  console.log({ captchaRequired, captchaToken });
-  console.log({ error });
   return (
     <Container
       maxWidth="sm"

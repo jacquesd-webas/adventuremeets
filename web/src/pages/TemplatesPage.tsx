@@ -54,10 +54,12 @@ function TemplatesPage() {
     },
     {
       field: "actions",
-      headerName: "",
+      headerName: "Actions",
       sortable: false,
       filterable: false,
       width: 64,
+      align: "right",
+      headerAlign: "right",
       renderCell: (params) => (
         <AdminActionsMenu
           onEdit={() => {

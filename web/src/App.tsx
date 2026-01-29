@@ -3,7 +3,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import MainLayout from "./layout/MainLayout";
-import PlanPage from "./pages/PlanPage";
+import ListPage from "./pages/ListPage";
 import CalendarPage from "./pages/CalendarPage";
 import MeetSignupSheet from "./pages/MeetSignupSheet";
 import MeetCheckinPage from "./pages/MeetCheckinPage";
@@ -18,7 +18,7 @@ function App() {
     <Routes>
       <Route element={<MainLayout />}>
         <Route path="/" element={<DashboardPage />} />
-        <Route path="/plan" element={<PlanPage />} />
+        <Route path="/plan" element={<ListPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/admin/organizations" element={<OrganisationsPage />} />
         <Route

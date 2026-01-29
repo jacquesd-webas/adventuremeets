@@ -1,99 +1,118 @@
 import {
   Box,
+  Chip,
   CircularProgress,
   Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TableSortLabel,
   Typography,
 } from "@mui/material";
+import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useFetchOrganizationMembers } from "../hooks/useFetchOrganizationMembers";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
-import { OrganizationMember } from "../types/MemberModel";
 import { shortTimestamp } from "../helpers/formatFriendlyTimestamp";
-
-type Order = "asc" | "desc";
-
-const columns: Array<{
-  id: keyof OrganizationMember | "name";
-  label: string;
-  sortable: boolean;
-}> = [
-  { id: "name", label: "Name", sortable: true },
-  { id: "email", label: "Email", sortable: true },
-  { id: "role", label: "Role", sortable: true },
-  { id: "status", label: "Status", sortable: true },
-  { id: "createdAt", label: "Joined", sortable: true },
-];
-
-const compareValues = (
-  a: OrganizationMember,
-  b: OrganizationMember,
-  orderBy: keyof OrganizationMember | "name"
-) => {
-  if (orderBy === "name") {
-    const aName = `${a.firstName || ""} ${a.lastName || ""}`
-      .trim()
-      .toLowerCase();
-    const bName = `${b.firstName || ""} ${b.lastName || ""}`
-      .trim()
-      .toLowerCase();
-    return aName.localeCompare(bName);
-  }
-
-  if (orderBy === "createdAt") {
-    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return aTime - bTime;
-  }
-
-  const aVal = (a[orderBy] ?? "").toString().toLowerCase();
-  const bVal = (b[orderBy] ?? "").toString().toLowerCase();
-  return aVal.localeCompare(bVal);
-};
+import { RoleChip } from "../components/RoleChip";
+import { EditUsersModal } from "../components/admin/EditUsersModal";
+import { OrganizationMember } from "../types/MemberModel";
+import { AdminActionsMenu } from "../components/AdminActionsMenu";
 
 function MembersPage() {
   const { id } = useParams();
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [orderBy, setOrderBy] = useState<keyof OrganizationMember | "name">(
-    "name"
-  );
-  const [order, setOrder] = useState<Order>("asc");
+  const [paginationModel, setPaginationModel] = useState({
+    page: 0,
+    pageSize: 25,
+  });
+  const [selectedMember, setSelectedMember] =
+    useState<OrganizationMember | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [sortModel, setSortModel] = useState<
+    Array<{ field: string; sort: "asc" | "desc" }>
+  >([{ field: "firstName", sort: "asc" }]);
   const { data: members, isLoading, error } = useFetchOrganizationMembers(id);
   const { data: organization } = useFetchOrganization(id);
-
-  const sortedRows = useMemo(() => {
-    const items = [...members];
-    items.sort((a, b) =>
-      order === "asc"
-        ? compareValues(a, b, orderBy)
-        : -compareValues(a, b, orderBy)
-    );
-    return items;
-  }, [members, order, orderBy]);
-
-  const pagedRows = useMemo(() => {
-    const start = page * rowsPerPage;
-    return sortedRows.slice(start, start + rowsPerPage);
-  }, [page, rowsPerPage, sortedRows]);
-
-  const handleSort = (property: keyof OrganizationMember | "name") => {
-    if (orderBy === property) {
-      setOrder(order === "asc" ? "desc" : "asc");
-      return;
-    }
-    setOrderBy(property);
-    setOrder("asc");
-  };
+  const columns = useMemo<GridColDef[]>(
+    () => [
+      {
+        field: "firstName",
+        headerName: "Name",
+        flex: 1,
+        minWidth: 200,
+        valueGetter: (value) =>
+          [value.row.firstName, value.row.lastName].filter(Boolean).join(" ") ||
+          "—",
+      },
+      {
+        field: "email",
+        headerName: "Email",
+        flex: 1,
+        minWidth: 220,
+        valueGetter: (value) => value.row.email || "—",
+      },
+      {
+        field: "role",
+        headerName: "Role",
+        flex: 0.6,
+        minWidth: 140,
+        headerAlign: "center",
+        align: "center",
+        renderCell: (params: GridRenderCellParams) => (
+          <RoleChip role={(params.value as string) || "member"} />
+        ),
+      },
+      {
+        field: "status",
+        headerName: "Status",
+        flex: 0.6,
+        minWidth: 140,
+        headerAlign: "center",
+        align: "center",
+        renderCell: (params: GridRenderCellParams) => {
+          const isActive = (params.value as string)?.toLowerCase() === "active";
+          const color = isActive ? "success" : "default";
+          return (
+            <Chip
+              size="small"
+              label={params.value || "Unknown"}
+              color={color}
+              variant="outlined"
+              sx={{
+                color: isActive ? "success.main" : "text.disabled",
+                borderColor: isActive ? "success.main" : "text.disabled",
+              }}
+            />
+          );
+        },
+      },
+      {
+        field: "createdAt",
+        headerName: "Joined",
+        flex: 0.7,
+        minWidth: 160,
+        valueFormatter: (params) =>
+          params.value ? shortTimestamp(params.value as string) : "—",
+      },
+      {
+        field: "actions",
+        headerName: "Actions",
+        flex: 0.4,
+        minWidth: 120,
+        sortable: false,
+        filterable: false,
+        align: "right",
+        headerAlign: "right",
+        renderCell: (params: GridRenderCellParams) => (
+          <AdminActionsMenu
+            onEdit={() => {
+              setSelectedMember(params.row as OrganizationMember);
+              setIsEditOpen(true);
+            }}
+          />
+        ),
+      },
+    ],
+    []
+  );
 
   const title = organization?.name ? `${organization.name} Members` : "Members";
 
@@ -124,72 +143,65 @@ function MembersPage() {
             <Typography color="error">{error}</Typography>
           </Box>
         ) : (
-          <>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    {columns.map((column) => (
-                      <TableCell key={column.id}>
-                        {column.sortable ? (
-                          <TableSortLabel
-                            active={orderBy === column.id}
-                            direction={orderBy === column.id ? order : "asc"}
-                            onClick={() => handleSort(column.id)}
-                          >
-                            {column.label}
-                          </TableSortLabel>
-                        ) : (
-                          column.label
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {pagedRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={columns.length}>
-                        <Typography color="text.secondary">
-                          No members found.
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    pagedRows.map((row) => (
-                      <TableRow key={row.id} hover>
-                        <TableCell>
-                          {[row.firstName, row.lastName]
-                            .filter(Boolean)
-                            .join(" ") || "—"}
-                        </TableCell>
-                        <TableCell>{row.email || "—"}</TableCell>
-                        <TableCell>{row.role}</TableCell>
-                        <TableCell>{row.status}</TableCell>
-                        <TableCell>
-                          {row.createdAt ? shortTimestamp(row.createdAt) : "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination
-              component="div"
-              count={members?.length}
-              page={page}
-              onPageChange={(_, nextPage) => setPage(nextPage)}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(event) => {
-                setRowsPerPage(Number(event.target.value));
-                setPage(0);
-              }}
-              rowsPerPageOptions={[10, 25, 50]}
-            />
-          </>
+          <DataGrid
+            autoHeight
+            rows={members}
+            columns={columns}
+            getRowId={(row) => row.id}
+            loading={isLoading}
+            pagination
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[10, 25, 50]}
+            sortingMode="client"
+            sortModel={sortModel}
+            onSortModelChange={(model) =>
+              setSortModel(
+                model as Array<{ field: string; sort: "asc" | "desc" }>
+              )
+            }
+            disableRowSelectionOnClick
+            sx={(theme) => ({
+              bgcolor:
+                theme.palette.mode === "dark"
+                  ? "rgba(16, 16, 16, 0.7)"
+                  : "rgba(255, 255, 255, 0.7)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              "& .MuiDataGrid-cell:first-of-type": {
+                pl: 2,
+              },
+              "& .MuiDataGrid-cell:last-of-type": {
+                pr: 2,
+              },
+              "& .MuiDataGrid-columnHeader:first-of-type": {
+                pl: 2,
+              },
+              "& .MuiDataGrid-columnHeader:last-of-type": {
+                pr: 2,
+              },
+            })}
+            slots={{
+              noRowsOverlay: () => (
+                <Box sx={{ p: 2 }}>
+                  <Typography color="text.secondary">
+                    No members found.
+                  </Typography>
+                </Box>
+              ),
+            }}
+          />
         )}
       </Paper>
+      <EditUsersModal
+        open={isEditOpen}
+        onClose={() => {
+          setIsEditOpen(false);
+          setSelectedMember(null);
+        }}
+        member={selectedMember}
+        organizationId={id}
+      />
     </Stack>
   );
 }

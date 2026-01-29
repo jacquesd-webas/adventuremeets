@@ -12,7 +12,7 @@ type UseFetchMeetsOptions = {
 };
 
 type MeetsApiResponse = {
-  items: Meet[];
+  meets: Meet[];
   total: number;
   page: number;
   limit: number;
@@ -35,17 +35,17 @@ export function useFetchMeets(options: UseFetchMeetsOptions) {
         `/meets?${params.toString()}`
       );
       if (Array.isArray(res)) {
-        return { items: res, total: res.length, page, limit };
+        return { meets: res as Meet[], total: res.length, page, limit };
       }
-      if ((res as MeetsApiResponse).items) {
+      if ((res as MeetsApiResponse).meets) {
         return res as MeetsApiResponse;
       }
-      return { items: (res as any).meets || [], total: 0, page, limit };
+      return { meets: (res as any).meets || [], total: 0, page, limit };
     },
   });
 
   return {
-    data: query.data?.items || [],
+    data: (query.data?.meets || []) as Meet[],
     total: query.data?.total ?? 0,
     page: query.data?.page ?? page,
     limit: query.data?.limit ?? limit,

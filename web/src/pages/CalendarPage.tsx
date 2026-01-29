@@ -4,6 +4,7 @@ import {
   IconButton,
   Paper,
   Stack,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
@@ -173,7 +174,7 @@ export default function CalendarPage() {
                     <Box
                       key={key}
                       sx={{
-                        minHeight: 102,
+                        height: isMobile ? 92 : 120,
                         borderRadius: 1.5,
                         border: "1px solid",
                         borderColor: "divider",
@@ -189,6 +190,7 @@ export default function CalendarPage() {
                         display: "flex",
                         flexDirection: "column",
                         gap: 0.4,
+                        overflow: "hidden",
                       }}
                     >
                       <Typography
@@ -204,36 +206,48 @@ export default function CalendarPage() {
                         </Typography>
                       ) : (
                         <>
-                          {visible.map((meet) => (
-                            <Box
-                              key={meet.id}
-                              sx={{
-                                px: 0.75,
-                                py: 0.4,
-                                borderRadius: 1,
-                                backgroundColor: theme.palette.primary.main,
-                                color:
-                                  theme.palette.mode === "dark"
-                                    ? "#222222"
-                                    : theme.palette.primary.contrastText,
-                                fontSize: "0.62rem",
-                                lineHeight: 1.2,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                cursor: "pointer",
-                              }}
-                              onClick={() => setSelectedMeet(meet)}
-                            >
-                              <Typography
-                                variant="caption"
-                                fontWeight={600}
-                                sx={{ display: "block" }}
+                          {visible.map((meet) => {
+                            const isTruncated = meet.name.length > 26;
+                            const label = isTruncated
+                              ? `${meet.name.slice(0, 16)}...`
+                              : meet.name;
+                            const content = (
+                              <Box
+                                sx={{
+                                  px: 0.75,
+                                  py: 0.4,
+                                  borderRadius: 1,
+                                  backgroundColor: theme.palette.primary.main,
+                                  color:
+                                    theme.palette.mode === "dark"
+                                      ? "#222222"
+                                      : theme.palette.primary.contrastText,
+                                  fontSize: "0.62rem",
+                                  lineHeight: 1.2,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => setSelectedMeet(meet)}
                               >
-                                {meet.name}
-                              </Typography>
-                            </Box>
-                          ))}
+                                <Typography
+                                  variant="caption"
+                                  fontWeight={600}
+                                  sx={{ display: "block" }}
+                                >
+                                  {label}
+                                </Typography>
+                              </Box>
+                            );
+                            return isTruncated ? (
+                              <Tooltip key={meet.id} title={meet.name} arrow>
+                                {content}
+                              </Tooltip>
+                            ) : (
+                              <Box key={meet.id}>{content}</Box>
+                            );
+                          })}
                         </>
                       )}
                     </Box>

@@ -17,6 +17,7 @@ import { OrganizationsService } from "./organizations.service";
 import { CreateTemplateDto } from "./dto/create-template.dto";
 import { UpdateTemplateDto } from "./dto/update-template.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
+import { UpdateMemberDto } from "./dto/update-member.dto";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -65,6 +66,29 @@ export class OrganizationsController {
 
     const members = await this.organizationsService.findMembers(id);
     return { members };
+  }
+
+  @Patch(":id/members/:userId")
+  async updateMember(
+    @Param("id") id: string,
+    @Param("userId") userId: string,
+    @Body() body: UpdateMemberDto,
+    @User() user?: UserProfile
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization"
+      );
+    }
+
+    const member = await this.organizationsService.updateMember(
+      id,
+      userId,
+      body
+    );
+    return { member };
   }
 
   @Get(":id/organizers")

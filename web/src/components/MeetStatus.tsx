@@ -1,4 +1,4 @@
-import { Chip } from "@mui/material";
+import { Chip, useTheme } from "@mui/material";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
 import MeetStatusEnum from "../types/MeetStatusEnum";
 
@@ -11,6 +11,7 @@ export function MeetStatus({
   statusId,
   fallbackLabel = "Scheduled",
 }: MeetStatusProps) {
+  const theme = useTheme();
   const { getName } = useMeetStatusLookup();
   const name = getName(statusId, fallbackLabel);
 
@@ -51,5 +52,27 @@ export function MeetStatus({
     }
   }
 
-  return <Chip size="small" label={name} color={color} />;
+  const isDark = theme.palette.mode === "dark";
+  const chipColor =
+    color === "default"
+      ? theme.palette.text.secondary
+      : theme.palette[color].main;
+
+  return (
+    <Chip
+      size="small"
+      label={name}
+      color={color}
+      variant={isDark ? "outlined" : "filled"}
+      sx={
+        isDark
+          ? {
+              color: chipColor,
+              borderColor: chipColor,
+              backgroundColor: "transparent",
+            }
+          : undefined
+      }
+    />
+  );
 }

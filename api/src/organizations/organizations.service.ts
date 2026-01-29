@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { OrganizationDto } from "./dto/organization.dto";
@@ -6,6 +10,19 @@ import { OrganizationDto } from "./dto/organization.dto";
 @Injectable()
 export class OrganizationsService {
   constructor(private readonly database: DatabaseService) {}
+
+  private mapMember(row: any) {
+    return {
+      id: row.id,
+      email: row.email,
+      firstName: row.first_name ?? row.firstName,
+      lastName: row.last_name ?? row.lastName,
+      role: row.role,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
 
   async findById(id: string) {
     const org = await this.database
@@ -80,16 +97,7 @@ export class OrganizationsService {
         "uom.updated_at"
       );
 
-    return rows.map((row) => ({
-      id: row.id,
-      email: row.email,
-      firstName: row.first_name ?? row.firstName,
-      lastName: row.last_name ?? row.lastName,
-      role: row.role,
-      status: row.status,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    return rows.map((row) => this.mapMember(row));
   }
 
   async findOrganizers(orgId: string) {
@@ -111,16 +119,66 @@ export class OrganizationsService {
         "uom.updated_at"
       );
 
-    return rows.map((row) => ({
-      id: row.id,
-      email: row.email,
-      firstName: row.first_name ?? row.firstName,
-      lastName: row.last_name ?? row.lastName,
-      role: row.role,
-      status: row.status,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    return rows.map((row) => this.mapMember(row));
+  }
+
+  async updateMember(
+    orgId: string,
+    userId: string,
+    payload: { role?: string; status?: string }
+  ) {
+    const updates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (payload.role) {
+      const roleIdMap: Record<string, number> = {
+        superuser: 1,
+        admin: 2,
+        organizer: 3,
+        member: 4,
+      };
+      updates.role = payload.role;
+      updates.role_id = roleIdMap[payload.role] ?? 4;
+    }
+    if (payload.status) {
+      updates.status = payload.status;
+    }
+
+    if (Object.keys(updates).length === 1) {
+      throw new BadRequestException("No member updates provided");
+    }
+
+    const updated = await this.database
+      .getClient()("user_organization_memberships")
+      .where({ organization_id: orgId, user_id: userId })
+      .update(updates)
+      .returning("*");
+
+    const updatedRow = Array.isArray(updated) ? updated[0] : updated;
+    if (!updatedRow) {
+      throw new NotFoundException("Member not found");
+    }
+
+    const memberRow = await this.database
+      .getClient()("users as u")
+      .join("user_organization_memberships as uom", "uom.user_id", "u.id")
+      .where("uom.organization_id", orgId)
+      .andWhere("uom.user_id", userId)
+      .select(
+        "u.id",
+        "u.email",
+        "u.first_name",
+        "u.last_name",
+        "uom.role",
+        "uom.status",
+        "uom.created_at",
+        "uom.updated_at"
+      )
+      .first();
+    if (!memberRow) {
+      throw new NotFoundException("Member not found");
+    }
+    return this.mapMember(memberRow);
   }
 
   async findTemplates(orgId: string) {

@@ -22,7 +22,7 @@ export function useFetchOrganizationMembers(orgId?: string) {
   });
 
   return {
-    data: query.data || [],
+    data: (query.data || []) as OrganizationMember[],
     isLoading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
     refetch: query.refetch,
