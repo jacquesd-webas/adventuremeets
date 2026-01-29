@@ -31,7 +31,6 @@ import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
 import Meet from "../../types/MeetModel";
 import { AttendeeActionButtons } from "./AttendeeActionButtons";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
-import { A } from "vitest/dist/reporters-5f784f42";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 
 type ManageAttendeesModalProps = {

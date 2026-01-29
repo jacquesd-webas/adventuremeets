@@ -26,7 +26,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { useUpdateUser } from "../hooks/useUpdateUser";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useUpdateOrganization } from "../hooks/useUpdateOrganization";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 import {
   buildInternationalPhone,
   getDefaultPhoneCountry,
@@ -34,7 +34,7 @@ import {
   splitInternationalPhone,
 } from "./InternationalPhoneField";
 import { getLocaleDefaults } from "../helpers/locale";
-import { useCurrentOrganization } from "../context/OrganizationContext";
+import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganizationMetaDefinitions } from "../hooks/useFetchOrganizationMetaDefinitions";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
 import { useUpdateUserMetaValues } from "../hooks/useUpdateUserMetaValues";

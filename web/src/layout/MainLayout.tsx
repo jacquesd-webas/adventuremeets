@@ -24,9 +24,9 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { ProfileModal } from "../components/ProfileModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCurrentOrganization } from "../context/OrganizationContext";
+import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { ChooseOrganizationModal } from "../components/ChooseOrganizationModal";
 

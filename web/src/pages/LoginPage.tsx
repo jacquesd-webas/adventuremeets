@@ -16,7 +16,7 @@ import { useLogin } from "../hooks/useLogin";
 import { useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/AuthSocialButtons";
 import { getLogoSrc } from "../helpers/logo";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 
 function LoginPage() {
   const [email, setEmail] = useState("");

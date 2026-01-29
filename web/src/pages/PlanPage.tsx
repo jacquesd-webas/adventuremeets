@@ -19,8 +19,8 @@ import { MeetActionsDialogs } from "../components/MeetActionsDialogs";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { defaultPendingAction } from "../helpers/defaultPendingAction";
 import { MeetActionsEnum } from "../types/MeetActionsEnum";
-import { useCurrentOrganization } from "../context/OrganizationContext";
-import { useAuth } from "../context/AuthContext";
+import { useCurrentOrganization } from "../context/organizationContext";
+import { useAuth } from "../context/authContext";
 
 function PlanPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);

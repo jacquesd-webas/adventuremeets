@@ -19,7 +19,7 @@ import { useFetchOrganisations } from "../hooks/useFetchOrganisations";
 import { Link as RouterLink } from "react-router-dom";
 import { Organization } from "../types/OrganizationModel";
 import { formatFriendlyTimestamp } from "../helpers/formatFriendlyTimestamp";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 import { RoleChip } from "../components/RoleChip";
 import { OrganizationActions } from "../components/OrganizationActions";
 

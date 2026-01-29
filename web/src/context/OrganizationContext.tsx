@@ -1,23 +1,14 @@
 import {
-  createContext,
   ReactNode,
-  useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
-import { useAuth } from "./AuthContext";
-
-type OrganizationContextValue = {
-  organizationIds: string[];
-  currentOrganizationId: string | null;
-  currentOrganizationRole: string | null;
-  setCurrentOrganizationId: (orgId: string | null) => void;
-};
-
-const OrganizationContext = createContext<OrganizationContextValue | undefined>(
-  undefined
-);
+import { useAuth } from "./authContext";
+import {
+  OrganizationContext,
+  OrganizationContextValue,
+} from "./organizationContext";
 
 type OrganizationProviderProps = {
   children: ReactNode;
@@ -98,14 +89,4 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
       {children}
     </OrganizationContext.Provider>
   );
-}
-
-export function useCurrentOrganization() {
-  const context = useContext(OrganizationContext);
-  if (!context) {
-    throw new Error(
-      "useCurrentOrganization must be used within OrganizationProvider"
-    );
-  }
-  return context;
 }

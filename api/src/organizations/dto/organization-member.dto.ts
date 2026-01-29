@@ -2,7 +2,7 @@ import { ApiProperty } from "@nestjs/swagger";
 
 export class OrganizationMemberDto {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty({ required: false })
   email?: string;
@@ -14,10 +14,10 @@ export class OrganizationMemberDto {
   lastName?: string;
 
   @ApiProperty()
-  role: string;
+  role!: string;
 
   @ApiProperty()
-  status: string;
+  status!: string;
 
   @ApiProperty({ required: false })
   createdAt?: string;

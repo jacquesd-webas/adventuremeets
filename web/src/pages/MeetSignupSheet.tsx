@@ -40,7 +40,7 @@ import { NameField } from "../components/NameField";
 import { PreviewBanner } from "../components/PreviewBanner";
 import { LoginForm } from "../components/auth/LoginForm";
 import { MeetStatusAlert } from "../components/MeetStatusAlert";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
 import { MeetSignupUserAction } from "../components/MeetSignupUserAction";
 
@@ -432,10 +432,6 @@ function MeetSignupSheet() {
   };
 
   const isOpenMeet = meet?.statusId === MeetStatus.Open;
-  const shareLink =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/meets/${code}`
-      : "";
 
   if (!isLoading && !meet) {
     return <MeetNotFound />;

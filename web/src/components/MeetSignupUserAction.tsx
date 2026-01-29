@@ -15,7 +15,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { FormEvent, useMemo, useState, MouseEvent } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 import { useLogin } from "../hooks/useLogin";
 
 type MeetSignupUserActionProps = {

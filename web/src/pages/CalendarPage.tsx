@@ -12,7 +12,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { useMemo, useState } from "react";
 import { useFetchMeets } from "../hooks/useFetchMeets";
-import { useCurrentOrganization } from "../context/OrganizationContext";
+import { useCurrentOrganization } from "../context/organizationContext";
 import Meet from "../types/MeetModel";
 import { MeetInfoModal } from "../components/MeetInfoModal";
 

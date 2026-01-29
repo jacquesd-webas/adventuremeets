@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "./useApi";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 
 type UpdateUserPayload = {
   id: string;

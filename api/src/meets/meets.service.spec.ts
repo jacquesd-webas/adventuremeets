@@ -14,6 +14,7 @@ const buildBuilder = () => {
   builder.whereNotNull = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
   builder.orderBy = jest.fn().mockReturnValue(builder);
+  builder.modify = jest.fn().mockReturnValue(builder);
   builder.first = jest.fn();
   builder.pluck = jest.fn();
   builder.update = jest.fn();
@@ -26,8 +27,27 @@ describe("MeetsService", () => {
     const meetsInsert = buildBuilder();
     meetsInsert.insert.mockImplementation(async (record: any) => [record]);
 
+    const organizerBuilder = buildBuilder();
+    organizerBuilder.first.mockResolvedValue({
+      first_name: "Jane",
+      last_name: "Doe",
+      email: "jane@example.com",
+      phone: "123",
+    });
+    const attendeeInsert = buildBuilder();
+    attendeeInsert.insert.mockResolvedValue([{ id: "attendee-1" }]);
+
+    const metaDefinitionsBuilder = buildBuilder();
+    metaDefinitionsBuilder.select.mockResolvedValue([]);
+    const metaValuesBuilder = buildBuilder();
+    metaValuesBuilder.select.mockResolvedValue([]);
+
     const client: any = (table: string) => {
       if (table === "meets") return meetsInsert;
+      if (table === "users") return organizerBuilder;
+      if (table === "meet_attendees") return attendeeInsert;
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      if (table === "meet_meta_values as mv") return metaValuesBuilder;
       return buildBuilder();
     };
     client.raw = jest.fn(() => "raw");

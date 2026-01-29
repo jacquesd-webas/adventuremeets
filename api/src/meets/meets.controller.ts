@@ -458,7 +458,7 @@ export class MeetsController {
       content,
       contentType:
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      contentDisposition: "attachment",
+      contentDisposition: "attachment" as const,
     };
 
     await this.emailService.sendEmail({

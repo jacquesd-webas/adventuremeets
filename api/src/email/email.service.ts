@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import * as nodemailer from "nodemailer";
+import type { Attachment } from "nodemailer/lib/mailer";
 
 export type SendEmailOptions = {
   to: string | string[];
@@ -8,7 +9,7 @@ export type SendEmailOptions = {
   html?: string;
   from?: string;
   replyTo?: string;
-  attachments?: nodemailer.Attachment[];
+  attachments?: Attachment[];
 };
 
 @Injectable()

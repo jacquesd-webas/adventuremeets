@@ -25,7 +25,6 @@ import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import MeetActionsEnum from "../types/MeetActionsEnum";
 import MeetStatusEnum from "../types/MeetStatusEnum";
 import { useNavigate } from "react-router-dom";
-import { useCurrentOrganization } from "../context/OrganizationContext";
 
 type MeetActionsMenuProps = {
   meetId: string;

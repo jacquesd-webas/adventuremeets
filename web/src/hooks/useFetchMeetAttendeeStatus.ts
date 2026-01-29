@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
-import { Meet } from "../types/MeetModel";
 
 type MeetAttendeeResponse = {
   attendee: {

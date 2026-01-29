@@ -18,7 +18,7 @@ import {
 } from "../components/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
 import { MobileDashboardTitle } from "../components/dashboard/MobileDashboardTitle";
-import { useCurrentOrganization } from "../context/OrganizationContext";
+import { useCurrentOrganization } from "../context/organizationContext";
 import { CreatePrivateOrganizationDialog } from "../components/CreatePrivateOrganizationDialog";
 
 function DashboardPage() {

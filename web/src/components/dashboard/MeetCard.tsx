@@ -20,7 +20,7 @@ import { MeetActionsEnum } from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/authContext";
 
 type MeetCardProps = {
   meet: Meet;

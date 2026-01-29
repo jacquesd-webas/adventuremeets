@@ -1,27 +1,13 @@
 import {
-  createContext,
   ReactNode,
   useCallback,
-  useContext,
   useMemo,
   useRef,
 } from "react";
 import { useFetchMe } from "../hooks/useFetchMe";
 import { useApi } from "../hooks/useApi";
 import { useQueryClient } from "@tanstack/react-query";
-import { Me } from "../types/MeModel";
-
-type AuthContextValue = {
-  user: Me | undefined;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  refreshSession: () => Promise<void>;
-  logout: () => void;
-};
-
-export const AuthContext = createContext<AuthContextValue | undefined>(
-  undefined
-);
+import { AuthContext, AuthContextValue } from "./authContext";
 
 type Props = {
   children: ReactNode;
@@ -86,12 +72,4 @@ export function AuthProvider({ children }: Props) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return ctx;
 }

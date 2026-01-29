@@ -1,4 +1,4 @@
-import { Paper, Stack, Typography, useTheme } from "@mui/material";
+import { Paper, Stack, Typography } from "@mui/material";
 import Meet from "../../types/MeetModel";
 import { MeetCard } from "./MeetCard";
 import { PendingAction } from "../MeetActionsDialogs";

@@ -25,7 +25,7 @@ import {
 import { getLocaleDefaults } from "../helpers/locale";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 
 function RegisterPage() {
   const location = useLocation();

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Box, FormControl, MenuItem, Select, Typography } from "@mui/material";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/authContext";
 import { useFetchOrganizationTemplates } from "../../hooks/useFetchOrganizationTemplates";
 import { useFetchOrganizationTemplate } from "../../hooks/useFetchOrganizationTemplate";
 import { QuestionField } from "./CreateMeetState";

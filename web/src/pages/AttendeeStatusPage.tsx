@@ -20,7 +20,7 @@ import { useParams } from "react-router-dom";
 import { MeetInfoSummary } from "../components/MeetInfoSummary";
 import { AttendeeStatusAlert } from "../components/AttendeeStatusAlert";
 import { useFetchMeetAttendeeStatus } from "../hooks/useFetchMeetAttendeeStatus";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/authContext";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { MeetNotFound } from "../components/MeetNotFound";
 import { FullPageSpinner } from "../components/FullPageSpinner";
@@ -28,7 +28,7 @@ import { MeetSignupUserAction } from "../components/MeetSignupUserAction";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { useApi } from "../hooks/useApi";
 import { useNotistack } from "../hooks/useNotistack";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 export default function AttendeeStatusPage() {
   const { code, attendeeId } = useParams<{
@@ -37,8 +37,7 @@ export default function AttendeeStatusPage() {
   }>();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const { user, isAuthenticated, logout } = useAuth();
-  const signOutTriggered = useRef(false);
+  const { isAuthenticated } = useAuth();
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);

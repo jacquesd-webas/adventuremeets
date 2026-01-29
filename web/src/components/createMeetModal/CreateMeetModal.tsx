@@ -30,13 +30,12 @@ import { FinishStep } from "./FinishStep";
 import { ImageStep } from "./ImageStep";
 import { useApi } from "../../hooks/useApi";
 import { useSaveMeet } from "../../hooks/useSaveMeet";
-import { useFetchUsers } from "../../hooks/useFetchUsers";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { getLocaleDefaults } from "../../helpers/locale";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/authContext";
 import { useFetchOrganizers } from "../../hooks/useFetchOrganizers";
-import { useCurrentOrganization } from "../../context/OrganizationContext";
+import { useCurrentOrganization } from "../../context/organizationContext";
 
 type CreateMeetModalProps = {
   open: boolean;
