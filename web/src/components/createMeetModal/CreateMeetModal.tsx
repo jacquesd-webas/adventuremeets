@@ -146,6 +146,7 @@ const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
         }))
       : [],
     statusId: meet.statusId ?? null,
+    imagePreview: meet.imageUrl ?? "",
   };
 };
 

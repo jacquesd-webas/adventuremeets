@@ -3,7 +3,12 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
+  Link,
   Stack,
   Typography,
 } from "@mui/material";
@@ -47,6 +52,7 @@ export function MeetInfoSummary({
   const descriptionRef = useRef<HTMLParagraphElement | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
   const startDate = meet.startTime ? new Date(meet.startTime) : null;
   const endDate = meet.endTime ? new Date(meet.endTime) : null;
   const dateLabel =
@@ -90,6 +96,17 @@ export function MeetInfoSummary({
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   }, [displayName]);
   const shouldClamp = Boolean(descriptionMaxLines) && !isExpanded;
+  const mapQuery = useMemo(() => {
+    if (typeof meet.locationLat === "number" && typeof meet.locationLong === "number") {
+      return `${meet.locationLat},${meet.locationLong}`;
+    }
+    return meet.location || "";
+  }, [meet.location, meet.locationLat, meet.locationLong]);
+  const mapEmbedUrl = mapQuery
+    ? `https://www.google.com/maps?q=${encodeURIComponent(
+        mapQuery
+      )}&output=embed`
+    : "";
 
   useEffect(() => {
     if (!descriptionRef.current || !descriptionMaxLines) {
@@ -227,7 +244,18 @@ export function MeetInfoSummary({
               </Stack>
               <Stack direction="row" spacing={1} alignItems="center">
                 <PlaceIcon fontSize="small" color="disabled" />
-                <Typography variant="body2">{meet.location}</Typography>
+                {meet.location ? (
+                  <Link
+                    component="button"
+                    variant="body2"
+                    onClick={() => setIsMapOpen(true)}
+                    sx={{ textAlign: "left" }}
+                  >
+                    {meet.location}
+                  </Link>
+                ) : (
+                  <Typography variant="body2">{meet.location}</Typography>
+                )}
               </Stack>
               {typeof meet.capacity === "number" && (
                 <Stack direction="row" spacing={1} alignItems="center">
@@ -267,7 +295,18 @@ export function MeetInfoSummary({
             </Stack>
             <Stack direction="row" spacing={1} alignItems="center">
               <PlaceIcon fontSize="small" color="disabled" />
-              <Typography variant="body2">{meet.location}</Typography>
+              {meet.location ? (
+                <Link
+                  component="button"
+                  variant="body2"
+                  onClick={() => setIsMapOpen(true)}
+                  sx={{ textAlign: "left" }}
+                >
+                  {meet.location}
+                </Link>
+              ) : (
+                <Typography variant="body2">{meet.location}</Typography>
+              )}
             </Stack>
             {typeof meet.capacity === "number" && (
               <Stack direction="row" spacing={1} alignItems="center">
@@ -285,6 +324,33 @@ export function MeetInfoSummary({
           {renderDescription()}
         </>
       )}
+      <Dialog
+        open={isMapOpen}
+        onClose={() => setIsMapOpen(false)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>Location map</DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {mapEmbedUrl ? (
+            <Box
+              component="iframe"
+              title="Map"
+              src={mapEmbedUrl}
+              sx={{ width: "100%", height: 420, border: 0 }}
+            />
+          ) : (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="body2" color="text.secondary">
+                No location available for this meet.
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsMapOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }
