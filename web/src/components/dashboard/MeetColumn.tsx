@@ -1,14 +1,15 @@
 import { Paper, Stack, Typography } from "@mui/material";
 import Meet from "../../types/MeetModel";
 import { MeetCard } from "./MeetCard";
-import { PendingAction } from "../MeetActionsDialogs";
+import { useAuth } from "../../context/authContext";
+import MeetActionsEnum from "../../types/MeetActionsEnum";
 
 type MeetColumnProps = {
   title: string;
   meets: Meet[];
   statusFallback: string;
   setSelectedMeetId: (id: string | null) => void;
-  setPendingAction: (action: PendingAction | null) => void;
+  setPendingAction: (action: MeetActionsEnum | null) => void;
   isLoading?: boolean;
   getStatusLabel: (statusId?: number, fallback?: string) => string;
 };
@@ -22,6 +23,7 @@ export function MeetColumn({
   isLoading = false,
   getStatusLabel,
 }: MeetColumnProps) {
+  const { user } = useAuth();
   return (
     <>
       <Paper
@@ -51,6 +53,7 @@ export function MeetColumn({
             <MeetCard
               key={meet.id}
               meet={meet}
+              isOrganizer={meet.organizerId === user?.id}
               statusLabel={getStatusLabel(meet.statusId, statusFallback)}
               onClick={() => {}}
               setSelectedMeetId={setSelectedMeetId}
