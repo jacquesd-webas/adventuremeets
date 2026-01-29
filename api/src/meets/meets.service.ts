@@ -862,6 +862,31 @@ export class MeetsService {
     }
   }
 
+  async listAttendeeMessages(meetId: string, attendeeId: string) {
+    const rows = await this.db
+      .getClient()("messages as m")
+      .join("message_contents as mc", "mc.id", "m.message_content_id")
+      .where("m.meet_id", meetId)
+      .andWhere("m.attendee_id", attendeeId)
+      .orderBy("m.timestamp", "desc")
+      .select(
+        "m.message_id",
+        "m.timestamp",
+        "m.from",
+        "m.to",
+        "m.is_read",
+        "mc.content"
+      );
+    return rows.map((row: any) => ({
+      id: row.message_id,
+      timestamp: row.timestamp,
+      from: row.from,
+      to: row.to,
+      isRead: row.is_read ?? false,
+      content: row.content,
+    }));
+  }
+
   private toAttendeeDto(attendee: Record<string, any>) {
     return {
       id: attendee.id,

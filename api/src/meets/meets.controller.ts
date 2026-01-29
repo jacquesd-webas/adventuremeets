@@ -342,21 +342,24 @@ export class MeetsController {
       ? `Adventuremeets (${meet.organizerName}) <${meet.id}@${process.env.MAIL_DOMAIN}>`
       : `Adventuremeets <${meet.id}@${process.env.MAIL_DOMAIN}>`;
 
-    const recipients: string[] = await Promise.all(
-      body.attendeeIds.map(async (a) => {
+    const recipients = new Map<string, string>();
+    await Promise.all(
+      body.attendeeIds.map(async (attendeeId) => {
         const attendedContactInfo =
-          await this.meetsService.getAttendeeContactById(a);
-        return attendedContactInfo ? (attendedContactInfo.email as string) : "";
+          await this.meetsService.getAttendeeContactById(attendeeId);
+        if (attendedContactInfo?.email) {
+          recipients.set(attendeeId, attendedContactInfo.email);
+        }
       })
     );
 
-    if (!recipients || recipients.length === 0) {
+    if (!recipients.size) {
       throw new BadRequestException(
         "No recipients email addresses found for attendees"
       );
     }
 
-    if (recipients.find((r) => !r)) {
+    if (recipients.size !== body.attendeeIds.length) {
       throw new BadRequestException(
         "One or more attendees do not have email addresses"
       );
@@ -364,13 +367,9 @@ export class MeetsController {
 
     // Send all the emails (just skip any nulls it's fine)
     await Promise.all(
-      recipients.map((to) => {
-        if (!to) {
-          this.logger.warn(`Skipping email to empty address for meet ${id}`);
-          return;
-        }
+      Array.from(recipients.entries()).map(([, email]) => {
         return this.emailService.sendEmail({
-          to,
+          to: email,
           subject: body.subject,
           text: body.text ?? "",
           html: body.html ?? "",
@@ -379,8 +378,47 @@ export class MeetsController {
       })
     );
 
+    await Promise.all(
+      Array.from(recipients.keys()).map(async (attendeeId) => {
+        await this.emailService.saveMessage({
+          to: recipients.get(attendeeId)!,
+          subject: body.subject,
+          text: body.text ?? "",
+          html: body.html ?? "",
+          from: fromAddress,
+          attendeeId,
+          meetId: meet.id,
+        });
+      })
+    );
+
     await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
-    return { status: "sent", count: recipients.length };
+    return { status: "sent", count: recipients.size };
+  }
+
+  @Get(":id/attendees/:attendeeId/messages")
+  @ApiOperation({ summary: "List messages for an attendee" })
+  async listAttendeeMessages(
+    @Param("id") id: string,
+    @Param("attendeeId") attendeeId: string,
+    @User() user?: UserProfile
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        "You do not have permission to view attendee messages for this meet"
+      );
+    }
+
+    const messages = await this.meetsService.listAttendeeMessages(
+      id,
+      attendeeId
+    );
+    return { messages };
   }
 
   @Post(":id/report")

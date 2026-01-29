@@ -111,6 +111,7 @@ export class IncomingMailController {
       .andWhereRaw("lower(email) = lower(?)", [sender])
       .first();
 
+    // TODO: refactor this to use EmailService to avoid code duplication
     const hash = crypto.createHash("sha256").update(rawBody).digest("hex");
 
     let contentId: string | undefined;

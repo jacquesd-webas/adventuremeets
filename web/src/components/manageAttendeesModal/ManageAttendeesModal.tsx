@@ -30,6 +30,9 @@ import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
 import Meet from "../../types/MeetModel";
 import { AttendeeActionButtons } from "./AttendeeActionButtons";
+import { DetailSelector } from "./DetailSelector";
+import { AttendeeResponses } from "./AttendeeResponses";
+import { AttendeeMessages } from "./AttendeeMessages";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 
@@ -66,6 +69,9 @@ export function ManageAttendeesModal({
   const [messageAttendeeIds, setMessageAttendeeIds] = useState<
     string[] | undefined
   >(undefined);
+  const [detailView, setDetailView] = useState<"responses" | "messages">(
+    "responses"
+  );
 
   useEffect(() => {
     if (!open) {
@@ -79,6 +85,10 @@ export function ManageAttendeesModal({
       setSelectedAttendeeId(attendees[0].id);
     }
   }, [attendees, open, selectedAttendeeId]);
+
+  useEffect(() => {
+    setDetailView("responses");
+  }, [selectedAttendeeId]);
 
   const meetStatus = useMemo(() => {
     const statusVal =
@@ -332,80 +342,53 @@ export function ManageAttendeesModal({
                       )}
                     </Stack>
                   </Stack>
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                    mt={1}
-                    flexWrap="wrap"
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      mt: 1,
+                    }}
                   >
-                    {selectedAttendee.email ? (
-                      <Chip size="small" label={selectedAttendee.email} />
-                    ) : null}
-                    {selectedAttendee.phone ? (
-                      <Chip size="small" label={selectedAttendee.phone} />
-                    ) : null}
-                    {selectedAttendee.guests ? (
-                      <Chip
-                        size="small"
-                        label={`Guests: ${selectedAttendee.guests}`}
-                      />
-                    ) : null}
-                  </Stack>
-                </Box>
-                <Divider />
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    gutterBottom
-                  >
-                    Indemnity
-                  </Typography>
-                  <Typography variant="body2">
-                    {selectedAttendee.indemnityAccepted
-                      ? "Accepted"
-                      : "Not accepted"}
-                  </Typography>
-                  {selectedAttendee.indemnityMinors ? (
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 1 }}
-                    >
-                      Minors: {selectedAttendee.indemnityMinors}
-                    </Typography>
-                  ) : null}
-                </Box>
-                <Divider />
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    gutterBottom
-                  >
-                    Responses
-                  </Typography>
-                  {selectedAttendee.metaValues?.length ? (
-                    <Stack spacing={1}>
-                      {selectedAttendee.metaValues.map((response) => (
-                        <Box key={response.definitionId}>
-                          <Typography variant="caption" color="text.secondary">
-                            {response.label}
-                          </Typography>
-                          <Typography variant="body2">
-                            {response.value || "—"}
-                          </Typography>
-                        </Box>
-                      ))}
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      {selectedAttendee.email ? (
+                        <Chip size="small" label={selectedAttendee.email} />
+                      ) : null}
+                      {selectedAttendee.phone ? (
+                        <Chip size="small" label={selectedAttendee.phone} />
+                      ) : null}
+                      {selectedAttendee.guests ? (
+                        <Chip
+                          size="small"
+                          label={`Guests: ${selectedAttendee.guests}`}
+                        />
+                      ) : null}
                     </Stack>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No responses available.
-                    </Typography>
-                  )}
+                    <Box sx={{ ml: "auto" }}>
+                      <DetailSelector
+                        disabled={!selectedAttendee}
+                        active={detailView === "messages" ? "mail" : "info"}
+                        onInfoClick={() => setDetailView("responses")}
+                        onMailClick={() => setDetailView("messages")}
+                      />
+                    </Box>
+                  </Box>
                 </Box>
-                <Box>
+                <Divider />
+                {detailView === "messages" ? (
+                  <AttendeeMessages
+                    meetId={meetId}
+                    attendeeId={selectedAttendee?.id}
+                  />
+                ) : (
+                  <AttendeeResponses
+                    indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    indemnityMinors={selectedAttendee.indemnityMinors}
+                    responses={selectedAttendee.metaValues}
+                  />
+                )}
+                <Divider />
+                <Box sx={{ display: "flex", justifyContent: "center" }}>
                   <Button
                     variant="outlined"
                     disabled={!selectedAttendee}
