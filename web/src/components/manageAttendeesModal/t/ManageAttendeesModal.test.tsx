@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ManageAttendeesModal } from "../ManageAttendeesModal";
 import AttendeeStatusEnum from "../../../types/AttendeeStatusEnum";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
@@ -37,6 +38,14 @@ vi.mock("../../../hooks/useUpdateMeetAttendee", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useFetchAttendeeMessages", () => ({
+  useFetchAttendeeMessages: () => ({
+    data: [],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../MessageModal", () => ({
   MessageModal: ({ open }: { open: boolean }) =>
     open ? <div>Message modal</div> : null,
@@ -65,8 +74,11 @@ describe("ManageAttendeesModal", () => {
   });
 
   it("shows attendees and updates status", async () => {
+    const queryClient = new QueryClient();
     render(
-      <ManageAttendeesModal open onClose={vi.fn()} meetId="m1" />
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal open onClose={vi.fn()} meetId="m1" />
+      </QueryClientProvider>
     );
 
     const list = await screen.findByRole("list");
@@ -84,8 +96,11 @@ describe("ManageAttendeesModal", () => {
   });
 
   it("opens the message modal from footer action", () => {
+    const queryClient = new QueryClient();
     render(
-      <ManageAttendeesModal open onClose={vi.fn()} meetId="m1" />
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal open onClose={vi.fn()} meetId="m1" />
+      </QueryClientProvider>
     );
 
     fireEvent.click(screen.getByText("Send Message to All Attendees"));

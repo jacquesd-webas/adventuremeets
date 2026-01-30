@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MessageModal } from "../MessageModal";
 import AttendeeStatusEnum from "../../../types/AttendeeStatusEnum";
 
@@ -25,13 +26,16 @@ vi.mock("../../../hooks/useDefaultMessage", () => ({
 
 describe("MessageModal", () => {
   it("validates required fields", () => {
+    const queryClient = new QueryClient();
     render(
-      <MessageModal
-        open
-        onClose={vi.fn()}
-        meet={{ id: "m1", name: "Meet" } as any}
-        attendeeIds={["a1"]}
-      />
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendeeIds={["a1"]}
+        />
+      </QueryClientProvider>
     );
 
     fireEvent.click(screen.getByText("Send"));
@@ -41,14 +45,17 @@ describe("MessageModal", () => {
   });
 
   it("sends a message to attendee ids", async () => {
+    const queryClient = new QueryClient();
     render(
-      <MessageModal
-        open
-        onClose={vi.fn()}
-        meet={{ id: "m1", name: "Meet" } as any}
-        attendeeIds={["a1"]}
-        attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
-      />
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendeeIds={["a1"]}
+          attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
+        />
+      </QueryClientProvider>
     );
 
     fireEvent.change(screen.getByLabelText("Subject"), {

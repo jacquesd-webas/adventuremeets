@@ -21,7 +21,6 @@ type ParsedMessage = AttendeeMessage & {
 const parseMessageContent = (
   content?: string
 ): { subject: string; body: string } => {
-  console.log({ content });
   if (!content) return { subject: "No subject", body: "" };
   const normalized = content.replace(/\r\n/g, "\n");
   const match = normalized.match(/^Subject:\s*(.+)$/m);
@@ -33,7 +32,6 @@ const parseMessageContent = (
   } else if (match?.index != null) {
     body = normalized.slice(match.index + match[0].length).trimStart();
   }
-  console.log({ subject, body });
   return { subject, body };
 };
 
@@ -61,7 +59,7 @@ export function AttendeeMessages({
           direction: isSent ? "sent" : "received",
         };
       }),
-    [data, attendeeId]
+    [data, meetId]
   );
 
   if (!attendeeId) {
