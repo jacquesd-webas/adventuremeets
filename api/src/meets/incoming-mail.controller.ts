@@ -71,7 +71,10 @@ export class IncomingMailController {
     const match = rcpt?.match(
       new RegExp(`<?([^@<>]+)@${mailDomain.replace(".", "\\.")}>?`, "i")
     );
-    const meetId = match?.[1];
+    const rcptLocal = match?.[1];
+    const meetId = rcptLocal?.startsWith("meet+")
+      ? rcptLocal.slice("meet+".length)
+      : rcptLocal;
 
     const rawBody =
       (req as any).rawBody?.toString?.() ??
@@ -137,6 +140,7 @@ export class IncomingMailController {
       to: organizer.email,
       subject: `Incoming message for meet: ${meet.name}`,
       text: `Forwarded message from ${sender}:\n\n` + rawBody,
+      meetId: meet.id,
     });
 
     await this.emailService.saveMessage({

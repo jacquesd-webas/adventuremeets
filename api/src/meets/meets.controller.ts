@@ -338,10 +338,6 @@ export class MeetsController {
       throw new BadRequestException("At least one attendee ID is required");
     }
 
-    const fromAddress = meet.organizerName
-      ? `Adventuremeets (${meet.organizerName}) <${meet.id}@${process.env.MAIL_DOMAIN}>`
-      : `Adventuremeets <${meet.id}@${process.env.MAIL_DOMAIN}>`;
-
     const recipients = new Map<string, string>();
     await Promise.all(
       body.attendeeIds.map(async (attendeeId) => {
@@ -373,7 +369,7 @@ export class MeetsController {
           subject: body.subject,
           text: body.text ?? "",
           html: body.html ?? "",
-          from: fromAddress,
+          meetId: meet.id,
         });
       })
     );
@@ -385,9 +381,8 @@ export class MeetsController {
           subject: body.subject,
           text: body.text ?? "",
           html: body.html ?? "",
-          from: fromAddress,
-          attendeeId,
           meetId: meet.id,
+          attendeeId,
         });
       })
     );
@@ -504,6 +499,7 @@ export class MeetsController {
       subject: `${meet.name} attendee report`,
       text: `Attached is the attendee report for ${meet.name}.`,
       attachments: [attachment],
+      meetId: meet.id,
     });
 
     return { status: "sent", to: organizerEmail };

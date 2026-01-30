@@ -21,6 +21,7 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly transporter: nodemailer.Transporter;
   private readonly defaultFrom: string;
+  private readonly mailDomain: string;
 
   constructor(private readonly db: DatabaseService) {
     const host = process.env.MAIL_SMTP_HOST;
@@ -30,6 +31,7 @@ export class EmailService {
     const pass = process.env.MAIL_SMTP_PASS;
     const mailDomain =
       process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";
+    this.mailDomain = mailDomain;
     this.defaultFrom = process.env.MAIL_DEFAULT_FROM || `noreply@${mailDomain}`;
 
     this.transporter = nodemailer.createTransport({
@@ -52,7 +54,7 @@ export class EmailService {
     const body =
       `Subject: ${parsed.subject}\n\n` +
       (parsed.pertinentBody || parsed.body || content);
-    const sender = from || this.defaultFrom;
+    const sender = meetId ? this.defaultFrom : from || this.defaultFrom;
 
     const contentId = await this.resolveMessageContentId(body);
     if (!contentId) {
@@ -150,14 +152,27 @@ export class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions) {
-    const { to, subject, text, html, from, replyTo, attachments } = options;
+    const {
+      to,
+      subject,
+      text,
+      html,
+      from,
+      replyTo,
+      attachments,
+      meetId,
+    } = options;
+    const resolvedFrom = meetId ? this.defaultFrom : from || this.defaultFrom;
+    const resolvedReplyTo = meetId
+      ? replyTo || `meet+${meetId}@${this.mailDomain}`
+      : replyTo;
     const mailOptions = {
       to,
       subject,
       text,
       html,
-      from: from || this.defaultFrom,
-      replyTo,
+      from: resolvedFrom,
+      replyTo: resolvedReplyTo,
       attachments,
     };
     this.logger.log(
