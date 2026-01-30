@@ -887,6 +887,15 @@ export class MeetsService {
     }));
   }
 
+  async markAttendeeMessageRead(meetId: string, messageId: string) {
+    const updated = await this.db
+      .getClient()("messages")
+      .where({ meet_id: meetId, message_id: messageId })
+      .update({ is_read: true })
+      .returning("message_id");
+    return Array.isArray(updated) ? updated[0] : updated;
+  }
+
   private toAttendeeDto(attendee: Record<string, any>) {
     return {
       id: attendee.id,

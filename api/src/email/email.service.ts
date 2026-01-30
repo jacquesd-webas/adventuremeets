@@ -68,6 +68,7 @@ export class EmailService {
       from: sender,
       to,
       message_content_id: contentId,
+      is_read: true,
     });
   }
 
@@ -152,16 +153,8 @@ export class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions) {
-    const {
-      to,
-      subject,
-      text,
-      html,
-      from,
-      replyTo,
-      attachments,
-      meetId,
-    } = options;
+    const { to, subject, text, html, from, replyTo, attachments, meetId } =
+      options;
     const resolvedFrom = meetId ? this.defaultFrom : from || this.defaultFrom;
     const resolvedReplyTo = meetId
       ? replyTo || `meet+${meetId}@${this.mailDomain}`
@@ -181,7 +174,5 @@ export class EmailService {
       } subject="${subject}"`
     );
     await this.transporter.sendMail(mailOptions);
-
-    await this.saveMessage(options);
   }
 }

@@ -1,0 +1,14 @@
+<svg width="128" height="128" viewBox="30 16 160 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="peakLight" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#2f8d71"/>
+      <stop offset="1" stop-color="#1f6955"/>
+    </linearGradient>
+    <linearGradient id="peakBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#3c7ead"/>
+      <stop offset="1" stop-color="#2a5f86"/>
+    </linearGradient>
+  </defs>
+  <path d="M38 92L78 22L118 92H98L78 56L58 92H38Z" fill="url(#peakLight)"/>
+  <path d="M98 92L138 30L178 92H158L138 58L118 92H98Z" fill="url(#peakBlue)"/>
+</svg>

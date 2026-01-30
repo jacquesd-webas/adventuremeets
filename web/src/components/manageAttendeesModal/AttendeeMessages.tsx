@@ -1,15 +1,17 @@
 import { Box, CircularProgress, Paper, Stack, Typography } from "@mui/material";
 import CallReceivedOutlinedIcon from "@mui/icons-material/CallReceivedOutlined";
 import CallMadeOutlinedIcon from "@mui/icons-material/CallMadeOutlined";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AttendeeMessage,
   useFetchAttendeeMessages,
 } from "../../hooks/useFetchAttendeeMessages";
+import { useMarkAttendeeMessageRead } from "../../hooks/useMarkAttendeeMessageRead";
 
 type AttendeeMessagesProps = {
   meetId?: string | null;
   attendeeId?: string | null;
+  attendeeEmail?: string | null;
 };
 
 type ParsedMessage = AttendeeMessage & {
@@ -38,20 +40,23 @@ const parseMessageContent = (
 export function AttendeeMessages({
   meetId,
   attendeeId,
+  attendeeEmail,
 }: AttendeeMessagesProps) {
   const { data, isLoading, error } = useFetchAttendeeMessages(
     meetId,
     attendeeId
   );
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const { markRead } = useMarkAttendeeMessageRead();
 
   const messages = useMemo<ParsedMessage[]>(
     () =>
       data.map((message) => {
         const parsed = parseMessageContent(message.content);
         const isSent =
-          meetId &&
-          typeof message.from === "string" &&
-          message.from.toLowerCase().includes(meetId.toLowerCase());
+          attendeeEmail &&
+          typeof message.to === "string" &&
+          message.to.toLowerCase().includes(attendeeEmail.toLowerCase());
         return {
           ...message,
           subject: parsed.subject,
@@ -59,7 +64,7 @@ export function AttendeeMessages({
           direction: isSent ? "sent" : "received",
         };
       }),
-    [data, meetId]
+    [data, attendeeEmail]
   );
 
   if (!attendeeId) {
@@ -97,7 +102,30 @@ export function AttendeeMessages({
   return (
     <Stack spacing={2}>
       {messages.map((message) => (
-        <Paper key={message.id} variant="outlined" sx={{ p: 2 }}>
+        <Paper
+          key={message.id}
+          variant="outlined"
+          sx={{ p: 2, cursor: "pointer" }}
+          onClick={() => {
+            setExpandedIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(message.id)) {
+                next.delete(message.id);
+              } else {
+                next.add(message.id);
+              }
+              return next;
+            });
+            if (
+              message.isRead === false &&
+              meetId &&
+              message.direction === "received"
+            ) {
+              markRead({ meetId, messageId: message.id, attendeeId });
+            }
+          }}
+          aria-expanded={expandedIds.has(message.id)}
+        >
           <Stack spacing={1}>
             <Stack
               direction="row"
@@ -120,6 +148,17 @@ export function AttendeeMessages({
                   />
                 )}
                 <Typography variant="subtitle2">{message.subject}</Typography>
+                {message.direction === "received" &&
+                message.isRead === false ? (
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      bgcolor: "error.main",
+                    }}
+                  />
+                ) : null}
               </Stack>
               <Typography variant="caption" color="text.secondary">
                 {message.timestamp
@@ -128,7 +167,17 @@ export function AttendeeMessages({
               </Typography>
             </Stack>
             <Typography variant="body2" sx={{ whiteSpace: "pre-line", mt: 1 }}>
-              {message.body || "—"}
+              <Box
+                component="span"
+                sx={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: expandedIds.has(message.id) ? "unset" : 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {message.body || "—"}
+              </Box>
             </Typography>
           </Stack>
         </Paper>

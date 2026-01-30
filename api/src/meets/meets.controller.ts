@@ -416,6 +416,28 @@ export class MeetsController {
     return { messages };
   }
 
+  @Patch(":id/messages/:messageId/read")
+  @ApiOperation({ summary: "Mark a message as read" })
+  async markMessageRead(
+    @Param("id") id: string,
+    @Param("messageId") messageId: string,
+    @User() user?: UserProfile
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        "You do not have permission to update attendee messages for this meet"
+      );
+    }
+
+    await this.meetsService.markAttendeeMessageRead(id, messageId);
+    return { status: "ok" };
+  }
+
   @Post(":id/report")
   @ApiOperation({ summary: "Create attendee report and email organizer" })
   async createReport(@Param("id") id: string, @User() user?: UserProfile) {

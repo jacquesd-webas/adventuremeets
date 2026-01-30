@@ -389,6 +389,7 @@ export function ManageAttendeesModal({
                   <AttendeeMessages
                     meetId={meetId}
                     attendeeId={selectedAttendee?.id}
+                    attendeeEmail={selectedAttendee?.email}
                   />
                 ) : (
                   <AttendeeResponses
