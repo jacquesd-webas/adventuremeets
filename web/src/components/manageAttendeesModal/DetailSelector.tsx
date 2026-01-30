@@ -7,6 +7,7 @@ type DetailSelectorProps = {
   onInfoClick?: () => void;
   onMailClick?: () => void;
   active?: "info" | "mail";
+  showUnread?: boolean;
 };
 
 export function DetailSelector({
@@ -14,6 +15,7 @@ export function DetailSelector({
   onInfoClick,
   onMailClick,
   active,
+  showUnread = false,
 }: DetailSelectorProps) {
   return (
     <Stack direction="row" spacing={1} alignItems="center">
@@ -32,6 +34,22 @@ export function DetailSelector({
         onClick={onMailClick}
         aria-label="Message attendee"
         color={active === "mail" ? "primary" : "default"}
+        sx={{
+          position: "relative",
+          ...(showUnread && {
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              top: 2,
+              right: 2,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              bgcolor: "error.main",
+              boxShadow: (theme) => `0 0 0 2px ${theme.palette.background.paper}`,
+            },
+          }),
+        }}
       >
         <MailOutlineIcon fontSize="medium" />
       </IconButton>

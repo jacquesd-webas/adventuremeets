@@ -35,6 +35,7 @@ import { AttendeeResponses } from "./AttendeeResponses";
 import { AttendeeMessages } from "./AttendeeMessages";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { useFetchAttendeeMessages } from "../../hooks/useFetchAttendeeMessages";
 
 type ManageAttendeesModalProps = {
   open: boolean;
@@ -71,6 +72,14 @@ export function ManageAttendeesModal({
   >(undefined);
   const [detailView, setDetailView] = useState<"responses" | "messages">(
     "responses"
+  );
+  const { data: attendeeMessages } = useFetchAttendeeMessages(
+    meetId,
+    selectedAttendeeId
+  );
+  const hasUnreadMessages = useMemo(
+    () => (attendeeMessages || []).some((message) => !message.isRead),
+    [attendeeMessages]
   );
 
   useEffect(() => {
@@ -368,6 +377,7 @@ export function ManageAttendeesModal({
                       <DetailSelector
                         disabled={!selectedAttendee}
                         active={detailView === "messages" ? "mail" : "info"}
+                        showUnread={hasUnreadMessages}
                         onInfoClick={() => setDetailView("responses")}
                         onMailClick={() => setDetailView("messages")}
                       />

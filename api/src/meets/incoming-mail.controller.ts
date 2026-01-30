@@ -15,14 +15,17 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
-import * as crypto from "crypto";
 import { DatabaseService } from "../database/database.service";
 import { Public } from "../auth/decorators/public.decorator";
+import { EmailService } from "../email/email.service";
 
 @ApiTags("Mail")
 @Controller()
 export class IncomingMailController {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly emailService: EmailService
+  ) {}
 
   @Public()
   @Post("incoming")
@@ -97,43 +100,59 @@ export class IncomingMailController {
       return { status: "ignored" };
     }
 
-    const db = this.db.getClient();
-
-    const organizer = await db("meets as m")
-      .leftJoin("users as u", "u.id", "m.organizer_id")
-      .select("u.email as organizer_email")
-      .where("m.id", meetId)
+    // Make sure meet, sender and recipients are real
+    const meet = await this.db
+      .getClient()("meets")
+      .select("id", "organizer_id", "name")
+      .where("id", meetId)
       .first();
 
-    const attendee = await db("meet_attendees")
+    if (!meet) {
+      res.status(HttpStatus.NOT_FOUND);
+      return { status: "meet not found" };
+    }
+
+    const organizer = await this.db
+      .getClient()("users")
+      .select("email")
+      .where("id", meet.organizer_id)
+      .first();
+
+    if (!organizer || !organizer.email) {
+      res.status(HttpStatus.NOT_FOUND);
+      return { status: "meet organiser not found" };
+    }
+
+    const attendee = await this.db
+      .getClient()("meet_attendees")
       .select("id")
       .where("meet_id", meetId)
       .andWhereRaw("lower(email) = lower(?)", [sender])
       .first();
 
-    // TODO: refactor this to use EmailService to avoid code duplication
-    const hash = crypto.createHash("sha256").update(rawBody).digest("hex");
+    // It's okay if we dont' have an attendee - the email could come from anyone
 
-    let contentId: string | undefined;
-    const existing = await db("message_contents")
-      .select("id")
-      .where({ content_hash: hash })
-      .first();
-    if (existing) {
-      contentId = existing.id;
-    } else {
-      const [inserted] = await db("message_contents")
-        .insert({ content_hash: hash, content: rawBody })
-        .returning("id");
-      contentId = inserted.id;
-    }
+    // Always forward the message to the organiser (if the organiser has an email)
+    await this.emailService.sendEmail({
+      to: organizer.email,
+      subject: `Incoming message for meet: ${meet.name}`,
+      text: `Forwarded message from ${sender}:\n\n` + rawBody,
+    });
 
-    await db("messages").insert({
-      meet_id: meetId,
-      attendee_id: attendee?.id ?? null,
+    await this.emailService.saveMessage({
+      to: organizer.email,
+      subject: `Incoming message for meet: ${meet.name}`,
+      text: rawBody,
       from: sender,
-      to: organizer?.organizer_email ?? null,
-      message_content_id: contentId,
+      attendeeId: attendee?.id ?? undefined,
+      meetId: meet.id,
+    });
+    await this.emailService.saveIncomingMessage({
+      meetId,
+      attendeeId: attendee?.id ?? null,
+      from: sender,
+      to: organizer?.email ?? null,
+      rawContent: rawBody,
     });
 
     res.status(HttpStatus.CREATED);

@@ -47,18 +47,14 @@ export class EmailService {
     if (!attendeeId || !meetId) return;
 
     const content = html && html.trim().length ? html : text;
-    const body = `Subject: ${subject}\n\n` + content;
+    const raw = `Subject: ${subject}\n\n${content}`;
+    const parsed = this.parseMessageContent(raw);
+    const body =
+      `Subject: ${parsed.subject}\n\n` +
+      (parsed.pertinentBody || parsed.body || content);
     const sender = from || this.defaultFrom;
 
-    const hash = crypto.createHash("sha256").update(body).digest("hex");
-
-    const [inserted] = await this.db
-      .getClient()("message_contents")
-      .insert({ content_hash: hash, content: body })
-      .onConflict("content_hash")
-      .merge({ content: body })
-      .returning("id");
-    const contentId = inserted?.id;
+    const contentId = await this.resolveMessageContentId(body);
     if (!contentId) {
       this.logger.error("Failed to resolve message content id");
       return;
@@ -71,6 +67,86 @@ export class EmailService {
       to,
       message_content_id: contentId,
     });
+  }
+
+  async saveIncomingMessage(payload: {
+    meetId: string;
+    attendeeId?: string | null;
+    from: string;
+    to?: string | null;
+    rawContent: string;
+  }) {
+    const parsed = this.parseMessageContent(payload.rawContent);
+    const body =
+      `Subject: ${parsed.subject}\n\n` + (parsed.pertinentBody || parsed.body);
+    const contentId = await this.resolveMessageContentId(body);
+    if (!contentId) {
+      this.logger.error("Failed to resolve message content id");
+      return;
+    }
+    await this.db
+      .getClient()("messages")
+      .insert({
+        meet_id: payload.meetId,
+        attendee_id: payload.attendeeId ?? null,
+        from: payload.from,
+        to: payload.to ?? null,
+        message_content_id: contentId,
+      });
+  }
+
+  parseMessageContent(rawContent: string) {
+    const normalized = rawContent.replace(/\r\n/g, "\n");
+    const subjectMatch = normalized.match(/^Subject:\s*(.+)$/im);
+    const subject = subjectMatch?.[1]?.trim() || "No subject";
+    let body = normalized;
+    const headerIndex = normalized.indexOf("\n\n");
+    if (headerIndex !== -1) {
+      body = normalized.slice(headerIndex + 2);
+    } else if (subjectMatch?.index != null) {
+      body = normalized.slice(subjectMatch.index + subjectMatch[0].length);
+    }
+    body = body.trim();
+    const pertinentBody = this.stripQuotedText(body);
+    return { subject, body, pertinentBody };
+  }
+
+  private stripQuotedText(body: string) {
+    if (!body) return "";
+    const lines = body.split("\n");
+    const collected: string[] = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (
+        /^>/.test(trimmed) ||
+        /^On .+ wrote:$/i.test(trimmed) ||
+        /^From:/i.test(trimmed) ||
+        /^Sent:/i.test(trimmed) ||
+        /^To:/i.test(trimmed) ||
+        /^Subject:/i.test(trimmed) ||
+        /^-{2,}\s*Original Message\s*-{2,}$/i.test(trimmed) ||
+        /^_{2,}$/.test(trimmed)
+      ) {
+        break;
+      }
+      if (/^--\s*$/.test(trimmed)) {
+        break;
+      }
+      collected.push(line);
+    }
+    const cleaned = collected.join("\n").trim();
+    return cleaned;
+  }
+
+  private async resolveMessageContentId(content: string) {
+    const hash = crypto.createHash("sha256").update(content).digest("hex");
+    const [inserted] = await this.db
+      .getClient()("message_contents")
+      .insert({ content_hash: hash, content })
+      .onConflict("content_hash")
+      .merge({ content })
+      .returning("id");
+    return inserted?.id;
   }
 
   async sendEmail(options: SendEmailOptions) {
