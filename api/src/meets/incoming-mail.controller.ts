@@ -78,6 +78,7 @@ export class IncomingMailController {
 
     const rawBody =
       (req as any).rawBody?.toString?.() ??
+      (Buffer.isBuffer(body) ? body.toString() : undefined) ??
       (typeof body === "string"
         ? body
         : typeof body === "object"
@@ -136,21 +137,21 @@ export class IncomingMailController {
     // It's okay if we dont' have an attendee - the email could come from anyone
 
     // Always forward the message to the organiser (if the organiser has an email)
+    // We try to make it look nice
+    const {
+      subject,
+      pertinentBody,
+      body: fullBody,
+    } = this.emailService.parseMessageContent(rawBody);
+
     await this.emailService.sendEmail({
       to: organizer.email,
-      subject: `Incoming message for meet: ${meet.name}`,
-      text: `Forwarded message from ${sender}:\n\n` + rawBody,
+      subject: subject || `Message for meet: ${meet.name}`,
+      text:
+        `Forwarded message from ${sender}:\n\n` + (pertinentBody || fullBody),
       meetId: meet.id,
     });
 
-    await this.emailService.saveMessage({
-      to: organizer.email,
-      subject: `Incoming message for meet: ${meet.name}`,
-      text: rawBody,
-      from: sender,
-      attendeeId: attendee?.id ?? undefined,
-      meetId: meet.id,
-    });
     await this.emailService.saveIncomingMessage({
       meetId,
       attendeeId: attendee?.id ?? null,

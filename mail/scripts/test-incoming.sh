@@ -8,24 +8,24 @@ MEET_ID="${MEET_ID:-test-meet}"
 RECIPIENT="${RECIPIENT:-${MEET_ID}@${MAIL_DOMAIN}}"
 SENDER="${SENDER:-tester@${MAIL_DOMAIN}}"
 
-echo "==> Following logs (mail + api)..."
-docker compose logs -f --tail=50 mail &
-LOG_PID=$!
-trap 'kill ${LOG_PID} >/dev/null 2>&1 || true' EXIT
-
 echo "==> Sending test inbound message to ${SMTP_HOST}:${SMTP_PORT}"
-cat <<EOF | nc -w 5 "${SMTP_HOST}" "${SMTP_PORT}"
-EHLO localhost
-MAIL FROM:<${SENDER}>
-RCPT TO:<${RECIPIENT}>
-DATA
-Subject: Incoming test $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-From: ${SENDER}
-To: ${RECIPIENT}
-
-Hello from test-incoming.sh
-.
-QUIT
-EOF
+exec 3<>"/dev/tcp/${SMTP_HOST}/${SMTP_PORT}"
+read -r -t 5 -u 3 _banner || true
+send_line() {
+  printf "%s\r\n" "$1" >&3
+  read -r -t 5 -u 3 _resp || true
+}
+send_line "HELO localhost"
+send_line "MAIL FROM:<${SENDER}>"
+send_line "RCPT TO:<${RECIPIENT}>"
+send_line "DATA"
+send_line "Subject: Incoming test $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+send_line "From: ${SENDER}"
+send_line "To: ${RECIPIENT}"
+send_line ""
+send_line "Hello from test-incoming.sh"
+send_line "."
+send_line "QUIT"
+exec 3>&-
 
 echo "==> Done. If everything is wired, you should see mailhook + API logs above."

@@ -4,6 +4,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   Grid,
   IconButton,
@@ -55,6 +56,10 @@ export function CreateOrEditTemplateModal({
     useFetchOrganizationTemplate(organizationId, templateId || undefined);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [indemnityText, setIndemnityText] = useState("");
+  const [approvedResponse, setApprovedResponse] = useState("");
+  const [rejectResponse, setRejectResponse] = useState("");
+  const [waitlistResponse, setWaitlistResponse] = useState("");
   const [questions, setQuestions] = useState<TemplateQuestionField[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<
@@ -66,6 +71,10 @@ export function CreateOrEditTemplateModal({
     if (templateId && existingTemplate) {
       setName(existingTemplate.name || "");
       setDescription(existingTemplate.description || "");
+      setIndemnityText(existingTemplate.indemnity || "");
+      setApprovedResponse(existingTemplate.approvedResponse || "");
+      setRejectResponse(existingTemplate.rejectResponse || "");
+      setWaitlistResponse(existingTemplate.waitlistResponse || "");
       setQuestions(
         mapDefinitionsToQuestions(existingTemplate.metaDefinitions || [])
       );
@@ -73,11 +82,19 @@ export function CreateOrEditTemplateModal({
     } else if (templateId && !existingTemplate) {
       setName("");
       setDescription("");
+      setIndemnityText("");
+      setApprovedResponse("");
+      setRejectResponse("");
+      setWaitlistResponse("");
       setQuestions([]);
       setSection("basic");
     } else if (!templateId) {
       setName("");
       setDescription("");
+      setIndemnityText("");
+      setApprovedResponse("");
+      setRejectResponse("");
+      setWaitlistResponse("");
       setQuestions([]);
       setSection("basic");
     }
@@ -137,28 +154,32 @@ export function CreateOrEditTemplateModal({
       return;
     }
     setError(null);
-        const payload = {
+    const payload = {
       name: name.trim(),
       description: description.trim() || undefined,
-          metaDefinitions: questions.map((question, index) => ({
-            id: question.id,
-            fieldKey:
-              question.fieldKey ||
-              buildFieldKey(question.label) ||
-              question.id ||
-              `field_${index + 1}`,
-            label: question.label,
-            fieldType: question.type,
-            required: Boolean(question.required),
-            config:
-              question.type === "select"
-                ? {
-                    options: question.options ?? [],
-                    includeInReports: Boolean(question.includeInReports),
-                  }
-                : { includeInReports: Boolean(question.includeInReports) },
-          })),
-        };
+      indemnity: indemnityText.trim() || undefined,
+      approvedResponse: approvedResponse.trim() || undefined,
+      rejectResponse: rejectResponse.trim() || undefined,
+      waitlistResponse: waitlistResponse.trim() || undefined,
+      metaDefinitions: questions.map((question, index) => ({
+        id: question.id,
+        fieldKey:
+          question.fieldKey ||
+          buildFieldKey(question.label) ||
+          question.id ||
+          `field_${index + 1}`,
+        label: question.label,
+        fieldType: question.type,
+        required: Boolean(question.required),
+        config:
+          question.type === "select"
+            ? {
+                options: question.options ?? [],
+                includeInReports: Boolean(question.includeInReports),
+              }
+            : { includeInReports: Boolean(question.includeInReports) },
+      })),
+    };
     try {
       if (templateId) {
         await updateTemplateAsync({
@@ -195,9 +216,18 @@ export function CreateOrEditTemplateModal({
       maxWidth="md"
       PaperProps={{ sx: { height: "80vh" } }}
     >
-      <DialogTitle>{dialogTitle}</DialogTitle>
-      <DialogContent>
-        <Grid container spacing={3} sx={{ mt: 1 }}>
+      <DialogTitle sx={{ pb: 1 }}>
+        <Typography variant="h6" fontWeight={700}>
+          {dialogTitle}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Templates allow you to save common questions and settings that
+          organisers can import into their meets.
+        </Typography>
+        <Divider sx={{ mt: 2 }} />
+      </DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        <Grid container spacing={3}>
           <Grid item xs={12} md={3}>
             <List>
               {[
@@ -211,7 +241,11 @@ export function CreateOrEditTemplateModal({
                   selected={section === item.key}
                   onClick={() =>
                     setSection(
-                      item.key as "basic" | "questions" | "responses" | "indemnity"
+                      item.key as
+                        | "basic"
+                        | "questions"
+                        | "responses"
+                        | "indemnity"
                     )
                   }
                 >
@@ -251,7 +285,7 @@ export function CreateOrEditTemplateModal({
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     <i>
-                      The template will already have{" "}
+                      All meets will already have{" "}
                       <strong>Name, Email and Phone number</strong>. You can add
                       additional questions below.
                     </i>
@@ -360,7 +394,11 @@ export function CreateOrEditTemplateModal({
                                 fullWidth
                               />
                             )}
-                            <Stack direction="row" spacing={2} alignItems="center">
+                            <Stack
+                              direction="row"
+                              spacing={2}
+                              alignItems="center"
+                            >
                               <FormControlLabel
                                 control={
                                   <Switch
@@ -401,9 +439,37 @@ export function CreateOrEditTemplateModal({
                   <Typography variant="h6" fontWeight={700}>
                     Responses
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Response settings will be available soon.
-                  </Typography>
+                  <TextField
+                    label="Approved response"
+                    placeholder="Message sent to approved attendees"
+                    value={approvedResponse}
+                    onChange={(event) =>
+                      setApprovedResponse(event.target.value)
+                    }
+                    fullWidth
+                    multiline
+                    minRows={4}
+                  />
+                  <TextField
+                    label="Reject response"
+                    placeholder="Message sent to rejected attendees"
+                    value={rejectResponse}
+                    onChange={(event) => setRejectResponse(event.target.value)}
+                    fullWidth
+                    multiline
+                    minRows={4}
+                  />
+                  <TextField
+                    label="Waitlist response"
+                    placeholder="Message sent to waitlisted attendees"
+                    value={waitlistResponse}
+                    onChange={(event) =>
+                      setWaitlistResponse(event.target.value)
+                    }
+                    fullWidth
+                    multiline
+                    minRows={4}
+                  />
                 </Stack>
               )}
 
@@ -412,9 +478,15 @@ export function CreateOrEditTemplateModal({
                   <Typography variant="h6" fontWeight={700}>
                     Indemnity
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Indemnity settings will be available soon.
-                  </Typography>
+                  <TextField
+                    label="Indemnity text"
+                    placeholder="Paste or write indemnity text attendees must accept"
+                    value={indemnityText}
+                    onChange={(event) => setIndemnityText(event.target.value)}
+                    fullWidth
+                    multiline
+                    minRows={6}
+                  />
                 </Stack>
               )}
             </Stack>

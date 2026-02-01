@@ -6,6 +6,10 @@ type CreateTemplatePayload = {
   organizationId: string;
   name: string;
   description?: string;
+  approvedResponse?: string;
+  rejectResponse?: string;
+  waitlistResponse?: string;
+  indemnity?: string;
   metaDefinitions?: Array<{
     id?: string;
     fieldKey: string;
@@ -25,11 +29,23 @@ export function useCreateTemplate() {
       organizationId,
       name,
       description,
+      approvedResponse,
+      rejectResponse,
+      waitlistResponse,
+      indemnity,
       metaDefinitions,
     }) => {
       const res = await api.post<{ template: Template }>(
         `/organizations/${organizationId}/templates`,
-        { name, description, metaDefinitions }
+        {
+          name,
+          description,
+          approvedResponse,
+          rejectResponse,
+          waitlistResponse,
+          indemnity,
+          metaDefinitions,
+        }
       );
       return res.template;
     },

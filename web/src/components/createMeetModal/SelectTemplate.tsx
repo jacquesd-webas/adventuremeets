@@ -5,16 +5,18 @@ import { useAuth } from "../../context/authContext";
 import { useFetchOrganizationTemplates } from "../../hooks/useFetchOrganizationTemplates";
 import { useFetchOrganizationTemplate } from "../../hooks/useFetchOrganizationTemplate";
 import { QuestionField } from "./CreateMeetState";
-import { TemplateMetaDefinition } from "../../types/TemplateModel";
+import { Template, TemplateMetaDefinition } from "../../types/TemplateModel";
 
 type SelectTemplateProps = {
   organizationId?: string;
-  onApply: (questions: QuestionField[]) => void;
+  onApply?: (questions: QuestionField[]) => void;
+  onApplyTemplate?: (template: Template) => void;
 };
 
 export function SelectTemplate({
   organizationId,
   onApply,
+  onApplyTemplate,
 }: SelectTemplateProps) {
   const { user } = useAuth();
   const resolvedOrgId =
@@ -32,9 +34,14 @@ export function SelectTemplate({
 
   useEffect(() => {
     if (!template) return;
-    onApply(mapDefinitionsToQuestions(template.metaDefinitions || []));
+    if (onApply) {
+      onApply(mapDefinitionsToQuestions(template.metaDefinitions || []));
+    }
+    if (onApplyTemplate) {
+      onApplyTemplate(template);
+    }
     setSelectedId("");
-  }, [template, onApply]);
+  }, [template, onApply, onApplyTemplate]);
 
   const options = useMemo(
     () => templates.map((t) => ({ id: t.id, name: t.name })),

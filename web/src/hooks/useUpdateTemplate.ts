@@ -7,6 +7,10 @@ type UpdateTemplatePayload = {
   templateId: string;
   name?: string;
   description?: string;
+  approvedResponse?: string;
+  rejectResponse?: string;
+  waitlistResponse?: string;
+  indemnity?: string;
   metaDefinitions?: TemplateMetaDefinition[];
 };
 
@@ -20,11 +24,23 @@ export function useUpdateTemplate() {
       templateId,
       name,
       description,
+      approvedResponse,
+      rejectResponse,
+      waitlistResponse,
+      indemnity,
       metaDefinitions,
     }) => {
       const res = await api.patch<{ template: Template }>(
         `/organizations/${organizationId}/templates/${templateId}`,
-        { name, description, metaDefinitions }
+        {
+          name,
+          description,
+          approvedResponse,
+          rejectResponse,
+          waitlistResponse,
+          indemnity,
+          metaDefinitions,
+        }
       );
       return res.template;
     },

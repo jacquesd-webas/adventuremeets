@@ -193,6 +193,10 @@ export class OrganizationsService {
       organizationId: row.organization_id ?? row.organizationId,
       name: row.name,
       description: row.description ?? undefined,
+      indemnity: row.indemnity ?? undefined,
+      approvedResponse: row.approved_response ?? undefined,
+      rejectResponse: row.reject_response ?? undefined,
+      waitlistResponse: row.waitlist_response ?? undefined,
       createdAt: row.created_at ?? undefined,
       updatedAt: row.updated_at ?? undefined,
       deletedAt: row.deleted_at ?? undefined,
@@ -254,6 +258,10 @@ export class OrganizationsService {
       organizationId: template.organization_id ?? template.organizationId,
       name: template.name,
       description: template.description ?? undefined,
+      indemnity: template.indemnity ?? undefined,
+      approvedResponse: template.approved_response ?? undefined,
+      rejectResponse: template.reject_response ?? undefined,
+      waitlistResponse: template.waitlist_response ?? undefined,
       createdAt: template.created_at ?? undefined,
       updatedAt: template.updated_at ?? undefined,
       deletedAt: template.deleted_at ?? undefined,
@@ -274,6 +282,10 @@ export class OrganizationsService {
     payload: {
       name: string;
       description?: string;
+      indemnity?: string;
+      approvedResponse?: string;
+      rejectResponse?: string;
+      waitlistResponse?: string;
       metaDefinitions?: Array<{
         id?: string;
         fieldKey?: string;
@@ -292,6 +304,10 @@ export class OrganizationsService {
           organization_id: orgId,
           name: payload.name,
           description: payload.description ?? null,
+          indemnity: payload.indemnity ?? null,
+          approved_response: payload.approvedResponse ?? null,
+          reject_response: payload.rejectResponse ?? null,
+          waitlist_response: payload.waitlistResponse ?? null,
           created_at: now,
           updated_at: now,
         })
@@ -312,6 +328,10 @@ export class OrganizationsService {
         organizationId: row.organization_id ?? row.organizationId,
         name: row.name,
         description: row.description ?? undefined,
+        indemnity: row.indemnity ?? undefined,
+        approvedResponse: row.approved_response ?? undefined,
+        rejectResponse: row.reject_response ?? undefined,
+        waitlistResponse: row.waitlist_response ?? undefined,
         createdAt: row.created_at ?? undefined,
         updatedAt: row.updated_at ?? undefined,
         deletedAt: row.deleted_at ?? undefined,
@@ -361,6 +381,10 @@ export class OrganizationsService {
     payload: {
       name?: string;
       description?: string;
+      indemnity?: string;
+      approvedResponse?: string;
+      rejectResponse?: string;
+      waitlistResponse?: string;
       metaDefinitions?: Array<{
         id?: string;
         fieldKey?: string;
@@ -372,12 +396,19 @@ export class OrganizationsService {
       }>;
     }
   ) {
-    const trx = await this.database.getClient().transaction();
+      const trx = await this.database.getClient().transaction();
     try {
       const updates: any = { updated_at: new Date().toISOString() };
       if (payload.name !== undefined) updates.name = payload.name;
       if (payload.description !== undefined)
         updates.description = payload.description;
+      if (payload.indemnity !== undefined) updates.indemnity = payload.indemnity;
+      if (payload.approvedResponse !== undefined)
+        updates.approved_response = payload.approvedResponse;
+      if (payload.rejectResponse !== undefined)
+        updates.reject_response = payload.rejectResponse;
+      if (payload.waitlistResponse !== undefined)
+        updates.waitlist_response = payload.waitlistResponse;
       await trx("templates")
         .where({ id: templateId, organization_id: orgId })
         .update(updates);

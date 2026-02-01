@@ -1,13 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
-  IsBoolean,
   IsNumber,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
   ValidateNested,
+  IsBoolean,
 } from "class-validator";
 
 export class TemplateMetaDefinitionInputDto {
@@ -55,6 +55,30 @@ export class CreateTemplateDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  indemnity?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  approvedResponse?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  rejectResponse?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  waitlistResponse?: string;
 
   @ApiPropertyOptional({ type: [TemplateMetaDefinitionInputDto] })
   @IsOptional()

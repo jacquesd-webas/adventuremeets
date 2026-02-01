@@ -16,6 +16,30 @@ export class UpdateTemplateDto {
   @MaxLength(2000)
   description?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  indemnity?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  approvedResponse?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  rejectResponse?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  waitlistResponse?: string;
+
   @ApiPropertyOptional({ type: [TemplateMetaDefinitionInputDto] })
   @IsOptional()
   @ValidateNested({ each: true })

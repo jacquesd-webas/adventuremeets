@@ -3,6 +3,10 @@ export type Template = {
   organizationId: string;
   name: string;
   description?: string;
+  indemnity?: string;
+  approvedResponse?: string;
+  rejectResponse?: string;
+  waitlistResponse?: string;
   metaDefinitions?: TemplateMetaDefinition[];
   createdAt: string;
   updatedAt: string;

@@ -166,7 +166,16 @@ export function AttendeeMessages({
                   : "—"}
               </Typography>
             </Stack>
-            <Typography variant="body2" sx={{ whiteSpace: "pre-line", mt: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                whiteSpace: "pre-line",
+                mt: 1,
+                maxWidth: "100%",
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
+              }}
+            >
               <Box
                 component="span"
                 sx={{
