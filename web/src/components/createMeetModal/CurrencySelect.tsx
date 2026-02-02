@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { MenuItem, TextField } from "@mui/material";
 
 const currencyOptions = [
@@ -13,21 +12,11 @@ export type CurrencySelectProps = {
   onChange?: (value: string) => void;
 };
 
-const handleSetDefaultCurrency = () => {
-  // Placeholder for setting default currency logic, e.g., from user settings or locale
-  return "ZAR";
-}
-
+// eslint-disable-next-line react-refresh/only-export-components
 export const getCurrencySymbol = (code: string) =>
   currencyOptions.find((option) => option.code === code)?.symbol || code;
 
 export const CurrencySelect = ({ value, onChange }: CurrencySelectProps) => {
-  useEffect(() => {
-    if (!value) {
-      handleSetDefaultCurrency();
-    }
-  }, [value]);
-
   return (
   <TextField
     select

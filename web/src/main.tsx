@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { NotistackProvider } from "./components/NotistackProvider";
+import { ThemeModeProvider } from "./context/ThemeModeContext";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -16,12 +17,14 @@ const queryClient = new QueryClient();
 
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <NotistackProvider>
-          <App />
-        </NotistackProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
+    <ThemeModeProvider>
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <NotistackProvider>
+            <App />
+          </NotistackProvider>
+        </QueryClientProvider>
+      </BrowserRouter>
+    </ThemeModeProvider>
   </React.StrictMode>
 );

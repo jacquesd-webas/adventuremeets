@@ -9,7 +9,7 @@ type MeetSignupSheet = {
   start: string;
   end: string;
   status: string;
-  status_id: number;
+  statusId: number;
   organizerName?: string;
   capacity?: number;
   currency?: string;
@@ -38,17 +38,12 @@ type MeetApi = {
   name: string;
   description?: string;
   location: string;
-  start_time?: string;
-  end_time?: string;
   startTime?: string;
   endTime?: string;
   status?: string;
-  status_id?: number;
+  statusId?: number;
   organizer?: string;
-  organizer_name?: string;
   organizerName?: string;
-  organizer_first_name?: string;
-  organizer_last_name?: string;
   organizerFirstName?: string;
   organizerLastName?: string;
   capacity?: number;
@@ -56,19 +51,14 @@ type MeetApi = {
   currencyCode?: string;
   currency_code?: string;
   currencySymbol?: string;
-  currency_symbol?: string;
   costCents?: number | null;
   cost_cents?: number | null;
-  indemnity_text?: string;
   indemnityText?: string;
   requires_indemnity?: boolean;
   requiresIndemnity?: boolean;
   indemnity?: string;
-  has_indemnity?: boolean;
   hasIndemnity?: boolean;
-  allow_guests?: boolean;
   allowGuests?: boolean;
-  max_guests?: number | null;
   maxGuests?: number | null;
   meta_definitions?: {
     id: string;
@@ -81,10 +71,8 @@ type MeetApi = {
   }[];
   metaDefinitions?: {
     id: string;
-    field_key?: string;
     fieldKey?: string;
     label: string;
-    field_type?: string;
     fieldType?: string;
     required: boolean;
     position: number;
@@ -103,26 +91,21 @@ const statusLabels: Record<number, string> = {
 };
 
 function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
-  const start = apiMeet.start_time || apiMeet.startTime || "";
-  const end = apiMeet.end_time || apiMeet.endTime || "";
+  const start = apiMeet.startTime || "";
+  const end = apiMeet.endTime || "";
   const status =
     apiMeet.status ||
-    (apiMeet.status_id ? statusLabels[apiMeet.status_id] : "Open");
+    (apiMeet.statusId ? statusLabels[apiMeet.statusId] : "Open");
   const currencyCode =
     apiMeet.currencyCode || apiMeet.currency_code || apiMeet.currency;
-  const currencySymbol =
-    apiMeet.currencySymbol || apiMeet.currency_symbol;
-  const costCents = apiMeet.costCents ?? apiMeet.cost_cents ?? null;
+  const currencySymbol = apiMeet.currencySymbol;
+  const costCents = apiMeet.costCents ?? null;
   const organizerName =
-    [
-      apiMeet.organizerFirstName || apiMeet.organizer_first_name,
-      apiMeet.organizerLastName || apiMeet.organizer_last_name,
-    ]
+    [apiMeet.organizerFirstName, apiMeet.organizerLastName]
       .filter(Boolean)
       .join(" ") ||
     apiMeet.organizerName ||
     apiMeet.organizer ||
-    apiMeet.organizer_name ||
     "TBD";
   return {
     id: apiMeet.id,
@@ -132,27 +115,18 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
     start,
     end,
     status,
-    status_id: apiMeet.status_id,
+    statusId: apiMeet.statusId,
     organizerName,
     capacity: apiMeet.capacity,
     currency: currencyCode,
     currencySymbol,
     costCents,
-    indemnityText:
-      apiMeet.indemnityText || apiMeet.indemnity_text || apiMeet.indemnity,
-    requiresIndemnity:
-      apiMeet.requiresIndemnity ??
-      apiMeet.requires_indemnity ??
-      apiMeet.hasIndemnity ??
-      apiMeet.has_indemnity,
-    allowGuests: apiMeet.allowGuests ?? apiMeet.allow_guests,
-    maxGuests: apiMeet.maxGuests ?? apiMeet.max_guests ?? null,
-    imageUrl: (apiMeet as any).imageUrl || (apiMeet as any).image_url,
-    metaDefinitions: (
-      apiMeet.metaDefinitions ||
-      apiMeet.meta_definitions ||
-      []
-    ).map((definition) => ({
+    indemnityText: apiMeet.indemnityText || apiMeet.indemnity,
+    requiresIndemnity: apiMeet.requiresIndemnity ?? apiMeet.hasIndemnity,
+    allowGuests: apiMeet.allowGuests,
+    maxGuests: apiMeet.maxGuests ?? null,
+    imageUrl: (apiMeet as any).imageUrl,
+    metaDefinitions: (apiMeet.metaDefinitions || []).map((definition) => ({
       ...definition,
       field_key: definition.field_key || definition.fieldKey || "",
       field_type: definition.field_type || definition.fieldType || "",

@@ -28,7 +28,10 @@ else
 fi
 
 ENVIRONMENT=${ENVIRONMENT:-development}
-echo "Using environment: ${ENVIRONMENT}"
+echo "Creating environment: ${ENVIRONMENT}"
+cd $CI_DIR/..
+sh ./env/make-env.sh $ENVIRONMENT $WEB_PROJECTS
+cd $OLDPWD
 
 VERSION=$(get_app_version "${VERSION:-}")
 APP_NAME=$(get_app_name "${APP_NAME:-}")
@@ -37,20 +40,13 @@ ENV_DIR="$CI_DIR/../env"
 
 echo "Building web archives..."
 for DIR in $WEB_PROJECTS; do
-    echo "Creating ${ENVIRONMENT} environment..."
-    sh $ENV_DIR/make-env.sh $ENVIRONMENT $DIR/.env
-    echo "Building $DIR..."
+    echo "Building in $DIR/"
     cd $DIR
     NPM=$(get_package_manager)
     $NPM install
     $NPM run build
     cd $OLDPWD
-    if [ $ENVIRONMENT = "production" ]; then
-      WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
-    else
-      echo "Non-production environment, using latest tag for web archive."
-      WAR_FILE="${APP_NAME}-${ENVIRONMENT}-${DIR}-latest.tgz"
-    fi
+    WAR_FILE="${APP_NAME}-${ENVIRONMENT}-${DIR}-latest.tgz"
     echo "Creating war file $CI_DIR/../dist/$WAR_FILE"
     mkdir -p $CI_DIR/../dist
     tar -czf $CI_DIR/../dist/$WAR_FILE -C ${DIR}/dist .

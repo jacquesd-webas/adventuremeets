@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class MeetMetaDefinitionDto {
   @ApiProperty()
@@ -74,9 +74,6 @@ export class MeetDto {
 
   @ApiPropertyOptional()
   statusId?: number;
-
-  @ApiPropertyOptional({ description: 'Status id (alias)', required: false })
-  status_id?: number;
 
   @ApiPropertyOptional()
   autoPlacement?: boolean;

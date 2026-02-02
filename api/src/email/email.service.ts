@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
+import { Injectable, Logger } from "@nestjs/common";
+import * as nodemailer from "nodemailer";
 
 export type SendEmailOptions = {
   to: string | string[];
@@ -17,13 +17,14 @@ export class EmailService {
   private readonly defaultFrom: string;
 
   constructor() {
-    const host = process.env.MAIL_HOST || process.env.SMTP_HOST || process.env.RELAY_HOST;
-    const port = Number(process.env.SMTP_PORT || 587);
-    const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-    const user = process.env.SMTP_USER || process.env.RELAY_USER;
-    const pass = process.env.SMTP_PASS || process.env.RELAY_PASS;
-    const mailDomain = process.env.MAIL_DOMAIN || 'adventuremeets.apps.fringecoding.com';
-    this.defaultFrom = process.env.MAIL_FROM || `noreply@${mailDomain}`;
+    const host = process.env.MAIL_SMTP_HOST;
+    const port = Number(process.env.MAIL_SMTP_PORT || 587);
+    const secure = process.env.MAIL_SMTP_SECURE === "true" || port === 465;
+    const user = process.env.MAIL_SMTP_USER;
+    const pass = process.env.MAIL_SMTP_PASS;
+    const mailDomain =
+      process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";
+    this.defaultFrom = process.env.MAIL_DEFAULT_FROM || `noreply@${mailDomain}`;
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -43,7 +44,11 @@ export class EmailService {
       from: from || this.defaultFrom,
       replyTo,
     };
-    this.logger.log(`Sending email to ${Array.isArray(to) ? to.join(',') : to} subject="${subject}"`);
+    this.logger.log(
+      `Sending email to ${
+        Array.isArray(to) ? to.join(",") : to
+      } subject="${subject}"`
+    );
     await this.transporter.sendMail(mailOptions);
   }
 }

@@ -2,6 +2,7 @@ import { ConfirmActionDialog } from "../ConfirmActionDialog";
 
 type ConfirmDeleteMeetDialogProps = {
   open: boolean;
+  meetId?: string | null;
   onClose: () => void;
   onConfirm: () => void;
   isLoading?: boolean;
@@ -9,10 +10,16 @@ type ConfirmDeleteMeetDialogProps = {
 
 export function ConfirmDeleteMeetDialog({
   open,
+  meetId: _meetId,
   onClose,
   onConfirm,
   isLoading = false
 }: ConfirmDeleteMeetDialogProps) {
+  const handleDelete = async () => {
+    // Defer to caller for actual deletion, but keep signature consistent
+    onConfirm();
+  };
+
   return (
     <ConfirmActionDialog
       open={open}
@@ -20,7 +27,7 @@ export function ConfirmDeleteMeetDialog({
       description="Deleting a draft meet cannot be undone."
       confirmLabel="Delete"
       onClose={onClose}
-      onConfirm={onConfirm}
+      onConfirm={handleDelete}
       isLoading={isLoading}
     />
   );

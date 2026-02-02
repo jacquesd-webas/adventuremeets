@@ -1,6 +1,5 @@
 import { Button, FormControlLabel, IconButton, Paper, Stack, Switch, TextField, Typography } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import { LabeledField } from "./LabeledField";
 import { QuestionField, StepProps } from "./CreateMeetState";
 
 export const QuestionsStep = ({ state, setState }: StepProps) => {

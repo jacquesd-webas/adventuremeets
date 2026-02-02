@@ -1,9 +1,12 @@
 import { TextField } from "@mui/material";
 import { useEffect, useState } from "react";
+import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
+import MeetStatusEnum from "../../models/MeetStatusEnum";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
 
 type ConfirmPostponeMeetDialogProps = {
   open: boolean;
+  meetId?: string | null;
   onClose: () => void;
   onConfirm: (message: string) => void;
   isLoading?: boolean;
@@ -11,11 +14,13 @@ type ConfirmPostponeMeetDialogProps = {
 
 export function ConfirmPostponeMeetDialog({
   open,
+  meetId,
   onClose,
   onConfirm,
   isLoading = false,
 }: ConfirmPostponeMeetDialogProps) {
   const [message, setMessage] = useState("");
+  const { updateStatusAsync, isLoading: isSubmitting } = useUpdateMeetStatus();
 
   useEffect(() => {
     if (!open) {
@@ -27,11 +32,20 @@ export function ConfirmPostponeMeetDialog({
     <ConfirmActionDialog
       open={open}
       title="Postpone meet?"
-      description="Postponing will keep the meet but pause it. You can update the meet details and reopen it later."
+      description="Postponing the meet will notify all confirmed participants and pause the meet submissions. You can update the meet details and republish it later."
       confirmLabel="Postpone"
       onClose={onClose}
-      onConfirm={() => onConfirm(message.trim())}
+      onConfirm={async () => {
+        if (meetId) {
+          await updateStatusAsync({
+            meetId,
+            statusId: MeetStatusEnum.Postponed,
+          });
+        }
+        onConfirm(message.trim());
+      }}
       isLoading={isLoading}
+      isSubmitting={isSubmitting}
     >
       <TextField
         label="Message to participants (optional)"

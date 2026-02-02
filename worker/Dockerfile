@@ -15,7 +15,7 @@ COPY api/tsconfig*.json ./api/
 COPY api/src ./api/src
 COPY worker/tsconfig.json ./tsconfig.json
 COPY worker/src ./src
-RUN pnpm run build --filter worker...
+RUN pnpm run build
 
 COPY worker/start.sh /start.sh
 RUN chmod +x /start.sh

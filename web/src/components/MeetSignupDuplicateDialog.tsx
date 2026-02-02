@@ -19,8 +19,8 @@ type MeetSignupDuplicateDialogProps = {
 export function MeetSignupDuplicateDialog({
   open,
   onClose,
-  onRemove,
-  onUpdate,
+  onRemove: _onRemove,
+  onUpdate: _onUpdate,
 }: MeetSignupDuplicateDialogProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));

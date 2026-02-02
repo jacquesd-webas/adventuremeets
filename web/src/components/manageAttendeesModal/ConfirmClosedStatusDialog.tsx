@@ -1,12 +1,18 @@
 import { useState } from "react";
-import ConfirmActionDialog from "../confirmActions/ConfirmActionDialog";
+import ConfirmActionDialog from "../ConfirmActionDialog";
 import { useApi } from "../../hooks/useApi";
 import { useSnackbar } from "notistack";
 import { Box, Typography } from "@mui/material";
 
 type ConfirmClosedStatusDialogProps = {
   open: boolean;
-  meet: { id: string; name?: string; confirmMessage?: string; waitlistMessage?: string; rejectMessage?: string };
+  meet: {
+    id: string;
+    name?: string;
+    confirmMessage?: string;
+    waitlistMessage?: string;
+    rejectMessage?: string;
+  };
   attendeeId: string | null;
   status?: string | null;
   onClose: () => void;
@@ -22,7 +28,7 @@ const createMessageContent = (status: string | null | undefined) => {
     return "Unfortunately, the meet organizer has not been able to accept your application. This is usually due to capacity limits being reached.";
   }
   return "Your attendance status has been updated.";
-}
+};
 
 export function ConfirmClosedStatusDialog({
   open,
@@ -36,20 +42,29 @@ export function ConfirmClosedStatusDialog({
   const { enqueueSnackbar } = useSnackbar();
   const [isSaving, setIsSaving] = useState(false);
 
-  let messageContent = ""
-  let subject = ""
+  let messageContent = "";
+  let subject = "";
   if (status === "confirmed") {
-    subject = meet.name ? `Confirmed: ${meet.name}` : `Meet attendance confirmed`;
-    messageContent = meet.confirmMessage ? meet.confirmMessage : createMessageContent(status);
+    subject = meet.name
+      ? `Confirmed: ${meet.name}`
+      : `Meet attendance confirmed`;
+    messageContent = meet.confirmMessage
+      ? meet.confirmMessage
+      : createMessageContent(status);
   } else if (status === "waitlisted") {
-    subject = meet.name ? `Waitlist: ${meet.name}` : `Meet attendance waitlisted`;
-    messageContent = meet.waitlistMessage ? meet.waitlistMessage : createMessageContent(status);
+    subject = meet.name
+      ? `Waitlist: ${meet.name}`
+      : `Meet attendance waitlisted`;
+    messageContent = meet.waitlistMessage
+      ? meet.waitlistMessage
+      : createMessageContent(status);
   } else if (status === "rejected") {
     subject = meet.name ? `Update: ${meet.name}` : `Meet attendance update`;
-    messageContent = meet.rejectMessage ? meet.rejectMessage : createMessageContent(status);
+    messageContent = meet.rejectMessage
+      ? meet.rejectMessage
+      : createMessageContent(status);
   }
-  console.log({status, subject, messageContent});
-  
+  console.log({ status, subject, messageContent });
 
   const handleConfirm = async () => {
     if (!status || !attendeeId || !meet.id) {
@@ -86,7 +101,8 @@ export function ConfirmClosedStatusDialog({
       content={
         <Box>
           <Typography variant="body2">
-            This meet is already closed and all attendees notified. This action will send the following message to the attendee:
+            This meet is already closed and all attendees notified. This action
+            will send the following message to the attendee:
           </Typography>
           <Box
             sx={{
@@ -98,7 +114,9 @@ export function ConfirmClosedStatusDialog({
               whiteSpace: "pre-wrap",
             }}
           >
-            <Typography variant="subtitle2" fontWeight="bold">{subject}</Typography>
+            <Typography variant="subtitle2" fontWeight="bold">
+              {subject}
+            </Typography>
             <Typography variant="body2">{messageContent}</Typography>
           </Box>
         </Box>

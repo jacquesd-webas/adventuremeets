@@ -1,161 +1,240 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { randomBytes } from 'crypto';
-import { DatabaseService } from '../database/database.service';
-import { CreateMeetDto, MeetMetaDefinitionInputDto } from './dto/create-meet.dto';
-import { MeetDto } from './dto/meet.dto';
-import { CreateMeetAttendeeDto } from './dto/create-meet-attendee.dto';
-import { UpdateMeetDto } from './dto/update-meet.dto';
-import { UpdateMeetAttendeeDto } from './dto/update-meet-attendee.dto';
-import { CreateMeetImageDto } from './dto/create-meet-image.dto';
-import { MinioService } from '../storage/minio.service';
-import { v4 as uuid } from 'uuid';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { randomBytes } from "crypto";
+import { DatabaseService } from "../database/database.service";
+import {
+  CreateMeetDto,
+  MeetMetaDefinitionInputDto,
+} from "./dto/create-meet.dto";
+import { MeetDto } from "./dto/meet.dto";
+import { CreateMeetAttendeeDto } from "./dto/create-meet-attendee.dto";
+import { UpdateMeetDto } from "./dto/update-meet.dto";
+import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
+import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
+import { MinioService } from "../storage/minio.service";
+import { v4 as uuid } from "uuid";
 
 @Injectable()
 export class MeetsService {
-  constructor(private readonly db: DatabaseService, private readonly minio: MinioService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly minio: MinioService
+  ) {}
 
-  private static readonly shareCodeChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  private static readonly shareCodeChars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-  async findAll(view = 'all', page = 1, limit = 20, organizationIds: string[] = []) {
+  async findAll(
+    view = "all",
+    page = 1,
+    limit = 20,
+    organizationIds: string[] = []
+  ) {
     const attendeeCounts = this.db
-      .getClient()('meet_attendees')
-      .select('meet_id')
-      .count<{ meet_id: string; attendee_count: number; waitlist_count: number; checked_in_count: number; confirmed_count: number }[]>('* as attendee_count')
-      .select(this.db.getClient().raw(`sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`))
+      .getClient()("meet_attendees")
+      .select("meet_id")
+      .count<
+        {
+          meet_id: string;
+          attendee_count: number;
+          waitlist_count: number;
+          checked_in_count: number;
+          confirmed_count: number;
+        }[]
+      >("* as attendee_count")
       .select(
         this.db
           .getClient()
-          .raw(`sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`),
+          .raw(
+            `sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`
+          )
       )
       .select(
         this.db
           .getClient()
-          .raw(`sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`),
+          .raw(
+            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`
+          )
       )
-      .groupBy('meet_id')
-      .as('ma');
+      .select(
+        this.db
+          .getClient()
+          .raw(
+            `sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`
+          )
+      )
+      .groupBy("meet_id")
+      .as("ma");
     const query = this.db
-      .getClient()('meets as m')
-      .leftJoin(attendeeCounts, 'ma.meet_id', 'm.id')
+      .getClient()("meets as m")
+      .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
       .select(
-        'm.*',
-        this.db.getClient().raw('coalesce(ma.attendee_count, 0) as attendee_count'),
-        this.db.getClient().raw('coalesce(ma.confirmed_count, 0) as confirmed_count'),
-        this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count'),
-        this.db.getClient().raw('coalesce(ma.checked_in_count, 0) as checked_in_count')
+        "m.*",
+        this.db
+          .getClient()
+          .raw(
+            "(select url from meet_images where meet_id = m.id and is_primary = true order by created_at desc, id desc limit 1) as primary_image_url"
+          ),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.attendee_count, 0) as attendee_count"),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.confirmed_count, 0) as confirmed_count"),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.waitlist_count, 0) as waitlist_count"),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.checked_in_count, 0) as checked_in_count")
       );
-    if (view === 'reports') {
-      query.whereIn('m.status_id', [4, 5, 7]);
+    if (view === "reports") {
+      query.whereIn("m.status_id", [4, 5, 7]);
     }
-    if (view === 'plan') {
-      query.whereIn('m.status_id', [1, 2, 3, 6]);
+    if (view === "plan") {
+      query.whereIn("m.status_id", [1, 2, 3, 6]);
     }
-    query.orderBy('start_time', 'asc');
+    query.orderBy("start_time", "asc");
 
-    const totalQuery = this.db.getClient()('meets').count<{ count: string }[]>('* as count');
-    if (view === 'reports') {
-      totalQuery.whereIn('status_id', [4, 5, 7]);
+    const totalQuery = this.db
+      .getClient()("meets")
+      .count<{ count: string }[]>("* as count");
+    if (view === "reports") {
+      totalQuery.whereIn("status_id", [4, 5, 7]);
     }
-    if (view === 'plan') {
-      totalQuery.whereIn('status_id', [1, 2, 3, 6]);
+    if (view === "plan") {
+      totalQuery.whereIn("status_id", [1, 2, 3, 6]);
     }
     if (organizationIds.length > 0) {
-      query.whereIn('m.organization_id', organizationIds);
-      totalQuery.whereIn('organization_id', organizationIds);
+      query.whereIn("m.organization_id", organizationIds);
+      totalQuery.whereIn("organization_id", organizationIds);
     }
     const [{ count }] = await totalQuery;
     const total = Number(count);
     const items = await query.limit(limit).offset((page - 1) * limit);
-    const enrichedItems = items.map((item) => {
-      const { attendee_count, waitlist_count, checked_in_count, confirmed_count, ...rest } = item as any;
-      const attendeeCount = Number(attendee_count ?? 0); // all attendees regardless of status
-      const waitlistCount = Number(waitlist_count ?? 0);
-      const checkedInCount = Number(checked_in_count ?? 0);
-      const confirmedCount = Number(confirmed_count ?? 0); // confirmed or checked-in
-      return {
-        ...rest,
-        attendeeCount,
-        confirmedCount,
-        waitlistCount,
-        checkedInCount,
-      };
-    });
-    return { items: enrichedItems, total, page, limit };
+    const dtoItems = items.map((item) => this.toMeetDto(item, []));
+    return { items: dtoItems, total, page, limit };
   }
 
   async findOne(idOrCode: string): Promise<MeetDto> {
     const attendeeCounts = this.db
-      .getClient()('meet_attendees')
-      .select('meet_id')
-      .count<{ meet_id: string; attendee_count: number; waitlist_count: number; checked_in_count: number; confirmed_count: number }[]>('* as attendee_count')
-      .select(this.db.getClient().raw(`sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`))
+      .getClient()("meet_attendees")
+      .select("meet_id")
+      .count<
+        {
+          meet_id: string;
+          attendee_count: number;
+          waitlist_count: number;
+          checked_in_count: number;
+          confirmed_count: number;
+        }[]
+      >("* as attendee_count")
       .select(
         this.db
           .getClient()
-          .raw(`sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`),
+          .raw(
+            `sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`
+          )
       )
       .select(
         this.db
           .getClient()
-          .raw(`sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`),
+          .raw(
+            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`
+          )
       )
-      .groupBy('meet_id')
-      .as('ma');
+      .select(
+        this.db
+          .getClient()
+          .raw(
+            `sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`
+          )
+      )
+      .groupBy("meet_id")
+      .as("ma");
     let query = this.db
-      .getClient()('meets as m')
-      .leftJoin('users as u', 'u.id', 'm.organizer_id')
-      .leftJoin(attendeeCounts, 'ma.meet_id', 'm.id')
-      .leftJoin('currencies as c', 'c.id', 'm.currency_id')
+      .getClient()("meets as m")
+      .leftJoin("users as u", "u.id", "m.organizer_id")
+      .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
+      .leftJoin("currencies as c", "c.id", "m.currency_id")
       .select(
-        'm.*',
-        'c.symbol as currency_symbol',
-        'c.code as currency_code',
-        this.db.getClient().raw('coalesce(ma.attendee_count, 0) as attendee_count'),
-        this.db.getClient().raw('coalesce(ma.confirmed_count, 0) as confirmed_count'),
-        this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count'),
-        this.db.getClient().raw('coalesce(ma.checked_in_count, 0) as checked_in_count'),
-        this.db.getClient().raw(`concat(coalesce(u.first_name, ''), ' ', coalesce(u.last_name, '')) as organizer_name`),
-        'u.first_name as organizer_first_name',
-        'u.last_name as organizer_last_name'
+        "m.*",
+        "c.symbol as currency_symbol",
+        "c.code as currency_code",
+        this.db
+          .getClient()
+          .raw("coalesce(ma.attendee_count, 0) as attendee_count"),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.confirmed_count, 0) as confirmed_count"),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.waitlist_count, 0) as waitlist_count"),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.checked_in_count, 0) as checked_in_count"),
+        this.db
+          .getClient()
+          .raw(
+            `concat(coalesce(u.first_name, ''), ' ', coalesce(u.last_name, '')) as organizer_name`
+          ),
+        "u.first_name as organizer_first_name",
+        "u.last_name as organizer_last_name"
       );
 
     if (idOrCode.match(/^[0-9a-fA-F-]{36}$/)) {
-      query = query.where('m.id', idOrCode);
+      query = query.where("m.id", idOrCode);
     } else {
-      query = query.where('m.share_code', idOrCode);
+      query = query.where("m.share_code", idOrCode);
     }
     const meet = await query.first();
     if (!meet) {
-      throw new NotFoundException('Meet not found');
+      throw new NotFoundException("Meet not found");
     }
     const image = await this.db
-      .getClient()('meet_images')
-      .where({ meet_id: meet.id })
-      .orderBy([{ column: 'is_primary', order: 'desc' }, { column: 'created_at', order: 'desc' }])
+      .getClient()("meet_images")
+      .where({ meet_id: meet.id, is_primary: true })
+      .orderBy([
+        { column: "created_at", order: "desc" },
+        { column: "id", order: "desc" },
+      ])
       .first();
     const metaDefinitions = await this.db
-      .getClient()('meet_meta_definitions')
+      .getClient()("meet_meta_definitions")
       .where({ meet_id: meet.id })
-      .orderBy('position', 'asc')
+      .orderBy("position", "asc")
       .select(
-        'id',
-        'field_key',
-        'label',
-        'field_type',
-        'required',
-        'position',
-        'config',
+        "id",
+        "field_key",
+        "label",
+        "field_type",
+        "required",
+        "position",
+        "config"
       );
-    return this.toMeetDto({ ...meet, image_url: image?.url }, metaDefinitions);
+    const meetWithImage = {
+      ...meet,
+      image_url: image?.url ?? meet.image_url ?? undefined,
+    };
+    return this.toMeetDto(meetWithImage, metaDefinitions);
   }
 
   async create(dto: CreateMeetDto) {
     const now = new Date().toISOString();
-    const currencyId = await this.resolveCurrencyId(dto.currencyId, dto.currencyCode);
+    const currencyId = await this.resolveCurrencyId(
+      dto.currencyId,
+      dto.currencyCode
+    );
     const statusId = dto.statusId ?? 1;
     const shareCode = this.generateShareCode(12);
     const created = await this.db.getClient().transaction(async (trx) => {
-      const [meet] = await trx('meets').insert(this.toDbRecord({ ...dto, currencyId, statusId, shareCode }, now), ['*']);
+      const [meet] = await trx("meets").insert(
+        this.toDbRecord({ ...dto, currencyId, statusId, shareCode }, now),
+        ["*"]
+      );
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, meet.id, dto.metaDefinitions);
       }
@@ -165,14 +244,17 @@ export class MeetsService {
   }
 
   async update(id: string, dto: UpdateMeetDto) {
-    const currencyId = await this.resolveCurrencyId(dto.currencyId, dto.currencyCode);
+    const currencyId = await this.resolveCurrencyId(
+      dto.currencyId,
+      dto.currencyCode
+    );
     const updated = await this.db.getClient().transaction(async (trx) => {
-      const updatedRows = (await trx('meets')
+      const updatedRows = (await trx("meets")
         .where({ id })
-        .update(this.toDbRecord({ ...dto, currencyId }), ['*'])) as unknown;
+        .update(this.toDbRecord({ ...dto, currencyId }), ["*"])) as unknown;
       const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
       if (!meet) {
-        throw new NotFoundException('Meet not found');
+        throw new NotFoundException("Meet not found");
       }
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, id, dto.metaDefinitions);
@@ -184,49 +266,59 @@ export class MeetsService {
 
   async updateStatus(id: string, statusId: number) {
     const updatedRows = (await this.db
-      .getClient()('meets')
+      .getClient()("meets")
       .where({ id })
-      .update({ status_id: statusId, updated_at: new Date().toISOString() }, ['*'])) as unknown;
+      .update({ status_id: statusId, updated_at: new Date().toISOString() }, [
+        "*",
+      ])) as unknown;
     const updated = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
     if (!updated) {
-      throw new NotFoundException('Meet not found');
+      throw new NotFoundException("Meet not found");
     }
     return updated as any;
   }
 
   async remove(id: string) {
-    const deleted = await this.db.getClient()('meets').where({ id }).del();
+    const deleted = await this.db.getClient()("meets").where({ id }).del();
     if (!deleted) {
-      throw new NotFoundException('Meet not found');
+      throw new NotFoundException("Meet not found");
     }
     return { deleted: true };
   }
 
   async listStatuses() {
-    const statuses = await this.db.getClient()('meet_statuses').select('id', 'name').orderBy('id', 'asc');
+    const statuses = await this.db
+      .getClient()("meet_statuses")
+      .select("id", "name")
+      .orderBy("id", "asc");
     return { statuses };
   }
 
   async listAttendees(meetId: string, filter?: string) {
     const attendeesQuery = this.db
-      .getClient()('meet_attendees')
+      .getClient()("meet_attendees")
       .where({ meet_id: meetId });
-    if (filter === 'accepted') {
-      attendeesQuery.whereIn('status', ['confirmed', 'checked-in', 'attended']);
+    if (filter === "accepted") {
+      attendeesQuery.whereIn("status", ["confirmed", "checked-in", "attended"]);
     }
     const attendees = await attendeesQuery
-      .orderBy([{ column: 'sequence', order: 'asc' }, { column: 'created_at', order: 'asc' }])
-      .select('*');
+      .orderBy([
+        { column: "sequence", order: "asc" },
+        { column: "created_at", order: "asc" },
+      ])
+      .select("*");
     const metaDefinitions = await this.db
-      .getClient()('meet_meta_definitions')
+      .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
-      .orderBy('position', 'asc')
-      .select('id', 'label', 'field_type', 'required', 'position');
+      .orderBy("position", "asc")
+      .select("id", "label", "field_type", "required", "position");
     const metaValues = await this.db
-      .getClient()('meet_meta_values')
+      .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
-      .select('attendee_id', 'meta_definition_id', 'value');
-    const valuesByAttendee = metaValues.reduce<Record<string, Record<string, string>>>((acc, value) => {
+      .select("attendee_id", "meta_definition_id", "value");
+    const valuesByAttendee = metaValues.reduce<
+      Record<string, Record<string, string>>
+    >((acc, value) => {
       if (!acc[value.attendee_id]) {
         acc[value.attendee_id] = {};
       }
@@ -249,15 +341,19 @@ export class MeetsService {
 
   async findAttendeeByContact(meetId: string, email?: string, phone?: string) {
     if (!email && !phone) {
-      throw new BadRequestException('Email or phone is required');
+      throw new BadRequestException("Email or phone is required");
     }
-    const query = this.db.getClient()('meet_attendees').where({ meet_id: meetId });
+    const query = this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId });
     if (email && phone) {
       query.andWhere((builder) => {
-        builder.whereRaw('lower(email) = ?', [email.toLowerCase()]).orWhere({ phone });
+        builder
+          .whereRaw("lower(email) = ?", [email.toLowerCase()])
+          .orWhere({ phone });
       });
     } else if (email) {
-      query.andWhereRaw('lower(email) = ?', [email.toLowerCase()]);
+      query.andWhereRaw("lower(email) = ?", [email.toLowerCase()]);
     } else if (phone) {
       query.andWhere({ phone });
     }
@@ -267,7 +363,7 @@ export class MeetsService {
 
   async addAttendee(meetId: string, dto: CreateMeetAttendeeDto) {
     const created = await this.db.getClient().transaction(async (trx) => {
-      const [attendee] = await trx('meet_attendees').insert(
+      const [attendee] = await trx("meet_attendees").insert(
         {
           meet_id: meetId,
           user_id: dto.userId ?? null,
@@ -278,11 +374,16 @@ export class MeetsService {
           indemnity_accepted: dto.indemnityAccepted ?? null,
           indemnity_minors: dto.indemnityMinors ?? null,
         },
-        ['*'],
+        ["*"]
       );
       if (dto.metaValues && dto.metaValues.length > 0) {
         const records = dto.metaValues
-          .filter((value) => value.value !== undefined && value.value !== null && value.value !== '')
+          .filter(
+            (value) =>
+              value.value !== undefined &&
+              value.value !== null &&
+              value.value !== ""
+          )
           .map((value) => ({
             meet_id: meetId,
             attendee_id: attendee.id,
@@ -290,7 +391,7 @@ export class MeetsService {
             value: value.value,
           }));
         if (records.length > 0) {
-          await trx('meet_meta_values').insert(records);
+          await trx("meet_meta_values").insert(records);
         }
       }
       return attendee;
@@ -298,9 +399,13 @@ export class MeetsService {
     return { attendee: created };
   }
 
-  async updateAttendee(meetId: string, attendeeId: string, dto: UpdateMeetAttendeeDto) {
+  async updateAttendee(
+    meetId: string,
+    attendeeId: string,
+    dto: UpdateMeetAttendeeDto
+  ) {
     const [updated] = await this.db
-      .getClient()('meet_attendees')
+      .getClient()("meet_attendees")
       .where({ meet_id: meetId, id: attendeeId })
       .update(
         {
@@ -311,22 +416,26 @@ export class MeetsService {
           indemnity_accepted: dto.indemnityAccepted,
           indemnity_minors: dto.indemnityMinors,
           status: dto.status,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         },
-        ['*'],
+        ["*"]
       );
     if (!updated) {
-      throw new NotFoundException('Attendee not found');
+      throw new NotFoundException("Attendee not found");
     }
     return { attendee: updated };
   }
 
   async addImage(meetId: string, file: any, dto: CreateMeetImageDto) {
-    const extension = file.mimetype.split('/')[1] || 'jpg';
+    const extension = file.mimetype.split("/")[1] || "jpg";
     const objectKey = `meets/${meetId}/${uuid()}.${extension}`;
-    const uploaded = await this.minio.upload(objectKey, file.buffer, file.mimetype);
+    const uploaded = await this.minio.upload(
+      objectKey,
+      file.buffer,
+      file.mimetype
+    );
     const [created] = await this.db
-      .getClient()('meet_images')
+      .getClient()("meet_images")
       .insert(
         {
           meet_id: meetId,
@@ -335,23 +444,28 @@ export class MeetsService {
           content_type: file.mimetype,
           size_bytes: file.size,
           is_primary: dto.isPrimary ?? false,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
         },
-        ['*'],
+        ["*"]
       );
     return { image: created };
   }
 
   async removeAttendee(meetId: string, attendeeId: string) {
-    const query = this.db.getClient()('meet_attendees').where({ meet_id: meetId, id: attendeeId });
+    const query = this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, id: attendeeId });
     const deleted = await query.del();
     if (!deleted) {
-      throw new NotFoundException('Attendee not found');
+      throw new NotFoundException("Attendee not found");
     }
     return { deleted: true };
   }
 
-  private toDbRecord(dto: Partial<CreateMeetDto> & { shareCode?: string }, now?: string) {
+  private toDbRecord(
+    dto: Partial<CreateMeetDto> & { shareCode?: string },
+    now?: string
+  ) {
     const record: any = {
       name: dto.name,
       description: dto.description,
@@ -399,7 +513,10 @@ export class MeetsService {
     return record;
   }
 
-  private async resolveCurrencyId(currencyId?: number | null, currencyCode?: string) {
+  private async resolveCurrencyId(
+    currencyId?: number | null,
+    currencyCode?: string
+  ) {
     if (currencyId !== undefined) {
       return currencyId;
     }
@@ -407,7 +524,10 @@ export class MeetsService {
       return undefined;
     }
     const code = currencyCode.trim().toUpperCase();
-    const currency = await this.db.getClient()('currencies').where({ code }).first<{ id: number }>('id');
+    const currency = await this.db
+      .getClient()("currencies")
+      .where({ code })
+      .first<{ id: number }>("id");
     if (!currency) {
       throw new BadRequestException(`Unknown currency code: ${currencyCode}`);
     }
@@ -424,14 +544,17 @@ export class MeetsService {
   private generateShareCode(length: number) {
     const chars = MeetsService.shareCodeChars;
     const bytes = randomBytes(length);
-    let result = '';
+    let result = "";
     for (let i = 0; i < length; i += 1) {
       result += chars[bytes[i] % chars.length];
     }
     return result;
   }
 
-  private toMeetDto(meet: Record<string, any>, metaDefinitions: Record<string, any>[]): MeetDto {
+  private toMeetDto(
+    meet: Record<string, any>,
+    metaDefinitions: Record<string, any>[]
+  ): MeetDto {
     return {
       id: meet.id,
       name: meet.name,
@@ -464,12 +587,13 @@ export class MeetsService {
       currencyId: meet.currency_id ?? undefined,
       currencySymbol: meet.currency_symbol ?? undefined,
       costCents: meet.cost_cents != null ? Number(meet.cost_cents) : undefined,
-      depositCents: meet.deposit_cents != null ? Number(meet.deposit_cents) : undefined,
+      depositCents:
+        meet.deposit_cents != null ? Number(meet.deposit_cents) : undefined,
       shareCode: meet.share_code ?? undefined,
       organizerName: meet.organizer_name ?? undefined,
       organizerFirstName: meet.organizer_first_name || undefined,
       organizerLastName: meet.organizer_last_name || undefined,
-      imageUrl: meet.image_url ?? meet.imageUrl ?? undefined,
+      imageUrl: meet.primary_image_url ?? meet.image_url ?? undefined,
       attendeeCount: Number(meet.attendee_count ?? 0),
       confirmedCount: Number(meet.confirmed_count ?? 0),
       waitlistCount: Number(meet.waitlist_count ?? 0),
@@ -482,15 +606,15 @@ export class MeetsService {
         fieldType: definition.field_type,
         required: definition.required,
         position: definition.position,
-        config: definition.config
-      }))
+        config: definition.config,
+      })),
     };
   }
 
   private async syncMetaDefinitions(
     trx: any,
     meetId: string,
-    metaDefinitions: MeetMetaDefinitionInputDto[],
+    metaDefinitions: MeetMetaDefinitionInputDto[]
   ) {
     const cleaned = metaDefinitions
       .map((definition, index) => ({
@@ -501,13 +625,13 @@ export class MeetsService {
         field_type: definition.fieldType,
         required: Boolean(definition.required),
         position: index,
-        config: definition.config ?? {}
+        config: definition.config ?? {},
       }))
       .filter((definition) => definition.label);
 
-    await trx('meet_meta_definitions').where({ meet_id: meetId }).del();
+    await trx("meet_meta_definitions").where({ meet_id: meetId }).del();
     if (cleaned.length > 0) {
-      await trx('meet_meta_definitions').insert(cleaned);
+      await trx("meet_meta_definitions").insert(cleaned);
     }
   }
 }

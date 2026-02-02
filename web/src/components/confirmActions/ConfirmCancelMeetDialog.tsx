@@ -1,7 +1,10 @@
+import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
+import MeetStatusEnum from "../../models/MeetStatusEnum";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
 
 type ConfirmCancelMeetDialogProps = {
   open: boolean;
+  meetId?: string | null;
   onClose: () => void;
   onConfirm: () => void;
   isLoading?: boolean;
@@ -9,19 +12,30 @@ type ConfirmCancelMeetDialogProps = {
 
 export function ConfirmCancelMeetDialog({
   open,
+  meetId,
   onClose,
   onConfirm,
-  isLoading = false
+  isLoading = false,
 }: ConfirmCancelMeetDialogProps) {
+  const { updateStatusAsync, isLoading: isSubmitting } = useUpdateMeetStatus();
+
+  const handleCancelMeet = async () => {
+    if (meetId) {
+      await updateStatusAsync({ meetId, statusId: MeetStatusEnum.Cancelled });
+    }
+    onConfirm();
+  };
+
   return (
     <ConfirmActionDialog
       open={open}
       title="Cancel meet?"
-      description="Cancelling will prevent participants from joining."
+      description="Cancelling will notify all confirmed attendees of the cancellation and prevent any new submissions."
       confirmLabel="Cancel meet"
       onClose={onClose}
-      onConfirm={onConfirm}
+      onConfirm={handleCancelMeet}
       isLoading={isLoading}
+      isSubmitting={isSubmitting}
     />
   );
 }

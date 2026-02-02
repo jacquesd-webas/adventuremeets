@@ -8,7 +8,6 @@ import {
   TextField,
   Typography,
   Alert,
-  Divider,
 } from "@mui/material";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -16,19 +15,20 @@ import { useState } from "react";
 import { useLogin } from "../hooks/useLogin";
 import { useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/AuthSocialButtons";
+import { getLogoSrc } from "../helpers/logo";
 
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { loginAsync, isLoading, error } = useLogin();
   const navigate = useNavigate();
+  const logoSrc = getLogoSrc();
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     loginAsync({ email, password })
       .then(() => navigate("/"))
       .catch((err) => {
-        // eslint-disable-next-line no-console
         console.error("Login failed", err);
       });
   };
@@ -45,7 +45,7 @@ function LoginPage() {
     >
       <Box sx={{ textAlign: "center", mb: 4 }}>
         <img
-          src="/static/adventuremeets-logo.svg"
+          src={logoSrc}
           alt="AdventureMeets logo"
           width={320}
           height="auto"

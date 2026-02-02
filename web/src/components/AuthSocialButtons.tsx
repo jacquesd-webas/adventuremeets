@@ -1,6 +1,5 @@
 import { Button, Stack } from "@mui/material";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-import { useApi } from "../hooks/useApi";
 
 type AuthSocialButtonsProps = {
   compact?: boolean;
@@ -13,8 +12,6 @@ export function AuthSocialButtons({
   showEmail = false,
   onSelect,
 }: AuthSocialButtonsProps) {
-  const api = useApi();
-
   const handleSelect = (
     provider: "google" | "microsoft" | "facebook" | "email"
   ) => {

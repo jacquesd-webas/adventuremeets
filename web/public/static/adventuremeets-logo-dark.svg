@@ -1,0 +1,56 @@
+<svg width="360" height="120" viewBox="0 0 360 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Dark-theme backdrop (subtle, semi-transparent) -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#070B14"/>
+    </linearGradient>
+
+    <!-- Peaks (cool night palette) -->
+    <linearGradient id="peakLight" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#5EEAD4"/>
+      <stop offset="1" stop-color="#2DD4BF"/>
+    </linearGradient>
+    <linearGradient id="peakBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#93C5FD"/>
+      <stop offset="1" stop-color="#3B82F6"/>
+    </linearGradient>
+
+    <!-- A soft glow for readability on busy dark backgrounds -->
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 0.55 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Subtle rounded backdrop to separate the mark from the dark forest background -->
+  <rect width="360" height="120" rx="14" fill="url(#sky)" fill-opacity="0"/>
+
+  <!-- Moon (obscured / dim) -->
+  <circle cx="280" cy="34" r="16" fill="#CBD5E1" opacity="0.25"/>
+
+  <!-- Peaks -->
+  <path d="M38 92L78 22L118 92H98L78 56L58 92H38Z" fill="url(#peakLight)"/>
+  <path d="M98 92L138 30L178 92H158L138 58L118 92H98Z" fill="url(#peakBlue)"/>
+  <path d="M158 92L198 40L238 92H218L198 64L178 92H158Z" fill="#F59E0B" opacity="0.9"/>
+
+  <!-- Trail line (lighter for dark theme) -->
+  <path d="M60 92C95 72 135 72 188 92" stroke="#E2E8F0" stroke-width="3" stroke-linecap="round" opacity="0.28"/>
+
+  <!-- Brand text -->
+  <text x="32" y="110"
+        fill="#F1F5F9"
+        filter="url(#softGlow)"
+        font-family="Inter, 'Segoe UI', sans-serif"
+        font-size="22"
+        font-weight="800"
+        letter-spacing="0.4">AdventureMeets</text>
+</svg>

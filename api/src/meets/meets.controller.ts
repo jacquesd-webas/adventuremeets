@@ -12,7 +12,6 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
-  Req,
 } from "@nestjs/common";
 import { ApiBody, ApiHeader, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { MeetsService } from "./meets.service";

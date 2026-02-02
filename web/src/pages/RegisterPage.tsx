@@ -17,9 +17,14 @@ import { useRegister } from "../hooks/useRegister";
 import { useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/AuthSocialButtons";
 import { EmailField } from "../components/EmailField";
-import { InternationalPhoneField, buildInternationalPhone, getDefaultPhoneCountry } from "../components/InternationalPhoneField";
-import { getLocaleDefaults } from "../utils/locale";
+import {
+  InternationalPhoneField,
+  buildInternationalPhone,
+  getDefaultPhoneCountry,
+} from "../components/InternationalPhoneField";
+import { getLocaleDefaults } from "../helpers/locale";
 import { useApi } from "../hooks/useApi";
+import { getLogoSrc } from "../helpers/logo";
 
 function RegisterPage() {
   const [firstName, setFirstName] = useState("");
@@ -39,9 +44,14 @@ function RegisterPage() {
   const navigate = useNavigate();
   const [emailError, setEmailError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
+  const logoSrc = getLogoSrc();
+  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
+    | string
+    | undefined;
   const captchaRequired = Boolean(recaptchaSiteKey);
-  const chooseMethod = (method: null | "google" | "microsoft" | "facebook" | "email") => {
+  const chooseMethod = (
+    method: null | "google" | "microsoft" | "facebook" | "email"
+  ) => {
     setSelectedMethod(method);
     setCaptchaToken(null);
   };
@@ -57,11 +67,10 @@ function RegisterPage() {
       phone: buildInternationalPhone(phoneCountry, phoneLocal),
       email,
       password,
-      captchaToken: captchaToken || undefined
+      captchaToken: captchaToken || undefined,
     })
       .then(() => navigate("/"))
       .catch((err) => {
-        // eslint-disable-next-line no-console
         console.error("Registration failed", err);
       });
   };
@@ -72,7 +81,9 @@ function RegisterPage() {
       setEmailError(null);
       return;
     }
-    const res = await api.get<{ exists: boolean }>(`/auth/register/check?email=${encodeURIComponent(value)}`);
+    const res = await api.get<{ exists: boolean }>(
+      `/auth/register/check?email=${encodeURIComponent(value)}`
+    );
     setEmailError(res.exists ? "This email is already registered." : null);
   };
 
@@ -88,7 +99,7 @@ function RegisterPage() {
     >
       <Box sx={{ textAlign: "center", mb: 4 }}>
         <img
-          src="/static/adventuremeets-logo.svg"
+          src={logoSrc}
           alt="AdventureMeets logo"
           width={320}
           height="auto"
@@ -189,7 +200,8 @@ function RegisterPage() {
                   </Box>
                 ) : (
                   <Alert severity="warning">
-                    reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to enable.
+                    reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
+                    enable.
                   </Alert>
                 )}
                 <Button
@@ -197,7 +209,11 @@ function RegisterPage() {
                   variant="contained"
                   size="large"
                   sx={{ textTransform: "uppercase" }}
-                  disabled={Boolean(emailError) || (captchaRequired && !captchaToken) || isLoading}
+                  disabled={
+                    Boolean(emailError) ||
+                    (captchaRequired && !captchaToken) ||
+                    isLoading
+                  }
                 >
                   {isLoading ? "Creating..." : "Create account"}
                 </Button>

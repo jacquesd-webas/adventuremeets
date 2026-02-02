@@ -24,6 +24,106 @@ body {
   background-attachment: fixed;
 }
 
+body[data-theme="dark"] {
+  color: #e2e8f0;
+  background-color: #0b1220;
+  background-image: url("/static/background-dark.png");
+}
+
+body[data-theme="dark"] a {
+  color: #e2e8f0;
+}
+
+/* Ensure MUI text elements respect dark mode */
+body[data-theme="dark"] .MuiTypography-root {
+  color: #e2e8f0;
+}
+body[data-theme="dark"] .MuiPaper-root {
+  color: #e2e8f0;
+  background-color: #111827;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+body[data-theme="dark"] .MuiDrawer-paper {
+  color: #e2e8f0;
+  background-color: #0f172a;
+}
+body[data-theme="dark"] .MuiDialog-paper {
+  color: #e2e8f0;
+  background-color: #0f172a;
+}
+body[data-theme="dark"] .MuiAppBar-root {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+body[data-theme="dark"] .MuiButton-containedPrimary {
+  box-shadow: none;
+}
+/* Keep default chips muted, but preserve colored variants */
+body[data-theme="dark"] .MuiChip-filledDefault {
+  background-color: #334155;
+  color: #e2e8f0;
+}
+body[data-theme="dark"] .MuiChip-colorSuccess {
+  background-color: #0f766e;
+  color: #e2f3f1;
+}
+
+/* Improve icon visibility on dark */
+body[data-theme="dark"] .MuiSvgIcon-colorAction {
+  color: #b6c2cf;
+}
+body[data-theme="dark"] .MuiSvgIcon-colorDisabled {
+  color: #7c8597;
+}
+body[data-theme="dark"] .MuiSvgIcon-colorInherit,
+body[data-theme="dark"] .MuiSvgIcon-colorDefault {
+  color: #d8e0eb;
+}
+body[data-theme="dark"] .MuiSvgIcon-colorPrimary,
+body[data-theme="dark"] .MuiSvgIcon-colorSecondary,
+body[data-theme="dark"] .MuiSvgIcon-root {
+  color: #d8e0eb;
+}
+body[data-theme="dark"] .MuiListItemIcon-root {
+  color: #d8e0eb;
+}
+body[data-theme="dark"] .MuiMenuItem-root,
+body[data-theme="dark"] .MuiListItemText-primary {
+  color: #e2e8f0;
+}
+body[data-theme="dark"] .MuiToolbar-root button {
+  color: #e2e8f0;
+}
+body[data-theme="dark"] .MuiStepLabel-labelContainer,
+body[data-theme="dark"] .MuiStepLabel-label {
+  color: #e2e8f0 !important;
+}
+body[data-theme="dark"] .MuiStepIcon-root {
+  color: #94a3b8;
+}
+body[data-theme="dark"] .MuiStepIcon-root.Mui-active {
+  color: #cbd5e1;
+}
+body[data-theme="dark"] .MuiStepIcon-root.Mui-completed {
+  color: #cbd5e1;
+}
+body[data-theme="dark"] .MuiInputBase-input,
+body[data-theme="dark"] .MuiFormLabel-root {
+  color: #e2e8f0;
+}
+body[data-theme="dark"] .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(226, 232, 240, 0.4);
+}
+body[data-theme="dark"] .MuiSvgIcon-root {
+  color: #d8e0eb;
+}
+
+/* Ensure success chips stay green in light mode too */
+.MuiChip-colorSuccess {
+  background-color: #16a34a;
+  color: #f0fdf4;
+}
+
 a {
   color: inherit;
 }

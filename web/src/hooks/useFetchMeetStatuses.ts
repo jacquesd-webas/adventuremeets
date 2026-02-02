@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
-import { minutes } from "../utils/time";
+import { minutes } from "../helpers/time";
 
 export type MeetStatus = {
   id: number;
@@ -22,14 +22,14 @@ export function useFetchMeetStatuses() {
       }
       return res.statuses ?? [];
     },
-    staleTime: minutes(10)
+    staleTime: minutes(10),
   });
 
   return {
     data: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
-    refetch: query.refetch
+    refetch: query.refetch,
   };
 }
 

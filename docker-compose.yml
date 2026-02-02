@@ -2,9 +2,22 @@ services:
   mailhog:
     image: mailhog/mailhog:v1.0.1
     ports:
-      - "25:1025"  # SMTP
+      - "1025:1025"  # SMTP
       - "8025:8025"  # Web UI
     restart: unless-stopped
+
+  mail:
+    build:
+      context: ./mail
+      dockerfile: ./Dockerfile
+    env_file:
+      - ./env/base.env
+      - ./env/development.env
+    ports:
+      - "25:25"
+    depends_on:
+      api:
+        condition: service_started
 
   db:
     image: postgres:15-alpine

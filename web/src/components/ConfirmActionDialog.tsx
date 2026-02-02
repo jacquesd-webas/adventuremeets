@@ -7,7 +7,7 @@ import {
   Drawer,
   Typography,
   useMediaQuery,
-  useTheme
+  useTheme,
 } from "@mui/material";
 import type { ReactNode } from "react";
 
@@ -32,46 +32,46 @@ export function ConfirmActionDialog({
   onConfirm,
   onClose,
   isLoading = false,
-  children
+  isSubmitting = false,
+  children,
 }: ConfirmActionDialogProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+  const dialogZIndex = theme.zIndex.modal + 200;
 
-  if (fullScreen) {
-    return (
-      <Drawer anchor="bottom" open={open} onClose={onClose}>
-        <DialogTitle>{title}</DialogTitle>
-        <DialogContent>
-          <Typography color="text.secondary">{description}</Typography>
-          {children}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} disabled={isLoading}>
-            {cancelLabel}
-          </Button>
-          <Button variant="contained" onClick={onConfirm} disabled={isLoading}>
-            {confirmLabel}
-          </Button>
-        </DialogActions>
-      </Drawer>
-    );
-  }
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+  const content = (
+    <>
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
-        <Typography color="text.secondary">{description}</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {description}
+        </Typography>
         {children}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={isLoading}>
           {cancelLabel}
         </Button>
-        <Button variant="contained" onClick={onConfirm} disabled={isLoading}>
+        <Button
+          variant="contained"
+          onClick={onConfirm}
+          disabled={isLoading || isSubmitting}
+        >
           {confirmLabel}
         </Button>
       </DialogActions>
+    </>
+  );
+
+  return fullScreen ? (
+    <Drawer anchor="bottom" open={open} onClose={onClose} sx={{ zIndex: dialogZIndex }}>
+      {content}
+    </Drawer>
+  ) : (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" sx={{ zIndex: dialogZIndex }}>
+      {content}
     </Dialog>
   );
 }
+
+export default ConfirmActionDialog;

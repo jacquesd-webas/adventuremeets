@@ -19,7 +19,9 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           type="datetime-local"
           placeholder="When can attendees start applying?"
           value={state.openingDate}
-          onChange={(e) => setState((prev) => ({ ...prev, openingDate: e.target.value }))}
+          onChange={(e) =>
+            setState((prev) => ({ ...prev, openingDate: e.target.value }))
+          }
           fullWidth
           InputLabelProps={{ shrink: true }}
           error={Boolean(errors?.openingDate)}
@@ -31,7 +33,9 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           type="datetime-local"
           placeholder="When do applications close?"
           value={state.closingDate}
-          onChange={(e) => setState((prev) => ({ ...prev, closingDate: e.target.value }))}
+          onChange={(e) =>
+            setState((prev) => ({ ...prev, closingDate: e.target.value }))
+          }
           fullWidth
           InputLabelProps={{ shrink: true }}
           error={Boolean(errors?.closingDate)}
@@ -50,7 +54,12 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           type="number"
           placeholder="Maximum participants"
           value={state.capacity}
-          onChange={(e) => setState((prev) => ({ ...prev, capacity: e.target.value === "" ? "" : Number(e.target.value) }))}
+          onChange={(e) =>
+            setState((prev) => ({
+              ...prev,
+              capacity: e.target.value === "" ? "" : Number(e.target.value),
+            }))
+          }
           fullWidth
           error={Boolean(errors?.capacity)}
           helperText={errors?.capacity}
@@ -60,8 +69,13 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
         <TextField
           type="number"
           placeholder="How many on the waitlist?"
-          value={state.waitlistSize === "" ? 0 : state.waitlistSize}
-          onChange={(e) => setState((prev) => ({ ...prev, waitlistSize: e.target.value === "" ? "" : Number(e.target.value) }))}
+          value={state.waitlistSize}
+          onChange={(e) =>
+            setState((prev) => ({
+              ...prev,
+              waitlistSize: e.target.value === "" ? "" : Number(e.target.value),
+            }))
+          }
           fullWidth
           error={Boolean(errors?.waitlistSize)}
           helperText={errors?.waitlistSize}
@@ -74,7 +88,9 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           <Switch
             disabled
             checked={state.autoApprove}
-            onChange={(e) => setState((prev) => ({ ...prev, autoApprove: e.target.checked }))}
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, autoApprove: e.target.checked }))
+            }
           />
         }
         label="Automatically approve applications"
@@ -84,7 +100,12 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           <Switch
             disabled
             checked={state.autoCloseWaitlist}
-            onChange={(e) => setState((prev) => ({ ...prev, autoCloseWaitlist: e.target.checked }))}
+            onChange={(e) =>
+              setState((prev) => ({
+                ...prev,
+                autoCloseWaitlist: e.target.checked,
+              }))
+            }
           />
         }
         label="Automatically close when waitlist is full"
@@ -94,7 +115,9 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           <Switch
             disabled
             checked={state.allowGuests}
-            onChange={(e) => setState((prev) => ({ ...prev, allowGuests: e.target.checked }))}
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, allowGuests: e.target.checked }))
+            }
           />
         }
         label="Allow attendees to bring guests"
@@ -105,7 +128,12 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
             type="number"
             placeholder="How many guests per attendee?"
             value={state.maxGuests}
-            onChange={(e) => setState((prev) => ({ ...prev, maxGuests: e.target.value === "" ? "" : Number(e.target.value) }))}
+            onChange={(e) =>
+              setState((prev) => ({
+                ...prev,
+                maxGuests: e.target.value === "" ? "" : Number(e.target.value),
+              }))
+            }
             fullWidth
           />
         </LabeledField>

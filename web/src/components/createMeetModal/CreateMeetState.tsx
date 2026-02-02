@@ -65,7 +65,7 @@ export const initialState: CreateMeetState = {
   openingDate: "",
   closingDate: "",
   capacity: "",
-  waitlistSize: 0,
+  waitlistSize: "",
   autoApprove: false,
   autoCloseWaitlist: false,
   allowGuests: false,

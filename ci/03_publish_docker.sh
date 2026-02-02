@@ -46,12 +46,33 @@ for IMAGE in $DOCKER_IMAGES; do
   if ! docker image inspect "$SRC" >/dev/null 2>&1; then
     SRC="$IMAGE:latest"
   fi
+  pushed=0
   if [ "$ENVIRONMENT" = "production" ]; then
-    echo "Tagging and pushing image $SRC for production environment."
+    echo "Tagging and pushing image $SRC --> ${IMAGE_PREFIX}_${IMAGE}:$VERSION"
     docker tag "$SRC" "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
     docker push "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
-  else
-    echo "Tagging and pushing image $SRC for non-production environment."
+    pushed=1
+  elif [ "$ENVIRONMENT" = "testing" ]; then
+    if echo "$VERSION" | grep -Eq '(^[0-9]+\.[0-9]+\.[0-9]+$|beta)'; then
+      echo "Tagging and pushing image $SRC --> ${IMAGE_PREFIX}_${IMAGE}:$VERSION"
+      docker tag "$SRC" "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
+      docker push "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
+      pushed=1
+    else
+      echo "Version $VERSION is not a beta release. Skipped version tag push for testing environment."
+    fi
+  elif [ "$ENVIRONMENT" = "development" ]; then
+    if echo "$VERSION" | grep -Eq '(^[0-9]+\.[0-9]+\.[0-9]+$|alpha)'; then
+      echo "Tagging and pushing image $SRC --> ${IMAGE_PREFIX}_${IMAGE}:$VERSION"
+      docker tag "$SRC" "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
+      docker push "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
+      pushed=1
+    else
+      echo "Version $VERSION is not an alpha release. Skipped version tag push for development environment."
+    fi
+  fi
+  if [ $pushed -eq 0 ]; then
+    echo "Tagging and pushing image $SRC for non-production environment..."
     docker tag "$SRC" "${IMAGE_PREFIX}_${IMAGE}:latest"
     docker push "${IMAGE_PREFIX}_${IMAGE}:latest"
   fi

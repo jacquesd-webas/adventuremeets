@@ -1,11 +1,17 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfirmPostponeMeetDialog } from "../ConfirmPostponeMeetDialog";
 
 describe("ConfirmPostponeMeetDialog", () => {
   it("renders message field and passes trimmed text on confirm", () => {
     const onConfirm = vi.fn();
     const onClose = vi.fn();
-    render(<ConfirmPostponeMeetDialog open onConfirm={onConfirm} onClose={onClose} />);
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ConfirmPostponeMeetDialog open onConfirm={onConfirm} onClose={onClose} />
+      </QueryClientProvider>
+    );
 
     const messageField = screen.getByLabelText(/Message to participants/i);
     fireEvent.change(messageField, { target: { value: "  Delayed due to weather  " } });

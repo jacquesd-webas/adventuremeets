@@ -14,7 +14,7 @@ import {
   ListItemText,
   Stack,
   TextField,
-  Typography
+  Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useState, ChangeEvent } from "react";
 import { useMe } from "../hooks/useMe";
@@ -29,12 +29,26 @@ type ProfileModalProps = {
 
 export function ProfileModal({ open, onClose }: ProfileModalProps) {
   const { user } = useMe();
-  const { updateUserAsync, isLoading: isUserSaving, error: userError } = useUpdateUser();
+  const {
+    updateUserAsync,
+    isLoading: isUserSaving,
+    error: userError,
+  } = useUpdateUser();
   const primaryOrgId = user?.organizationIds?.[0];
-  const { organization, isLoading: orgLoading, error: orgError } = useOrganization(primaryOrgId);
-  const { updateOrganizationAsync, isLoading: orgSaving, error: orgSaveError } = useUpdateOrganization();
+  const {
+    organization,
+    isLoading: orgLoading,
+    error: orgError,
+  } = useOrganization(primaryOrgId);
+  const {
+    updateOrganizationAsync,
+    isLoading: orgSaving,
+    error: orgSaveError,
+  } = useUpdateOrganization();
 
-  const [section, setSection] = useState<"personal" | "organization" | "security" | "email" | "avatar">("personal");
+  const [section, setSection] = useState<
+    "personal" | "organization" | "security" | "email" | "avatar"
+  >("personal");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -72,7 +86,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
       id: user.id,
       firstName,
       lastName,
-      phone
+      phone,
     });
   };
 
@@ -97,7 +111,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     // TODO: wire to backend avatar upload endpoint when available.
   };
 
-  const inviteLink = primaryOrgId ? `${window.location.origin}/register?org=${primaryOrgId}` : "";
+  const inviteLink = primaryOrgId
+    ? `${window.location.origin}/register?org=${primaryOrgId}`
+    : "";
 
   const copyInvite = async () => {
     if (!inviteLink) return;
@@ -107,7 +123,13 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" PaperProps={{ sx: { minHeight: "80vh" } }}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="md"
+      PaperProps={{ sx: { minHeight: "80vh" } }}
+    >
       <DialogTitle>Profile</DialogTitle>
       <DialogContent dividers>
         <Grid container spacing={2} sx={{ mt: 0 }}>
@@ -115,10 +137,10 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
             <List component="nav">
               {[
                 { key: "personal", label: "Personal details" },
-                { key: "organization", label: "Organization" },
+                { key: "organization", label: "Organisation" },
                 { key: "security", label: "Security" },
                 { key: "email", label: "Email verification" },
-                { key: "avatar", label: "Avatar" }
+                { key: "avatar", label: "Avatar" },
               ].map((item) => (
                 <ListItemButton
                   key={item.key}
@@ -132,37 +154,74 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
           </Grid>
           <Grid item xs={12} sm={8} md={9}>
             {section === "personal" && (
-              <Stack spacing={2} sx={{ minHeight: 320, display: "flex" }} alignItems="flex-start">
+              <Stack
+                spacing={2}
+                sx={{ minHeight: 320, display: "flex" }}
+                alignItems="flex-start"
+              >
                 <Box>
                   <Typography variant="h6">Personal details</Typography>
-                  <Typography variant="body2" color="text.secondary">Update your name and phone number.</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Update your name and phone number.
+                  </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
                   <Avatar src={avatarPreview || undefined}>{initials}</Avatar>
                   <Box>
-                    <Typography variant="subtitle1">{[firstName, lastName].filter(Boolean).join(" ") || "Unnamed"}</Typography>
-                    <Typography variant="body2" color="text.secondary">{user?.email}</Typography>
+                    <Typography variant="subtitle1">
+                      {[firstName, lastName].filter(Boolean).join(" ") ||
+                        "Unnamed"}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {user?.email}
+                    </Typography>
                   </Box>
                 </Stack>
-                <TextField label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} fullWidth />
-                <TextField label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} fullWidth />
-                <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth />
+                <TextField
+                  label="First name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  fullWidth
+                />
+                <TextField
+                  label="Last name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  fullWidth
+                />
+                <TextField
+                  label="Phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  fullWidth
+                />
                 {userError && <Alert severity="error">{userError}</Alert>}
                 <Box sx={{ flexGrow: 1 }} />
-                <Button variant="contained" onClick={handleSavePersonal} disabled={isUserSaving} sx={{ alignSelf: "flex-start" }}>
+                <Button
+                  variant="contained"
+                  onClick={handleSavePersonal}
+                  disabled={isUserSaving}
+                  sx={{ alignSelf: "flex-start" }}
+                >
                   Save personal details
                 </Button>
               </Stack>
             )}
 
             {section === "organization" && (
-              <Stack spacing={2} sx={{ minHeight: 320, display: "flex" }} alignItems="flex-start">
+              <Stack
+                spacing={2}
+                sx={{ minHeight: 320, display: "flex" }}
+                alignItems="flex-start"
+              >
                 <Box>
-                  <Typography variant="h6">Organization</Typography>
-                  <Typography variant="body2" color="text.secondary">Rename your private organisation.</Typography>
+                  <Typography variant="h6">Organisation</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Rename your private organisation.
+                  </Typography>
                 </Box>
                 <TextField
-                  label="Organization name"
+                  label="Organisation name"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
                   fullWidth
@@ -177,21 +236,37 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   disabled
                   helperText="Share this link to invite members to your organisation."
                 />
-                <Button variant="outlined" onClick={copyInvite} disabled={!inviteLink} sx={{ alignSelf: "flex-start" }}>
+                <Button
+                  variant="outlined"
+                  onClick={copyInvite}
+                  disabled={!inviteLink}
+                  sx={{ alignSelf: "flex-start" }}
+                >
                   {inviteCopied ? "Copied!" : "Copy invite link"}
                 </Button>
                 <Box sx={{ flexGrow: 1 }} />
-                <Button variant="contained" onClick={handleSaveOrg} disabled={orgLoading || orgSaving || !organization} sx={{ alignSelf: "flex-start" }}>
+                <Button
+                  variant="contained"
+                  onClick={handleSaveOrg}
+                  disabled={orgLoading || orgSaving || !organization}
+                  sx={{ alignSelf: "flex-start" }}
+                >
                   Save organization
                 </Button>
               </Stack>
             )}
 
             {section === "security" && (
-              <Stack spacing={2} sx={{ minHeight: 320, display: "flex" }} alignItems="flex-start">
+              <Stack
+                spacing={2}
+                sx={{ minHeight: 320, display: "flex" }}
+                alignItems="flex-start"
+              >
                 <Box>
                   <Typography variant="h6">Security</Typography>
-                  <Typography variant="body2" color="text.secondary">Change your password.</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Change your password.
+                  </Typography>
                 </Box>
                 <TextField
                   label="New password"
@@ -206,14 +281,24 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   fullWidth
-                  error={Boolean(confirmPassword) && newPassword !== confirmPassword}
-                  helperText={confirmPassword && newPassword !== confirmPassword ? "Passwords do not match" : ""}
+                  error={
+                    Boolean(confirmPassword) && newPassword !== confirmPassword
+                  }
+                  helperText={
+                    confirmPassword && newPassword !== confirmPassword
+                      ? "Passwords do not match"
+                      : ""
+                  }
                 />
                 <Box sx={{ flexGrow: 1 }} />
                 <Button
                   variant="contained"
                   onClick={handleSavePassword}
-                  disabled={!newPassword || newPassword !== confirmPassword || isUserSaving}
+                  disabled={
+                    !newPassword ||
+                    newPassword !== confirmPassword ||
+                    isUserSaving
+                  }
                   sx={{ alignSelf: "flex-start" }}
                 >
                   Update password
@@ -222,38 +307,64 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
             )}
 
             {section === "email" && (
-              <Stack spacing={2} sx={{ minHeight: 320, display: "flex" }} alignItems="flex-start">
+              <Stack
+                spacing={2}
+                sx={{ minHeight: 320, display: "flex" }}
+                alignItems="flex-start"
+              >
                 <Box>
                   <Typography variant="h6">Email verification</Typography>
-                  <Typography variant="body2" color="text.secondary">Verify your email address.</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Verify your email address.
+                  </Typography>
                 </Box>
                 <Typography variant="body2" color="text.secondary">
-                  Verification emails will be sent from this account. This action will be available soon.
+                  Verification emails will be sent from this account. This
+                  action will be available soon.
                 </Typography>
                 <Box sx={{ flexGrow: 1 }} />
-                <Button variant="outlined" disabled sx={{ alignSelf: "flex-start" }}>
+                <Button
+                  variant="outlined"
+                  disabled
+                  sx={{ alignSelf: "flex-start" }}
+                >
                   Send verification email
                 </Button>
               </Stack>
             )}
 
             {section === "avatar" && (
-              <Stack spacing={2} sx={{ minHeight: 320, display: "flex" }} alignItems="flex-start">
+              <Stack
+                spacing={2}
+                sx={{ minHeight: 320, display: "flex" }}
+                alignItems="flex-start"
+              >
                 <Box>
                   <Typography variant="h6">Avatar</Typography>
-                  <Typography variant="body2" color="text.secondary">Upload a profile picture.</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Upload a profile picture.
+                  </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
-                  <Avatar src={avatarPreview || undefined} sx={{ width: 64, height: 64 }}>
+                  <Avatar
+                    src={avatarPreview || undefined}
+                    sx={{ width: 64, height: 64 }}
+                  >
                     {initials}
                   </Avatar>
                   <Box>
                     <Typography variant="body2" color="text.secondary">
-                      Upload an image to use as your avatar. (Save functionality will be wired once backend is ready.)
+                      Upload an image to use as your avatar. (Save functionality
+                      will be wired once backend is ready.)
                     </Typography>
                     <Button variant="outlined" component="label">
                       Choose file
-                      <input hidden type="file" accept="image/*" onChange={handleAvatarChange} />
+                      <input
+                        hidden
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                      />
                     </Button>
                   </Box>
                 </Stack>

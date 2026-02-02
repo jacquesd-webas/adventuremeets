@@ -22,6 +22,9 @@ export type MeetModel = {
   rejectMessage?: string;
   statusId?: number;
   timesTbc?: boolean;
+  attendeeCount?: number;
+  waitlistCount?: number;
+  confirmedCount?: number;
 };
 
 export default MeetModel;

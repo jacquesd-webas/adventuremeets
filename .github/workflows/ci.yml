@@ -1,4 +1,4 @@
-name: Adventure Meets CI/CD Pipeline
+name: adventuremeets CI/CD Pipeline
 
 on:
   push:
@@ -8,9 +8,9 @@ on:
       - "*"
 
 env:
-  DOCKER_IMAGES: api db_migrate web
+  DOCKER_IMAGES: api worker db_migrate mail
   WEB_PROJECTS: web
-  NODE_PROJECTS: api web
+  NODE_PROJECTS: api worker web
   CI_REGISTRY_HOST: ${{ vars.CI_REGISTRY_HOST }}
   CI_REGISTRY_USER: ${{ vars.CI_REGISTRY_USER }}
   CI_REGISTRY_PAT: ${{ secrets.CI_REGISTRY_PAT }}
@@ -22,13 +22,22 @@ env:
   VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
   RECAPTCHA_SECRET: ${{ secrets.RECAPTCHA_SECRET }}
   WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+  MAIL_SMTP_PASS: ${{ secrets.MAIL_SMTP_PASS }}
+  DKIM_PRIVATE_KEY_BASE64: ${{ secrets.DKIM_PRIVATE_KEY_BASE64 }}
+  MAIL_DOMAIN: ${{ vars.MAIL_DOMAIN }}
+  MAIL_SMTP_HELO: ${{ vars.MAIL_SMTP_HELO }}
+  MAIL_DEFAULT_FROM: ${{ vars.MAIL_DEFAULT_FROM }}
 
 jobs:
   metadata:
     runs-on: ubuntu-latest
+    env:
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
     outputs:
       version: ${{ steps.set-version.outputs.version }}
       is_release_tag: ${{ steps.set-version.outputs.is_release_tag }}
+      environment: ${{ steps.set-version.outputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -55,9 +64,19 @@ jobs:
             IS_RELEASE_TAG=false
           fi
 
+          ENVIRONMENT="development"
+          if [[ "$VERSION" == *"-alpha"* ]]; then
+            ENVIRONMENT="development"
+          elif [[ "$VERSION" == *"-beta"* ]]; then
+            ENVIRONMENT="testing"
+          elif [[ "$IS_RELEASE_TAG" == "true" ]]; then
+            ENVIRONMENT="production"
+          fi
+
           echo "$VERSION" > build_version.txt
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "is_release_tag=$IS_RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
       - name: Upload build version artifact
         uses: actions/upload-artifact@v4
@@ -68,6 +87,7 @@ jobs:
   build-docker:
     runs-on: ubuntu-latest
     needs: metadata
+    environment: ${{ needs.metadata.outputs.environment || 'development' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,7 +102,6 @@ jobs:
           key: docker-dist-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             docker-dist-${{ runner.os }}-
-          retention-days: 1
 
       - name: Build docker images
         env:
@@ -95,14 +114,15 @@ jobs:
 
       - name: Save docker images to dist
         env:
-          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          ENVIRONMENT: ${{ needs.metadata.outputs.environment }}
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           ci/01_save_docker.sh ${{ env.DOCKER_IMAGES }}
 
   build-web:
     runs-on: ubuntu-latest
-    needs: [ metadata ]
+    needs: [metadata]
+    environment: ${{ needs.metadata.outputs.environment || 'development' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -124,7 +144,7 @@ jobs:
 
       - name: Build web tarball
         env:
-          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}    
+          ENVIRONMENT: ${{ needs.metadata.outputs.environment }}
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           ci/01_build_web.sh ${{ env.WEB_PROJECTS }}
@@ -139,7 +159,8 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
-    needs: [ metadata, build-docker, build-web ]
+    needs: [metadata, build-docker, build-web]
+    environment: ${{ needs.metadata.outputs.environment || 'development' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -174,7 +195,7 @@ jobs:
 
       - name: Run linter
         env:
-          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          ENVIRONMENT: ${{ needs.metadata.outputs.environment }}
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           ci/02_test_lint.sh
@@ -183,6 +204,7 @@ jobs:
   publish-docker:
     runs-on: ubuntu-latest
     needs: [metadata, build-docker, tests]
+    environment: ${{ needs.metadata.outputs.environment || 'development' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -197,7 +219,6 @@ jobs:
           key: docker-dist-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             docker-dist-${{ runner.os }}-
-          retention-days: 1
 
       - name: Load cached docker images if present
         run: |
@@ -209,13 +230,14 @@ jobs:
 
       - name: Publish images via ci/03_publish_docker.sh
         env:
-          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          ENVIRONMENT: ${{ needs.metadata.outputs.environment }}
           VERSION: ${{ needs.metadata.outputs.version }}
         run: ci/03_publish_docker.sh ${{ env.DOCKER_IMAGES }}
 
   publish-web:
     runs-on: ubuntu-latest
     needs: [metadata, build-web, tests]
+    environment: ${{ needs.metadata.outputs.environment || 'development' }}
     env:
       WEB_STAGE_DIR: staging
       WEB_HOST: webapps1.fringecoding.com
@@ -247,7 +269,7 @@ jobs:
 
       - name: Upload web bundle to staging
         env:
-          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          ENVIRONMENT: ${{ needs.metadata.outputs.environment }}
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
           WEB_STAGE_DIR=${WEB_STAGE_DIR} WEB_HOST=${WEB_HOST} WEB_USER=${WEB_USER} \

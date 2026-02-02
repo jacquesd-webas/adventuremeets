@@ -12,6 +12,7 @@ const phoneCountryOptions = [
   { code: "AU", dialCode: "+61", label: "Australia", flag: "🇦🇺" }
 ];
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getDefaultPhoneCountry(localeCountry?: string) {
   if (localeCountry && phoneCountryOptions.some((option) => option.code === localeCountry)) {
     return localeCountry;
@@ -19,6 +20,7 @@ export function getDefaultPhoneCountry(localeCountry?: string) {
   return "ZA";
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function buildInternationalPhone(countryCode: string, local: string) {
   const option = phoneCountryOptions.find((item) => item.code === countryCode) || phoneCountryOptions[0];
   const trimmedLocal = local.trim();
