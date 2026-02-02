@@ -51,10 +51,24 @@ get_app_site() {
     return
   fi
 
-  # Use a default site based on the app name.
   local app_name
   app_name="$(get_app_name "$APP_NAME")"
-  echo "${app_name}.apps.fringecoding.com"
+  
+  local environment=${ENVIRONMENT:-development}
+  if [ "$environment" = "production" ]; then
+    echo "${app_name}.apps.fringecoding.com"
+    return
+  elif [ "$environment" = "testing" ]; then
+    echo "${app_name}-testing.apps.fringecoding.com"
+    return
+  elif [ "$environment" = "development" ]; then
+    echo "${app_name}-development.apps.fringecoding.com"
+    return
+  else 
+    # Default to dev site for unknown environments
+    echo "${app_name}-dev.apps.fringecoding.com"
+    return
+  fi
 }
 
 get_package_manager() {

@@ -26,6 +26,7 @@ export const IndemnityStep = ({ state, setState }: StepProps) => (
     <FormControlLabel
       control={
         <Switch
+          disabled
           checked={state.allowMinorSign}
           onChange={(e) => setState((prev) => ({ ...prev, allowMinorSign: e.target.checked }))}
         />

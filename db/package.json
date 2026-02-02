@@ -1,5 +1,5 @@
 {
-  "name": "@meetplanner/db",
+  "name": "@adventuremeets/db",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",

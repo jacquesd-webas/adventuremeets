@@ -3,8 +3,8 @@
 set -e
 
 CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+. $CI_DIR/config.sh
+. $CI_DIR/utils.sh
 
 APP_NAME=$(get_app_name "${APP_NAME:-}")
 SITE_NAME=$(get_app_site "${APP_SITE:-}")
@@ -20,7 +20,7 @@ if [ -z $WEB_HOST ]; then
   exit 1
 fi
 
-echo "Deploying migrations for '$APP_NAME:$VERSION'..."
+echo "Deploying stack for '$APP_NAME:$VERSION'..."
 ssh $SSH_ARGS $DEPLOY_USER@$WEB_HOST <<EOF
 cd $SITE_NAME
 

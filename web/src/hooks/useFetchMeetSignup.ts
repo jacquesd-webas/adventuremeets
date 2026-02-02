@@ -12,6 +12,9 @@ type MeetSignupSheet = {
   status_id: number;
   organizerName?: string;
   capacity?: number;
+  currency?: string;
+  currencySymbol?: string;
+  costCents?: number | null;
   indemnityText?: string;
   requiresIndemnity?: boolean;
   allowGuests?: boolean;
@@ -43,11 +46,19 @@ type MeetApi = {
   status_id?: number;
   organizer?: string;
   organizer_name?: string;
+  organizerName?: string;
   organizer_first_name?: string;
   organizer_last_name?: string;
   organizerFirstName?: string;
   organizerLastName?: string;
   capacity?: number;
+  currency?: string;
+  currencyCode?: string;
+  currency_code?: string;
+  currencySymbol?: string;
+  currency_symbol?: string;
+  costCents?: number | null;
+  cost_cents?: number | null;
   indemnity_text?: string;
   indemnityText?: string;
   requires_indemnity?: boolean;
@@ -97,6 +108,11 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
   const status =
     apiMeet.status ||
     (apiMeet.status_id ? statusLabels[apiMeet.status_id] : "Open");
+  const currencyCode =
+    apiMeet.currencyCode || apiMeet.currency_code || apiMeet.currency;
+  const currencySymbol =
+    apiMeet.currencySymbol || apiMeet.currency_symbol;
+  const costCents = apiMeet.costCents ?? apiMeet.cost_cents ?? null;
   const organizerName =
     [
       apiMeet.organizerFirstName || apiMeet.organizer_first_name,
@@ -104,6 +120,7 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
     ]
       .filter(Boolean)
       .join(" ") ||
+    apiMeet.organizerName ||
     apiMeet.organizer ||
     apiMeet.organizer_name ||
     "TBD";
@@ -118,6 +135,9 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
     status_id: apiMeet.status_id,
     organizerName,
     capacity: apiMeet.capacity,
+    currency: currencyCode,
+    currencySymbol,
+    costCents,
     indemnityText:
       apiMeet.indemnityText || apiMeet.indemnity_text || apiMeet.indemnity,
     requiresIndemnity:

@@ -10,9 +10,11 @@ type UserSelectProps = {
   onChange: (value: string) => void;
   options: UserOption[];
   currentUserId?: string;
+  error?: boolean;
+  helperText?: string;
 };
 
-export function UserSelect({ value, onChange, options, currentUserId }: UserSelectProps) {
+export function UserSelect({ value, onChange, options, currentUserId, error, helperText }: UserSelectProps) {
   return (
     <TextField
       select
@@ -20,6 +22,8 @@ export function UserSelect({ value, onChange, options, currentUserId }: UserSele
       onChange={(e) => onChange(e.target.value)}
       SelectProps={{ MenuProps: { sx: { zIndex: 1501 } } }}
       fullWidth
+      error={error}
+      helperText={helperText}
     >
       {options.map((option) => (
         <MenuItem key={option.id} value={option.id}>

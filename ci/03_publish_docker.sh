@@ -3,16 +3,20 @@
 # Script to tag and push Docker images
 # Assumes images are already built and loaded locally and docker login has been performed.
 
-CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+ set -e
 
-DOCKER_IMAGES_ARGS=$@
+CI_DIR=$(dirname $0)
+. "$CI_DIR/config.sh"
+. "$CI_DIR/utils.sh"
 
 VERSION=$(get_app_version "${VERSION:-}")
 APP_NAME=$(get_app_name "${APP_NAME:-}")
 IMAGE_PREFIX="${DOCKER_REPO_PREFIX:-fringecoding}/${APP_NAME}"
 
+ENVIRONMENT=${ENVIRONMENT:-development}
+echo "Using environment: $ENVIRONMENT"
+
+DOCKER_IMAGES_ARGS=$@
 if [ ! -z "$DOCKER_IMAGES_ARGS" ]; then
     echo "DOCKER_IMAGES set via args [$DOCKER_IMAGES_ARGS]"
     DOCKER_IMAGES=$DOCKER_IMAGES_ARGS
@@ -38,13 +42,19 @@ fi
 echo "Publishing Docker images for version $VERSION..."
 
 for IMAGE in $DOCKER_IMAGES; do
-  docker tag $IMAGE "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
-  docker tag $IMAGE "${IMAGE_PREFIX}_${IMAGE}:latest"
-done
-
-for IMAGE in $DOCKER_IMAGES; do
-  docker push "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
-  docker push "${IMAGE_PREFIX}_${IMAGE}:latest"
+  SRC="${APP_NAME}_${IMAGE}:latest"
+  if ! docker image inspect "$SRC" >/dev/null 2>&1; then
+    SRC="$IMAGE:latest"
+  fi
+  if [ "$ENVIRONMENT" = "production" ]; then
+    echo "Tagging and pushing image $SRC for production environment."
+    docker tag "$SRC" "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
+    docker push "${IMAGE_PREFIX}_${IMAGE}:$VERSION"
+  else
+    echo "Tagging and pushing image $SRC for non-production environment."
+    docker tag "$SRC" "${IMAGE_PREFIX}_${IMAGE}:latest"
+    docker push "${IMAGE_PREFIX}_${IMAGE}:latest"
+  fi
 done
 
 echo "Finished pushing Docker images."

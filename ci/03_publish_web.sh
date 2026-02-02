@@ -3,9 +3,12 @@
 # Script to upload the built web tarball to the staging directory on the deployment host.
 # Requires web-build.tar.gz artifact present at build time.
 
-CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+set -e
+
+CI_DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT_DIR=$(cd "$CI_DIR/.." && pwd)
+. $CI_DIR/config.sh
+. $CI_DIR/utils.sh
 
 VERSION=$(get_app_version "${VERSION:-}")
 APP_NAME=$(get_app_name "${APP_NAME:-}")
@@ -26,14 +29,23 @@ if [ -z $WEB_HOST ]; then
   exit 1
 fi
 
-ARCHIVE_NAME="${APP_NAME}-web-${VERSION}.tgz"
+ENVIRONMENT=${ENVIRONMENT:-development}
+echo "Using environment: ${ENVIRONMENT}"
 
-if [ ! -f "$CI_DIR/../dist/${APP_NAME}-web-${VERSION}.tgz" ]; then
-  echo "web-build.tgz not found in current directory."
-  exit 1
-fi
-
-echo "Uploading web bundle to ${WEB_HOST}:${WEB_STAGE_DIR}/${ARCHIVE_NAME}"
-scp $SSH_ARGS $CI_DIR/../dist/${ARCHIVE_NAME} ${WEB_USER}@${WEB_HOST}:./${WEB_STAGE_DIR}/${ARCHIVE_NAME}
-
-echo "Web bundle uploaded."
+echo "Publishing web archives..."
+for DIR in $WEB_PROJECTS; do
+    echo "Publishing $DIR..."
+    if [ $ENVIRONMENT = "production" ]; then
+      WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
+    else
+      echo "Non-production environment, using latest tag for web archive."
+      WAR_FILE="${APP_NAME}-${ENVIRONMENT}-${DIR}-latest.tgz"
+    fi
+    if [ ! -f "$ROOT_DIR/dist/${WAR_FILE}" ]; then
+      echo "Web archive $WAR_FILE not found in dist directory."
+      exit 1
+    fi
+    echo "Uploading $WAR_FILE to ${WEB_HOST}:${WEB_STAGE_DIR}/${WAR_FILE}"
+    scp $SSH_ARGS "$ROOT_DIR/dist/${WAR_FILE}" ${WEB_USER}@${WEB_HOST}:./${WEB_STAGE_DIR}/${WAR_FILE}
+    echo "Web bundle uploaded."
+done

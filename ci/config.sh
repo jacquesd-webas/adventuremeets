@@ -1,8 +1,3 @@
-# App specific configuation
-DOCKER_IMAGES="api db_migrate"
-APP_NAME="adventuremeets"
-APP_SITE="adventuremeets.apps.fringecoding.com"
-
 # Docker
 DOCKER_REPO_PREFIX="fringecoding"
 

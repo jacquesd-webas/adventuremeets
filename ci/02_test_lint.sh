@@ -1,4 +1,4 @@
-#!bin/sh
+#!/bin/sh
 
 # This script will run tests against node projects specified either via
 # command line arguments or via environment variable NODE_PROJECTS
@@ -9,11 +9,12 @@
 #   ci/02_test_node.sh api common
 #   NODE_PROJECTS="api common" ci/02_test_node.sh
 
-source $(dirname $0)/config.sh
-source $(dirname $0)/utils.sh
+set -e
+
+. $(dirname $0)/config.sh
+. $(dirname $0)/utils.sh
 
 NODE_PROJECTS_ARGS=$@
-
 if [ ! -z "$NODE_PROJECTS_ARGS" ]; then
     echo "NODE_PROJECTS set via args [$NODE_PROJECTS_ARGS]"
     NODE_PROJECTS=$NODE_PROJECTS_ARGS
@@ -25,10 +26,18 @@ else
     exit 0
 fi
 
+ENVIRONMENT=${ENVIRONMENT:-development}
+echo "Using environment: ${ENVIRONMENT}"
+
 for DIR in $NODE_PROJECTS; do
     echo "Linting $DIR..."
     cd $DIR
     NPM=$(get_package_manager)
-    $NPM lint
+    if node -e "const s=require('./package.json').scripts||{};process.exit(s.lint?0:1)"; then
+      $NPM install
+      $NPM lint
+    else
+      echo "No lint script defined in $DIR/package.json, skipping."
+    fi
     cd $OLDPWD
 done

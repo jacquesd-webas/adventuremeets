@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { MeetsModule } from './meets/meets.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
     DatabaseModule,
     MeetsModule,
     OrganizationsModule,
+    EmailModule,
   ],
   controllers: [],
   providers: [

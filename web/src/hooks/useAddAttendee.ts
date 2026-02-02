@@ -10,6 +10,7 @@ export type AddAttendeePayload = {
   indemnityAccepted?: boolean;
   indemnityMinors?: string;
   metaValues?: { definitionId: string; value: string }[];
+  captchaToken?: string;
 };
 
 export function useAddAttendee() {

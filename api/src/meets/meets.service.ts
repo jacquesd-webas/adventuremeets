@@ -20,8 +20,18 @@ export class MeetsService {
     const attendeeCounts = this.db
       .getClient()('meet_attendees')
       .select('meet_id')
-      .count<{ meet_id: string; attendee_count: string; waitlist_count: string }[]>('* as attendee_count')
+      .count<{ meet_id: string; attendee_count: number; waitlist_count: number; checked_in_count: number; confirmed_count: number }[]>('* as attendee_count')
       .select(this.db.getClient().raw(`sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`))
+      .select(
+        this.db
+          .getClient()
+          .raw(`sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`),
+      )
+      .select(
+        this.db
+          .getClient()
+          .raw(`sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`),
+      )
       .groupBy('meet_id')
       .as('ma');
     const query = this.db
@@ -30,7 +40,9 @@ export class MeetsService {
       .select(
         'm.*',
         this.db.getClient().raw('coalesce(ma.attendee_count, 0) as attendee_count'),
-        this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count')
+        this.db.getClient().raw('coalesce(ma.confirmed_count, 0) as confirmed_count'),
+        this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count'),
+        this.db.getClient().raw('coalesce(ma.checked_in_count, 0) as checked_in_count')
       );
     if (view === 'reports') {
       query.whereIn('m.status_id', [4, 5, 7]);
@@ -55,38 +67,56 @@ export class MeetsService {
     const total = Number(count);
     const items = await query.limit(limit).offset((page - 1) * limit);
     const enrichedItems = items.map((item) => {
-      const attendeeCount = Number(item.attendee_count ?? 0);
-      const waitlistCount = Number(item.waitlist_count ?? 0);
+      const { attendee_count, waitlist_count, checked_in_count, confirmed_count, ...rest } = item as any;
+      const attendeeCount = Number(attendee_count ?? 0); // all attendees regardless of status
+      const waitlistCount = Number(waitlist_count ?? 0);
+      const checkedInCount = Number(checked_in_count ?? 0);
+      const confirmedCount = Number(confirmed_count ?? 0); // confirmed or checked-in
       return {
-        ...item,
+        ...rest,
         attendeeCount,
-        confirmedCount: attendeeCount,
+        confirmedCount,
         waitlistCount,
+        checkedInCount,
       };
     });
     return { items: enrichedItems, total, page, limit };
   }
 
   async findOne(idOrCode: string): Promise<MeetDto> {
-    // TODO: Fix the user's firstname / lastname retrieval
     const attendeeCounts = this.db
       .getClient()('meet_attendees')
       .select('meet_id')
-      .count<{ meet_id: string; attendee_count: string; waitlist_count: string }[]>('* as attendee_count')
+      .count<{ meet_id: string; attendee_count: number; waitlist_count: number; checked_in_count: number; confirmed_count: number }[]>('* as attendee_count')
       .select(this.db.getClient().raw(`sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`))
+      .select(
+        this.db
+          .getClient()
+          .raw(`sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`),
+      )
+      .select(
+        this.db
+          .getClient()
+          .raw(`sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`),
+      )
       .groupBy('meet_id')
       .as('ma');
     let query = this.db
       .getClient()('meets as m')
       .leftJoin('users as u', 'u.id', 'm.organizer_id')
       .leftJoin(attendeeCounts, 'ma.meet_id', 'm.id')
+      .leftJoin('currencies as c', 'c.id', 'm.currency_id')
       .select(
         'm.*',
+        'c.symbol as currency_symbol',
+        'c.code as currency_code',
         this.db.getClient().raw('coalesce(ma.attendee_count, 0) as attendee_count'),
+        this.db.getClient().raw('coalesce(ma.confirmed_count, 0) as confirmed_count'),
         this.db.getClient().raw('coalesce(ma.waitlist_count, 0) as waitlist_count'),
-        this.db.getClient().raw(
-          `trim(concat(coalesce(u.idp_profile->>'firstName', u.email), ' ', coalesce(u.idp_profile->>'lastName', ''))) as organizer_name`,
-        ),
+        this.db.getClient().raw('coalesce(ma.checked_in_count, 0) as checked_in_count'),
+        this.db.getClient().raw(`concat(coalesce(u.first_name, ''), ' ', coalesce(u.last_name, '')) as organizer_name`),
+        'u.first_name as organizer_first_name',
+        'u.last_name as organizer_last_name'
       );
 
     if (idOrCode.match(/^[0-9a-fA-F-]{36}$/)) {
@@ -182,7 +212,7 @@ export class MeetsService {
       .getClient()('meet_attendees')
       .where({ meet_id: meetId });
     if (filter === 'accepted') {
-      attendeesQuery.whereIn('status', ['confirmed', 'accepted', 'checked-in']);
+      attendeesQuery.whereIn('status', ['confirmed', 'checked-in', 'attended']);
     }
     const attendees = await attendeesQuery
       .orderBy([{ column: 'sequence', order: 'asc' }, { column: 'created_at', order: 'asc' }])
@@ -354,6 +384,7 @@ export class MeetsService {
       cost_cents: this.toCents(dto.costCents),
       deposit_cents: this.toCents(dto.depositCents),
       share_code: dto.shareCode,
+      times_tbc: dto.timesTbc,
     };
     if (now) {
       record.created_at = now;
@@ -401,8 +432,6 @@ export class MeetsService {
   }
 
   private toMeetDto(meet: Record<string, any>, metaDefinitions: Record<string, any>[]): MeetDto {
-    const attendeeCount = Number(meet.attendee_count ?? 0);
-    const waitlistCount = Number(meet.waitlist_count ?? 0);
     return {
       id: meet.id,
       name: meet.name,
@@ -421,27 +450,31 @@ export class MeetsService {
       capacity: meet.capacity ?? undefined,
       waitlistSize: meet.waitlist_size ?? undefined,
       statusId: meet.status_id ?? undefined,
-      status_id: meet.status_id ?? undefined,
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,
       maxGuests: meet.max_guests ?? undefined,
       isVirtual: meet.is_virtual ?? undefined,
       confirmMessage: meet.confirm_message ?? undefined,
-      rejectMessage: meet.reject_message ?? undefined,
+      rejectMessage: meet.reject_message ?? meet.rejectMessage ?? undefined,
       waitlistMessage: meet.waitlist_message ?? undefined,
       hasIndemnity: meet.has_indemnity ?? undefined,
       indemnity: meet.indemnity ?? undefined,
       allowMinorIndemnity: meet.allow_minor_indemnity ?? undefined,
       currencyId: meet.currency_id ?? undefined,
-      costCents: meet.cost_cents ?? undefined,
-      depositCents: meet.deposit_cents ?? undefined,
+      currencySymbol: meet.currency_symbol ?? undefined,
+      costCents: meet.cost_cents != null ? Number(meet.cost_cents) : undefined,
+      depositCents: meet.deposit_cents != null ? Number(meet.deposit_cents) : undefined,
       shareCode: meet.share_code ?? undefined,
       organizerName: meet.organizer_name ?? undefined,
+      organizerFirstName: meet.organizer_first_name || undefined,
+      organizerLastName: meet.organizer_last_name || undefined,
       imageUrl: meet.image_url ?? meet.imageUrl ?? undefined,
-      attendeeCount,
-      confirmedCount: attendeeCount,
-      waitlistCount,
+      attendeeCount: Number(meet.attendee_count ?? 0),
+      confirmedCount: Number(meet.confirmed_count ?? 0),
+      waitlistCount: Number(meet.waitlist_count ?? 0),
+      checkedInCount: Number(meet.checked_in_count ?? 0),
+      timesTbc: meet.times_tbc ?? meet.timesTbc ?? undefined,
       metaDefinitions: metaDefinitions.map((definition) => ({
         id: definition.id,
         fieldKey: definition.field_key,

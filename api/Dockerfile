@@ -4,21 +4,14 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
 
-# Install dependencies for shared and api only (avoid pulling web packages)
-COPY packages/shared/package*.json packages/shared/
-COPY api/package*.json api/
-# lockfile for consistency
-COPY pnpm-lock.yaml pnpm-lock.yaml
-COPY pnpm-workspace.yaml pnpm-workspace.yaml
-# install all workspace dependencies without running prepare scripts yet
-RUN pnpm install --ignore-scripts --prod=false
+# Install API dependencies using workspace lockfile
+COPY api/package.json api/pnpm-lock.yaml ./api/
+RUN cd api && pnpm install --ignore-scripts --prod=false --no-frozen-lockfile
 
 # Copy sources (including tsconfig)
-COPY packages/shared packages/shared
 COPY api api
 
-# Build shared then api
-RUN cd packages/shared && pnpm run build
+# Build api
 RUN cd api && pnpm run build
 
 FROM node:20-alpine

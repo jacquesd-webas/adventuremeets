@@ -1,8 +1,0 @@
-<svg width="540" height="180" viewBox="0 0 540 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M270 45C284.912 45 297 57.0883 297 72V90H243V72C243 57.0883 255.088 45 270 45Z" fill="#4F46E5"/>
-<path d="M225 90C225 80.0589 233.059 72 243 72H297C306.941 72 315 80.0589 315 90C315 99.9411 306.941 108 297 108H243C233.059 108 225 99.9411 225 90Z" fill="#6366F1"/>
-<path d="M198 90H225L216 108H180L198 90Z" fill="#0EA5E9"/>
-<path d="M342 90H315L324 108H360L342 90Z" fill="#0EA5E9"/>
-<text x="270" y="153" text-anchor="middle" font-family="Poppins, 'Segoe UI', sans-serif" font-size="39" font-weight="600" fill="#0F172A">MEETPLANNER</text>
-<text x="270" y="171" text-anchor="middle" font-family="Poppins, 'Segoe UI', sans-serif" font-size="15" letter-spacing="2" fill="#6B7280">PLAN TOGETHER • MOVE FASTER</text>
-</svg>

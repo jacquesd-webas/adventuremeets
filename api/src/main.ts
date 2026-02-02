@@ -11,6 +11,9 @@ async function bootstrap() {
   const bootstrapLogger = new Logger('Bootstrap');
   app.useLogger(bootstrapLogger);
   const logger = bootstrapLogger;
+
+  // Prefix all routes with /api/v1 to version the public surface
+  app.setGlobalPrefix('api/v1');
   
   app.useGlobalPipes(
     new ValidationPipe({

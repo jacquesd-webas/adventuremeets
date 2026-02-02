@@ -14,8 +14,12 @@ migrate:
 
 env:
 	./env/make-env.sh development
+
 build:
 	$(COMPOSE) build
+
+test:
+	cd api && pnpm test
 
 down:
 	$(COMPOSE) down

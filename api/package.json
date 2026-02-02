@@ -1,5 +1,5 @@
 {
-  "name": "@meetplanner/api",
+  "name": "@adventuremeets/api",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
@@ -28,6 +28,7 @@
     "dotenv": "^17.2.3",
     "knex": "^2.5.1",
     "minio": "^8.0.5",
+    "nodemailer": "^6.9.15",
     "passport-jwt": "^4.0.1",
     "pg": "^8.11.3",
     "reflect-metadata": "^0.1.13",

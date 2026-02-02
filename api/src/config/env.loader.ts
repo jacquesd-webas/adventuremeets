@@ -9,7 +9,6 @@ import * as dotenv from 'dotenv';
 export function loadEnv() {
   const cwd = process.cwd();
   const baseEnvPath = path.join(cwd, '.env');
-  console.log({baseEnvPath})
   if (fs.existsSync(baseEnvPath)) {
     dotenv.config({ path: baseEnvPath });
   }

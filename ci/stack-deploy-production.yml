@@ -1,30 +1,38 @@
-version: "3"
+version: '3.8'
 services:
+  db_migrate:
+    image: fringecoding/adventuremeets_db_migrate:${VERSION:-latest}
+    env_file:
+      - ./.env
+    environment:
+      DB_SEED_DATA: ${DB_SEED_DATA:-0}
+    volumes:
+      - ./backups:/app/db/backup
+    networks:
+      - adventuremeets
+    deploy:
+      replicas: 0
+
   api:
     image: fringecoding/adventuremeets_api:${VERSION:-latest}
     env_file:
       - ./.env
     ports:
-      - "3080:3030"
+      - "8005:8000"
     networks:
       - adventuremeets
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname == webapps1
 
-  web:
-    image: fringecoding/adventuremeets_web:${VERSION:-latest}
-    ports:
-      - "3081:80"
+  worker:
+    image: fringecoding/adventuremeets_worker:${VERSION:-latest}
+    env_file:
+      - ./.env
     networks:
       - adventuremeets
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname == webapps1
+      
   minio:
     image: minio/minio:latest
     env_file:
@@ -33,6 +41,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     command: server /data --console-address ":9001"
+    ports:
+      - "9005:9000"
     volumes:
       - minio_data:/data
     networks:
@@ -41,17 +51,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.hostname == webapps1
-
-  backup_runner:
-    image: fringecoding/adventuremeets_backup-runner:${VERSION:-latest}
-    env_file:
-      - ./.env
-    environment:
-      S3_BUCKET_NAME: fringecoding-backups/adventuremeets
-      AWS_REGION: af-south-1
-    networks:
-      - adventuremeets
+          - node.hostname == webapps2
 
 networks:
   adventuremeets:

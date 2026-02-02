@@ -63,6 +63,7 @@ export function InternationalPhoneField({
               onChange={(e) => onCountryChange(e.target.value as string)}
               variant="standard"
               disableUnderline
+              inputProps={{ "aria-label": "Country selector", "data-testid": "country-select" }}
               sx={{ minWidth: 86 }}
             >
               {phoneCountryOptions.map((option) => (

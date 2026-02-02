@@ -23,17 +23,22 @@ import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useApi } from "../../hooks/useApi";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import { MessageModal } from "./MessageModal";
+import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
+import MeetModel from "../../models/MeetModel";
 
 type ManageAttendeesModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
+  meet?: MeetModel | null;
 };
 
 export function ManageAttendeesModal({
   open,
   onClose,
   meetId,
+  meet,
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -48,6 +53,12 @@ export function ManageAttendeesModal({
   );
   const [isUpdating, setIsUpdating] = useState(false);
   const [waitlistSize, setWaitlistSize] = useState<number | null>(null);
+  const [meetStatus, setMeetStatus] = useState<number | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState(false);
+  const [meetName, setMeetName] = useState<string | null>(null);
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [messageAttendeeIds, setMessageAttendeeIds] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
     if (!open) {
@@ -63,26 +74,54 @@ export function ManageAttendeesModal({
   }, [attendees, open, selectedAttendeeId]);
 
   useEffect(() => {
-    if (!open || !meetId) {
+    if (!open || (!meetId && !meet)) {
       setWaitlistSize(null);
       return;
     }
+
+    if (meet) {
+      const size = (meet as any)?.waitlistSize ?? (meet as any)?.waitlist_size ?? 0;
+      setWaitlistSize(Number(size) || 0);
+      const statusVal =
+        typeof meet.statusId !== "undefined"
+          ? meet.statusId
+          : typeof (meet as any).status_id !== "undefined"
+          ? (meet as any).status_id
+          : null;
+      const statusNum =
+        typeof statusVal === "number" ? statusVal : statusVal != null ? Number(statusVal) : null;
+      setMeetStatus(!Number.isNaN(statusNum || NaN) ? statusNum : null);
+      setMeetName(meet?.name || null);
+      return;
+    }
+
     let isActive = true;
     api
       .get(`/meets/${meetId}`)
-      .then((meet: any) => {
+      .then((m: any) => {
         if (!isActive) return;
-        const size = meet?.waitlistSize ?? meet?.waitlist_size ?? 0;
+        const size = m?.waitlistSize ?? m?.waitlist_size ?? 0;
         setWaitlistSize(Number(size) || 0);
+        const statusVal =
+          typeof m?.statusId !== "undefined"
+            ? m.statusId
+            : typeof m?.status_id !== "undefined"
+            ? m.status_id
+            : null;
+        const statusNum =
+          typeof statusVal === "number" ? statusVal : statusVal != null ? Number(statusVal) : null;
+        setMeetStatus(!Number.isNaN(statusNum || NaN) ? statusNum : null);
+        setMeetName(m?.name || null);
       })
       .catch(() => {
         if (!isActive) return;
         setWaitlistSize(0);
+        setMeetStatus(null);
       });
     return () => {
       isActive = false;
     };
-  }, [api, meetId, open]);
+  }, [api, meet, meetId, open]);
 
   const selectedAttendee = useMemo(
     () =>
@@ -91,7 +130,7 @@ export function ManageAttendeesModal({
   );
   const attendeeLabel = (attendee: any) =>
     attendee?.name || attendee?.email || attendee?.phone || "Unnamed attendee";
-  const handleUpdateStatus = async (status: string) => {
+  const applyStatus = async (status: string) => {
     if (!meetId || !selectedAttendeeId) return;
     setIsUpdating(true);
     try {
@@ -103,12 +142,22 @@ export function ManageAttendeesModal({
       setIsUpdating(false);
     }
   };
+
+  const handleUpdateStatus = (status: string) => {
+    const isClosed = meetStatus === 4; // Closed status id
+    if (isClosed) {
+      setPendingStatus(status);
+      setConfirmDialog(true);
+      return;
+    }
+    applyStatus(status);
+  };
   const statusCounts = useMemo(() => {
     return attendees.reduce(
       (acc, attendee) => {
         const status = attendee.status || "pending";
         if (status === "confirmed") acc.accepted += 1;
-        if (status === "canceled") acc.rejected += 1;
+        if (status === "rejected") acc.rejected += 1;
         if (status === "waitlisted") acc.waitlisted += 1;
         return acc;
       },
@@ -177,7 +226,7 @@ export function ManageAttendeesModal({
                   const label = attendeeLabel(attendee);
                   const subLabel = attendee.email || attendee.phone || "";
                   const isConfirmed = attendee.status === "confirmed";
-                  const isRejected = attendee.status === "canceled";
+                  const isRejected = attendee.status === "rejected";
                   const isWaitlisted = attendee.status === "waitlisted";
                   return (
                     <ListItemButton
@@ -267,10 +316,10 @@ export function ManageAttendeesModal({
                             Accept
                           </Button>
                         ) : null}
-                        {selectedAttendee.status !== "canceled" ? (
+                        {selectedAttendee.status !== "rejected" ? (
                           <Button
                             color="error"
-                            onClick={() => handleUpdateStatus("canceled")}
+                            onClick={() => handleUpdateStatus("rejected")}
                           >
                             Reject
                           </Button>
@@ -360,7 +409,14 @@ export function ManageAttendeesModal({
                   )}
                 </Box>
                 <Box>
-                  <Button variant="outlined" disabled={!selectedAttendee}>
+                  <Button
+                    variant="outlined"
+                    disabled={!selectedAttendee}
+                    onClick={() => {
+                      setMessageAttendeeIds(selectedAttendee ? [selectedAttendee.id] : undefined);
+                      setMessageOpen(true);
+                    }}
+                  >
                     Message {attendeeLabel(selectedAttendee)}
                   </Button>
                 </Box>
@@ -371,12 +427,46 @@ export function ManageAttendeesModal({
       </DialogContent>
       <DialogActions>
         <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>
-          <Button variant="outlined">Send Message to All Attendees</Button>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setMessageAttendeeIds(undefined);
+              setMessageOpen(true);
+            }}
+          >
+            Send Message to All Attendees
+          </Button>
         </Box>
         <Button variant="contained" onClick={onClose}>
           Close
         </Button>
       </DialogActions>
+      {meetId && (
+        <MessageModal
+          open={messageOpen}
+          onClose={() => setMessageOpen(false)}
+          meetId={meetId}
+          attendeeIds={messageAttendeeIds}
+          attendees={attendees}
+        />
+      )}
+      <ConfirmClosedStatusDialog
+        open={confirmDialog}
+        status={pendingStatus}
+        meet={{ id: meetId, name: meetName }}
+        attendeeId={selectedAttendeeId}
+        onClose={() => {
+          setConfirmDialog(false);
+          setPendingStatus(null);
+          setIsUpdating(false);
+        }}
+        onDone={async () => {
+          setConfirmDialog(false);
+          setPendingStatus(null);
+          setIsUpdating(false);
+          await refetch();
+        }}
+      />
     </Dialog>
   );
 }

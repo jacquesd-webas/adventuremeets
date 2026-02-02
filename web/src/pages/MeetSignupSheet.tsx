@@ -11,12 +11,15 @@ import {
   TextField,
   MenuItem,
   Alert,
+  IconButton,
 } from "@mui/material";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PlaceIcon from "@mui/icons-material/Place";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import AttachMoneyOutlinedIcon from "@mui/icons-material/AttachMoneyOutlined";
 import { useParams, useSearchParams } from "react-router-dom";
+import LinkIcon from "@mui/icons-material/Link";
 import { useEffect, useState } from "react";
 import { MeetNotFound } from "../components/MeetNotFound";
 import { MeetStatus } from "../constants/meetStatus";
@@ -135,13 +138,13 @@ function MeetSignupFormFields({
   setField,
   setMetaValue,
   setPhoneCountry,
-  setPhoneLocal,
+  setPhoneLocal
 }: MeetSignupFormProps) {
   return (
     <Stack spacing={2} mt={2}>
-      <LabeledField label="Full name" required>
+      <LabeledField label="Name" required>
         <TextField
-          placeholder="Your full name"
+          placeholder="Your name"
           value={fullName}
           onChange={(e) => setField("fullName", e.target.value)}
           fullWidth
@@ -359,7 +362,6 @@ function MeetSignupSheet() {
     metaValues,
   } = state;
 
-  console.log({ meetStatusId: meet?.status_id });
   useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -398,6 +400,12 @@ function MeetSignupSheet() {
   const imageUrl = meet?.imageUrl || null;
   const hasImage = Boolean(imageUrl);
   const isOpenMeet = meet?.status_id === MeetStatus.Open;
+  const shareLink =
+    typeof window !== "undefined" ? `${window.location.origin}/meets/${code}` : "";
+  const costLabel =
+    typeof meet?.costCents === "number"
+      ? `${meet?.currencySymbol || ""}${(meet.costCents / 100).toFixed(2)}`
+      : null;
 
   if (!isLoading && !meet) {
     return <MeetNotFound />;
@@ -593,9 +601,28 @@ function MeetSignupSheet() {
                 <Typography variant="h4" fontWeight={700}>
                   {meet.name}
                 </Typography>
-                <Button variant="outlined" size="small" href="/login">
-                  Login
-                </Button>
+                {isPreview ? (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<LinkIcon fontSize="small" />}
+                    aria-label="Copy share link"
+                    onClick={async () => {
+                      if (!shareLink) return;
+                      try {
+                        await navigator.clipboard.writeText(shareLink);
+                      } catch (err) {
+                        console.error("Failed to copy share link", err);
+                      }
+                    }}
+                  >
+                    Copy link
+                  </Button>
+                ) : (
+                  <Button variant="outlined" size="small" href="/login">
+                    Login
+                  </Button>
+                )}
               </Stack>
               {dateLabel && (
                 <Typography variant="subtitle1" color="text.secondary">
@@ -649,12 +676,18 @@ function MeetSignupSheet() {
                           </Typography>
                         </Stack>
                       )}
+                      {costLabel && (
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <AttachMoneyOutlinedIcon fontSize="small" color="disabled" />
+                          <Typography variant="body2">{costLabel}</Typography>
+                        </Stack>
+                      )}
                     </Stack>
                   </Stack>
                   <Typography
                     variant="body1"
                     color="text.secondary"
-                    sx={{ mt: 1 }}
+                    sx={{ mt: 1, whiteSpace: "pre-line" }}
                   >
                     {meet.description}
                   </Typography>
@@ -693,8 +726,14 @@ function MeetSignupSheet() {
                         </Typography>
                       </Stack>
                     )}
+                    {costLabel && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <AttachMoneyOutlinedIcon fontSize="small" color="disabled" />
+                        <Typography variant="body2">{costLabel}</Typography>
+                      </Stack>
+                    )}
                   </Stack>
-                  <Typography variant="body1" color="text.secondary">
+                  <Typography variant="body1" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
                     {meet.description}
                   </Typography>
                 </>

@@ -7,12 +7,14 @@
 # environment variable, which may be set in ci/config.sh
 #
 # usage:
-#   ci/01_build_war.sh web web-admin
-#   WEB_PROJECTS="web web-admin" ci/01_build_war.sh
+#   ci/01_build_web.sh web web-admin
+#   WEB_PROJECTS="web web-admin" ci/01_build_web.sh
+
+set -e
 
 CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+. $CI_DIR/config.sh
+. $CI_DIR/utils.sh
 
 WEB_PROJECTS_ARGS=$@
 if [ ! -z "$WEB_PROJECTS_ARGS" ]; then
@@ -25,19 +27,31 @@ else
     exit 0
 fi
 
+ENVIRONMENT=${ENVIRONMENT:-development}
+echo "Using environment: ${ENVIRONMENT}"
+
 VERSION=$(get_app_version "${VERSION:-}")
 APP_NAME=$(get_app_name "${APP_NAME:-}")
 
+ENV_DIR="$CI_DIR/../env"
 
 echo "Building web archives..."
 for DIR in $WEB_PROJECTS; do
+    echo "Creating ${ENVIRONMENT} environment..."
+    sh $ENV_DIR/make-env.sh $ENVIRONMENT $DIR/.env
     echo "Building $DIR..."
     cd $DIR
     NPM=$(get_package_manager)
+    $NPM install
     $NPM run build
     cd $OLDPWD
-    WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
-    echo "Creating war file $WAR_FILE"
+    if [ $ENVIRONMENT = "production" ]; then
+      WAR_FILE="${APP_NAME}-${DIR}-${VERSION}.tgz"
+    else
+      echo "Non-production environment, using latest tag for web archive."
+      WAR_FILE="${APP_NAME}-${ENVIRONMENT}-${DIR}-latest.tgz"
+    fi
+    echo "Creating war file $CI_DIR/../dist/$WAR_FILE"
     mkdir -p $CI_DIR/../dist
     tar -czf $CI_DIR/../dist/$WAR_FILE -C ${DIR}/dist .
 done

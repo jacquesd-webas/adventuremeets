@@ -9,7 +9,8 @@ type ApiOptions = {
 
 export function useApi(options: ApiOptions = {}) {
   const envBaseUrl = import.meta.env.VITE_API_BASEURL || import.meta.env.API_BASEURL;
-  const baseUrl = options.baseUrl || envBaseUrl || "http://localhost:3000";
+  const baseNoSlash = (options.baseUrl || envBaseUrl || "http://localhost:3000").replace(/\/+$/, "");
+  const baseUrl = baseNoSlash.endsWith("/api/v1") ? baseNoSlash : `${baseNoSlash}/api/v1`;
   const storedToken = typeof window !== "undefined" ? window.localStorage.getItem("accessToken") : null;
   const storedRefresh = typeof window !== "undefined" ? window.localStorage.getItem("refreshToken") : null;
   const token = options.token || storedToken || undefined;

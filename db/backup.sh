@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-DB_BACKUP_PATH=${1:-/backup/db-backup-$(date +%Y%m%d%H%M%S).sql}}
+DB_BACKUP_PATH=${1:-/backup/db-backup-$(date +%Y%m%d%H%M%S).sql}
 
 if [ -z "${DB_HOST}" ]; then
   echo "DB_HOST is not set; defaulting to 'db'"

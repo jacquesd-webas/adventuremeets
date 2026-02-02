@@ -7,6 +7,22 @@ on:
     tags:
       - "*"
 
+env:
+  DOCKER_IMAGES: api db_migrate web
+  WEB_PROJECTS: web
+  NODE_PROJECTS: api web
+  CI_REGISTRY_HOST: ${{ vars.CI_REGISTRY_HOST }}
+  CI_REGISTRY_USER: ${{ vars.CI_REGISTRY_USER }}
+  CI_REGISTRY_PAT: ${{ secrets.CI_REGISTRY_PAT }}
+  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+  DB_HOST: ${{ vars.DB_HOST }}
+  MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+  MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+  JWT_SECRET: ${{ secrets.JWT_SECRET }}
+  VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
+  RECAPTCHA_SECRET: ${{ secrets.RECAPTCHA_SECRET }}
+  WORKER_API_KEY: ${{ secrets.WORKER_API_KEY }}
+
 jobs:
   metadata:
     runs-on: ubuntu-latest
@@ -14,6 +30,14 @@ jobs:
       version: ${{ steps.set-version.outputs.version }}
       is_release_tag: ${{ steps.set-version.outputs.is_release_tag }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify required env/vars.list and env/secrets.list are set
+        shell: bash
+        run: |
+          ci/00_check_vars.sh
+
       - name: Determine version
         id: set-version
         shell: bash
@@ -41,10 +65,9 @@ jobs:
           name: build-version
           path: build_version.txt
 
-  build-api:
+  build-docker:
     runs-on: ubuntu-latest
     needs: metadata
-    if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,38 +75,37 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Restore buildx cache
+      - name: Cache dist artifacts
         uses: actions/cache@v4
         with:
-          path: /tmp/.buildx-cache
-          key: buildx-${{ runner.os }}-${{ github.sha }}
+          path: dist
+          key: docker-dist-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            buildx-${{ runner.os }}-
+            docker-dist-${{ runner.os }}-
+          retention-days: 1
 
-      - name: Build images via ci/01_build_docker.sh
+      - name: Build docker images
         env:
           COMPOSE_DOCKER_CLI_BUILD: 1
           DOCKER_BUILDKIT: 1
-          BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
-          BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          BUILDX_CACHE_FROM: type=gha,scope=buildx
+          BUILDX_CACHE_TO: type=gha,scope=buildx,mode=max
         run: |
-          mkdir -p /tmp/.buildx-cache /tmp/.buildx-cache-new
-          ci/01_build_docker.sh api db_migrate
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          ci/01_build_docker.sh ${{ env.DOCKER_IMAGES }}
+
+      - name: Save docker images to dist
+        env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          ci/01_save_docker.sh ${{ env.DOCKER_IMAGES }}
 
   build-web:
     runs-on: ubuntu-latest
-    needs: metadata
-    if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
+    needs: [ metadata ]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
 
       - name: Enable pnpm
         run: corepack enable
@@ -100,29 +122,35 @@ jobs:
           restore-keys: |
             pnpm-store-build-${{ runner.os }}-
 
-      - name: Install web dependencies
-        working-directory: web
-        run: pnpm install --frozen-lockfile
-
-      - name: Build web via ci/01_build_web.sh
+      - name: Build web tarball
         env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}    
           VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          ci/01_build_web.sh web
+          ci/01_build_web.sh ${{ env.WEB_PROJECTS }}
 
-      - name: Upload web build artifact
-        uses: actions/upload-artifact@v4
+      - name: Cache web build output
+        uses: actions/cache@v4
         with:
-          name: web-build
-          path: dist/*.tgz
-          retention-days: 3
+          path: dist
+          key: web-dist-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            web-dist-${{ runner.os }}-
 
   tests:
     runs-on: ubuntu-latest
-    needs: metadata
+    needs: [ metadata, build-docker, build-web ]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Restore buildx cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: buildx-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            buildx-${{ runner.os }}-
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -144,26 +172,17 @@ jobs:
           restore-keys: |
             pnpm-store-tests-${{ runner.os }}-
 
-      - name: Install API dependencies
-        working-directory: api
-        run: pnpm install --frozen-lockfile
-
-      - name: Build API
-        working-directory: api
-        run: pnpm run build
-
-      - name: Install web dependencies
-        working-directory: web
-        run: pnpm install --frozen-lockfile
-
-      - name: Build web
-        working-directory: web
-        run: pnpm run build
+      - name: Run linter
+        env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          ci/02_test_lint.sh
+          ci/02_test_node.sh
 
   publish-docker:
     runs-on: ubuntu-latest
-    needs: [metadata, build-api, tests]
-    if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
+    needs: [metadata, build-docker, tests]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -171,48 +190,32 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Restore buildx cache
+      - name: Restore dist cache (docker images)
         uses: actions/cache@v4
         with:
-          path: /tmp/.buildx-cache
-          key: buildx-${{ runner.os }}-${{ github.sha }}
+          path: dist
+          key: docker-dist-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            buildx-${{ runner.os }}-
+            docker-dist-${{ runner.os }}-
+          retention-days: 1
 
-      - name: Login to registry
-        run: echo ${{ secrets.CI_REGISTRY_PAT }} | docker login ${{ vars.CI_REGISTRY_HOST }} -u ${{ vars.CI_REGISTRY_USER }} --password-stdin
-
-      - name: Build and push api image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./api
-          push: true
-          tags: |
-            ${{ vars.CI_REGISTRY_HOST }}/fringecoding/adventuremeets_api:${{ needs.metadata.outputs.version }}
-            ${{ vars.CI_REGISTRY_HOST }}/fringecoding/adventuremeets_api:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-
-      - name: Build and push backup_runner image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backup_runner
-          push: true
-          tags: |
-            ${{ vars.CI_REGISTRY_HOST }}/fringecoding/adventuremeets_backup_runner:${{ needs.metadata.outputs.version }}
-            ${{ vars.CI_REGISTRY_HOST }}/fringecoding/adventuremeets_backup_runner:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-
-      - name: Persist buildx cache
+      - name: Load cached docker images if present
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          if [ -f dist/docker-images.tar ]; then
+            docker load -i dist/docker-images.tar
+          else
+            echo "No cached docker images found; skipping load."
+          fi
+
+      - name: Publish images via ci/03_publish_docker.sh
+        env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+        run: ci/03_publish_docker.sh ${{ env.DOCKER_IMAGES }}
 
   publish-web:
     runs-on: ubuntu-latest
     needs: [metadata, build-web, tests]
-    if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
     env:
       WEB_STAGE_DIR: staging
       WEB_HOST: webapps1.fringecoding.com
@@ -221,11 +224,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download web build artifact
-        uses: actions/download-artifact@v4
+      - name: Restore dist cache (web tarball)
+        uses: actions/cache@v4
         with:
-          name: web-build
-          path: web-artifacts
+          path: dist
+          key: web-dist-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            web-dist-${{ runner.os }}-
+
+      - name: Verify web bundle exists
+        run: |
+          ls -l dist || true
+          if ! ls dist/*.tgz >/dev/null 2>&1; then
+            echo "No cached web bundle found in dist/ (expected *.tgz)."
+            exit 1
+          fi
 
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.5.3
@@ -233,7 +246,9 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Upload web bundle to staging
+        env:
+          ENVIRONMENT: ${{ env.GITHUB_ENVIRONMENT != '' && env.GITHUB_ENVIRONMENT || (needs.metadata.outputs.is_release_tag == 'true' && 'production' || 'development') }}
+          VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          cp web-artifacts/web-build.tar.gz .
           WEB_STAGE_DIR=${WEB_STAGE_DIR} WEB_HOST=${WEB_HOST} WEB_USER=${WEB_USER} \
-            sh ./ci/04_publish_web.sh ${{ needs.metadata.outputs.version }}
+            sh ./ci/03_publish_web.sh ${{ needs.metadata.outputs.version }}

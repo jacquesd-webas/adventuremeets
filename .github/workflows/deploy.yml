@@ -11,11 +11,15 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      # Environment comes from the workflow_dispatch input; defaults to "production"
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+      USE_COMPOSE: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Prepare environment
+      - name: Prepare version
         run: |
           VERSION="${GITHUB_REF_NAME}"
           VERSION="${VERSION#v}"
@@ -24,36 +28,54 @@ jobs:
             exit 1
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "DEPLOYMENT_TYPE=${{ inputs.environment }}" >> $GITHUB_ENV
-          echo "STACK_NAME=adventuremeets" >> $GITHUB_ENV
-          echo "DEPLOY_DIR=adventuremeets.fringecoding.co.za" >> $GITHUB_ENV
-          echo "STACK_FILE=stack-deploy-${{ inputs.environment }}.yml" >> $GITHUB_ENV
 
       - name: Stage CI/CD Variables
         shell: bash
+        env:
+          VARS_JSON: ${{ toJson(vars) }}
         run: |
-          echo "CI_REGISTRY_HOST=${{ vars.CI_REGISTRY_HOST }}" >> $GITHUB_ENV
-          echo "CI_REGISTRY_USER=${{ vars.CI_REGISTRY_USER }}" >> $GITHUB_ENV
-          echo "DB_HOST=${{ vars.DB_HOST }}" >> $GITHUB_ENV
-          echo "DB_USER=${{ vars.DB_USER }}" >> $GITHUB_ENV
-          echo "EMAIL_FROM_ADDRESS=${{ vars.EMAIL_FROM_ADDRESS }}" >> $GITHUB_ENV
-          echo "EMAIL_FROM_NAME=${{ vars.EMAIL_FROM_NAME }}" >> $GITHUB_ENV
-          echo "EMAIL_HOST=${{ vars.EMAIL_HOST }}" >> $GITHUB_ENV
-          echo "EMAIL_PORT=${{ vars.EMAIL_PORT }}" >> $GITHUB_ENV
-          echo "EMAIL_SECURE=${{ vars.EMAIL_SECURE }}" >> $GITHUB_ENV
-          echo "EMAIL_USER=${{ vars.EMAIL_USER }}" >> $GITHUB_ENV
-          echo "FRONTEND_URL=${{ vars.FRONTEND_URL }}" >> $GITHUB_ENV
+          set -e
+          file="env/vars.list"
+          if [ ! -f "$file" ]; then
+            echo "::error file=$file::vars.list not found"
+            exit 1
+          fi
+          while IFS= read -r raw || [ -n "$raw" ]; do
+            line="${raw%%#*}"
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            [ -z "$line" ] && continue
+            val=$(printf '%s' "$VARS_JSON" | jq -r --arg k "$line" '.[$k] // empty')
+            if [ -z "$val" ]; then
+              echo "::error file=$file::Variable '$line' not set in GitHub vars"
+              exit 1
+            fi
+            echo "$line=$val" >> "$GITHUB_ENV"
+          done < "$file"
 
       - name: Stage Secrets
         shell: bash
+        env:
+          SECRETS_JSON: ${{ toJson(secrets) }}
         run: |
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
-          echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> $GITHUB_ENV
-          echo "ENCODED_SSH_KEY=${{ secrets.ENCODED_SSH_KEY }}" >> $GITHUB_ENV
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> $GITHUB_ENV
-          echo "CI_REGISTRY_PAT=${{ secrets.CI_REGISTRY_PAT }}" >> $GITHUB_ENV
+          set -e
+          file="env/secrets.list"
+          if [ ! -f "$file" ]; then
+            echo "::error file=$file::secrets.list not found"
+            exit 1
+          fi
+          while IFS= read -r raw || [ -n "$raw" ]; do
+            line="${raw%%#*}"
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            [ -z "$line" ] && continue
+            val=$(printf '%s' "$SECRETS_JSON" | jq -r --arg k "$line" '.[$k] // empty')
+            if [ -z "$val" ]; then
+              echo "::error file=$file::Secret '$line' not set in GitHub secrets"
+              exit 1
+            fi
+            echo "$line=$val" >> "$GITHUB_ENV"
+          done < "$file"
 
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.5.3
@@ -61,10 +83,21 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Push stack definition
-        run: sh ./ci/02_update_stack_def.sh ${{ env.STACK_FILE }} ${{ env.DEPLOY_DIR }} ${{ env.VERSION }}
+        run: sh ./ci/04_update_stack_def.sh stack-deploy-${{ env.ENVIRONMENT }}.yml
 
       - name: Update Environment Configuration
-        run: sh ./ci/03_update_env.sh ${{ env.DEPLOYMENT_TYPE }} ${{ env.VERSION }}
+        run: sh ./ci/04_update_env.sh
 
-      - name: Deploy stack
-        run: sh ./ci/05_deploy.sh ${{ env.DEPLOY_DIR }} ${{ env.VERSION }} ${{ secrets.CI_REGISTRY_USER }} ${{ secrets.CI_REGISTRY_PAT }} ${{ env.STACK_NAME }}
+      - name: Deploy DB Migrations
+        run: sh ./ci/05_deploy_db_migrations.sh
+
+      - name: Deploy stack on swarm
+        if: env.USE_COMPOSE != 'true'
+        run: sh ./ci/05_deploy_swarm.sh
+
+      - name: Deploy stack via docker-compose
+        if: env.USE_COMPOSE == 'true'
+        run: sh ./ci/05_deploy_compose.sh
+      
+      - name: Deploy webpack
+        run: sh ./ci/05_deploy_web.sh

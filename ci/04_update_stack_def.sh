@@ -2,23 +2,28 @@
 
 # Script to update the stack definition file on the remote webapp server
 
+set -e
+
 CI_DIR=$(dirname $0)
-source $CI_DIR/config.sh
-source $CI_DIR/utils.sh
+. $CI_DIR/config.sh
+. $CI_DIR/utils.sh
 
 SITE_NAME=$(get_app_site "${APP_SITE:-}")
 VERSION=$(get_app_version "${VERSION:-}")
 APP_NAME=$(get_app_name "${APP_NAME:-}")
 
+ENVIRONMENT=${ENVIRONMENT:-development}
+echo "Using environment: ${ENVIRONMENT}"
+
 # Parameters
-STACK_DEPLOY_FILE=${1:-stack-deploy.yml}
+STACK_DEPLOY_FILE=${1:-stack-deploy-${ENVIRONMENT}.yml}
 
 # Stack deploy directory and filename
 STACK_DEPLOY_SRC_FILE="$CI_DIR/$STACK_DEPLOY_FILE"
-STACK_DEPLOY_DEST_FILE="${TARGET_DIR}/stack-deploy.yml"
+STACK_DEPLOY_DEST_FILE="${SITE_NAME}/stack-deploy.yml"
 
 # Copy the stack deploy file to the remote host
-echo "Updating $STACK_DEPLOY_FILE for '$APP_NAME:$VERSION' from $STACK_DEPLOY_SRC_FILE to $WEB_HOST:$STACK_DEPLOY_DEST_FILE"
+echo "Updating $STACK_DEPLOY_FILE for '$APP_NAME:$VERSION' from $STACK_DEPLOY_SRC_FILE to $WEB_HOST:./$STACK_DEPLOY_DEST_FILE"
 scp $SSH_ARGS $STACK_DEPLOY_SRC_FILE $DEPLOY_USER@$WEB_HOST:./$STACK_DEPLOY_DEST_FILE
 
 if [ $? -eq 0 ]; then

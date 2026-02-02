@@ -25,8 +25,8 @@ type MeetActionsMenuProps = {
   onCloseMeet?: (meetId: string) => void;
 };
 
-// Allow editing until the meet is opened; include draft, published, and postponed
-const shouldShowEdit = (statusId?: number) => statusId === 1 || statusId === 2 || statusId === 6;
+// Allow editing for draft, published, postponed, and open meets
+const shouldShowEdit = (statusId?: number) => statusId === 1 || statusId === 2 || statusId === 3 || statusId === 6;
 const shouldShowAttendees = (statusId?: number) => statusId === 3;
 const shouldShowReports = (statusId?: number) => statusId === 5 || statusId === 7;
 const isDraft = (statusId?: number) => statusId === 1;
@@ -87,20 +87,20 @@ export function MeetActionsMenu({
             <ListItemText>Open meet</ListItemText>
           </MenuItem>
         ) : null}
-        {!isCompleted(statusId) && shouldShowEdit(statusId) ? (
-          <MenuItem onClick={(event) => handleAction(event, onEdit)}>
-            <ListItemIcon>
-              <EditOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Edit</ListItemText>
-          </MenuItem>
-        ) : null}
         {!isCompleted(statusId) && (shouldShowAttendees(statusId) || isClosed(statusId)) ? (
           <MenuItem onClick={(event) => handleAction(event, onAttendees)}>
             <ListItemIcon>
               <PeopleOutlineIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>Attendees</ListItemText>
+          </MenuItem>
+        ) : null}
+        {!isCompleted(statusId) && shouldShowEdit(statusId) ? (
+          <MenuItem onClick={(event) => handleAction(event, onEdit)}>
+            <ListItemIcon>
+              <EditOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Edit</ListItemText>
           </MenuItem>
         ) : null}
         {!isCompleted(statusId) && isClosed(statusId) ? (

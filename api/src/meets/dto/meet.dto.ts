@@ -115,6 +115,9 @@ export class MeetDto {
   currencyId?: number | null;
 
   @ApiPropertyOptional()
+  currencySymbol?: string;
+
+  @ApiPropertyOptional()
   costCents?: number;
 
   @ApiPropertyOptional()
@@ -127,6 +130,12 @@ export class MeetDto {
   organizerName?: string;
 
   @ApiPropertyOptional()
+  organizerFirstName?: string;
+
+  @ApiPropertyOptional()
+  organizerLastName?: string;
+
+  @ApiPropertyOptional()
   imageUrl?: string;
 
   @ApiPropertyOptional()
@@ -137,6 +146,12 @@ export class MeetDto {
 
   @ApiPropertyOptional()
   confirmedCount?: number;
+
+  @ApiPropertyOptional()
+  checkedInCount?: number;
+
+  @ApiPropertyOptional()
+  timesTbc?: boolean;
 
   @ApiPropertyOptional({ type: [MeetMetaDefinitionDto] })
   metaDefinitions?: MeetMetaDefinitionDto[];
