@@ -4,10 +4,17 @@ type LabeledFieldProps = {
   label: string;
   required?: boolean;
   children: React.ReactNode;
+  labelAction?: React.ReactNode;
   sx?: React.CSSProperties;
 };
 
-export function LabeledField({ label, required, children, sx }: LabeledFieldProps) {
+export function LabeledField({
+  label,
+  required,
+  children,
+  labelAction,
+  sx,
+}: LabeledFieldProps) {
   return (
     <Box
       sx={{
@@ -17,9 +24,23 @@ export function LabeledField({ label, required, children, sx }: LabeledFieldProp
         ...(sx || {})
       }}
     >
-      <Typography variant="h6" fontWeight={700} mb={0.5}>
-        {label} {required && <span style={{ color: "#ef4444", fontSize: "1.2em" }}>*</span>}
-      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+          mb: 0.5,
+        }}
+      >
+        <Typography variant="h6" fontWeight={700}>
+          {label}{" "}
+          {required && (
+            <span style={{ color: "#ef4444", fontSize: "1.2em" }}>*</span>
+          )}
+        </Typography>
+        {labelAction}
+      </Box>
       {children}
     </Box>
   );

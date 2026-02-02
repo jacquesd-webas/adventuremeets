@@ -13,12 +13,18 @@ export type AddAttendeePayload = {
   captchaToken?: string;
 };
 
+type AddAttendeeResponse = {
+  attendee: {
+    id: string;
+  };
+};
+
 export function useAddAttendee() {
   const api = useApi();
 
-  const mutation = useMutation<unknown, Error, AddAttendeePayload>({
+  const mutation = useMutation<AddAttendeeResponse, Error, AddAttendeePayload>({
     mutationFn: async ({ meetId, ...payload }) => {
-      return api.post(`/meets/${meetId}/attendees`, payload);
+      return api.post<AddAttendeeResponse>(`/meets/${meetId}/attendees`, payload);
     }
   });
 

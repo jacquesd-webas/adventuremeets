@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 
+// TODO: clean this up
+
 type MeetSignupSheet = {
   id: string;
   name: string;
@@ -8,9 +10,13 @@ type MeetSignupSheet = {
   location: string;
   start: string;
   end: string;
+  organizationId?: string;
+  openingDate?: string;
   status: string;
   statusId: number;
   organizerName?: string;
+  organizerEmail?: string;
+  organizerPhone?: string;
   capacity?: number;
   currency?: string;
   currencySymbol?: string;
@@ -40,12 +46,16 @@ type MeetApi = {
   location: string;
   startTime?: string;
   endTime?: string;
+  organizationId?: string;
+  openingDate?: string;
   status?: string;
   statusId?: number;
   organizer?: string;
   organizerName?: string;
   organizerFirstName?: string;
   organizerLastName?: string;
+  organizerEmail?: string;
+  organizerPhone?: string;
   capacity?: number;
   currency?: string;
   currencyCode?: string;
@@ -93,6 +103,8 @@ const statusLabels: Record<number, string> = {
 function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
   const start = apiMeet.startTime || "";
   const end = apiMeet.endTime || "";
+  const openingDate = apiMeet.openingDate || undefined;
+  const organizationId = apiMeet.organizationId || undefined;
   const status =
     apiMeet.status ||
     (apiMeet.statusId ? statusLabels[apiMeet.statusId] : "Open");
@@ -114,9 +126,13 @@ function mapMeet(apiMeet: MeetApi): MeetSignupSheet {
     location: apiMeet.location,
     start,
     end,
+    organizationId,
+    openingDate,
     status,
     statusId: apiMeet.statusId,
     organizerName,
+    organizerEmail: apiMeet.organizerEmail,
+    organizerPhone: apiMeet.organizerPhone,
     capacity: apiMeet.capacity,
     currency: currencyCode,
     currencySymbol,

@@ -1,7 +1,7 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { UserProfile } from '../../users/dto/user-profile.dto';
 
-type UserWithOrganization = UserProfile & { organizationId?: string | null; organizationIds?: string[] };
+type UserWithOrganization = UserProfile & { organizationId?: string | null };
 
 export const User = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): UserWithOrganization | undefined => {
@@ -10,13 +10,18 @@ export const User = createParamDecorator(
     if (!user) {
       return undefined;
     }
-    const organizationIds = request.organizationIds ?? (user as UserWithOrganization).organizationIds ?? undefined;
+    const orgMap =
+      request.organizations ?? (user as UserWithOrganization).organizations ?? undefined;
+    const organizationIds = orgMap ? Object.keys(orgMap) : undefined;
     const organizationId =
-      request.organizationId ?? (user as UserWithOrganization).organizationId ?? organizationIds?.[0] ?? null;
+      request.organizationId ??
+      (user as UserWithOrganization).organizationId ??
+      organizationIds?.[0] ??
+      null;
     return {
       ...user,
+      organizations: orgMap ?? user.organizations,
       organizationId,
-      organizationIds,
     };
   },
 );

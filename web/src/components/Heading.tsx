@@ -10,9 +10,22 @@ type HeadingProps = {
   onSecondaryAction?: () => void;
 };
 
-export function Heading({ title, subtitle, actionComponent, secondaryActionComponent, onAction, onSecondaryAction }: HeadingProps) {
+export function Heading({
+  title,
+  subtitle,
+  actionComponent,
+  secondaryActionComponent,
+  onAction,
+  onSecondaryAction,
+}: HeadingProps) {
   return (
-    <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2} spacing={2}>
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      mb={2}
+      spacing={2}
+    >
       <Box>
         <Typography variant="h4" fontWeight={700}>
           {title}
@@ -25,12 +38,18 @@ export function Heading({ title, subtitle, actionComponent, secondaryActionCompo
       </Box>
       <Stack direction="row" spacing={1} alignItems="center">
         {secondaryActionComponent ? (
-          <Box onClick={onSecondaryAction} sx={{ display: "inline-flex", alignItems: "center" }}>
+          <Box
+            onClick={onSecondaryAction}
+            sx={{ display: "inline-flex", alignItems: "center" }}
+          >
             {secondaryActionComponent}
           </Box>
         ) : null}
         {actionComponent ? (
-          <Box onClick={onAction} sx={{ display: "inline-flex", alignItems: "center" }}>
+          <Box
+            onClick={onAction}
+            sx={{ display: "inline-flex", alignItems: "center" }}
+          >
             {actionComponent}
           </Box>
         ) : null}

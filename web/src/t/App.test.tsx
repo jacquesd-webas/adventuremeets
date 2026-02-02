@@ -5,6 +5,8 @@ import { vi } from "vitest";
 import App from "../App";
 import { ThemeModeProvider } from "../context/ThemeModeContext";
 import { NotistackProvider } from "../components/NotistackProvider";
+import { AuthContext } from "../context/authContext";
+import { OrganizationContext } from "../context/organizationContext";
 
 vi.mock("../hooks/useFetchMeets", () => ({
   useFetchMeets: () => ({ data: [], isLoading: false, refetch: vi.fn() })
@@ -34,9 +36,28 @@ describe("App", () => {
       <ThemeModeProvider>
         <QueryClientProvider client={queryClient}>
           <NotistackProvider>
-            <MemoryRouter>
-              <App />
-            </MemoryRouter>
+            <AuthContext.Provider
+              value={{
+                user: undefined,
+                isLoading: false,
+                isAuthenticated: false,
+                refreshSession: vi.fn(),
+                logout: vi.fn(),
+              }}
+            >
+              <OrganizationContext.Provider
+                value={{
+                  organizationIds: [],
+                  currentOrganizationId: null,
+                  currentOrganizationRole: null,
+                  setCurrentOrganizationId: vi.fn(),
+                }}
+              >
+                <MemoryRouter>
+                  <App />
+                </MemoryRouter>
+              </OrganizationContext.Provider>
+            </AuthContext.Provider>
           </NotistackProvider>
         </QueryClientProvider>
       </ThemeModeProvider>

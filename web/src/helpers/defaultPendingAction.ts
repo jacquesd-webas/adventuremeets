@@ -1,4 +1,4 @@
-import MeetStatusEnum from "../models/MeetStatusEnum";
+import MeetStatusEnum from "../types/MeetStatusEnum";
 import { PendingAction } from "../components/MeetActionsDialogs";
 
 export function defaultPendingAction(

@@ -36,5 +36,4 @@ if [ -d wwwroot ]; then
 fi
 mv wwwroot.new wwwroot
 
-VERSION=${VERSION} docker stack deploy -c stack-deploy.yml $APP_NAME
 EOF

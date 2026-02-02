@@ -1,55 +1,62 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsBoolean, IsDateString, IsString } from "class-validator";
 
 export class UserProfile {
   @ApiProperty()
   id!: string;
 
   @ApiProperty()
+  @IsString()
   email!: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsBoolean()
+  emailVerified?: boolean;
+
+  @ApiPropertyOptional()
+  @IsDateString()
+  emailVerifiedAt?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
   firstName?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsString()
   lastName?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
+  @IsString()
   phone?: string;
 
-  @ApiProperty({ type: [String] })
-  roles: string[];
+  @ApiPropertyOptional()
+  @IsString()
+  icePhone?: string;
 
-  @ApiProperty({ type: [String] })
-  studios: string[];
+  @ApiPropertyOptional()
+  @IsString()
+  iceName?: string;
 
-  @ApiProperty({ type: [String], required: false })
-  organizationIds?: string[];
+  @ApiPropertyOptional()
+  @IsString()
+  iceMedicalAid?: string;
 
-  @ApiProperty({ required: false })
-  organizationId?: string | null;
+  @ApiPropertyOptional()
+  @IsString()
+  iceMedicalAidNumber?: string;
 
-  @ApiProperty({
-    required: false,
-    type: 'object',
-    properties: {
-      isSuperuser: { type: 'boolean' },
-      users: { type: 'string' },
-      studios: { type: 'string' },
-      roles: { type: 'string' },
-      games: { type: 'string' },
-    },
+  @ApiPropertyOptional()
+  @IsDateString()
+  iceDob?: string;
+
+  @ApiPropertyOptional({
+    type: "object",
+    additionalProperties: { type: "string" },
   })
-  permissions?: {
-    isSuperuser: boolean;
-    users: string;
-    studios: string;
-    roles: string;
-    games: string;
-  };
+  organizations?: Record<string, string>;
 
   constructor() {
-    this.roles = [];
-    this.studios = [];
+    this.organizations = {};
   }
 
   // Internal use only; not exposed in /me response.

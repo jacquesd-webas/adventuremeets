@@ -14,23 +14,75 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import formatRange from "../../helpers/formatRange";
-import Meet from "../../models/MeetModel";
+import Meet from "../../types/MeetModel";
 import { MeetActionsMenu } from "../MeetActionsMenu";
-import { PendingAction } from "../MeetActionsDialogs";
-import MeetStatusEnum from "../../models/MeetStatusEnum";
+import { MeetActionsEnum } from "../../types/MeetActionsEnum";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../MeetStatus";
+import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { useAuth } from "../../context/authContext";
 
 type MeetCardProps = {
   meet: Meet;
   statusLabel: string;
   onClick?: () => void;
   setSelectedMeetId: (id: string | null) => void;
-  setPendingAction: (action: PendingAction | null) => void;
+  setPendingAction: (action: MeetActionsEnum | null) => void;
+  isOrganizer: boolean;
 };
 
 type CountProps = { count1?: number; count2?: number };
 
 const DraftCardCount = () => <></>;
+
+const AttendeeStatus = ({
+  status,
+  isUpcoming,
+}: {
+  status?: AttendeeStatusEnum;
+  isUpcoming: boolean;
+}) => {
+  const color =
+    status === AttendeeStatusEnum.Confirmed ||
+    status === AttendeeStatusEnum.CheckedIn ||
+    status === AttendeeStatusEnum.Attended
+      ? "success"
+      : status === AttendeeStatusEnum.Waitlisted
+      ? "warning"
+      : status === AttendeeStatusEnum.Rejected
+      ? "error"
+      : "disabled";
+
+  const text = isUpcoming
+    ? status === AttendeeStatusEnum.Confirmed ||
+      status === AttendeeStatusEnum.CheckedIn ||
+      status === AttendeeStatusEnum.Attended
+      ? "Attending"
+      : status === AttendeeStatusEnum.Waitlisted
+      ? "Waitlisted"
+      : status === AttendeeStatusEnum.Rejected ||
+        status === AttendeeStatusEnum.Cancelled
+      ? "Not accepted"
+      : status === AttendeeStatusEnum.Pending
+      ? "Pending"
+      : "Did not apply"
+    : status === AttendeeStatusEnum.Confirmed ||
+      status === AttendeeStatusEnum.CheckedIn ||
+      status === AttendeeStatusEnum.Attended
+    ? "Attended"
+    : "Did not attend";
+
+  return (
+    <Stack direction="row" spacing={2} alignItems="center" mt={1.5}>
+      <Stack direction="row" spacing={0.5} alignItems="center">
+        <GroupOutlinedIcon fontSize="small" color={color} />
+        <Typography variant="caption" color="text.secondary">
+          {text}
+        </Typography>
+      </Stack>
+    </Stack>
+  );
+};
 
 const UpcomingCardCount = ({ count1, count2 }: CountProps) => {
   return (
@@ -90,14 +142,24 @@ export function MeetCard({
   setPendingAction,
 }: MeetCardProps) {
   const theme = useTheme();
+  const { user } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const isUpcoming = new Date(meet.endTime) >= new Date();
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
   const rangeLabel = formatRange(meet.startTime, meet.endTime);
+  const isOrganizerForMeet = user && meet && user.id === meet.organizerId;
+
   return (
     <Paper
       variant="outlined"
-      sx={{ p: 2, cursor: isMobile ? "default" : "pointer" }}
+      sx={{
+        p: 2,
+        cursor: isMobile ? "default" : "pointer",
+        backgroundColor: "rgba(255, 255, 255, 0.7)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+      }}
       onClick={() => {
         if (!isMobile && typeof onClick === "function") {
           onClick();
@@ -119,6 +181,7 @@ export function MeetCard({
         <Box sx={{ ml: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <MeetActionsMenu
             meetId={meet.id}
+            isOrganizer={isOrganizerForMeet}
             statusId={meet.statusId}
             setSelectedMeetId={setSelectedMeetId}
             setPendingAction={setPendingAction}
@@ -140,7 +203,12 @@ export function MeetCard({
           </Typography>
         ) : null}
       </Stack>
-      {isDraft ? (
+      {!isOrganizerForMeet ? (
+        <AttendeeStatus
+          status={meet.myAttendeeStatus as AttendeeStatusEnum | undefined}
+          isUpcoming={isUpcoming}
+        />
+      ) : isDraft ? (
         <DraftCardCount />
       ) : isUpcoming ? (
         <UpcomingCardCount
@@ -150,7 +218,7 @@ export function MeetCard({
       ) : (
         <PastCardCount
           count1={meet.confirmedCount}
-          count2={meet.attendeeCount}
+          count2={meet.checkedInCount}
         />
       )}
     </Paper>

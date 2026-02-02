@@ -1,10 +1,28 @@
 import { render, screen } from "@testing-library/react";
-import { MeetSignupSubmitted } from "../MeetSignupSubmitted";
+import { MemoryRouter } from "react-router-dom";
+import { AuthContext } from "../../context/authContext";
+import { MeetSignupSubmitted } from "../meetSignup/MeetSignupSubmitted";
 
 describe("MeetSignupSubmitted", () => {
   it("renders confirmation content and CTA", () => {
-    render(<MeetSignupSubmitted />);
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider
+          value={{
+            user: undefined,
+            isLoading: false,
+            isAuthenticated: false,
+            refreshSession: vi.fn(),
+            logout: vi.fn(),
+          }}
+        >
+          <MeetSignupSubmitted />
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
     expect(screen.getByText(/Application submitted/i)).toBeInTheDocument();
-    expect(screen.getByText(/Your application has been submitted/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Your application has been submitted/i)
+    ).toBeInTheDocument();
   });
 });

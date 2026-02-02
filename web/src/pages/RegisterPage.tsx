@@ -11,22 +11,25 @@ import {
 } from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReCAPTCHA from "react-google-recaptcha";
 import { useRegister } from "../hooks/useRegister";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/AuthSocialButtons";
-import { EmailField } from "../components/EmailField";
+import { EmailField } from "../components/meetSignup/EmailField";
 import {
   InternationalPhoneField,
   buildInternationalPhone,
   getDefaultPhoneCountry,
-} from "../components/InternationalPhoneField";
+} from "../components/meetSignup/InternationalPhoneField";
 import { getLocaleDefaults } from "../helpers/locale";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
+import { useAuth } from "../context/authContext";
 
 function RegisterPage() {
+  const location = useLocation();
+  const prefillApplied = useRef(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneCountry, setPhoneCountry] = useState(() => {
@@ -36,25 +39,100 @@ function RegisterPage() {
   const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [pendingMeetLink, setPendingMeetLink] = useState<{
+    attendeeId: string;
+    shareCode: string;
+  } | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<
     null | "google" | "microsoft" | "facebook" | "email"
   >(null);
   const { registerAsync, isLoading, error } = useRegister();
   const api = useApi();
-  const navigate = useNavigate();
+  const nav = useNavigate();
+  const { refreshSession } = useAuth();
   const [emailError, setEmailError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const logoSrc = getLogoSrc();
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
     | string
     | undefined;
-  const captchaRequired = Boolean(recaptchaSiteKey);
+  const captchaRequired =
+    Boolean(recaptchaSiteKey) && !pendingMeetLink?.attendeeId;
+  const shouldShowCaptchaWarning =
+    !recaptchaSiteKey && !pendingMeetLink?.attendeeId;
   const chooseMethod = (
     method: null | "google" | "microsoft" | "facebook" | "email"
   ) => {
     setSelectedMethod(method);
     setCaptchaToken(null);
   };
+
+  useEffect(() => {
+    if (prefillApplied.current) return;
+    const state = (location.state || {}) as {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phoneCountry?: string;
+      phoneLocal?: string;
+      organizationId?: string;
+      meetId?: string;
+      shareCode?: string;
+      attendeeId?: string;
+    };
+    if (
+      state.firstName ||
+      state.lastName ||
+      state.email ||
+      state.phoneCountry ||
+      state.phoneLocal ||
+      state.organizationId ||
+      state.shareCode ||
+      state.attendeeId
+    ) {
+      setFirstName(state.firstName || "");
+      setLastName(state.lastName || "");
+      setEmail(state.email || "");
+      if (state.phoneCountry) {
+        setPhoneCountry(state.phoneCountry);
+      }
+      setPhoneLocal(state.phoneLocal || "");
+      setOrganizationId(state.organizationId || "");
+      if (state.shareCode && state.attendeeId) {
+        setPendingMeetLink({
+          shareCode: state.shareCode,
+          attendeeId: state.attendeeId,
+        });
+      }
+      setSelectedMethod("email");
+      prefillApplied.current = true;
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const orgFromQuery = params.get("org") || "";
+    if (orgFromQuery) {
+      setOrganizationId(orgFromQuery);
+    }
+    let isActive = true;
+    const readOrgHeader = async () => {
+      try {
+        const res = await fetch(window.location.href, { method: "HEAD" });
+        const orgFromHeader = res.headers.get("X-Organization-Id") || "";
+        if (orgFromHeader && isActive) {
+          setOrganizationId(orgFromHeader);
+        }
+      } catch (err) {
+        console.warn("Failed to read organization header", err);
+      }
+    };
+    readOrgHeader();
+    return () => {
+      isActive = false;
+    };
+  }, [location.search]);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -67,9 +145,20 @@ function RegisterPage() {
       phone: buildInternationalPhone(phoneCountry, phoneLocal),
       email,
       password,
+      organizationId: organizationId || undefined,
       captchaToken: captchaToken || undefined,
+      attendeeId: pendingMeetLink?.attendeeId,
     })
-      .then(() => navigate("/"))
+      .then(async () => {
+        await refreshSession();
+        if (pendingMeetLink) {
+          nav(
+            `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
+          );
+        } else {
+          nav("/");
+        }
+      })
       .catch((err) => {
         console.error("Registration failed", err);
       });
@@ -198,12 +287,12 @@ function RegisterPage() {
                       onExpired={() => setCaptchaToken(null)}
                     />
                   </Box>
-                ) : (
+                ) : shouldShowCaptchaWarning ? (
                   <Alert severity="warning">
                     reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
                     enable.
                   </Alert>
-                )}
+                ) : null}
                 <Button
                   type="submit"
                   variant="contained"

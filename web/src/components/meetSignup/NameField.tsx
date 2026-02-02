@@ -1,7 +1,7 @@
 import { TextField } from "@mui/material";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 
-type EmailFieldProps = {
+type NameFieldProps = {
   label?: string;
   required?: boolean;
   value: string;
@@ -9,29 +9,33 @@ type EmailFieldProps = {
   onBlur?: () => void;
   placeholder?: string;
   fullWidth?: boolean;
+  disabled?: boolean;
 };
 
-export function EmailField({
-  label = "Email",
+export function NameField({
+  label,
   required,
   value,
   onChange,
   onBlur,
-  placeholder = "you@example.com",
-  fullWidth = true
-}: EmailFieldProps) {
+  placeholder = "Your name",
+  fullWidth = true,
+  disabled = false,
+}: NameFieldProps) {
   return (
     <TextField
       label={label}
-      type="email"
       required={required}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
       placeholder={placeholder}
       fullWidth={fullWidth}
+      disabled={disabled}
       InputProps={{
-        startAdornment: <EmailOutlinedIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />
+        startAdornment: (
+          <PersonOutlineIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />
+        ),
       }}
     />
   );

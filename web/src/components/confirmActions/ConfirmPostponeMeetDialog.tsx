@@ -1,7 +1,7 @@
 import { TextField } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
-import MeetStatusEnum from "../../models/MeetStatusEnum";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
 
 type ConfirmPostponeMeetDialogProps = {

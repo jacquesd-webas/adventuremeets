@@ -16,18 +16,23 @@ import { useLogin } from "../hooks/useLogin";
 import { useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/AuthSocialButtons";
 import { getLogoSrc } from "../helpers/logo";
+import { useAuth } from "../context/authContext";
 
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { loginAsync, isLoading, error } = useLogin();
-  const navigate = useNavigate();
+  const { refreshSession } = useAuth();
+  const nav = useNavigate();
   const logoSrc = getLogoSrc();
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     loginAsync({ email, password })
-      .then(() => navigate("/"))
+      .then(() => {
+        refreshSession();
+        nav("/");
+      })
       .catch((err) => {
         console.error("Login failed", err);
       });

@@ -26,11 +26,7 @@ import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: attendees, isLoading } = useFetchMeetAttendees(
-    id,
-    true,
-    "accepted"
-  );
+  const { data: attendees, isLoading } = useFetchMeetAttendees(id, "accepted");
   const { checkinAttendeesAsync } = useCheckinAttendees();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));

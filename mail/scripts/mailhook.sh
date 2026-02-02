@@ -27,9 +27,8 @@ trap cleanup EXIT INT TERM HUP
 
 # Read full raw email from stdin
 cat > "$TMP"
-
 # Call adventuremeets API (public endpoint)
-MAILHOOK_URL="${MAILHOOK_URL:-http://api:8000/incoming}"
+MAILHOOK_URL="${MAILHOOK_URL:-http://host.docker.internal:8000/api/v1/incoming}"
 curl -sS -X POST "${MAILHOOK_URL}" \
   -H "Content-Type: message/rfc822" \
   -H "X-Rcpt-To: ${RECIPIENT}" \

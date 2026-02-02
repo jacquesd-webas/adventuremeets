@@ -2,7 +2,6 @@ import {
   Avatar,
   Box,
   Button,
-  ButtonGroup,
   Chip,
   Dialog,
   DialogActions,
@@ -15,30 +14,40 @@ import {
   Paper,
   Stack,
   Typography,
+  CircularProgress,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
-import { useApi } from "../../hooks/useApi";
+import { useFetchMeet } from "../../hooks/useFetchMeet";
+import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import QuestionMarkOutlinedIcon from "@mui/icons-material/QuestionMarkOutlined";
+import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccountOutlined";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
-import MeetModel from "../../models/MeetModel";
+import Meet from "../../types/MeetModel";
+import { AttendeeActionButtons } from "./AttendeeActionButtons";
+import { DetailSelector } from "./DetailSelector";
+import { AttendeeResponses } from "./AttendeeResponses";
+import { AttendeeMessages } from "./AttendeeMessages";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
+import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { useFetchAttendeeMessages } from "../../hooks/useFetchAttendeeMessages";
 
 type ManageAttendeesModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
-  meet?: MeetModel | null;
+  meet?: Meet | null;
 };
 
 export function ManageAttendeesModal({
   open,
   onClose,
   meetId,
-  meet,
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -46,20 +55,32 @@ export function ManageAttendeesModal({
     data: attendees,
     isLoading,
     refetch,
-  } = useFetchMeetAttendees(meetId, open);
-  const api = useApi();
+  } = useFetchMeetAttendees(meetId, open ? "all" : null);
+  const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
+  const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
     null
   );
   const [isUpdating, setIsUpdating] = useState(false);
-  const [meetStatus, setMeetStatus] = useState<number | null>(null);
-  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<AttendeeStatusEnum | null>(
+    null
+  );
   const [confirmDialog, setConfirmDialog] = useState(false);
-  const [meetName, setMeetName] = useState<string | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageAttendeeIds, setMessageAttendeeIds] = useState<
     string[] | undefined
   >(undefined);
+  const [detailView, setDetailView] = useState<"responses" | "messages">(
+    "responses"
+  );
+  const { data: attendeeMessages } = useFetchAttendeeMessages(
+    meetId,
+    selectedAttendeeId
+  );
+  const hasUnreadMessages = useMemo(
+    () => (attendeeMessages || []).some((message) => !message.isRead),
+    [attendeeMessages]
+  );
 
   useEffect(() => {
     if (!open) {
@@ -75,48 +96,20 @@ export function ManageAttendeesModal({
   }, [attendees, open, selectedAttendeeId]);
 
   useEffect(() => {
-    if (!open || (!meetId && !meet)) {
-      return;
-    }
+    setDetailView("responses");
+  }, [selectedAttendeeId]);
 
-    if (meet) {
-      const statusVal =
-        typeof meet.statusId !== "undefined" ? meet.statusId : null;
-      const statusNum =
-        typeof statusVal === "number"
-          ? statusVal
-          : statusVal != null
-          ? Number(statusVal)
-          : null;
-      setMeetStatus(!Number.isNaN(statusNum || NaN) ? statusNum : null);
-      setMeetName(meet?.name || null);
-      return;
-    }
-
-    let isActive = true;
-    api
-      .get(`/meets/${meetId}`)
-      .then((m: any) => {
-        if (!isActive) return;
-        const statusVal =
-          typeof m?.statusId !== "undefined" ? m.statusId : null;
-        const statusNum =
-          typeof statusVal === "number"
-            ? statusVal
-            : statusVal != null
-            ? Number(statusVal)
-            : null;
-        setMeetStatus(!Number.isNaN(statusNum || NaN) ? statusNum : null);
-        setMeetName(m?.name || null);
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setMeetStatus(null);
-      });
-    return () => {
-      isActive = false;
-    };
-  }, [api, meet, meetId, open]);
+  const meetStatus = useMemo(() => {
+    const statusVal =
+      typeof meet?.statusId !== "undefined" ? meet.statusId : null;
+    const statusNum =
+      typeof statusVal === "number"
+        ? statusVal
+        : statusVal != null
+        ? Number(statusVal)
+        : null;
+    return !Number.isNaN(statusNum || NaN) ? statusNum : null;
+  }, [meet]);
 
   const selectedAttendee = useMemo(
     () =>
@@ -129,7 +122,9 @@ export function ManageAttendeesModal({
     if (!meetId || !selectedAttendeeId) return;
     setIsUpdating(true);
     try {
-      await api.patch(`/meets/${meetId}/attendees/${selectedAttendeeId}`, {
+      await updateMeetAttendeeAsync({
+        meetId,
+        attendeeId: selectedAttendeeId,
         status,
       });
       await refetch();
@@ -138,8 +133,23 @@ export function ManageAttendeesModal({
     }
   };
 
-  const handleUpdateStatus = (status: string) => {
-    const isClosed = meetStatus === 4; // Closed status id
+  const handleAttendeePaid = async () => {
+    if (!meetId || !selectedAttendeeId) return;
+    setIsUpdating(true);
+    try {
+      await updateMeetAttendeeAsync({
+        meetId,
+        attendeeId: selectedAttendeeId,
+        paidFullAt: new Date().toISOString(),
+      });
+      await refetch();
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUpdateStatus = (status: AttendeeStatusEnum) => {
+    const isClosed = meetStatus === MeetStatusEnum.Closed;
     if (isClosed) {
       setPendingStatus(status);
       setConfirmDialog(true);
@@ -150,15 +160,21 @@ export function ManageAttendeesModal({
   const statusCounts = useMemo(() => {
     return attendees.reduce(
       (acc, attendee) => {
-        const status = attendee.status || "pending";
-        if (status === "confirmed") acc.accepted += 1;
-        if (status === "rejected") acc.rejected += 1;
-        if (status === "waitlisted") acc.waitlisted += 1;
+        const status = attendee.status || AttendeeStatusEnum.Pending;
+        if (status === AttendeeStatusEnum.Confirmed) acc.accepted += 1;
+        if (
+          status === AttendeeStatusEnum.Rejected ||
+          status === AttendeeStatusEnum.Cancelled
+        )
+          acc.rejected += 1;
+        if (status === AttendeeStatusEnum.Waitlisted) acc.waitlisted += 1;
         return acc;
       },
       { accepted: 0, rejected: 0, waitlisted: 0 }
     );
   }, [attendees]);
+
+  // TODO: Refactor this component into smaller components
 
   return (
     <Dialog
@@ -220,16 +236,26 @@ export function ManageAttendeesModal({
                 attendees.map((attendee) => {
                   const label = attendeeLabel(attendee);
                   const subLabel = attendee.email || attendee.phone || "";
-                  const isConfirmed = attendee.status === "confirmed";
-                  const isRejected = attendee.status === "rejected";
-                  const isWaitlisted = attendee.status === "waitlisted";
+                  const isConfirmed =
+                    attendee.status === AttendeeStatusEnum.Confirmed ||
+                    attendee.status === AttendeeStatusEnum.Attended ||
+                    attendee.status === AttendeeStatusEnum.CheckedIn;
+                  const isRejected =
+                    attendee.status === AttendeeStatusEnum.Rejected ||
+                    attendee.status === AttendeeStatusEnum.Cancelled;
+                  const isPending =
+                    attendee.status === AttendeeStatusEnum.Pending;
+                  const isWaitlisted =
+                    attendee.status === AttendeeStatusEnum.Waitlisted;
+                  const isOrganizer =
+                    attendee && meet && attendee.userId === meet.organizerId;
                   return (
                     <ListItemButton
                       key={attendee.id}
                       selected={attendee.id === selectedAttendeeId}
                       onClick={() => setSelectedAttendeeId(attendee.id)}
                     >
-                      {isConfirmed || isRejected || isWaitlisted ? (
+                      {!isPending ? (
                         <Box
                           sx={{
                             width: 32,
@@ -240,7 +266,12 @@ export function ManageAttendeesModal({
                             justifyContent: "center",
                           }}
                         >
-                          {isConfirmed ? (
+                          {isOrganizer ? (
+                            <SupervisorAccountOutlinedIcon
+                              fontSize="large"
+                              color="primary"
+                            />
+                          ) : isConfirmed ? (
                             <CheckCircleOutlineIcon
                               fontSize="large"
                               color="success"
@@ -250,10 +281,15 @@ export function ManageAttendeesModal({
                               fontSize="large"
                               color="warning"
                             />
-                          ) : (
+                          ) : isRejected ? (
                             <CancelOutlinedIcon
                               fontSize="large"
                               color="error"
+                            />
+                          ) : (
+                            <QuestionMarkOutlinedIcon
+                              fontSize="large"
+                              color="disabled"
                             />
                           )}
                         </Box>
@@ -296,114 +332,74 @@ export function ManageAttendeesModal({
                     <Typography variant="h6">
                       {attendeeLabel(selectedAttendee)}
                     </Typography>
-                    <Stack direction="row" spacing={1}>
-                      <ButtonGroup
-                        variant="outlined"
-                        size="small"
-                        disabled={!selectedAttendee || isUpdating}
-                        aria-label="Update attendee status"
-                      >
-                        {selectedAttendee.status !== "confirmed" ? (
-                          <Button
-                            color="success"
-                            onClick={() => handleUpdateStatus("confirmed")}
-                          >
-                            Accept
-                          </Button>
-                        ) : null}
-                        {selectedAttendee.status !== "rejected" ? (
-                          <Button
-                            color="error"
-                            onClick={() => handleUpdateStatus("rejected")}
-                          >
-                            Reject
-                          </Button>
-                        ) : null}
-                        {selectedAttendee.status !== "waitlisted" ? (
-                          <Button
-                            color="warning"
-                            onClick={() => handleUpdateStatus("waitlisted")}
-                          >
-                            Waitlist
-                          </Button>
-                        ) : null}
-                      </ButtonGroup>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      {isUpdating && <CircularProgress size={18} />}
+                      {selectedAttendee &&
+                      meet &&
+                      selectedAttendee.userId === meet.organizerId ? (
+                        <Button variant="outlined" disabled>
+                          Organiser
+                        </Button>
+                      ) : (
+                        <AttendeeActionButtons
+                          attendee={selectedAttendee}
+                          onUpdateStatus={handleUpdateStatus}
+                          onPaid={
+                            meet?.costCents ? handleAttendeePaid : undefined
+                          }
+                        />
+                      )}
                     </Stack>
                   </Stack>
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                    mt={1}
-                    flexWrap="wrap"
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      mt: 1,
+                    }}
                   >
-                    {selectedAttendee.email ? (
-                      <Chip size="small" label={selectedAttendee.email} />
-                    ) : null}
-                    {selectedAttendee.phone ? (
-                      <Chip size="small" label={selectedAttendee.phone} />
-                    ) : null}
-                    {selectedAttendee.guests ? (
-                      <Chip
-                        size="small"
-                        label={`Guests: ${selectedAttendee.guests}`}
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      {selectedAttendee.email ? (
+                        <Chip size="small" label={selectedAttendee.email} />
+                      ) : null}
+                      {selectedAttendee.phone ? (
+                        <Chip size="small" label={selectedAttendee.phone} />
+                      ) : null}
+                      {selectedAttendee.guests ? (
+                        <Chip
+                          size="small"
+                          label={`Guests: ${selectedAttendee.guests}`}
+                        />
+                      ) : null}
+                    </Stack>
+                    <Box sx={{ ml: "auto" }}>
+                      <DetailSelector
+                        disabled={!selectedAttendee}
+                        active={detailView === "messages" ? "mail" : "info"}
+                        showUnread={hasUnreadMessages}
+                        onInfoClick={() => setDetailView("responses")}
+                        onMailClick={() => setDetailView("messages")}
                       />
-                    ) : null}
-                  </Stack>
+                    </Box>
+                  </Box>
                 </Box>
                 <Divider />
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    gutterBottom
-                  >
-                    Indemnity
-                  </Typography>
-                  <Typography variant="body2">
-                    {selectedAttendee.indemnity_accepted
-                      ? "Accepted"
-                      : "Not accepted"}
-                  </Typography>
-                  {selectedAttendee.indemnity_minors ? (
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 1 }}
-                    >
-                      Minors: {selectedAttendee.indemnity_minors}
-                    </Typography>
-                  ) : null}
-                </Box>
+                {detailView === "messages" ? (
+                  <AttendeeMessages
+                    meetId={meetId}
+                    attendeeId={selectedAttendee?.id}
+                    attendeeEmail={selectedAttendee?.email}
+                  />
+                ) : (
+                  <AttendeeResponses
+                    indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    indemnityMinors={selectedAttendee.indemnityMinors}
+                    responses={selectedAttendee.metaValues}
+                  />
+                )}
                 <Divider />
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    gutterBottom
-                  >
-                    Responses
-                  </Typography>
-                  {selectedAttendee.metaValues?.length ? (
-                    <Stack spacing={1}>
-                      {selectedAttendee.metaValues.map((response) => (
-                        <Box key={response.definitionId}>
-                          <Typography variant="caption" color="text.secondary">
-                            {response.label}
-                          </Typography>
-                          <Typography variant="body2">
-                            {response.value || "—"}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No responses available.
-                    </Typography>
-                  )}
-                </Box>
-                <Box>
+                <Box sx={{ display: "flex", justifyContent: "center" }}>
                   <Button
                     variant="outlined"
                     disabled={!selectedAttendee}
@@ -438,32 +434,34 @@ export function ManageAttendeesModal({
           Close
         </Button>
       </DialogActions>
-      {meetId && (
+      {meet && (
         <MessageModal
           open={messageOpen}
           onClose={() => setMessageOpen(false)}
-          meetId={meetId}
+          meet={meet}
           attendeeIds={messageAttendeeIds}
           attendees={attendees}
         />
       )}
-      <ConfirmClosedStatusDialog
-        open={confirmDialog}
-        status={pendingStatus}
-        meet={{ id: meetId, name: meetName }}
-        attendeeId={selectedAttendeeId}
-        onClose={() => {
-          setConfirmDialog(false);
-          setPendingStatus(null);
-          setIsUpdating(false);
-        }}
-        onDone={async () => {
-          setConfirmDialog(false);
-          setPendingStatus(null);
-          setIsUpdating(false);
-          await refetch();
-        }}
-      />
+      {meet && (
+        <ConfirmClosedStatusDialog
+          open={confirmDialog}
+          status={pendingStatus}
+          meet={meet}
+          attendee={attendees.find((a) => a.id === selectedAttendeeId)!}
+          onClose={() => {
+            setConfirmDialog(false);
+            setPendingStatus(null);
+            setIsUpdating(false);
+          }}
+          onDone={async () => {
+            setConfirmDialog(false);
+            setPendingStatus(null);
+            setIsUpdating(false);
+            await refetch();
+          }}
+        />
+      )}
     </Dialog>
   );
 }

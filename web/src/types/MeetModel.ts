@@ -1,13 +1,18 @@
-export type MeetModel = {
+export type Meet = {
   id: string;
   name: string;
   description?: string;
   location?: string;
+  locationLat?: number;
+  locationLong?: number;
   startTime?: string;
   endTime?: string;
+  openingDate?: string;
   status?: string;
   organizerId?: string;
   organizerName?: string;
+  organizerEmail?: string;
+  organizerPhone?: string;
   imageUrl?: string;
   capacity?: number;
   waitlistSize?: number;
@@ -25,6 +30,10 @@ export type MeetModel = {
   attendeeCount?: number;
   waitlistCount?: number;
   confirmedCount?: number;
+  checkedInCount?: number;
+  isHidden?: boolean;
+  myAttendeeStatus?: string;
+  organizationId?: string;
 };
 
-export default MeetModel;
+export default Meet;

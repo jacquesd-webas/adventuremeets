@@ -8,27 +8,16 @@ import { ConfirmDeleteMeetDialog } from "./confirmActions/ConfirmDeleteMeetDialo
 import { CreateMeetModal } from "./createMeetModal/CreateMeetModal";
 import { ManageAttendeesModal } from "./manageAttendeesModal";
 import { ReportsModal } from "./reportsModal";
-
-export type PendingAction =
-  | "close"
-  | "cancel"
-  | "open"
-  | "postpone"
-  | "delete"
-  | "create"
-  | "attendees"
-  | "checkin"
-  | "edit"
-  | "report"
-  | "preview";
+import MeetActionsEnum from "../types/MeetActionsEnum";
+import { MeetInfoModal } from "./MeetInfoModal";
 
 type MeetActionsDialogsProps = {
   meetId: string | null;
-  pendingAction?: PendingAction;
-  setPendingAction: (action: PendingAction | null) => void;
+  pendingAction?: MeetActionsEnum | null;
+  setPendingAction: (action: MeetActionsEnum | null) => void;
   setSelectedMeetId: (meetId: string | null) => void;
   onActionConfirm?: (
-    action: PendingAction,
+    action: MeetActionsEnum,
     meetId: string | null
   ) => Promise<void> | void;
 };
@@ -46,6 +35,7 @@ function MeetActionsDialogs({
   const [isPostponeDialogOpen, setIsPostponeDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
+  const [showMeetInfoModal, setShowMeetInfoModal] = React.useState(false);
   const [showMeetModal, setShowMeetModal] = React.useState(false);
   const [showAttendeesModal, setShowAttendeesModal] = React.useState(false);
   const [showReportsModal, setShowReportsModal] = React.useState(false);
@@ -57,6 +47,7 @@ function MeetActionsDialogs({
     isPostponeDialogOpen ||
     isDeleteDialogOpen ||
     showMeetModal ||
+    showMeetInfoModal ||
     showAttendeesModal ||
     showReportsModal;
 
@@ -75,35 +66,38 @@ function MeetActionsDialogs({
   // Common handler to close dialogs and reset state
   const handleClose = () => {
     switch (pendingAction) {
-      case "create":
+      case MeetActionsEnum.Create:
         setShowMeetModal(false);
         break;
-      case "edit":
+      case MeetActionsEnum.Edit:
         setShowMeetModal(false);
         break;
-      case "attendees":
+      case MeetActionsEnum.Attendees:
         setShowAttendeesModal(false);
         break;
-      case "report":
+      case MeetActionsEnum.Report:
         setShowReportsModal(false);
         break;
-      case "checkin":
+      case MeetActionsEnum.Checkin:
         setShowAttendeesModal(false);
         break;
-      case "close":
+      case MeetActionsEnum.Close:
         setIsCloseDialogOpen(false);
         break;
-      case "cancel":
+      case MeetActionsEnum.Cancel:
         setIsCancelDialogOpen(false);
         break;
-      case "open":
+      case MeetActionsEnum.Open:
         setIsOpenDialogOpen(false);
         break;
-      case "postpone":
+      case MeetActionsEnum.Postpone:
         setIsPostponeDialogOpen(false);
         break;
-      case "delete":
+      case MeetActionsEnum.Delete:
         setIsDeleteDialogOpen(false);
+        break;
+      case MeetActionsEnum.Details:
+        setShowMeetInfoModal(false);
         break;
       default:
         break;
@@ -147,6 +141,13 @@ function MeetActionsDialogs({
         setIsDeleteDialogOpen(true);
         break;
       case "preview":
+        // redirects to preview page
+        break;
+      case "details":
+        setShowMeetInfoModal(true);
+        break;
+      case "apply":
+        // redirects to apply page
         break;
       default:
         break;
@@ -217,6 +218,16 @@ function MeetActionsDialogs({
         meetId={meetId}
         onClose={() => {
           setShowReportsModal(false);
+          setSelectedMeetId(null);
+          setPendingAction(null);
+        }}
+      />
+
+      <MeetInfoModal
+        open={showMeetInfoModal}
+        meetId={meetId}
+        onClose={() => {
+          setShowMeetInfoModal(false);
           setSelectedMeetId(null);
           setPendingAction(null);
         }}

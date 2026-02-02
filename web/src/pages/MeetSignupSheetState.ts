@@ -33,5 +33,7 @@ export function useMeetSignupSheetState() {
     setState((prev) => ({ ...prev, metaValues: { ...prev.metaValues, [key]: value } }));
   };
 
-  return { state, setState, setField, setMetaValue };
+  const resetState = () => setState(initialState);
+
+  return { state, setState, setField, setMetaValue, resetState };
 }

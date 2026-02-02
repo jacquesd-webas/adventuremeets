@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Min, IsDateString, IsUUID } from 'class-validator';
 
 export class UpdateMeetAttendeeDto {
   @ApiPropertyOptional()
@@ -37,4 +37,19 @@ export class UpdateMeetAttendeeDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @ApiPropertyOptional({ description: "User id (UUID)" })
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  paidFullAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  paidDepositAt?: string;
 }

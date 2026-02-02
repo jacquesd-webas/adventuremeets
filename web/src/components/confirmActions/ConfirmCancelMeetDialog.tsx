@@ -1,5 +1,5 @@
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
-import MeetStatusEnum from "../../models/MeetStatusEnum";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
 
 type ConfirmCancelMeetDialogProps = {

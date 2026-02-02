@@ -30,11 +30,12 @@ import { FinishStep } from "./FinishStep";
 import { ImageStep } from "./ImageStep";
 import { useApi } from "../../hooks/useApi";
 import { useSaveMeet } from "../../hooks/useSaveMeet";
-import { useMe } from "../../hooks/useMe";
-import { useUsers } from "../../hooks/useUsers";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { getLocaleDefaults } from "../../helpers/locale";
+import { useAuth } from "../../context/authContext";
+import { useFetchOrganizers } from "../../hooks/useFetchOrganizers";
+import { useCurrentOrganization } from "../../context/organizationContext";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -133,6 +134,7 @@ const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
           type: definition.fieldType ?? definition.field_type ?? "text", // XXX TODO: fix this
           label: definition.label ?? "",
           required: definition.required ?? false,
+          includeInReports: definition.config?.includeInReports ?? false,
           options: Array.isArray(definition.config?.options)
             ? definition.config.options
             : [],
@@ -144,6 +146,7 @@ const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
         }))
       : [],
     statusId: meet.statusId ?? null,
+    imagePreview: meet.imageUrl ?? "",
   };
 };
 
@@ -174,8 +177,9 @@ export function CreateMeetModal({
   const api = useApi();
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
-  const { user } = useMe();
-  const { users } = useUsers();
+  const { user } = useAuth();
+  const { currentOrganizationId } = useCurrentOrganization();
+  const { data: users } = useFetchOrganizers(currentOrganizationId);
   const { data: fetchedMeet, isLoading: isFetchingMeet } = useFetchMeet(
     meetIdProp,
     Boolean(open && meetIdProp)
@@ -409,8 +413,11 @@ export function CreateMeetModal({
             required: Boolean(question.required),
             config:
               question.type === "select"
-                ? { options: question.options ?? [] }
-                : {},
+                ? {
+                    options: question.options ?? [],
+                    includeInReports: Boolean(question.includeInReports),
+                  }
+                : { includeInReports: Boolean(question.includeInReports) },
           })),
         };
       case 4:
@@ -480,8 +487,8 @@ export function CreateMeetModal({
     if (!meetId && result?.id) {
       setMeetId(result.id);
     }
-    if (result?.shareCode) {
-      setShareCode(result.shareCode ?? null);
+    if (result?.shareCode || result?.share_code) {
+      setShareCode(result.shareCode ?? result.share_code ?? null);
     }
     if (result?.statusId) {
       setState((prev) => ({

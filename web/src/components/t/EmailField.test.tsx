@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { EmailField } from "../EmailField";
+import { EmailField } from "../meetSignup/EmailField";
 
 describe("EmailField", () => {
   it("renders label and propagates changes", () => {
