@@ -113,7 +113,7 @@ function LoginPage() {
 
         <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
           <Link href="/register">Create Account</Link>
-          <Link href="#">Forgot password?</Link>
+          <Link href="/forgot-password">Forgot password?</Link>
         </Stack>
       </Paper>
     </Container>

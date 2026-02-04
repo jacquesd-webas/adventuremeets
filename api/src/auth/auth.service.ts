@@ -9,12 +9,15 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
+import * as crypto from "crypto";
 import { UsersService } from "../users/users.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
 import { TokenPair } from "./dto/token-pair.dto";
 import { RegisterDto } from "./dto/register.dto";
+import { EmailService } from "../email/email.service";
+import { renderEmailTemplate } from "../email/email.templates";
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -42,7 +45,8 @@ export class AuthService {
   constructor(
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly emailService: EmailService
   ) {}
 
   hasRole(
@@ -242,6 +246,74 @@ export class AuthService {
     const data = await res.json();
     if (!data.success) {
       throw new UnauthorizedException("Captcha verification failed");
+    }
+  }
+
+  private buildPasswordResetUrl(token: string) {
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const base = frontendUrl.replace(/\/+$/, "");
+    return `${base}/reset-password?token=${encodeURIComponent(token)}`;
+  }
+
+  private hashResetToken(token: string) {
+    return crypto.createHash("sha256").update(token).digest("hex");
+  }
+
+  async requestPasswordReset(email: string) {
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      return;
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = this.hashResetToken(token);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    await this.usersService.setPasswordResetToken(user.id, tokenHash, expiresAt);
+
+    const resetUrl = this.buildPasswordResetUrl(token);
+    const { subject, text, html } = renderEmailTemplate("password-reset", {
+      resetUrl,
+    });
+
+    try {
+      await this.emailService.sendEmail({
+        to: user.email,
+        subject,
+        text,
+        html,
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to send password reset email to ${user.email}: ${err?.message || err}`
+      );
+    }
+  }
+
+  async resetPassword(token: string, password: string) {
+    const tokenHash = this.hashResetToken(token);
+    const user = await this.usersService.findByPasswordResetToken(tokenHash);
+    if (!user || !user.password_reset_expires_at) {
+      throw new BadRequestException("Invalid or expired reset token");
+    }
+    const expiresAt = new Date(user.password_reset_expires_at);
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()) {
+      throw new BadRequestException("Invalid or expired reset token");
+    }
+
+    await this.usersService.updatePasswordFromReset(user.id, password);
+
+    const confirmation = renderEmailTemplate("password-reset-confirmation");
+    try {
+      await this.emailService.sendEmail({
+        to: user.email,
+        subject: confirmation.subject,
+        text: confirmation.text,
+        html: confirmation.html,
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to send password reset confirmation email to ${user.email}: ${err?.message || err}`
+      );
     }
   }
 

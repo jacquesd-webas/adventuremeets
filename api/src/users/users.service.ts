@@ -110,6 +110,41 @@ export class UsersService {
     return this.database.getClient()("users").where({ email }).first();
   }
 
+  async findByPasswordResetToken(tokenHash: string) {
+    return this.database
+      .getClient()("users")
+      .where({ password_reset_token: tokenHash })
+      .first();
+  }
+
+  async setPasswordResetToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: string
+  ) {
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        password_reset_token: tokenHash,
+        password_reset_expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      });
+  }
+
+  async updatePasswordFromReset(userId: string, password: string) {
+    const passwordHash = await bcrypt.hash(password, 10);
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        password_hash: passwordHash,
+        password_reset_token: null,
+        password_reset_expires_at: null,
+        updated_at: new Date().toISOString(),
+      });
+  }
+
   async isValidAttendee(attendeeId: string) {
     const row = await this.database
       .getClient()("meet_attendees")
