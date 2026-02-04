@@ -13,7 +13,6 @@ import PlaceIcon from "@mui/icons-material/Place";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import formatRange from "../../helpers/formatRange";
 import Meet from "../../types/MeetModel";
 import { MeetActionsMenu } from "../MeetActionsMenu";
 import { MeetActionsEnum } from "../../types/MeetActionsEnum";
@@ -21,6 +20,7 @@ import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useAuth } from "../../context/authContext";
+import { getCardRangeLabel } from "../../helpers/meetTime";
 
 type MeetCardProps = {
   meet: Meet;
@@ -48,10 +48,10 @@ const AttendeeStatus = ({
     status === AttendeeStatusEnum.Attended
       ? "success"
       : status === AttendeeStatusEnum.Waitlisted
-      ? "warning"
-      : status === AttendeeStatusEnum.Rejected
-      ? "error"
-      : "disabled";
+        ? "warning"
+        : status === AttendeeStatusEnum.Rejected
+          ? "error"
+          : "disabled";
 
   const text = isUpcoming
     ? status === AttendeeStatusEnum.Confirmed ||
@@ -59,18 +59,18 @@ const AttendeeStatus = ({
       status === AttendeeStatusEnum.Attended
       ? "Attending"
       : status === AttendeeStatusEnum.Waitlisted
-      ? "Waitlisted"
-      : status === AttendeeStatusEnum.Rejected ||
-        status === AttendeeStatusEnum.Cancelled
-      ? "Not accepted"
-      : status === AttendeeStatusEnum.Pending
-      ? "Pending"
-      : "Did not apply"
+        ? "Waitlisted"
+        : status === AttendeeStatusEnum.Rejected ||
+            status === AttendeeStatusEnum.Cancelled
+          ? "Not accepted"
+          : status === AttendeeStatusEnum.Pending
+            ? "Pending"
+            : "Did not apply"
     : status === AttendeeStatusEnum.Confirmed ||
-      status === AttendeeStatusEnum.CheckedIn ||
-      status === AttendeeStatusEnum.Attended
-    ? "Attended"
-    : "Did not attend";
+        status === AttendeeStatusEnum.CheckedIn ||
+        status === AttendeeStatusEnum.Attended
+      ? "Attended"
+      : "Did not attend";
 
   return (
     <Stack direction="row" spacing={2} alignItems="center" mt={1.5}>
@@ -147,7 +147,7 @@ export function MeetCard({
 
   const isUpcoming = new Date(meet.endTime) >= new Date();
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
-  const rangeLabel = formatRange(meet.startTime, meet.endTime);
+  const rangeLabel = getCardRangeLabel(meet);
   const isOrganizerForMeet = user && meet && user.id === meet.organizerId;
 
   return (

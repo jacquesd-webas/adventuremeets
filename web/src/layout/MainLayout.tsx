@@ -48,13 +48,13 @@ function MainLayout() {
   const { currentOrganizationId, organizationIds, currentOrganizationRole } =
     useCurrentOrganization();
   const { data: organization } = useFetchOrganization(
-    currentOrganizationId || undefined
+    currentOrganizationId || undefined,
   );
   const [profileOpen, setProfileOpen] = useState(false);
   const { mode, toggleMode } = useThemeMode();
   const queryClient = useQueryClient();
   const isAdmin = Boolean(
-    user?.organizations && Object.values(user.organizations).includes("admin")
+    user?.organizations && Object.values(user.organizations).includes("admin"),
   );
   const isCurrentOrgAdmin = currentOrganizationRole === "admin";
 

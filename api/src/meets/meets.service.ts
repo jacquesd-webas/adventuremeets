@@ -693,9 +693,15 @@ export class MeetsService {
       description: dto.description,
       organizer_id: dto.organizerId,
       organization_id: dto.organizationId,
-      location: dto.location,
-      location_lat: dto.locationLat,
-      location_long: dto.locationLong,
+      location: dto.location === "" ? null : dto.location,
+      location_lat:
+        dto.useMap === false || dto.location === ""
+          ? null
+          : dto.locationLat,
+      location_long:
+        dto.useMap === false || dto.location === ""
+          ? null
+          : dto.locationLong,
       start_time: dto.startTime,
       end_time: dto.endTime,
       opening_date: dto.openingDate,
@@ -720,7 +726,9 @@ export class MeetsService {
       cost_cents: this.toCents(dto.costCents),
       deposit_cents: this.toCents(dto.depositCents),
       share_code: dto.shareCode,
-      times_tbc: dto.timesTbc,
+      start_time_tbc: dto.startTimeTbc,
+      end_time_tbc: dto.endTimeTbc,
+      use_map: dto.useMap,
       is_hidden: dto.isHidden,
     };
     if (now) {
@@ -823,7 +831,10 @@ export class MeetsService {
       confirmedCount: Number(meet.confirmed_count ?? 0),
       waitlistCount: Number(meet.waitlist_count ?? 0),
       checkedInCount: Number(meet.checked_in_count ?? 0),
-      timesTbc: meet.times_tbc ?? meet.timesTbc ?? undefined,
+      startTimeTbc:
+        meet.start_time_tbc ?? meet.startTimeTbc ?? meet.times_tbc ?? undefined,
+      endTimeTbc: meet.end_time_tbc ?? meet.endTimeTbc ?? undefined,
+      useMap: meet.use_map ?? meet.useMap ?? undefined,
       isHidden: meet.is_hidden ?? undefined,
       myAttendeeStatus: meet.my_attendee_status ?? undefined,
       metaDefinitions: metaDefinitions.map((definition) => ({

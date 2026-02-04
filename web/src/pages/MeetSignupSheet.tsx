@@ -35,7 +35,7 @@ import {
   splitInternationalPhone,
 } from "../components/meetSignup/InternationalPhoneField";
 import { EmailField } from "../components/meetSignup/EmailField";
-import { MeetInfoSummary } from "../components/MeetInfoSummary";
+import { MeetInfoSummary } from "../components/meetInfo/MeetInfoSummary";
 import { NameField } from "../components/meetSignup/NameField";
 import { PreviewBanner } from "../components/PreviewBanner";
 import { LoginForm } from "../components/auth/LoginForm";
@@ -175,7 +175,7 @@ function MeetSignupFormFields({
                     <MenuItem key={idx} value={idx}>
                       {idx}
                     </MenuItem>
-                  )
+                  ),
                 )}
               </TextField>
             </LabeledField>
@@ -246,7 +246,7 @@ function MeetSignupFormFields({
                   key,
                   field.field_type === "number" && e.target.value !== ""
                     ? Number(e.target.value)
-                    : e.target.value
+                    : e.target.value,
                 )
               }
               fullWidth
@@ -306,7 +306,7 @@ function MeetSignupSheet() {
   const metaAutofillRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedAttendeeId, setSubmittedAttendeeId] = useState<string | null>(
-    null
+    null,
   );
   const [existingAttendee, setExistingAttendee] = useState<{
     id: string;
@@ -550,7 +550,7 @@ function MeetSignupSheet() {
         return { definitionId: field.id, value: String(value) };
       })
       .filter((value): value is { definitionId: string; value: string } =>
-        Boolean(value)
+        Boolean(value),
       );
     const res = await addAttendeeAsync({
       meetId: meet.id,

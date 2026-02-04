@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, Stack, Typography } from "@mui/material";
-import { MeetInfoSummary } from "./MeetInfoSummary";
+import { MeetInfoSummary } from "./meetInfo/MeetInfoSummary";
 import { useFetchMeet } from "../hooks/useFetchMeet";
 import { MeetStatusAlert } from "./MeetStatusAlert";
 

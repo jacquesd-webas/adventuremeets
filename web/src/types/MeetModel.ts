@@ -26,7 +26,9 @@ export type Meet = {
   confirmMessage?: string;
   rejectMessage?: string;
   statusId?: number;
-  timesTbc?: boolean;
+  startTimeTbc?: boolean;
+  endTimeTbc?: boolean;
+  useMap?: boolean;
   attendeeCount?: number;
   waitlistCount?: number;
   confirmedCount?: number;

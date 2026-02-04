@@ -17,7 +17,7 @@ import {
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import { useParams } from "react-router-dom";
-import { MeetInfoSummary } from "../components/MeetInfoSummary";
+import { MeetInfoSummary } from "../components/meetInfo/MeetInfoSummary";
 import { AttendeeStatusAlert } from "../components/AttendeeStatusAlert";
 import { useFetchMeetAttendeeStatus } from "../hooks/useFetchMeetAttendeeStatus";
 import { useAuth } from "../context/authContext";
@@ -161,7 +161,7 @@ export default function AttendeeStatusPage() {
                   disabled={
                     !isAuthenticated ||
                     !["pending", "confirmed"].includes(
-                      attendeeStatusData?.attendee.status || ""
+                      attendeeStatusData?.attendee.status || "",
                     )
                   }
                   fullWidth={isMobile}
