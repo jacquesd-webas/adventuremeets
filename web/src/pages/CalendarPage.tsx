@@ -15,7 +15,7 @@ import { useMemo, useState } from "react";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useCurrentOrganization } from "../context/organizationContext";
 import Meet from "../types/MeetModel";
-import { MeetInfoModal } from "../components/MeetInfoModal";
+import { MeetInfoModal } from "../components/meet/MeetInfoModal";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -336,8 +336,7 @@ export default function CalendarPage() {
                                     </Typography>
                                   ) : (
                                     <>
-                                      {items.map(
-                                        ({ meet, renderId, weekKey }) => {
+                                      {items.map(({ meet, renderId }) => {
                                           const isTruncated =
                                             meet.name.length > 26;
                                           const label = isTruncated
@@ -390,8 +389,7 @@ export default function CalendarPage() {
                                           ) : (
                                             <Box key={renderId}>{content}</Box>
                                           );
-                                        },
-                                      )}
+                                        })}
                                       {singleDayItems.map((meet) => {
                                         const isTruncated =
                                           meet.name.length > 26;

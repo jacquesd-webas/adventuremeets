@@ -1,5 +1,5 @@
 import { Alert, Stack, Typography } from "@mui/material";
-import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
+import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 
 type AttendeeStatusAlertProps = {
   status?: string | null;

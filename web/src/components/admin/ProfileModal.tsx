@@ -24,22 +24,23 @@ import {
 import { useEffect, useMemo, useRef, useState, ChangeEvent } from "react";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
-import { useUpdateUser } from "../hooks/useUpdateUser";
-import { useFetchOrganization } from "../hooks/useFetchOrganization";
-import { useUpdateOrganization } from "../hooks/useUpdateOrganization";
-import { useAuth } from "../context/authContext";
+import { useUpdateUser } from "../../hooks/useUpdateUser";
+import { useFetchOrganization } from "../../hooks/useFetchOrganization";
+import { useUpdateOrganization } from "../../hooks/useUpdateOrganization";
+import { useAuth } from "../../context/authContext";
 import {
   buildInternationalPhone,
   getDefaultPhoneCountry,
   InternationalPhoneField,
   splitInternationalPhone,
-} from "./meetSignup/InternationalPhoneField";
-import { getLocaleDefaults } from "../helpers/locale";
-import { useCurrentOrganization } from "../context/organizationContext";
-import { useFetchOrganizationMetaDefinitions } from "../hooks/useFetchOrganizationMetaDefinitions";
-import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
-import { useUpdateUserMetaValues } from "../hooks/useUpdateUserMetaValues";
-import { useNotistack } from "../hooks/useNotistack";
+} from "../../components/formFields/InternationalPhoneField";
+import { getLocaleDefaults } from "../../helpers/locale";
+import { useCurrentOrganization } from "../../context/organizationContext";
+import { useFetchOrganizationMetaDefinitions } from "../../hooks/useFetchOrganizationMetaDefinitions";
+import { useFetchUserMetaValues } from "../../hooks/useFetchUserMetaValues";
+import { useUpdateUserMetaValues } from "../../hooks/useUpdateUserMetaValues";
+import { useNotistack } from "../../hooks/useNotistack";
+import { NameField } from "../formFields/NameField";
 
 function LabeledField({
   label,
@@ -59,7 +60,6 @@ function LabeledField({
     </Stack>
   );
 }
-import { NameField } from "./meetSignup/NameField";
 
 type ProfileModalProps = {
   open: boolean;
@@ -138,7 +138,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
 
   const parseMetaValue = (
     fieldType: string,
-    value: string | null
+    value: string | null,
   ): string | number | boolean => {
     if (value === null || value === undefined) {
       return fieldType === "checkbox" || fieldType === "switch" ? false : "";
@@ -163,7 +163,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
       const raw = byKey.get(definition.fieldKey) ?? null;
       initialValues[definition.fieldKey] = parseMetaValue(
         definition.fieldType,
-        raw
+        raw,
       );
     });
     setAutoFillValues(initialValues);
@@ -593,7 +593,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                                 item.fieldType === "number" &&
                                   e.target.value !== ""
                                   ? Number(e.target.value)
-                                  : e.target.value
+                                  : e.target.value,
                               )
                             }
                             fullWidth

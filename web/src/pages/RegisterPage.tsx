@@ -15,13 +15,13 @@ import { useEffect, useRef, useState } from "react";
 import ReCAPTCHA from "react-google-recaptcha";
 import { useRegister } from "../hooks/useRegister";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AuthSocialButtons } from "../components/AuthSocialButtons";
-import { EmailField } from "../components/meetSignup/EmailField";
+import { AuthSocialButtons } from "../components/auth/AuthSocialButtons";
+import { EmailField } from "../components/formFields/EmailField";
 import {
   InternationalPhoneField,
   buildInternationalPhone,
   getDefaultPhoneCountry,
-} from "../components/meetSignup/InternationalPhoneField";
+} from "../components/formFields/InternationalPhoneField";
 import { getLocaleDefaults } from "../helpers/locale";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
@@ -62,7 +62,7 @@ function RegisterPage() {
   const shouldShowCaptchaWarning =
     !recaptchaSiteKey && !pendingMeetLink?.attendeeId;
   const chooseMethod = (
-    method: null | "google" | "microsoft" | "facebook" | "email"
+    method: null | "google" | "microsoft" | "facebook" | "email",
   ) => {
     setSelectedMethod(method);
     setCaptchaToken(null);
@@ -153,7 +153,7 @@ function RegisterPage() {
         await refreshSession();
         if (pendingMeetLink) {
           nav(
-            `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
+            `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`,
           );
         } else {
           nav("/");
@@ -171,7 +171,7 @@ function RegisterPage() {
       return;
     }
     const res = await api.get<{ exists: boolean }>(
-      `/auth/register/check?email=${encodeURIComponent(value)}`
+      `/auth/register/check?email=${encodeURIComponent(value)}`,
     );
     setEmailError(res.exists ? "This email is already registered." : null);
   };

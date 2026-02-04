@@ -39,7 +39,7 @@ export function MeetInfoDeets({
     : locationLabel;
   const locationTimeSuffix = locationLabelMatch ? locationLabelMatch[2] : "";
   const costLabel =
-    typeof meet.costCents === "number"
+    typeof meet.costCents === "number" && meet.costCents > 0
       ? `${meet.currencySymbol || ""}${(meet.costCents / 100).toFixed(2)}`
       : null;
   const mapQuery = useMemo(() => {

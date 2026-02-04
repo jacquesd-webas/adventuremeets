@@ -12,7 +12,7 @@ import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
 import Meet from "../types/MeetModel";
 import MeetStatusEnum from "../types/MeetStatusEnum";
-import { MeetActionsDialogs } from "../components/MeetActionsDialogs";
+import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
 import { MobileDashboardTitle } from "../components/dashboard/MobileDashboardTitle";
 import { useCurrentOrganization } from "../context/organizationContext";
@@ -22,7 +22,7 @@ import MeetActionsEnum from "../types/MeetActionsEnum";
 function DashboardPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<MeetActionsEnum | null>(
-    null
+    null,
   );
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
   const theme = useTheme();
@@ -52,15 +52,15 @@ function DashboardPage() {
   const { upcoming, past, draft, columns } = useMemo(() => {
     const now = new Date();
     const draftMeets: Meet[] = meets.filter(
-      (m: Meet) => m.statusId === MeetStatusEnum.Draft
+      (m: Meet) => m.statusId === MeetStatusEnum.Draft,
     );
     const upcomingMeets: Meet[] = meets.filter(
       (m: Meet) =>
-        m.statusId !== MeetStatusEnum.Draft && new Date(m.endTime) >= now
+        m.statusId !== MeetStatusEnum.Draft && new Date(m.endTime) >= now,
     );
     const pastMeets: Meet[] = meets.filter(
       (m: Meet) =>
-        m.statusId !== MeetStatusEnum.Draft && new Date(m.endTime) < now
+        m.statusId !== MeetStatusEnum.Draft && new Date(m.endTime) < now,
     );
     let numColumns = 1; // We always show upcoming
     if (draftMeets.length > 0) numColumns++;

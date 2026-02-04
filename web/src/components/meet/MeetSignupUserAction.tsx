@@ -15,8 +15,8 @@ import {
   useTheme,
 } from "@mui/material";
 import { FormEvent, useMemo, useState, MouseEvent } from "react";
-import { useAuth } from "../context/authContext";
-import { useLogin } from "../hooks/useLogin";
+import { useAuth } from "../../context/authContext";
+import { useLogin } from "../../hooks/useLogin";
 
 type MeetSignupUserActionProps = {
   formEmail?: string;
@@ -114,7 +114,7 @@ export function MeetSignupUserAction({
   };
 
   const isMismatchedUser = Boolean(
-    formEmail && user && formEmail !== user.email
+    formEmail && user && formEmail !== user.email,
   );
 
   if (isMismatchedUser) {

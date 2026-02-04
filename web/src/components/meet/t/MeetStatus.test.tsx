@@ -3,7 +3,7 @@ import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import { MeetStatus } from "../MeetStatus";
 
-vi.mock("../../hooks/useFetchMeetStatuses", () => ({
+vi.mock("../../../hooks/useFetchMeetStatuses", () => ({
   useMeetStatusLookup: () => ({
     getName: (id: number | null | undefined, fallback: string) => {
       if (id === 1) return "Draft";
@@ -13,8 +13,8 @@ vi.mock("../../hooks/useFetchMeetStatuses", () => ({
       if (id === 5) return "Cancelled";
       if (id === 6) return "Postponed";
       return fallback;
-    }
-  })
+    },
+  }),
 }));
 
 describe("MeetStatus", () => {
@@ -32,8 +32,8 @@ describe("MeetStatus", () => {
     render(<MeetStatus statusId={2} />);
     expect(screen.getByText("Published")).toBeInTheDocument();
   });
-  
-  it("renders label for known status id 3", () => { 
+
+  it("renders label for known status id 3", () => {
     render(<MeetStatus statusId={3} />);
     expect(screen.getByText("Open")).toBeInTheDocument();
   });

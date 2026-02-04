@@ -1,14 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { MeetSignupSubmitted } from "../MeetSignupSubmitted";
+import { MeetSignupSubmitted } from "../../meet/MeetSignupSubmitted";
 import { AuthContext } from "../../../context/authContext";
 
 const navigate = vi.fn();
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom"
-  );
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom",
+    );
   return {
     ...actual,
     useNavigate: () => navigate,
@@ -43,7 +44,7 @@ describe("MeetSignupSubmitted", () => {
             shareCode="share-1"
           />
         </AuthContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Create Profile" }));
@@ -76,7 +77,7 @@ describe("MeetSignupSubmitted", () => {
         >
           <MeetSignupSubmitted attendeeId="att-1" shareCode="share-1" />
         </AuthContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Show Status" }));

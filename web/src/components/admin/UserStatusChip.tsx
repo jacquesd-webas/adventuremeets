@@ -1,5 +1,5 @@
 import { Chip } from "@mui/material";
-import { User } from "../types/UserModel";
+import { User } from "../../types/UserModel";
 
 type UserStatusChipProps = {
   user?: User;
@@ -15,8 +15,8 @@ export function UserStatusChip({ user }: UserStatusChipProps) {
   const status = user?.isDisabled
     ? "Disabled"
     : user?.emailVerified
-    ? "Verified"
-    : "Pending";
+      ? "Verified"
+      : "Pending";
 
   const color = roleColors[status.toLowerCase()] || roleColors.disabled;
 

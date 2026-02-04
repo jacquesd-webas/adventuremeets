@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MeetSignupDuplicateDialog } from "../MeetSignupDuplicateDialog";
+import { MeetSignupDuplicateDialog } from "../../meet/MeetSignupDuplicateDialog";
 
 describe("MeetSignupDuplicateDialog", () => {
   beforeAll(() => {
@@ -26,11 +26,11 @@ describe("MeetSignupDuplicateDialog", () => {
         onClose={onClose}
         onRemove={vi.fn()}
         onUpdate={vi.fn()}
-      />
+      />,
     );
 
     expect(
-      screen.getByRole("heading", { name: /Already signed up/i })
+      screen.getByRole("heading", { name: /Already signed up/i }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();

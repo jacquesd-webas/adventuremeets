@@ -3,8 +3,6 @@ import {
   Paper,
   Stack,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import HistoryIcon from "@mui/icons-material/History";
@@ -14,10 +12,10 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import Meet from "../../types/MeetModel";
-import { MeetActionsMenu } from "../MeetActionsMenu";
+import { MeetActionsMenu } from "../meet/MeetActionsMenu";
 import { MeetActionsEnum } from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
-import { MeetStatus } from "../MeetStatus";
+import { MeetStatus } from "../meet/MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useAuth } from "../../context/authContext";
 import { getCardRangeLabel } from "../../helpers/meetTime";
@@ -141,9 +139,7 @@ export function MeetCard({
   setSelectedMeetId,
   setPendingAction,
 }: MeetCardProps) {
-  const theme = useTheme();
   const { user } = useAuth();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const isUpcoming = new Date(meet.endTime) >= new Date();
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
@@ -155,13 +151,13 @@ export function MeetCard({
       variant="outlined"
       sx={{
         p: 2,
-        cursor: isMobile ? "default" : "pointer",
+        cursor: typeof onClick === "function" ? "pointer" : "default",
         backgroundColor: "rgba(255, 255, 255, 0.7)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
       }}
       onClick={() => {
-        if (!isMobile && typeof onClick === "function") {
+        if (typeof onClick === "function") {
           onClick();
         }
       }}

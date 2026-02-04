@@ -1,6 +1,6 @@
 import { Button, Stack, TextField, Typography } from "@mui/material";
 import { useMemo, useState } from "react";
-import { StepProps, validateAll } from "./CreateMeetState";
+import { StepProps } from "./CreateMeetState";
 
 type FinishStepProps = StepProps & {
   shareCode?: string | null;

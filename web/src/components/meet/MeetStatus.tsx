@@ -1,6 +1,6 @@
 import { Chip, useTheme } from "@mui/material";
-import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
-import MeetStatusEnum from "../types/MeetStatusEnum";
+import { useMeetStatusLookup } from "../../hooks/useFetchMeetStatuses";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
 
 type MeetStatusProps = {
   statusId?: number | null;

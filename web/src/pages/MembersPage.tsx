@@ -12,10 +12,10 @@ import { useParams } from "react-router-dom";
 import { useFetchOrganizationMembers } from "../hooks/useFetchOrganizationMembers";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { shortTimestamp } from "../helpers/formatFriendlyTimestamp";
-import { RoleChip } from "../components/RoleChip";
+import { RoleChip } from "../components/admin/RoleChip";
 import { EditUsersModal } from "../components/admin/EditUsersModal";
 import { OrganizationMember } from "../types/MemberModel";
-import { AdminActionsMenu } from "../components/AdminActionsMenu";
+import { AdminActionsMenu } from "../components/actions/AdminActionsMenu";
 
 function MembersPage() {
   const { id } = useParams();
@@ -111,7 +111,7 @@ function MembersPage() {
         ),
       },
     ],
-    []
+    [],
   );
 
   const title = organization?.name ? `${organization.name} Members` : "Members";
@@ -157,7 +157,7 @@ function MembersPage() {
             sortModel={sortModel}
             onSortModelChange={(model) =>
               setSortModel(
-                model as Array<{ field: string; sort: "asc" | "desc" }>
+                model as Array<{ field: string; sort: "asc" | "desc" }>,
               )
             }
             disableRowSelectionOnClick

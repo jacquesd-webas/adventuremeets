@@ -18,14 +18,14 @@ import {
 } from "@mui/material";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { MeetNotFound } from "../components/MeetNotFound";
-import { MeetStatus } from "../constants/meetStatus";
+import { MeetNotFound } from "../components/meet/MeetNotFound";
+import { MeetStatusEnum } from "../types/MeetStatusEnum";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { useAddAttendee } from "../hooks/useAddAttendee";
 import { useCheckMeetAttendee } from "../hooks/useCheckMeetAttendee";
 import { useApi } from "../hooks/useApi";
-import { MeetSignupDuplicateDialog } from "../components/meetSignup/MeetSignupDuplicateDialog";
-import { MeetSignupSubmitted } from "../components/meetSignup/MeetSignupSubmitted";
+import { MeetSignupDuplicateDialog } from "../components/meet/MeetSignupDuplicateDialog";
+import { MeetSignupSubmitted } from "../components/meet/MeetSignupSubmitted";
 import { useMeetSignupSheetState } from "./MeetSignupSheetState";
 import { getLocaleDefaults } from "../helpers/locale";
 import {
@@ -33,16 +33,16 @@ import {
   buildInternationalPhone,
   getDefaultPhoneCountry,
   splitInternationalPhone,
-} from "../components/meetSignup/InternationalPhoneField";
-import { EmailField } from "../components/meetSignup/EmailField";
-import { MeetInfoSummary } from "../components/meetInfo/MeetInfoSummary";
-import { NameField } from "../components/meetSignup/NameField";
-import { PreviewBanner } from "../components/PreviewBanner";
+} from "../components/formFields/InternationalPhoneField";
+import { EmailField } from "../components/formFields/EmailField";
+import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
+import { NameField } from "../components/formFields/NameField";
+import { PreviewBanner } from "../components/meet/PreviewBanner";
 import { LoginForm } from "../components/auth/LoginForm";
-import { MeetStatusAlert } from "../components/MeetStatusAlert";
+import { MeetStatusAlert } from "../components/meet/MeetStatusAlert";
 import { useAuth } from "../context/authContext";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
-import { MeetSignupUserAction } from "../components/MeetSignupUserAction";
+import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
 
 function LabeledField({
   label,
@@ -183,10 +183,10 @@ function MeetSignupFormFields({
         </Stack>
       )}
       {(meet.metaDefinitions || []).map((field: any) => {
-        const key = field.field_key;
+        const key = field.fieldKey;
         const value = metaValues[key];
 
-        if (field.field_type === "checkbox" || field.field_type === "switch") {
+        if (field.fieldType === "checkbox" || field.fieldType === "switch") {
           return (
             <FormControlLabel
               key={field.id}
@@ -201,7 +201,7 @@ function MeetSignupFormFields({
           );
         }
 
-        if (field.field_type === "select") {
+        if (field.fieldType === "select") {
           const options = Array.isArray(field.config?.options)
             ? field.config.options
             : [];
@@ -235,7 +235,7 @@ function MeetSignupFormFields({
             required={field.required}
           >
             <TextField
-              type={field.field_type === "number" ? "number" : "text"}
+              type={field.fieldType === "number" ? "number" : "text"}
               value={
                 typeof value === "number" || typeof value === "string"
                   ? value
@@ -244,7 +244,7 @@ function MeetSignupFormFields({
               onChange={(e) =>
                 setMetaValue(
                   key,
-                  field.field_type === "number" && e.target.value !== ""
+                  field.fieldType === "number" && e.target.value !== ""
                     ? Number(e.target.value)
                     : e.target.value,
                 )
@@ -254,14 +254,14 @@ function MeetSignupFormFields({
           </LabeledField>
         );
       })}
-      {meet.requiresIndemnity && (
+      {meet.hasIndemnity && (
         <Stack spacing={1} mt={2}>
           <Alert
             severity="warning"
             icon={false}
             sx={{ whiteSpace: "pre-line" }}
           >
-            {meet.indemnityText || "Indemnity details not provided."}
+            {meet.indemnity || "Indemnity details not provided."}
           </Alert>
           <FormControlLabel
             control={
@@ -366,7 +366,7 @@ function MeetSignupSheet() {
     }
     const byKey = new Map(userMetaValues.map((item) => [item.key, item.value]));
     (meet.metaDefinitions || []).forEach((field: any) => {
-      const key = field.field_key;
+      const key = field.fieldKey;
       const existingValue = metaValues[key];
       if (
         existingValue !== undefined &&
@@ -377,11 +377,11 @@ function MeetSignupSheet() {
       }
       const raw = byKey.get(key);
       if (raw === undefined) return;
-      if (field.field_type === "checkbox" || field.field_type === "switch") {
+      if (field.fieldType === "checkbox" || field.fieldType === "switch") {
         setMetaValue(key, raw === "true");
         return;
       }
-      if (field.field_type === "number") {
+      if (field.fieldType === "number") {
         const parsed = Number(raw);
         if (!Number.isNaN(parsed)) {
           setMetaValue(key, parsed);
@@ -431,7 +431,7 @@ function MeetSignupSheet() {
     setSubmittedAttendeeId(null);
   };
 
-  const isOpenMeet = meet?.statusId === MeetStatus.Open;
+  const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
 
   if (!isLoading && !meet) {
     return <MeetNotFound />;
@@ -483,9 +483,9 @@ function MeetSignupSheet() {
 
   const requiredMetaMissing = (meet?.metaDefinitions || []).some((field) => {
     if (!field.required) return false;
-    const key = field.field_key;
+    const key = field.fieldKey;
     const value = metaValues[key];
-    if (field.field_type === "checkbox" || field.field_type === "switch") {
+    if (field.fieldType === "checkbox" || field.fieldType === "switch") {
       return value !== true;
     }
     return value === undefined || value === null || value === "";
@@ -497,7 +497,7 @@ function MeetSignupSheet() {
     !email.trim() ||
     !phoneLocal.trim() ||
     requiredMetaMissing ||
-    (meet?.requiresIndemnity && !indemnityAccepted);
+    (meet?.hasIndemnity && !indemnityAccepted);
 
   const checkForDuplicate = async () => {
     if (!meet) return;
@@ -542,7 +542,7 @@ function MeetSignupSheet() {
     }
     const metaPayload = (meet.metaDefinitions || [])
       .map((field) => {
-        const key = field.field_key;
+        const key = field.fieldKey;
         const value = metaValues[key];
         if (value === undefined || value === null || value === "") {
           return null;

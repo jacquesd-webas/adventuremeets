@@ -13,8 +13,8 @@ import { Link as RouterLink } from "react-router-dom";
 import { Organization } from "../types/OrganizationModel";
 import { formatFriendlyTimestamp } from "../helpers/formatFriendlyTimestamp";
 import { useAuth } from "../context/authContext";
-import { RoleChip } from "../components/RoleChip";
-import { OrganizationActions } from "../components/OrganizationActions";
+import { RoleChip } from "../components/admin/RoleChip";
+import { OrganizationActions } from "../components/actions/OrganizationActions";
 
 type OrgRow = Organization & { role?: string };
 
@@ -139,7 +139,7 @@ function OrganisationsPage() {
         ),
       },
     ],
-    []
+    [],
   );
 
   return (
@@ -183,7 +183,9 @@ function OrganisationsPage() {
             sortingMode="server"
             sortModel={sortModel}
             onSortModelChange={(model) =>
-              setSortModel(model as Array<{ field: string; sort: "asc" | "desc" }>)
+              setSortModel(
+                model as Array<{ field: string; sort: "asc" | "desc" }>,
+              )
             }
             disableRowSelectionOnClick
             sx={(theme) => ({

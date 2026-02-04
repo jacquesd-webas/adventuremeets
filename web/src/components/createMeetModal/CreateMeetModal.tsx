@@ -19,7 +19,6 @@ import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
 import ErrorIcon from "@mui/icons-material/Error";
 import ConfirmActionDialog from "../ConfirmActionDialog";
 import { BasicInfoStep } from "./BasicInfoStep";
-import { UserOption } from "./UserSelect";
 import { TimeAndLocationStep } from "./TimeAndLocationStep";
 import { IndemnityStep } from "./IndemnityStep";
 import { QuestionsStep } from "./QuestionsStep";
@@ -34,8 +33,6 @@ import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { getLocaleDefaults } from "../../helpers/locale";
 import { useAuth } from "../../context/authContext";
-import { useFetchOrganizers } from "../../hooks/useFetchOrganizers";
-import { useCurrentOrganization } from "../../context/organizationContext";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import {
   steps,

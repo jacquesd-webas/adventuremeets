@@ -22,8 +22,8 @@ import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
-import MeetActionsEnum from "../types/MeetActionsEnum";
-import MeetStatusEnum from "../types/MeetStatusEnum";
+import MeetActionsEnum from "../../types/MeetActionsEnum";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { useNavigate } from "react-router-dom";
 
 type MeetActionsMenuProps = {
@@ -134,7 +134,7 @@ export function MeetActionsMenu({
   const handleAction = (
     event: MouseEvent<HTMLElement>,
     action: MeetActionsEnum,
-    onAction?: (meetId: string) => void
+    onAction?: (meetId: string) => void,
   ) => {
     event.stopPropagation();
     if (meetId) setSelectedMeetId(meetId);
@@ -149,8 +149,8 @@ export function MeetActionsMenu({
     onItemClick?: (
       event: MouseEvent<HTMLElement>,
       action: MeetActionsEnum,
-      handler?: (id: string) => void
-    ) => void
+      handler?: (id: string) => void,
+    ) => void,
   ) => (
     <>
       {!isOrganizer ? (
@@ -178,10 +178,10 @@ export function MeetActionsMenu({
                       window.open(
                         `/meets/${previewLinkCode}`,
                         "_blank",
-                        "noopener,noreferrer"
+                        "noopener,noreferrer",
                       );
                     }
-                  }
+                  },
                 )
               }
             >
@@ -241,10 +241,10 @@ export function MeetActionsMenu({
                       window.open(
                         `/meets/${previewLinkCode}?preview=true`,
                         "_blank",
-                        "noopener,noreferrer"
+                        "noopener,noreferrer",
                       );
                     }
-                  }
+                  },
                 )
               }
             >

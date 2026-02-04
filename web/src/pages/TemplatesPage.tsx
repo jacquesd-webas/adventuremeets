@@ -13,7 +13,7 @@ import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { shortTimestamp } from "../helpers/formatFriendlyTimestamp";
 import { useState } from "react";
 import { CreateOrEditTemplateModal } from "../components/templates/CreateOrEditTemplateModal";
-import { AdminActionsMenu } from "../components/AdminActionsMenu";
+import { AdminActionsMenu } from "../components/actions/AdminActionsMenu";
 import { useDeleteTemplate } from "../hooks/useDeleteTemplate";
 import ConfirmActionDialog from "../components/ConfirmActionDialog";
 
@@ -27,7 +27,7 @@ function TemplatesPage() {
   const { data: organization } = useFetchOrganization(id);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
-    null
+    null,
   );
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteTargetName, setDeleteTargetName] = useState<string>("");
