@@ -453,7 +453,61 @@ export default function CalendarPage() {
                           );
                         })}
                       </Box>
-                      {/* Week span overlays intentionally hidden for now */}
+                      {weekGroups.size > 0 ? (
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top: "calc(var(--day-padding) + var(--header-height) + var(--item-row-gap))",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(7, 1fr)",
+                            gridAutoRows: "var(--item-row-height)",
+                            gap: "var(--item-row-gap)",
+                            px: "var(--day-padding)",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          {Array.from(weekGroups.entries()).map(
+                            ([weekKey, group]) => (
+                              <Box
+                                key={`span-${weekKey}`}
+                                sx={{
+                                  gridColumn: `${group.minX + 1} / ${
+                                    group.maxX + 2
+                                  }`,
+                                  gridRow: `${group.minY + 1} / ${
+                                    group.maxY + 2
+                                  }`,
+                                  backgroundColor: theme.palette.primary.main,
+                                  borderRadius: 1,
+                                  height: "calc(var(--item-row-height) + 4px)",
+                                  px: 0.75,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  color:
+                                    theme.palette.mode === "dark"
+                                      ? "#222222"
+                                      : theme.palette.primary.contrastText,
+                                  fontSize: "0.62rem",
+                                  lineHeight: 1.2,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  fontWeight={600}
+                                  sx={{ display: "block" }}
+                                >
+                                  {group.meet.name}
+                                </Typography>
+                              </Box>
+                            ),
+                          )}
+                        </Box>
+                      ) : null}
                     </Box>
                   );
                 })}
