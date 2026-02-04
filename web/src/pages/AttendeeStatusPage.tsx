@@ -17,14 +17,14 @@ import {
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import { useParams } from "react-router-dom";
-import { MeetInfoSummary } from "../components/MeetInfoSummary";
-import { AttendeeStatusAlert } from "../components/AttendeeStatusAlert";
+import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
+import { AttendeeStatusAlert } from "../components/meet/AttendeeStatusAlert";
 import { useFetchMeetAttendeeStatus } from "../hooks/useFetchMeetAttendeeStatus";
 import { useAuth } from "../context/authContext";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
-import { MeetNotFound } from "../components/MeetNotFound";
+import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { FullPageSpinner } from "../components/FullPageSpinner";
-import { MeetSignupUserAction } from "../components/MeetSignupUserAction";
+import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { useApi } from "../hooks/useApi";
 import { useNotistack } from "../hooks/useNotistack";
@@ -161,7 +161,7 @@ export default function AttendeeStatusPage() {
                   disabled={
                     !isAuthenticated ||
                     !["pending", "confirmed"].includes(
-                      attendeeStatusData?.attendee.status || ""
+                      attendeeStatusData?.attendee.status || "",
                     )
                   }
                   fullWidth={isMobile}

@@ -201,10 +201,20 @@ export class CreateMeetDto {
   @Min(0)
   depositCents?: number;
 
-  @ApiPropertyOptional({ description: "Times to be confirmed" })
+  @ApiPropertyOptional({ description: "Start time to be confirmed" })
   @IsOptional()
   @IsBoolean()
-  timesTbc?: boolean;
+  startTimeTbc?: boolean;
+
+  @ApiPropertyOptional({ description: "End time to be confirmed" })
+  @IsOptional()
+  @IsBoolean()
+  endTimeTbc?: boolean;
+
+  @ApiPropertyOptional({ description: "Show map on meet" })
+  @IsOptional()
+  @IsBoolean()
+  useMap?: boolean;
 
   @ApiPropertyOptional({ description: "Hide meet listing in the organization" })
   @IsOptional()

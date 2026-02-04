@@ -3,8 +3,6 @@ import {
   Paper,
   Stack,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import HistoryIcon from "@mui/icons-material/History";
@@ -13,14 +11,14 @@ import PlaceIcon from "@mui/icons-material/Place";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import formatRange from "../../helpers/formatRange";
 import Meet from "../../types/MeetModel";
-import { MeetActionsMenu } from "../MeetActionsMenu";
+import { MeetActionsMenu } from "../meet/MeetActionsMenu";
 import { MeetActionsEnum } from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
-import { MeetStatus } from "../MeetStatus";
+import { MeetStatus } from "../meet/MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useAuth } from "../../context/authContext";
+import { getCardRangeLabel } from "../../helpers/meetTime";
 
 type MeetCardProps = {
   meet: Meet;
@@ -48,10 +46,10 @@ const AttendeeStatus = ({
     status === AttendeeStatusEnum.Attended
       ? "success"
       : status === AttendeeStatusEnum.Waitlisted
-      ? "warning"
-      : status === AttendeeStatusEnum.Rejected
-      ? "error"
-      : "disabled";
+        ? "warning"
+        : status === AttendeeStatusEnum.Rejected
+          ? "error"
+          : "disabled";
 
   const text = isUpcoming
     ? status === AttendeeStatusEnum.Confirmed ||
@@ -59,18 +57,18 @@ const AttendeeStatus = ({
       status === AttendeeStatusEnum.Attended
       ? "Attending"
       : status === AttendeeStatusEnum.Waitlisted
-      ? "Waitlisted"
-      : status === AttendeeStatusEnum.Rejected ||
-        status === AttendeeStatusEnum.Cancelled
-      ? "Not accepted"
-      : status === AttendeeStatusEnum.Pending
-      ? "Pending"
-      : "Did not apply"
+        ? "Waitlisted"
+        : status === AttendeeStatusEnum.Rejected ||
+            status === AttendeeStatusEnum.Cancelled
+          ? "Not accepted"
+          : status === AttendeeStatusEnum.Pending
+            ? "Pending"
+            : "Did not apply"
     : status === AttendeeStatusEnum.Confirmed ||
-      status === AttendeeStatusEnum.CheckedIn ||
-      status === AttendeeStatusEnum.Attended
-    ? "Attended"
-    : "Did not attend";
+        status === AttendeeStatusEnum.CheckedIn ||
+        status === AttendeeStatusEnum.Attended
+      ? "Attended"
+      : "Did not attend";
 
   return (
     <Stack direction="row" spacing={2} alignItems="center" mt={1.5}>
@@ -141,13 +139,11 @@ export function MeetCard({
   setSelectedMeetId,
   setPendingAction,
 }: MeetCardProps) {
-  const theme = useTheme();
   const { user } = useAuth();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const isUpcoming = new Date(meet.endTime) >= new Date();
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
-  const rangeLabel = formatRange(meet.startTime, meet.endTime);
+  const rangeLabel = getCardRangeLabel(meet);
   const isOrganizerForMeet = user && meet && user.id === meet.organizerId;
 
   return (
@@ -155,13 +151,13 @@ export function MeetCard({
       variant="outlined"
       sx={{
         p: 2,
-        cursor: isMobile ? "default" : "pointer",
+        cursor: typeof onClick === "function" ? "pointer" : "default",
         backgroundColor: "rgba(255, 255, 255, 0.7)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
       }}
       onClick={() => {
-        if (!isMobile && typeof onClick === "function") {
+        if (typeof onClick === "function") {
           onClick();
         }
       }}

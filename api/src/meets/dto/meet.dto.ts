@@ -217,7 +217,15 @@ export class MeetDto {
 
   @ApiPropertyOptional()
   @IsBoolean()
-  timesTbc?: boolean;
+  startTimeTbc?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  endTimeTbc?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  useMap?: boolean;
 
   @ApiPropertyOptional()
   @IsBoolean()

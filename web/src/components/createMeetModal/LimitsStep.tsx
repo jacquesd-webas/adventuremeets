@@ -1,9 +1,9 @@
 import { FormControlLabel, Stack, Switch, TextField } from "@mui/material";
 import { LabeledField } from "./LabeledField";
-import { StepProps } from "./CreateMeetState";
+import { StepProps, FieldError, getFieldError } from "./CreateMeetState";
 
 type LimitsStepProps = StepProps & {
-  errors?: Record<string, string | undefined>;
+  errors?: FieldError[];
 };
 
 export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
@@ -14,7 +14,7 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
       sx={{ width: "100%" }}
       alignItems="flex-start"
     >
-      <LabeledField label="Applications open" required sx={{ flex: 1 }}>
+      <LabeledField label="Applications open" sx={{ flex: 1 }}>
         <TextField
           type="datetime-local"
           placeholder="When can attendees start applying?"
@@ -24,11 +24,14 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           }
           fullWidth
           InputLabelProps={{ shrink: true }}
-          error={Boolean(errors?.openingDate)}
-          helperText={errors?.openingDate}
+          error={Boolean(getFieldError(errors, "openingDate"))}
+          helperText={
+            getFieldError(errors, "openingDate") ||
+            "Leave blank to open on publish"
+          }
         />
       </LabeledField>
-      <LabeledField label="Applications close" required sx={{ flex: 1 }}>
+      <LabeledField label="Applications close" sx={{ flex: 1 }}>
         <TextField
           type="datetime-local"
           placeholder="When do applications close?"
@@ -38,8 +41,11 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           }
           fullWidth
           InputLabelProps={{ shrink: true }}
-          error={Boolean(errors?.closingDate)}
-          helperText={errors?.closingDate}
+          error={Boolean(getFieldError(errors, "closingDate"))}
+          helperText={
+            getFieldError(errors, "closingDate") ||
+            "Leave blank to close when meet starts"
+          }
         />
       </LabeledField>
     </Stack>
@@ -49,7 +55,7 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
       sx={{ width: "100%" }}
       alignItems="flex-start"
     >
-      <LabeledField label="Capacity" required sx={{ flex: 1 }}>
+      <LabeledField label="Capacity" sx={{ flex: 1 }}>
         <TextField
           type="number"
           placeholder="Maximum participants"
@@ -61,11 +67,14 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
             }))
           }
           fullWidth
-          error={Boolean(errors?.capacity)}
-          helperText={errors?.capacity}
+          error={Boolean(getFieldError(errors, "capacity"))}
+          helperText={
+            getFieldError(errors, "capacity") ||
+            "Leave blank or use 0 for unlimited"
+          }
         />
       </LabeledField>
-      <LabeledField label="Waitlist size" required sx={{ flex: 1 }}>
+      <LabeledField label="Waitlist size" sx={{ flex: 1 }}>
         <TextField
           type="number"
           placeholder="How many on the waitlist?"
@@ -77,8 +86,10 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
             }))
           }
           fullWidth
-          error={Boolean(errors?.waitlistSize)}
-          helperText={errors?.waitlistSize}
+          error={Boolean(getFieldError(errors, "waitlistSize"))}
+          helperText={
+            getFieldError(errors, "waitlistSize") || "Use 0 for no waitlist"
+          }
         />
       </LabeledField>
     </Stack>

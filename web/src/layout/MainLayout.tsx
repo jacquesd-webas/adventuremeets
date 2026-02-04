@@ -21,7 +21,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { useMemo, useState, MouseEvent } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { ProfileModal } from "../components/ProfileModal";
+import { ProfileModal } from "../components/admin/ProfileModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
@@ -48,13 +48,13 @@ function MainLayout() {
   const { currentOrganizationId, organizationIds, currentOrganizationRole } =
     useCurrentOrganization();
   const { data: organization } = useFetchOrganization(
-    currentOrganizationId || undefined
+    currentOrganizationId || undefined,
   );
   const [profileOpen, setProfileOpen] = useState(false);
   const { mode, toggleMode } = useThemeMode();
   const queryClient = useQueryClient();
   const isAdmin = Boolean(
-    user?.organizations && Object.values(user.organizations).includes("admin")
+    user?.organizations && Object.values(user.organizations).includes("admin"),
   );
   const isCurrentOrgAdmin = currentOrganizationRole === "admin";
 

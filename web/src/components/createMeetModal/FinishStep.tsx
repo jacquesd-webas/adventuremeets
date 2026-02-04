@@ -1,12 +1,12 @@
 import { Button, Stack, TextField, Typography } from "@mui/material";
 import { useMemo, useState } from "react";
+import { StepProps } from "./CreateMeetState";
 
-type FinishStepProps = {
+type FinishStepProps = StepProps & {
   shareCode?: string | null;
-  missingFields?: string[];
 };
 
-export function FinishStep({ shareCode, missingFields = [] }: FinishStepProps) {
+export function FinishStep({ errors, shareCode }: FinishStepProps) {
   const [copied, setCopied] = useState(false);
   const shareUrl = useMemo(() => {
     if (!shareCode) return "";
@@ -24,19 +24,22 @@ export function FinishStep({ shareCode, missingFields = [] }: FinishStepProps) {
   return (
     <Stack spacing={2}>
       <Typography variant="h6">Share this meet</Typography>
-      {missingFields.length > 0 ? (
+      {errors.length > 0 ? (
         <Stack spacing={1}>
-          <Typography color="error" sx={{ mb: 1 }}>
-            This meet cannot be shared until all the required fields are
-            complete.
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            This meet cannot be shared until all necessary fields are completed
+            and no errors remain.
           </Typography>
 
-          <Typography color="text.secondary">
-            Still missing these:
-          </Typography>
-          <ul style={{ margin: 0, paddingLeft: "1.5rem" }}>
-            {missingFields.map((field) => (
-              <li key={field}>{field}</li>
+          <ul
+            style={{ margin: 0, paddingTop: "1.5rem", paddingLeft: "1.5rem" }}
+          >
+            {errors.map((error) => (
+              <li key={error.field}>
+                <Typography variant="body2" color="error">
+                  {error.message} (see step {error.step + 1})
+                </Typography>
+              </li>
             ))}
           </ul>
         </Stack>
@@ -45,7 +48,7 @@ export function FinishStep({ shareCode, missingFields = [] }: FinishStepProps) {
           Send the link below so attendees can sign up.
         </Typography>
       )}
-      {missingFields.length === 0 && (
+      {errors.length === 0 && (
         <>
           <TextField
             value={shareUrl}

@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, Stack, Typography } from "@mui/material";
 import { MeetInfoSummary } from "./MeetInfoSummary";
-import { useFetchMeet } from "../hooks/useFetchMeet";
+import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { MeetStatusAlert } from "./MeetStatusAlert";
 
 type MeetInfoModalProps = {

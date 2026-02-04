@@ -1,15 +1,15 @@
 import React, { useEffect } from "react";
-import { ConfirmCloseMeetDialog } from "./confirmActions/ConfirmCloseMeetDialog";
-import { ConfirmCancelMeetDialog } from "./confirmActions/ConfirmCancelMeetDialog";
-import { ConfirmOpenMeetDialog } from "./confirmActions/ConfirmOpenMeetDialog";
-import { ConfirmPostponeMeetDialog } from "./confirmActions/ConfirmPostponeMeetDialog";
-import { ConfirmDeleteMeetDialog } from "./confirmActions/ConfirmDeleteMeetDialog";
+import { ConfirmCloseMeetDialog } from "../confirmDialogs/ConfirmCloseMeetDialog";
+import { ConfirmCancelMeetDialog } from "../confirmDialogs/ConfirmCancelMeetDialog";
+import { ConfirmOpenMeetDialog } from "../confirmDialogs/ConfirmOpenMeetDialog";
+import { ConfirmPostponeMeetDialog } from "../confirmDialogs/ConfirmPostponeMeetDialog";
+import { ConfirmDeleteMeetDialog } from "../confirmDialogs/ConfirmDeleteMeetDialog";
 
-import { CreateMeetModal } from "./createMeetModal/CreateMeetModal";
-import { ManageAttendeesModal } from "./manageAttendeesModal";
-import { ReportsModal } from "./reportsModal";
-import MeetActionsEnum from "../types/MeetActionsEnum";
-import { MeetInfoModal } from "./MeetInfoModal";
+import { CreateMeetModal } from "../createMeetModal/CreateMeetModal";
+import { ManageAttendeesModal } from "../manageAttendeesModal/ManageAttendeesModal";
+import { ReportsModal } from "../reportsModal/ReportsModal";
+import MeetActionsEnum from "../../types/MeetActionsEnum";
+import { MeetInfoModal } from "../meet/MeetInfoModal";
 
 type MeetActionsDialogsProps = {
   meetId: string | null;
@@ -18,7 +18,7 @@ type MeetActionsDialogsProps = {
   setSelectedMeetId: (meetId: string | null) => void;
   onActionConfirm?: (
     action: MeetActionsEnum,
-    meetId: string | null
+    meetId: string | null,
   ) => Promise<void> | void;
 };
 
