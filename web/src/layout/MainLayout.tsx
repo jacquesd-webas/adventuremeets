@@ -257,6 +257,20 @@ function MainLayout() {
                   textTransform: "none",
                   fontWeight: 600,
                   justifyContent: "flex-start",
+                  ...(theme.palette.mode === "light"
+                    ? {
+                        borderColor: "#000000",
+                        color: "#000000",
+                        "&:hover": {
+                          borderColor: "#000000",
+                          backgroundColor: "rgba(0, 0, 0, 0.06)",
+                        },
+                        "&.Mui-focusVisible": {
+                          outline: "2px solid #000000",
+                          outlineOffset: 2,
+                        },
+                      }
+                    : {}),
                 }}
               >
                 <Typography variant="body2" noWrap>
