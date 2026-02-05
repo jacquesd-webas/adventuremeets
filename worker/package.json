@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "start:dev": "pnpm run build && node dist/main.js",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "test": "vitest"
+    "test": "vitest --run"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
