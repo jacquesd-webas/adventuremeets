@@ -8,40 +8,51 @@ import {
   TextField,
   Typography,
   Alert,
+  IconButton,
+  InputAdornment,
 } from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { useEffect, useRef, useState } from "react";
 import ReCAPTCHA from "react-google-recaptcha";
 import { useRegister } from "../hooks/useRegister";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/auth/AuthSocialButtons";
 import { EmailField } from "../components/formFields/EmailField";
-import {
-  InternationalPhoneField,
-  buildInternationalPhone,
-  getDefaultPhoneCountry,
-} from "../components/formFields/InternationalPhoneField";
-import { getLocaleDefaults } from "../helpers/locale";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
+import zxcvbn from "zxcvbn";
+
+const getPasswordStrength = (value: string) => {
+  if (!value) return { score: 0, label: "Enter a password" };
+  const result = zxcvbn(value);
+  const score = result.score; // 0-4
+  const label =
+    score <= 1
+      ? "Weak"
+      : score === 2
+        ? "Fair"
+        : score === 3
+          ? "Good"
+          : "Strong";
+  return { score, label };
+};
 
 function RegisterPage() {
   const location = useLocation();
   const prefillApplied = useRef(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState(() => {
-    const localeCountry = getLocaleDefaults().countryCode;
-    return getDefaultPhoneCountry(localeCountry);
-  });
-  const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [organizationId, setOrganizationId] = useState("");
-  const [organizationInviteError, setOrganizationInviteError] =
-    useState<string | null>(null);
+  const [organizationInviteError, setOrganizationInviteError] = useState<
+    string | null
+  >(null);
   const [pendingMeetLink, setPendingMeetLink] = useState<{
     attendeeId: string;
     shareCode: string;
@@ -63,6 +74,19 @@ function RegisterPage() {
     Boolean(recaptchaSiteKey) && !pendingMeetLink?.attendeeId;
   const shouldShowCaptchaWarning =
     !recaptchaSiteKey && !pendingMeetLink?.attendeeId;
+  const passwordStrength = getPasswordStrength(password);
+  const passwordStrengthPercent = Math.round(
+    (passwordStrength.score / 4) * 100,
+  );
+  const isFormValid =
+    firstName.trim() !== "" &&
+    lastName.trim() !== "" &&
+    email.trim() !== "" &&
+    password.trim() !== "" &&
+    passwordStrength.score > 1 &&
+    (!captchaRequired || Boolean(captchaToken)) &&
+    !emailError &&
+    !organizationInviteError;
   const chooseMethod = (
     method: null | "google" | "microsoft" | "facebook" | "email",
   ) => {
@@ -76,8 +100,6 @@ function RegisterPage() {
       firstName?: string;
       lastName?: string;
       email?: string;
-      phoneCountry?: string;
-      phoneLocal?: string;
       organizationId?: string;
       meetId?: string;
       shareCode?: string;
@@ -87,8 +109,6 @@ function RegisterPage() {
       state.firstName ||
       state.lastName ||
       state.email ||
-      state.phoneCountry ||
-      state.phoneLocal ||
       state.organizationId ||
       state.shareCode ||
       state.attendeeId
@@ -96,10 +116,6 @@ function RegisterPage() {
       setFirstName(state.firstName || "");
       setLastName(state.lastName || "");
       setEmail(state.email || "");
-      if (state.phoneCountry) {
-        setPhoneCountry(state.phoneCountry);
-      }
-      setPhoneLocal(state.phoneLocal || "");
       setOrganizationId(state.organizationId || "");
       if (state.shareCode && state.attendeeId) {
         setPendingMeetLink({
@@ -178,7 +194,6 @@ function RegisterPage() {
     registerAsync({
       firstName,
       lastName,
-      phone: buildInternationalPhone(phoneCountry, phoneLocal),
       email,
       password,
       organizationId: organizationId || undefined,
@@ -214,7 +229,7 @@ function RegisterPage() {
 
   return (
     <Container
-      maxWidth="sm"
+      maxWidth="md"
       sx={{
         display: "flex",
         flexDirection: "column",
@@ -232,9 +247,16 @@ function RegisterPage() {
       </Box>
 
       <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
-        <Typography variant="h5" mb={2}>
-          Create account
-        </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Typography variant="h5">Create account</Typography>
+        </Box>
         {!selectedMethod && (
           <AuthSocialButtons showEmail onSelect={chooseMethod} />
         )}
@@ -261,7 +283,13 @@ function RegisterPage() {
               </Alert>
             )}
             <Box component="form" onSubmit={handleSubmit}>
-              <Stack spacing={2}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr",
+                  gap: 2,
+                }}
+              >
                 <TextField
                   label="First name"
                   required
@@ -290,14 +318,6 @@ function RegisterPage() {
                     ),
                   }}
                 />
-                <InternationalPhoneField
-                  label="Phone"
-                  required
-                  country={phoneCountry}
-                  local={phoneLocal}
-                  onCountryChange={setPhoneCountry}
-                  onLocalChange={setPhoneLocal}
-                />
                 <EmailField
                   required
                   value={email}
@@ -307,7 +327,7 @@ function RegisterPage() {
                 {emailError && <Alert severity="warning">{emailError}</Alert>}
                 <TextField
                   label="Password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -318,10 +338,71 @@ function RegisterPage() {
                         sx={{ mr: 1, color: "text.disabled" }}
                       />
                     ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label={
+                            showPassword ? "Hide password" : "Show password"
+                          }
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          edge="end"
+                        >
+                          {showPassword ? (
+                            <VisibilityOffIcon />
+                          ) : (
+                            <VisibilityIcon />
+                          )}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
                   }}
                 />
+                <Box
+                  sx={{
+                    mt: -1.5,
+                    mb: 2,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 0.5,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      Password strength
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {passwordStrength.label}
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      height: 6,
+                      borderRadius: 999,
+                      backgroundColor: "action.hover",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        height: "100%",
+                        width: `${passwordStrengthPercent}%`,
+                        transition: "width 200ms ease",
+                        backgroundColor:
+                          passwordStrength.score <= 1
+                            ? "error.main"
+                            : passwordStrength.score <= 3
+                              ? "warning.main"
+                              : "success.main",
+                      }}
+                    />
+                  </Box>
+                </Box>
                 {captchaRequired ? (
-                  <Box display="flex" justifyContent="center">
+                  <Box display="flex" justifyContent="center" sx={{ mt: -1 }}>
                     <ReCAPTCHA
                       sitekey={recaptchaSiteKey}
                       onChange={(token) => setCaptchaToken(token)}
@@ -329,7 +410,7 @@ function RegisterPage() {
                     />
                   </Box>
                 ) : shouldShowCaptchaWarning ? (
-                  <Alert severity="warning">
+                  <Alert severity="warning" sx={{ mt: -1 }}>
                     reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
                     enable.
                   </Alert>
@@ -339,25 +420,26 @@ function RegisterPage() {
                   variant="contained"
                   size="large"
                   sx={{ textTransform: "uppercase" }}
-                  disabled={
-                    Boolean(emailError) ||
-                    Boolean(organizationInviteError) ||
-                    (captchaRequired && !captchaToken) ||
-                    isLoading
-                  }
+                  disabled={!isFormValid || isLoading}
                 >
                   {isLoading ? "Creating..." : "Create account"}
                 </Button>
-                <Button variant="text" onClick={() => chooseMethod(null)}>
-                  Choose another method
-                </Button>
-              </Stack>
+              </Box>
             </Box>
           </>
         )}
 
         <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
           <Link href="/login">Already have an account?</Link>
+          {selectedMethod === "email" && (
+            <Link
+              component="button"
+              type="button"
+              onClick={() => chooseMethod(null)}
+            >
+              Choose another method
+            </Link>
+          )}
         </Stack>
       </Paper>
     </Container>
