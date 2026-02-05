@@ -9,7 +9,7 @@
     "start": "node dist/main.js",
     "start:dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/main.ts",
     "lint": "eslint src --ext .ts || true",
-    "test": "jest",
+    "test": "jest --runInBand",
     "migrate": "npm --prefix ../db run migrate"
   },
   "dependencies": {
@@ -27,6 +27,7 @@
     "date-fns": "^2.30.0",
     "dotenv": "^17.2.3",
     "exceljs": "^4.4.0",
+    "express": "^4.19.2",
     "knex": "^2.5.1",
     "minio": "^8.0.5",
     "nodemailer": "^6.9.15",
