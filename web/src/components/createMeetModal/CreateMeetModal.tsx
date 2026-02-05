@@ -28,7 +28,7 @@ import { ResponsesStep } from "./ResponsesStep";
 import { FinishStep } from "./FinishStep";
 import { ImageStep } from "./ImageStep";
 import { useApi } from "../../hooks/useApi";
-import { useSaveMeet, CreateMeetPayload } from "../../hooks/useSaveMeet";
+import { useSaveMeet, SaveMeetPayload } from "../../hooks/useSaveMeet";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { getLocaleDefaults } from "../../helpers/locale";
@@ -45,6 +45,7 @@ import {
   validateAll,
   FieldError,
 } from "./CreateMeetState";
+import { useCurrentOrganization } from "../../context/organizationContext";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -81,37 +82,39 @@ export function CreateMeetModal({
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
+  const { currentOrganizationId } = useCurrentOrganization();
 
   const { data: fetchedMeet, isLoading: isFetchingMeet } = useFetchMeet(
     meetIdProp,
     Boolean(open && meetIdProp),
   );
 
+  // Reset to first step when opened/closed
   useEffect(() => {
-    if (!open) {
-      setActiveStep(0);
-    }
+    if (!open) setActiveStep(0);
   }, [open]);
 
+  // Reset show/hide steps when screen size changes
   useEffect(() => {
-    if (open) {
-      setShowSteps(!fullScreen);
-    }
+    if (open) setShowSteps(!fullScreen);
   }, [open, fullScreen]);
 
+  // Set default organizerId and organizationId to current user and Org when available
   useEffect(() => {
-    if (user?.id && !state.organizerId) {
-      setState((prev) => ({ ...prev, organizerId: user.id }));
-      if (!baselineState.organizerId) {
-        setBaselineState((prev) => ({ ...prev, organizerId: user.id }));
-      }
+    if (user && currentOrganizationId) {
+      if (!state.organizerId)
+        setState((prev) => ({ ...prev, organizerId: user.id }));
+      if (!state.organizationId)
+        setState((prev) => ({
+          ...prev,
+          organizationId: currentOrganizationId,
+        }));
     }
-  }, [user?.id, state.organizerId, baselineState.organizerId]);
+  }, [user, currentOrganizationId, state.organizerId, state.organizationId]);
 
+  // Clear all errors and form state when modal is closed or opened for a new meet
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
     setSubmitError(null);
     setFieldErrors([]);
     if (!meetIdProp) {
@@ -129,6 +132,7 @@ export function CreateMeetModal({
     setMeetId(meetIdProp);
   }, [open, meetIdProp]);
 
+  // When meet data is fetched, populate the form and baseline state for change tracking
   useEffect(() => {
     if (!open || !meetIdProp) return;
     setIsLoadingMeet(isFetchingMeet);
@@ -145,23 +149,31 @@ export function CreateMeetModal({
     }
   }, [open, meetIdProp, fetchedMeet, isFetchingMeet]);
 
+  // Last step is to publish (different flow)
   const isLastStep = useMemo(
     () => activeStep >= steps.length - 1,
     [activeStep],
   );
+
+  // Check for dirty form
   const isDirty = useMemo(
     () => JSON.stringify(state) !== JSON.stringify(baselineState),
     [state, baselineState],
   );
+
+  // Errors left to solve on final step before publishing
   const finalErrors = useMemo(
     () => (isLastStep ? validateAll(state) : []),
     [state, isLastStep],
   );
+
+  // Map steps with errors
   const errorSteps = useMemo(
     () => new Set(finalErrors.map((error) => error.step)),
     [finalErrors],
   );
 
+  // How we figure out of user has completed a step or not
   useEffect(() => {
     const trimmedName = state.name.trim();
     const trimmedDescription = state.description.trim();
@@ -220,16 +232,18 @@ export function CreateMeetModal({
     shareCode,
   ]);
 
+  // Each step has different payload shape
   const buildPayloadForStep = (
     draft: CreateMeetState,
     step: number,
-  ): CreateMeetPayload => {
+  ): SaveMeetPayload => {
     switch (step) {
       case 0:
         return {
           name: draft.name || undefined,
           description: draft.description || undefined,
           organizerId: draft.organizerId || undefined,
+          organizationId: draft.organizationId || undefined,
         };
       case 1: {
         const normalizedStartTime = draft.startTimeTbc
@@ -331,6 +345,7 @@ export function CreateMeetModal({
     }
   };
 
+  // Save method for each step
   const handleSaveStep = async (step: number) => {
     if (step === 7 && meetId) {
       if (!state.imageFile) {
@@ -378,6 +393,7 @@ export function CreateMeetModal({
     return true;
   };
 
+  // Save method for last step
   const handlePublish = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
@@ -397,7 +413,7 @@ export function CreateMeetModal({
 
       // If there is no opening date, set it to now to allow opening
       if (!state.openingDate) {
-        const payload: CreateMeetPayload = {
+        const payload: SaveMeetPayload = {
           openingDate: toIsoWithOffset(new Date().toISOString()),
         };
         await saveMeet(payload, meetId);
@@ -405,7 +421,7 @@ export function CreateMeetModal({
 
       // If there is no closing date, use the meet start date
       if (!state.closingDate) {
-        const payload: CreateMeetPayload = {
+        const payload: SaveMeetPayload = {
           closingDate: toIsoWithOffset(state.startTime || undefined),
         };
         await saveMeet(payload, meetId);
@@ -430,6 +446,7 @@ export function CreateMeetModal({
     }
   };
 
+  // User clicks "Next"
   const handleNext = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
@@ -456,6 +473,7 @@ export function CreateMeetModal({
     }
   };
 
+  // User clicks "Prev"
   const handlePrev = () => {
     if (isDirty) {
       setPendingStep(Math.max(activeStep - 1, 0));
@@ -465,6 +483,7 @@ export function CreateMeetModal({
     setActiveStep((prev) => Math.max(prev - 1, 0));
   };
 
+  // User manually selects step
   const handleStepChange = (target: number) => {
     if (target === activeStep) return;
     if (isDirty) {
@@ -478,6 +497,7 @@ export function CreateMeetModal({
     }
   };
 
+  // Mobile
   const handleTouchStart = (event: React.TouchEvent) => {
     if (!fullScreen) return;
     const touch = event.touches[0];
@@ -498,6 +518,7 @@ export function CreateMeetModal({
     }
   };
 
+  // Close the modal
   const handleCancel = () => {
     if (isDirty) {
       setPendingClose(true);
@@ -508,6 +529,7 @@ export function CreateMeetModal({
     onClose();
   };
 
+  // User is shown modal to confirm discarding changes - handles confirm discarding and reset to baselineState
   const confirmDiscard = () => {
     // Revert to last saved state before continuing the pending action
     setState(baselineState);
@@ -527,12 +549,14 @@ export function CreateMeetModal({
     onClose();
   };
 
+  // User wants to keep editing
   const cancelDiscard = () => {
     setDirtyDialogOpen(false);
     setPendingStep(null);
     setPendingClose(false);
   };
 
+  // Main rendering of the current step
   const renderStep = () => {
     if (isLoadingMeet) {
       return (

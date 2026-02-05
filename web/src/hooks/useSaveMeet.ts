@@ -3,9 +3,10 @@ import { useSnackbar } from "notistack";
 import { useApi } from "./useApi";
 
 export type CreateMeetPayload = {
-  name?: string;
-  description?: string;
-  organizerId?: string;
+  name: string;
+  description: string;
+  organizerId: string;
+  organizationId: string;
   location?: string;
   locationLat?: number;
   locationLong?: number;
@@ -46,9 +47,11 @@ export type CreateMeetPayload = {
   }[];
 };
 
+export type SaveMeetPayload = Partial<CreateMeetPayload>;
+
 type SaveMeetArgs = {
   meetId?: string | null;
-  payload: CreateMeetPayload;
+  payload: SaveMeetPayload;
 };
 
 export function useSaveMeet(defaultMeetId?: string | null) {
@@ -79,7 +82,7 @@ export function useSaveMeet(defaultMeetId?: string | null) {
   });
 
   const save = async (
-    payload: Record<string, any>,
+    payload: SaveMeetPayload,
     meetIdOverride?: string | null,
   ) => {
     const result = await mutation.mutateAsync({

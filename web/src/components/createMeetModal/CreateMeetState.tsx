@@ -25,6 +25,7 @@ export type CreateMeetState = {
   name: string;
   description: string;
   organizerId: string;
+  organizationId: string;
   location: string;
   locationLat: number | string;
   locationLong: number | string;
@@ -61,6 +62,7 @@ export const initialState: CreateMeetState = {
   name: "",
   description: "",
   organizerId: "",
+  organizationId: "",
   location: "",
   locationLat: "",
   locationLong: "",
