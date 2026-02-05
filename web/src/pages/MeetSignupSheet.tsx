@@ -43,6 +43,9 @@ import { MeetStatusAlert } from "../components/meet/MeetStatusAlert";
 import { useAuth } from "../context/authContext";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
 import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
+import { useThemeMode } from "../context/ThemeModeContext";
+import { getOrganizationBackground } from "../helpers/organizationTheme";
 
 function LabeledField({
   label,
@@ -294,6 +297,7 @@ function MeetSignupSheet() {
   const [searchParams] = useSearchParams();
   const isPreview = searchParams.get("preview") === "true";
   const { data: meet, isLoading } = useFetchMeetSignup(code);
+  const { data: organization } = useFetchOrganization(meet?.organizationId || undefined);
   const { state, setField, setMetaValue, resetState } =
     useMeetSignupSheetState();
   const { addAttendeeAsync, isLoading: isSubmitting } = useAddAttendee();
@@ -301,6 +305,7 @@ function MeetSignupSheet() {
   const api = useApi();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const { mode } = useThemeMode();
   const { user, isAuthenticated } = useAuth();
   const suppressAutofillRef = useRef(false);
   const metaAutofillRef = useRef(false);
@@ -414,6 +419,46 @@ function MeetSignupSheet() {
       document.body.style.overflow = previous;
     };
   }, []);
+
+  useEffect(() => {
+    const previousBackgroundColor = document.body.style.backgroundColor;
+    const previousBackgroundImage = document.body.style.backgroundImage;
+    const previousOrgTheme = document.body.getAttribute("data-org-theme");
+    const previousThemeBase = document.body.getAttribute("data-theme-base");
+
+    const resolvedBase =
+      mode === "glass"
+        ? window.localStorage.getItem("themeBaseMode") || "light"
+        : mode;
+    const { image, color } = getOrganizationBackground(
+      mode,
+      organization?.theme,
+    );
+    document.body.style.backgroundColor = color;
+    document.body.style.backgroundImage = `url("${image}")`;
+    document.body.setAttribute("data-theme-base", resolvedBase);
+
+    if (organization?.theme) {
+      document.body.setAttribute("data-org-theme", organization.theme);
+    } else {
+      document.body.removeAttribute("data-org-theme");
+    }
+
+    return () => {
+      document.body.style.backgroundColor = previousBackgroundColor;
+      document.body.style.backgroundImage = previousBackgroundImage;
+      if (previousOrgTheme) {
+        document.body.setAttribute("data-org-theme", previousOrgTheme);
+      } else {
+        document.body.removeAttribute("data-org-theme");
+      }
+      if (previousThemeBase) {
+        document.body.setAttribute("data-theme-base", previousThemeBase);
+      } else {
+        document.body.removeAttribute("data-theme-base");
+      }
+    };
+  }, [mode, organization?.theme]);
 
   const handleLogout = () => {
     suppressAutofillRef.current = true;

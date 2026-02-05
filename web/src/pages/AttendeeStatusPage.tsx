@@ -28,7 +28,10 @@ import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import { useApi } from "../hooks/useApi";
 import { useNotistack } from "../hooks/useNotistack";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
+import { useThemeMode } from "../context/ThemeModeContext";
+import { getOrganizationBackground } from "../helpers/organizationTheme";
 
 export default function AttendeeStatusPage() {
   const { code, attendeeId } = useParams<{
@@ -49,11 +52,15 @@ export default function AttendeeStatusPage() {
     isLoading: meetLoading,
     error: meetError,
   } = useFetchMeetSignup(code);
+  const { data: organization } = useFetchOrganization(
+    meet?.organizationId || undefined,
+  );
   const {
     data: attendeeStatusData,
     isLoading: statusLoading,
     refetch: refetchAttendeeStatus,
   } = useFetchMeetAttendeeStatus(code, attendeeId);
+  const { mode } = useThemeMode();
 
   const handleWithdraw = async () => {
     if (!code || !attendeeId) return;
@@ -70,6 +77,46 @@ export default function AttendeeStatusPage() {
       setIsWithdrawing(false);
     }
   };
+
+  useEffect(() => {
+    const previousBackgroundColor = document.body.style.backgroundColor;
+    const previousBackgroundImage = document.body.style.backgroundImage;
+    const previousOrgTheme = document.body.getAttribute("data-org-theme");
+    const previousThemeBase = document.body.getAttribute("data-theme-base");
+
+    const resolvedBase =
+      mode === "glass"
+        ? window.localStorage.getItem("themeBaseMode") || "light"
+        : mode;
+    const { image, color } = getOrganizationBackground(
+      mode,
+      organization?.theme,
+    );
+    document.body.style.backgroundColor = color;
+    document.body.style.backgroundImage = `url("${image}")`;
+    document.body.setAttribute("data-theme-base", resolvedBase);
+
+    if (organization?.theme) {
+      document.body.setAttribute("data-org-theme", organization.theme);
+    } else {
+      document.body.removeAttribute("data-org-theme");
+    }
+
+    return () => {
+      document.body.style.backgroundColor = previousBackgroundColor;
+      document.body.style.backgroundImage = previousBackgroundImage;
+      if (previousOrgTheme) {
+        document.body.setAttribute("data-org-theme", previousOrgTheme);
+      } else {
+        document.body.removeAttribute("data-org-theme");
+      }
+      if (previousThemeBase) {
+        document.body.setAttribute("data-theme-base", previousThemeBase);
+      } else {
+        document.body.removeAttribute("data-theme-base");
+      }
+    };
+  }, [mode, organization?.theme]);
 
   if (meetLoading || statusLoading) {
     return <FullPageSpinner />;
