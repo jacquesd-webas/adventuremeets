@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-type ThemeMode = "light" | "dark";
+export type ThemeMode = "light" | "dark" | "glass";
 
 type ThemeModeContextValue = {
   mode: ThemeMode;
+  setMode: (mode: ThemeMode) => void;
   toggleMode: () => void;
 };
 
@@ -16,7 +17,10 @@ const getInitialMode = (): ThemeMode => {
   }
 
   const stored = window.localStorage.getItem("themeMode");
-  return stored === "dark" ? "dark" : "light";
+  if (stored === "dark" || stored === "glass" || stored === "light") {
+    return stored;
+  }
+  return "light";
 };
 
 type ThemeModeProviderProps = {
@@ -31,9 +35,14 @@ export function ThemeModeProvider({ children }: ThemeModeProviderProps) {
     window.localStorage.setItem("themeMode", mode);
   }, [mode]);
 
-  const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
-  const toggleMode = () => setMode((prev) => (prev === "light" ? "dark" : "light"));
-  const value = useMemo(() => ({ mode, toggleMode }), [mode]);
+  const muiPaletteMode = mode === "dark" ? "dark" : "light";
+  const theme = useMemo(
+    () => createTheme({ palette: { mode: muiPaletteMode } }),
+    [muiPaletteMode],
+  );
+  const toggleMode = () =>
+    setMode((prev) => (prev === "dark" ? "light" : "dark"));
+  const value = useMemo(() => ({ mode, setMode, toggleMode }), [mode]);
 
   return (
     <ThemeModeContext.Provider value={value}>

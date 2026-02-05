@@ -5,6 +5,9 @@ import { Organization } from "../types/OrganizationModel";
 type UpdatePayload = {
   id: string;
   name: string;
+  theme?: string;
+  isPrivate?: boolean;
+  canViewAllMeets?: boolean;
 };
 
 export function useUpdateOrganization(organizationId?: string | null) {
@@ -15,7 +18,12 @@ export function useUpdateOrganization(organizationId?: string | null) {
     mutationFn: async (payload) => {
       const res = await api.patch<{ organization: Organization }>(
         `/organizations/${organizationId}`,
-        { name: payload.name }
+        {
+          name: payload.name,
+          theme: payload.theme,
+          isPrivate: payload.isPrivate,
+          canViewAllMeets: payload.canViewAllMeets,
+        }
       );
       return res?.organization;
     },

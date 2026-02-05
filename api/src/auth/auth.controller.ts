@@ -55,6 +55,18 @@ export class AuthController {
   }
 
   @Public()
+  @Get("register/organization")
+  async registerOrganizationCheck(
+    @Query("organizationId") organizationId?: string
+  ) {
+    if (!organizationId) {
+      throw new BadRequestException("organizationId is required");
+    }
+    await this.authService.ensureOrganizationJoinable(organizationId);
+    return { allowed: true };
+  }
+
+  @Public()
   @Get("google/url")
   async googleUrl(@Query() query: GoogleAuthUrlDto) {
     const url = await this.authService.getGoogleAuthUrl(

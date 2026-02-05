@@ -446,6 +446,15 @@ export class OrganizationsService {
     if (dto.name !== undefined) {
       updates.name = dto.name;
     }
+    if (dto.theme !== undefined) {
+      updates.theme = dto.theme;
+    }
+    if (dto.canViewAllMeets !== undefined) {
+      updates.can_view_all_meets = dto.canViewAllMeets;
+    }
+    if (dto.isPrivate !== undefined) {
+      updates.is_private = dto.isPrivate;
+    }
 
     const updated = await this.database
       .getClient()("organizations")
@@ -478,6 +487,8 @@ export class OrganizationsService {
           ? Number(row.user_count)
           : undefined,
       canViewAllMeets: row.can_view_all_meets ?? undefined,
+      theme: row.theme ?? undefined,
+      isPrivate: row.is_private ?? undefined,
     };
   }
 }
