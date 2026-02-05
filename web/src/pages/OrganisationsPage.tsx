@@ -132,10 +132,12 @@ function OrganisationsPage() {
         headerAlign: "right",
         align: "right",
         renderCell: (params: GridRenderCellParams) => (
-          <OrganizationActions
-            organizationId={params.row.id}
-            disabled={params.row.role !== "admin"}
-          />
+          params.row.isPrivate ? null : (
+            <OrganizationActions
+              organizationId={params.row.id}
+              disabled={params.row.role !== "admin"}
+            />
+          )
         ),
       },
     ],

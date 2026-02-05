@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  ForbiddenException,
   Inject,
   forwardRef,
   InternalServerErrorException,
@@ -205,6 +206,9 @@ export class AuthService {
 
   async register(dto: RegisterDto): Promise<TokenPair> {
     await this.verifyCaptchaIfNeeded(dto);
+    if (dto.organizationId) {
+      await this.ensureOrganizationJoinable(dto.organizationId);
+    }
     const created = await this.usersService.create(dto);
     const user = await this.usersService.findById(created.id);
     await this.usersService.linkByEmail(user.email, user.id);
@@ -246,6 +250,18 @@ export class AuthService {
     const data = await res.json();
     if (!data.success) {
       throw new UnauthorizedException("Captcha verification failed");
+    }
+  }
+
+  async ensureOrganizationJoinable(organizationId: string) {
+    const isPrivate = await this.usersService.isOrganizationPrivate(
+      organizationId
+    );
+    if (isPrivate === null) {
+      throw new BadRequestException("Invalid organization");
+    }
+    if (isPrivate) {
+      throw new ForbiddenException("Invalid organisation invitation link");
     }
   }
 

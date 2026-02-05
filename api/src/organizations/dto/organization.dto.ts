@@ -21,4 +21,10 @@ export class OrganizationDto {
 
   @ApiPropertyOptional()
   canViewAllMeets?: boolean;
+
+  @ApiPropertyOptional()
+  theme?: string;
+
+  @ApiPropertyOptional()
+  isPrivate?: boolean;
 }

@@ -40,6 +40,8 @@ function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [organizationId, setOrganizationId] = useState("");
+  const [organizationInviteError, setOrganizationInviteError] =
+    useState<string | null>(null);
   const [pendingMeetLink, setPendingMeetLink] = useState<{
     attendeeId: string;
     shareCode: string;
@@ -134,9 +136,43 @@ function RegisterPage() {
     };
   }, [location.search]);
 
+  useEffect(() => {
+    let isActive = true;
+    const checkOrganizationInvite = async () => {
+      if (!organizationId) {
+        setOrganizationInviteError(null);
+        return;
+      }
+      try {
+        await api.get<{ allowed: boolean }>(
+          `/auth/register/organization?organizationId=${encodeURIComponent(
+            organizationId,
+          )}`,
+        );
+        if (isActive) {
+          setOrganizationInviteError(null);
+        }
+      } catch (err: any) {
+        if (!isActive) return;
+        if (err?.status === 403 || err?.status === 404) {
+          setOrganizationInviteError("Invalid organisation invitation link");
+        } else {
+          setOrganizationInviteError("Invalid organisation invitation link");
+        }
+      }
+    };
+    checkOrganizationInvite();
+    return () => {
+      isActive = false;
+    };
+  }, [api, organizationId]);
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (captchaRequired && !captchaToken) {
+      return;
+    }
+    if (organizationInviteError) {
       return;
     }
     registerAsync({
@@ -217,6 +253,11 @@ function RegisterPage() {
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error.message}
+              </Alert>
+            )}
+            {organizationInviteError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {organizationInviteError}
               </Alert>
             )}
             <Box component="form" onSubmit={handleSubmit}>
@@ -300,6 +341,7 @@ function RegisterPage() {
                   sx={{ textTransform: "uppercase" }}
                   disabled={
                     Boolean(emailError) ||
+                    Boolean(organizationInviteError) ||
                     (captchaRequired && !captchaToken) ||
                     isLoading
                   }

@@ -19,11 +19,15 @@ import {
   Stack,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useRef, useState, ChangeEvent } from "react";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useUpdateUser } from "../../hooks/useUpdateUser";
 import { useFetchOrganization } from "../../hooks/useFetchOrganization";
 import { useUpdateOrganization } from "../../hooks/useUpdateOrganization";
@@ -41,6 +45,7 @@ import { useFetchUserMetaValues } from "../../hooks/useFetchUserMetaValues";
 import { useUpdateUserMetaValues } from "../../hooks/useUpdateUserMetaValues";
 import { useNotistack } from "../../hooks/useNotistack";
 import { NameField } from "../formFields/NameField";
+import { ORGANIZATION_THEMES } from "../../constants/themes";
 
 function LabeledField({
   label,
@@ -67,6 +72,7 @@ type ProfileModalProps = {
 };
 
 export function ProfileModal({ open, onClose }: ProfileModalProps) {
+  const actionButtonSx = { alignSelf: "center", minWidth: 180 };
   const { user } = useAuth();
   const { success } = useNotistack();
   const { currentOrganizationId, currentOrganizationRole } =
@@ -104,11 +110,20 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   });
   const [phoneLocal, setPhoneLocal] = useState("");
   const [orgName, setOrgName] = useState("");
+  const [orgTheme, setOrgTheme] = useState("");
+  const [isOrgPrivate, setIsOrgPrivate] = useState(true);
+  const [canViewAllMeets, setCanViewAllMeets] = useState(true);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [personalSaved, setPersonalSaved] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
+  const [autoFillSaved, setAutoFillSaved] = useState(false);
+  const [orgSaved, setOrgSaved] = useState(false);
+  const [themeSaved, setThemeSaved] = useState(false);
   const [autoFillValues, setAutoFillValues] = useState<Record<string, any>>({});
   const autoFillLoadedRef = useRef(false);
   const {
@@ -188,10 +203,13 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   }, [user]);
 
   useEffect(() => {
-    if (organization?.name) {
+    if (organization) {
       setOrgName(organization.name);
+      setOrgTheme(organization.theme ?? "");
+      setIsOrgPrivate(Boolean(organization.isPrivate));
+      setCanViewAllMeets(organization.canViewAllMeets ?? true);
     }
-  }, [organization?.name]);
+  }, [organization]);
 
   const initials = useMemo(() => {
     const name = [firstName, lastName].filter(Boolean).join(" ").trim();
@@ -211,6 +229,8 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
       phone,
     });
     success("Personal details updated");
+    setPersonalSaved(true);
+    window.setTimeout(() => setPersonalSaved(false), 1500);
   };
 
   const handleSaveEmail = async () => {
@@ -218,11 +238,34 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     if (!email.trim()) return;
     await updateUserAsync({ id: user.id, email: email.trim() });
     success("Email updated");
+    setEmailSaved(true);
+    window.setTimeout(() => setEmailSaved(false), 1500);
   };
 
   const handleSaveOrg = async () => {
     if (!organization) return;
-    await updateOrganizationAsync({ id: organization.id, name: orgName });
+    await updateOrganizationAsync({
+      id: organization.id,
+      name: orgName,
+      theme: orgTheme || undefined,
+      isPrivate: isOrgPrivate,
+      canViewAllMeets,
+    });
+    setOrgSaved(true);
+    window.setTimeout(() => setOrgSaved(false), 1500);
+  };
+
+  const handleSaveTheme = async () => {
+    if (!organization) return;
+    await updateOrganizationAsync({
+      id: organization.id,
+      name: orgName,
+      theme: orgTheme || undefined,
+      isPrivate: isOrgPrivate,
+      canViewAllMeets,
+    });
+    setThemeSaved(true);
+    window.setTimeout(() => setThemeSaved(false), 1500);
   };
 
   const handleSavePassword = async () => {
@@ -236,6 +279,31 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     setNewPassword("");
     setConfirmPassword("");
     success("Password updated");
+    setPasswordSaved(true);
+    window.setTimeout(() => setPasswordSaved(false), 1500);
+  };
+
+  const handleSaveAutoFill = async () => {
+    if (!user || !currentOrganizationId) return;
+    const values = metaDefinitions.map((definition) => {
+      const raw = autoFillValues[definition.fieldKey];
+      let value: string | null;
+      if (raw === "" || raw === undefined || raw === null) {
+        value = null;
+      } else if (typeof raw === "boolean") {
+        value = raw ? "true" : "false";
+      } else {
+        value = String(raw);
+      }
+      return { key: definition.fieldKey, value };
+    });
+    await updateMetaValuesAsync({
+      userId: user.id,
+      organizationId: currentOrganizationId,
+      values,
+    });
+    setAutoFillSaved(true);
+    window.setTimeout(() => setAutoFillSaved(false), 1500);
   };
 
   const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -327,9 +395,12 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   variant="contained"
                   onClick={handleSavePersonal}
                   disabled={isUserSaving}
-                  sx={{ alignSelf: "flex-start" }}
+                  sx={actionButtonSx}
+                  startIcon={
+                    personalSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                  }
                 >
-                  Save personal details
+                  {personalSaved ? "Saved" : "Save personal details"}
                 </Button>
               </Stack>
             )}
@@ -353,33 +424,115 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   fullWidth
                   disabled={orgLoading || currentOrganizationRole !== "admin"}
                 />
+                <Stack direction="row" spacing={1} sx={{ width: "100%" }}>
+                  <TextField
+                    select
+                    label="Theme"
+                    value={orgTheme}
+                    onChange={(e) => setOrgTheme(e.target.value)}
+                    fullWidth
+                    disabled={orgLoading || currentOrganizationRole !== "admin"}
+                    helperText="Choose an organisation theme."
+                  >
+                    <MenuItem value="">Default</MenuItem>
+                    {ORGANIZATION_THEMES.map((theme) => (
+                      <MenuItem key={theme.name} value={theme.name}>
+                        {theme.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleSaveTheme}
+                    disabled={
+                      orgLoading ||
+                      orgSaving ||
+                      !organization ||
+                      currentOrganizationRole !== "admin"
+                    }
+                    sx={{ minWidth: 120, height: 56, alignSelf: "flex-start" }}
+                    startIcon={
+                      themeSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                    }
+                  >
+                    {themeSaved ? "Saved" : "Change"}
+                  </Button>
+                </Stack>
                 {orgError && <Alert severity="error">{orgError}</Alert>}
                 {orgSaveError && <Alert severity="error">{orgSaveError}</Alert>}
-                <TextField
-                  label="Invite link"
-                  value={inviteLink}
-                  fullWidth
-                  type={isAdmin ? "text" : "password"}
-                  InputProps={{
-                    readOnly: true,
-                  }}
-                  inputProps={{
-                    onCopy: (event: React.ClipboardEvent<HTMLInputElement>) => {
-                      if (!isAdmin) {
-                        event.preventDefault();
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={!isOrgPrivate}
+                      onChange={(event) =>
+                        setIsOrgPrivate(!event.target.checked)
                       }
-                    },
-                  }}
-                  helperText="Share this link to invite members to your organisation."
+                      disabled={currentOrganizationRole !== "admin"}
+                    />
+                  }
+                  label="Allow users to join with invite link"
                 />
-                <Button
-                  variant="outlined"
-                  onClick={copyInvite}
-                  disabled={!inviteLink || !isAdmin}
-                  sx={{ alignSelf: "flex-start" }}
-                >
-                  {inviteCopied ? "Copied!" : "Copy invite link"}
-                </Button>
+                {!isOrgPrivate && (
+                  <>
+                    <TextField
+                      label="Invite link"
+                      value={inviteLink}
+                      fullWidth
+                      type={isAdmin ? "text" : "password"}
+                      InputProps={{
+                        readOnly: true,
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Tooltip
+                              title={
+                                inviteCopied ? "Copied" : "Copy invite link"
+                              }
+                            >
+                              <span>
+                                <IconButton
+                                  onClick={copyInvite}
+                                  disabled={!inviteLink || !isAdmin}
+                                  size="small"
+                                  edge="end"
+                                  aria-label="Copy invite link"
+                                >
+                                  {inviteCopied ? (
+                                    <AssignmentTurnedInIcon fontSize="small" />
+                                  ) : (
+                                    <ContentCopyIcon fontSize="small" />
+                                  )}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </InputAdornment>
+                        ),
+                      }}
+                      inputProps={{
+                        onCopy: (
+                          event: React.ClipboardEvent<HTMLInputElement>,
+                        ) => {
+                          if (!isAdmin) {
+                            event.preventDefault();
+                          }
+                        },
+                      }}
+                      helperText="Share this link to invite members to your organisation."
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={canViewAllMeets}
+                          onChange={(event) =>
+                            setCanViewAllMeets(event.target.checked)
+                          }
+                          disabled={currentOrganizationRole !== "admin"}
+                        />
+                      }
+                      label="Allow members to see all events in this organisation"
+                    />
+                  </>
+                )}
                 <Box sx={{ flexGrow: 1 }} />
                 <Button
                   variant="contained"
@@ -390,9 +543,10 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                     !organization ||
                     currentOrganizationRole !== "admin"
                   }
-                  sx={{ alignSelf: "flex-start" }}
+                  sx={actionButtonSx}
+                  startIcon={orgSaved ? <CheckCircleIcon fontSize="small" /> : undefined}
                 >
-                  Save organization
+                  {orgSaved ? "Saved" : "Save organization"}
                 </Button>
               </Stack>
             )}
@@ -426,8 +580,12 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                       disabled={
                         isUserSaving || !email.trim() || email === user?.email
                       }
+                      sx={{ minWidth: 180 }}
+                      startIcon={
+                        emailSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                      }
                     >
-                      Change Email
+                      {emailSaved ? "Saved" : "Change Email"}
                     </Button>
                     {user?.emailVerified ? (
                       <Alert severity="success">Verified</Alert>
@@ -493,9 +651,12 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                       (!showPassword && newPassword !== confirmPassword) ||
                       isUserSaving
                     }
-                    sx={{ alignSelf: "flex-start" }}
+                    sx={actionButtonSx}
+                    startIcon={
+                      passwordSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                    }
                   >
-                    Update password
+                    {passwordSaved ? "Saved" : "Update password"}
                   </Button>
                 </Stack>
               </Stack>
@@ -610,34 +771,22 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                 <Box sx={{ flexGrow: 1 }} />
                 <Button
                   variant="contained"
-                  sx={{ alignSelf: "flex-start" }}
+                  sx={actionButtonSx}
                   disabled={
                     metaLoading ||
                     userMetaLoading ||
                     Boolean(metaError || userMetaError)
                   }
-                  onClick={async () => {
-                    if (!user || !currentOrganizationId) return;
-                    const values = metaDefinitions.map((definition) => {
-                      const raw = autoFillValues[definition.fieldKey];
-                      let value: string | null;
-                      if (raw === "" || raw === undefined || raw === null) {
-                        value = null;
-                      } else if (typeof raw === "boolean") {
-                        value = raw ? "true" : "false";
-                      } else {
-                        value = String(raw);
-                      }
-                      return { key: definition.fieldKey, value };
-                    });
-                    await updateMetaValuesAsync({
-                      userId: user.id,
-                      organizationId: currentOrganizationId,
-                      values,
-                    });
-                  }}
+                  onClick={handleSaveAutoFill}
+                  startIcon={
+                    autoFillSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                  }
                 >
-                  {userMetaSaving ? "Saving..." : "Save AutoFill"}
+                  {userMetaSaving
+                    ? "Saving..."
+                    : autoFillSaved
+                    ? "Saved"
+                    : "Save AutoFill"}
                 </Button>
                 {userMetaSaveError ? (
                   <Alert severity="error">{userMetaSaveError}</Alert>

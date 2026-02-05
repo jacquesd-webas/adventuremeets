@@ -3,6 +3,13 @@ import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import { ProfileModal } from "../ProfileModal";
 
+let mockedOrganization: Record<string, any> = {
+  id: "org-1",
+  name: "Adventure Meets",
+  isPrivate: false,
+  canViewAllMeets: true,
+};
+
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
     user: {
@@ -33,7 +40,7 @@ vi.mock("../../../hooks/useUpdateUser", () => ({
 
 vi.mock("../../../hooks/useFetchOrganization", () => ({
   useFetchOrganization: () => ({
-    data: { id: "org-1", name: "Adventure Meets" },
+    data: mockedOrganization,
     isLoading: false,
     error: null,
   }),
@@ -78,6 +85,15 @@ vi.mock("../../../hooks/useNotistack", () => ({
 }));
 
 describe("ProfileModal", () => {
+  beforeEach(() => {
+    mockedOrganization = {
+      id: "org-1",
+      name: "Adventure Meets",
+      isPrivate: false,
+      canViewAllMeets: true,
+    };
+  });
+
   it("renders and allows section navigation", () => {
     render(<ProfileModal open onClose={vi.fn()} />);
 
@@ -87,6 +103,9 @@ describe("ProfileModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Organisation" }));
     expect(screen.getByText("Save organization")).toBeInTheDocument();
+    expect(
+      screen.getByText("Allow members to see all events in this organisation"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Security" }));
     expect(screen.getByText("Update password")).toBeInTheDocument();
@@ -98,5 +117,24 @@ describe("ProfileModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows invite toggle instead of invite link when organization is private", () => {
+    mockedOrganization = {
+      id: "org-1",
+      name: "Adventure Meets",
+      isPrivate: true,
+    };
+
+    render(<ProfileModal open onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Organisation" }));
+
+    expect(
+      screen.getByText("Allow users to join with invite link"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Invite link")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Copy invite link" }),
+    ).not.toBeInTheDocument();
   });
 });
