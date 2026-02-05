@@ -28,6 +28,18 @@ const addMonths = (date: Date, delta: number) =>
 const startOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
+const startOfWeek = (date: Date) => {
+  const start = startOfDay(date);
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+};
+
+const endOfWeek = (date: Date) => {
+  const end = startOfWeek(date);
+  end.setDate(end.getDate() + 6);
+  return end;
+};
+
 const formatKey = (date: Date) => {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -76,11 +88,23 @@ export default function CalendarPage() {
     organizationId: currentOrganizationId || "",
   });
 
-  const multiDayMeetsByDay = useMemo(() => {
-    const map = new Map<
-      string,
-      Array<{ meet: Meet; renderId: string; weekKey: string }>
-    >();
+  const multiDaySpansByWeek = useMemo(() => {
+    type Span = {
+      meet: Meet;
+      weekKey: string;
+      startCol: number;
+      endCol: number;
+      row: number;
+    };
+
+    const spansByWeek = new Map<string, Span[]>();
+
+    const addSpan = (weekKey: string, span: Omit<Span, "row">) => {
+      const list = spansByWeek.get(weekKey) || [];
+      list.push({ ...span, row: 0 });
+      spansByWeek.set(weekKey, list);
+    };
+
     meets.forEach((meet) => {
       const start = meet.startTime ? new Date(meet.startTime) : null;
       if (!start || Number.isNaN(start.getTime())) return;
@@ -90,26 +114,57 @@ export default function CalendarPage() {
 
       const startDay = startOfDay(start);
       const endDay = startOfDay(end);
-      if (endDay <= startDay) {
-        return;
-      }
+      if (endDay <= startDay) return;
 
-      for (
-        let cursor = new Date(startDay);
-        cursor <= endDay;
-        cursor.setDate(cursor.getDate() + 1)
-      ) {
-        const key = formatKey(cursor);
-        const weekStart = new Date(cursor);
-        weekStart.setDate(cursor.getDate() - cursor.getDay());
+      let cursor = new Date(startDay);
+      while (cursor <= endDay) {
+        const weekStart = startOfWeek(cursor);
+        const weekEnd = endOfWeek(cursor);
+        const segmentStart = new Date(cursor);
+        const segmentEnd =
+          endDay < weekEnd ? new Date(endDay) : new Date(weekEnd);
         const weekKey = formatKey(weekStart);
-        const list = map.get(key) || [];
-        const uniqueWeekKey = `${meet.id}-${weekKey}`;
-        list.push({ meet, renderId: uniqueWeekKey, weekKey: uniqueWeekKey });
-        map.set(key, list);
+        addSpan(weekKey, {
+          meet,
+          weekKey,
+          startCol: segmentStart.getDay(),
+          endCol: segmentEnd.getDay(),
+        });
+        const next = new Date(weekEnd);
+        next.setDate(next.getDate() + 1);
+        cursor = next;
       }
     });
-    return map;
+
+    spansByWeek.forEach((spans, weekKey) => {
+      const sorted = spans
+        .slice()
+        .sort((a, b) =>
+          a.startCol === b.startCol ? a.endCol - b.endCol : a.startCol - b.startCol,
+        );
+      const rowLastEnd: number[] = [];
+      const packed: Span[] = [];
+
+      sorted.forEach((span) => {
+        let rowIndex = 0;
+        while (
+          rowIndex < rowLastEnd.length &&
+          span.startCol <= rowLastEnd[rowIndex]
+        ) {
+          rowIndex += 1;
+        }
+        if (rowIndex === rowLastEnd.length) {
+          rowLastEnd.push(span.endCol);
+        } else {
+          rowLastEnd[rowIndex] = span.endCol;
+        }
+        packed.push({ ...span, row: rowIndex });
+      });
+
+      spansByWeek.set(weekKey, packed);
+    });
+
+    return spansByWeek;
   }, [meets]);
 
   const singleDayMeetsByDay = useMemo(() => {
@@ -155,7 +210,6 @@ export default function CalendarPage() {
   const itemRowHeight = 20;
   const itemRowGap = 4;
 
-  console.log({ multiDayMeetsByDay, singleDayMeetsByDay });
   return (
     <Box sx={{ flex: 1, overflow: "auto", pt: 0, pb: 3 }}>
       <Container maxWidth="xl">
@@ -225,38 +279,16 @@ export default function CalendarPage() {
               </Box>
               <Stack spacing={0.75}>
                 {weeks.map((week, weekIndex) => {
-                  const weekGroups = new Map<
-                    string,
-                    {
-                      minX: number;
-                      maxX: number;
-                      minY: number;
-                      maxY: number;
-                      meet: Meet;
+                  const weekKey = formatKey(week[0]);
+                  const weekSpans = multiDaySpansByWeek.get(weekKey) || [];
+                  const spanRowsByCol = Array.from({ length: 7 }, () => 0);
+                  weekSpans.forEach((span) => {
+                    for (let col = span.startCol; col <= span.endCol; col += 1) {
+                      spanRowsByCol[col] = Math.max(
+                        spanRowsByCol[col],
+                        span.row + 1,
+                      );
                     }
-                  >();
-                  const weekDayItems = week.map((day) => {
-                    const key = formatKey(day);
-                    return multiDayMeetsByDay.get(key) || [];
-                  });
-
-                  weekDayItems.forEach((items, dayIndex) => {
-                    items.forEach((item, itemIndex) => {
-                      const group = weekGroups.get(item.weekKey) || {
-                        minX: dayIndex,
-                        maxX: dayIndex,
-                        minY: itemIndex,
-                        maxY: itemIndex,
-                        meet: item.meet,
-                      };
-                      group.minX = Math.min(group.minX, dayIndex);
-                      group.maxX = Math.max(group.maxX, dayIndex);
-                      group.minY = Math.min(group.minY, itemIndex);
-                      group.maxY = Math.max(group.maxY, itemIndex);
-                      weekGroups.set(item.weekKey, group);
-                    });
-
-                    console.log({ weekDayItems, weekGroups });
                   });
 
                   return (
@@ -268,23 +300,27 @@ export default function CalendarPage() {
                         "--header-height": `${headerHeight}px`,
                         "--item-row-height": `${itemRowHeight}px`,
                         "--item-row-gap": `${itemRowGap}px`,
+                        "--day-gap": theme.spacing(0.75),
+                        "--cell-border": "1px",
+                        "--content-pad":
+                          "calc(var(--day-padding) + var(--cell-border))",
                       }}
                     >
                       <Box
                         sx={{
                           display: "grid",
                           gridTemplateColumns: "repeat(7, 1fr)",
-                          gap: 0.75,
+                          gap: "var(--day-gap)",
                         }}
                       >
-                        {week.map((day, dayIndex) => {
+                        {week.map((day) => {
                           const key = formatKey(day);
                           const isCurrentMonth = day.getMonth() === monthIndex;
-                          const items = weekDayItems[dayIndex];
                           const singleDayItems =
                             singleDayMeetsByDay.get(key) || [];
                           const isWeekend =
                             day.getDay() === 0 || day.getDay() === 6;
+                          const spanOffsetRows = spanRowsByCol[day.getDay()] || 0;
                           return (
                             <Box
                               key={key}
@@ -327,6 +363,13 @@ export default function CalendarPage() {
                                   {day.getDate()}
                                 </Typography>
                                 <Box sx={{ mt: "var(--item-row-gap)" }}>
+                                  {spanOffsetRows > 0 ? (
+                                    <Box
+                                      sx={{
+                                        height: `calc(${spanOffsetRows} * (var(--item-row-height) + var(--item-row-gap)))`,
+                                      }}
+                                    />
+                                  ) : null}
                                   {isLoading ? (
                                     <Typography
                                       variant="caption"
@@ -336,62 +379,6 @@ export default function CalendarPage() {
                                     </Typography>
                                   ) : (
                                     <>
-                                      {items.map(
-                                        ({ meet, renderId, weekKey }) => {
-                                          const isTruncated =
-                                            meet.name.length > 26;
-                                          const label = isTruncated
-                                            ? `${meet.name.slice(0, 16)}...`
-                                            : meet.name;
-                                          const content = (
-                                            <Box
-                                              sx={{
-                                                px: 0.75,
-                                                height:
-                                                  "var(--item-row-height)",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                borderRadius: 1,
-                                                backgroundColor:
-                                                  theme.palette.primary.main,
-                                                color:
-                                                  theme.palette.mode === "dark"
-                                                    ? "#222222"
-                                                    : theme.palette.primary
-                                                        .contrastText,
-                                                fontSize: "0.62rem",
-                                                lineHeight: 1.2,
-                                                whiteSpace: "nowrap",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                cursor: "pointer",
-                                              }}
-                                              onClick={() =>
-                                                setSelectedMeet(meet)
-                                              }
-                                            >
-                                              <Typography
-                                                variant="caption"
-                                                fontWeight={600}
-                                                sx={{ display: "block" }}
-                                              >
-                                                {label}
-                                              </Typography>
-                                            </Box>
-                                          );
-                                          return isTruncated ? (
-                                            <Tooltip
-                                              key={renderId}
-                                              title={meet.name}
-                                              arrow
-                                            >
-                                              {content}
-                                            </Tooltip>
-                                          ) : (
-                                            <Box key={renderId}>{content}</Box>
-                                          );
-                                        },
-                                      )}
                                       {singleDayItems.map((meet) => {
                                         const isTruncated =
                                           meet.name.length > 26;
@@ -453,7 +440,7 @@ export default function CalendarPage() {
                           );
                         })}
                       </Box>
-                      {weekGroups.size > 0 ? (
+                      {weekSpans.length > 0 ? (
                         <Box
                           sx={{
                             position: "absolute",
@@ -463,49 +450,49 @@ export default function CalendarPage() {
                             display: "grid",
                             gridTemplateColumns: "repeat(7, 1fr)",
                             gridAutoRows: "var(--item-row-height)",
-                            gap: "var(--item-row-gap)",
-                            px: "var(--day-padding)",
-                            pointerEvents: "none",
+                            columnGap:
+                              "calc(var(--day-gap) + (2 * var(--content-pad)))",
+                            rowGap: "var(--item-row-gap)",
+                            px: "var(--content-pad)",
+                            boxSizing: "border-box",
                           }}
                         >
-                          {Array.from(weekGroups.entries()).map(
-                            ([weekKey, group]) => (
-                              <Box
-                                key={`span-${weekKey}`}
-                                sx={{
-                                  gridColumn: `${group.minX + 1} / ${
-                                    group.maxX + 2
-                                  }`,
-                                  gridRow: `${group.minY + 1} / ${
-                                    group.maxY + 2
-                                  }`,
-                                  backgroundColor: theme.palette.primary.main,
-                                  borderRadius: 1,
-                                  height: "calc(var(--item-row-height) + 4px)",
-                                  px: 0.75,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  color:
-                                    theme.palette.mode === "dark"
-                                      ? "#222222"
-                                      : theme.palette.primary.contrastText,
-                                  fontSize: "0.62rem",
-                                  lineHeight: 1.2,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                }}
+                          {weekSpans.map((span) => (
+                            <Box
+                              key={`span-${span.weekKey}-${span.meet.id}-${span.row}-${span.startCol}`}
+                              sx={{
+                                gridColumn: `${span.startCol + 1} / ${
+                                  span.endCol + 2
+                                }`,
+                                gridRow: `${span.row + 1}`,
+                                backgroundColor: theme.palette.primary.main,
+                                borderRadius: 1,
+                                height: "var(--item-row-height)",
+                                px: 0.75,
+                                display: "flex",
+                                alignItems: "center",
+                                color:
+                                  theme.palette.mode === "dark"
+                                    ? "#222222"
+                                    : theme.palette.primary.contrastText,
+                                fontSize: "0.62rem",
+                                lineHeight: 1.2,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => setSelectedMeet(span.meet)}
+                            >
+                              <Typography
+                                variant="caption"
+                                fontWeight={600}
+                                sx={{ display: "block" }}
                               >
-                                <Typography
-                                  variant="caption"
-                                  fontWeight={600}
-                                  sx={{ display: "block" }}
-                                >
-                                  {group.meet.name}
-                                </Typography>
-                              </Box>
-                            ),
-                          )}
+                                {span.meet.name}
+                              </Typography>
+                            </Box>
+                          ))}
                         </Box>
                       ) : null}
                     </Box>
