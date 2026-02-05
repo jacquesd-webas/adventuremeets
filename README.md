@@ -12,18 +12,22 @@ This repo contains the **core AdventureMeets application**, structured as a Dock
 
 ### Components
 
-- **API (`api/`)**
-  - NestJS backend
-  - Knex-based Postgres access
-  - Modular, testable structure
 - **Database (`db/`)**
   - Knex configuration
   - Schema migrations and seeds
   - Works with local or containerised Postgres
 
+- **API (`api/`)**
+  - NestJS backend
+  - Knex-based Postgres access
+  - Modular, testable structure
 - **Web (`web/`)**
   - React SPA built with Vite
   - Vitest + Testing Library configured
+
+- **Worker (`worker/`)**
+  - Node scheduler for background tasks
+  - Uses DB for fast read-only and API for writing
 
 - **Mail (`mail/`)**
   - Postfix mail relay
@@ -73,31 +77,32 @@ If you run a **modified version** as a network-accessible service, the AGPL lice
 
 1. Install dependencies per app:
 
-   ````cd api && pnpm install
+   ```bash
+   cd api && pnpm install
    cd ../web && pnpm install
-   cd ../db && pnpm install```
-
-   ````
+   cd ../worker && pnpm install
+   cd ../db && pnpm install
+   ```
 
 2. Create and populate environment files:
 
-   ````bash
-   touch api/.env web/.env db/.env
-   make env```
+   ```bash
+   touch api/.env web/.env worker/.env db/.env
+   make env
+   ```
 
-   ````
+3. Start services:
 
-3. Start services (db and minio):
-
-   `make up`
+   Use `make up`to start db and minio.
 
 4. Apply datbase migrations:
 
-   `make migrate`
+   `make migrate` will build a docker container to apply migrations.
 
 5. You can run the API and Web either in docker (built like prod) or in your local node env
 
-   ```cp env/development.env.example.docker env/development.env
+   ```bash
+   cp env/development.env.example.docker env/development.env
    make env
    docker compose build
    docker compose up -d
@@ -105,17 +110,23 @@ If you run a **modified version** as a network-accessible service, the AGPL lice
 
    For development it's usually better to watch the files for changes:
 
-   ````cp env/development.env.example.local env/development.env
+   ```bash
+   cp env/development.env.example.local env/development.env
    make env
    make up
    cd api && pnpm start:dev
-   cd web && pnpm start:dev```
+   cd web && pnpm start:dev
+   ```
 
-   ````
+   Generally the worker doesn't need to be sarted for meaningful work (and often it's in the way):
+
+   ```bash
+   cd worker && pnpm start:dev
+   ```
 
 6. Generally a good idea to run mailhog so that the mail system doesn't give you errors when failing to send emails.
 
-   `docker compose up -d mailhog`
+   Run `docker compose up -d mailhog` to start it.
    - Set `MAIL_SMTP_HOST=host.docker.internal` in development.env
    - Mailhog will be avalable on http://localhost:8025/
 
@@ -129,6 +140,9 @@ If you run a **modified version** as a network-accessible service, the AGPL lice
   - Vitest + Testing Library
   - Configured in web/vite.config.ts
 
+- **Worker (`worker/`)**
+  - Very basic scheduler tests
+
 - **Database (`db/`)**
   - Database
   - Knex migrations
@@ -136,11 +150,11 @@ If you run a **modified version** as a network-accessible service, the AGPL lice
 
 To quickly run all all tests you can use a make command to run:
 
-- pnpm lint on `api/` and `web/`
-- pnpm test on `api/` and `web/`
-- pnpm build on `api/` and `web/`
+- pnpm lint on `api/`, `web/` and `worker/`
+- pnpm test on `api/`, `web/` and `worker/`
+- pnpm build on `api/`,`web/` and `worker/`
 
-  `make test`
+  Use `make test` to run all tests
 
 ### Running database migrations
 
