@@ -18,6 +18,7 @@ import { CreateTemplateDto } from "./dto/create-template.dto";
 import { UpdateTemplateDto } from "./dto/update-template.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { UpdateMemberDto } from "./dto/update-member.dto";
+import { Public } from "src/auth/decorators/public.decorator";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -25,7 +26,7 @@ import { UpdateMemberDto } from "./dto/update-member.dto";
 export class OrganizationsController {
   constructor(
     private readonly organizationsService: OrganizationsService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
   ) {}
 
   @Get()
@@ -36,15 +37,23 @@ export class OrganizationsController {
     if (!organizationIds.length) {
       return [];
     }
-    const organizations = await this.organizationsService.findAllByIds(
-      organizationIds
-    );
+    const organizations =
+      await this.organizationsService.findAllByIds(organizationIds);
     return { organizations };
   }
 
+  @Public()
   @Get(":id")
   async findOne(@Param("id") id: string, @User() user?: UserProfile) {
-    if (!user) throw new UnauthorizedException();
+    // If we are not logged in we can see no iformation except the theme
+    // so that we can redner nice background for signups/logins
+    if (!user) {
+      return {
+        organization: {
+          theme: await this.organizationsService.findThemeById(id),
+        },
+      };
+    }
 
     if (!this.authService.hasRole(user, id, "member")) {
       throw new ForbiddenException("You are not a member of this organization");
@@ -60,7 +69,7 @@ export class OrganizationsController {
 
     if (!this.authService.hasRole(user, id, "admin")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization"
+        "You are not an administrator for this organization",
       );
     }
 
@@ -73,20 +82,20 @@ export class OrganizationsController {
     @Param("id") id: string,
     @Param("userId") userId: string,
     @Body() body: UpdateMemberDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     if (!this.authService.hasRole(user, id, "admin")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization"
+        "You are not an administrator for this organization",
       );
     }
 
     const member = await this.organizationsService.updateMember(
       id,
       userId,
-      body
+      body,
     );
     return { member };
   }
@@ -97,7 +106,7 @@ export class OrganizationsController {
 
     if (!this.authService.hasRole(user, id, "organizer")) {
       throw new ForbiddenException(
-        "You are not an organizer for this organization"
+        "You are not an organizer for this organization",
       );
     }
 
@@ -111,7 +120,7 @@ export class OrganizationsController {
 
     if (!this.authService.hasRole(user, id, "organizer")) {
       throw new ForbiddenException(
-        "You are not an organizer for this organization"
+        "You are not an organizer for this organization",
       );
     }
     const templates = await this.organizationsService.findTemplates(id);
@@ -121,7 +130,7 @@ export class OrganizationsController {
   @Get(":id/meta-definitions")
   async listMetaDefinitions(
     @Param("id") id: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -129,9 +138,8 @@ export class OrganizationsController {
       throw new ForbiddenException("You are not a member of this organization");
     }
 
-    const metaDefinitions = await this.organizationsService.listMetaDefinitions(
-      id
-    );
+    const metaDefinitions =
+      await this.organizationsService.listMetaDefinitions(id);
     return { metaDefinitions };
   }
 
@@ -139,19 +147,19 @@ export class OrganizationsController {
   async findTemplate(
     @Param("id") id: string,
     @Param("templateId") templateId: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     if (!this.authService.hasRole(user, id, "admin")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization"
+        "You are not an administrator for this organization",
       );
     }
 
     const template = await this.organizationsService.findTemplateById(
       id,
-      templateId
+      templateId,
     );
     return { template };
   }
@@ -160,13 +168,13 @@ export class OrganizationsController {
   async createTemplate(
     @Param("id") id: string,
     @Body() body: CreateTemplateDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     if (!this.authService.hasRole(user, id, "admin")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization"
+        "You are not an administrator for this organization",
       );
     }
 
@@ -179,20 +187,20 @@ export class OrganizationsController {
     @Param("id") id: string,
     @Param("templateId") templateId: string,
     @Body() body: UpdateTemplateDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     if (!this.authService.hasRole(user, id, "admin")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization"
+        "You are not an administrator for this organization",
       );
     }
 
     const template = await this.organizationsService.updateTemplate(
       id,
       templateId,
-      body
+      body,
     );
     return { template };
   }
@@ -201,13 +209,13 @@ export class OrganizationsController {
   async deleteTemplate(
     @Param("id") id: string,
     @Param("templateId") templateId: string,
-    @User() user: UserProfile
+    @User() user: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     if (!this.authService.hasRole(user, id, "admin")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization"
+        "You are not an administrator for this organization",
       );
     }
     return await this.organizationsService.deleteTemplate(id, templateId);
@@ -217,13 +225,13 @@ export class OrganizationsController {
   async update(
     @Param("id") id: string,
     @Body() dto: UpdateOrganizationDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     if (!this.authService.hasRole(user, id, "admin")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization"
+        "You are not an administrator for this organization",
       );
     }
     const organization = await this.organizationsService.update(id, dto);
