@@ -162,7 +162,10 @@ function MainLayout() {
   const logoSrc = getLogoSrc(mode, organization?.theme);
 
   useEffect(() => {
-    const { image, color } = getOrganizationBackground(mode, organization?.theme);
+    const { image, color } = getOrganizationBackground(
+      mode,
+      organization?.theme,
+    );
     document.body.style.backgroundColor = color;
     document.body.style.backgroundImage = `url("${image}")`;
     document.body.setAttribute("data-theme-base", baseMode);
@@ -251,6 +254,7 @@ function MainLayout() {
                 variant="outlined"
                 color="primary"
                 size="small"
+                data-testid="organization-switcher-button"
                 sx={{
                   mr: 2,
                   maxWidth: 240,
@@ -285,6 +289,7 @@ function MainLayout() {
                 onClick={handleAvatarClick}
                 size="small"
                 sx={{ ml: 2 }}
+                data-testid="account-menu-button"
               >
                 <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
               </IconButton>
@@ -296,7 +301,10 @@ function MainLayout() {
               transformOrigin={{ vertical: "top", horizontal: "right" }}
             >
               {(canLight || canDark) && (
-                <MenuItem onClick={handleToggleLightDark} disabled={!canLight || !canDark}>
+                <MenuItem
+                  onClick={handleToggleLightDark}
+                  disabled={!canLight || !canDark}
+                >
                   <ListItemIcon>
                     {(mode === "glass" ? baseMode : mode) === "dark" ? (
                       <LightModeIcon fontSize="small" />
@@ -314,7 +322,9 @@ function MainLayout() {
                   <ListItemIcon>
                     <ViewDayOutlinedIcon fontSize="small" />
                   </ListItemIcon>
-                  {mode === "glass" ? "Disable glass mode" : "Enable glass mode"}
+                  {mode === "glass"
+                    ? "Disable glass mode"
+                    : "Enable glass mode"}
                 </MenuItem>
               )}
               <MenuItem onClick={handleProfile}>
