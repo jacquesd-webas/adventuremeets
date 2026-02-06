@@ -219,6 +219,12 @@ export class AuthService {
   }
 
   private async verifyCaptchaIfNeeded(dto: RegisterDto) {
+    if (
+      process.env.VITE_RECAPTCHA_DISABLE === "true" ||
+      process.env.RECAPTCHA_DISABLE === "true"
+    ) {
+      return;
+    }
     const secret = process.env.RECAPTCHA_SECRET;
     // Only enforce for email/password flow; IDP-based registrations can bypass.
     const isEmailMethod = !dto.idpProvider;
