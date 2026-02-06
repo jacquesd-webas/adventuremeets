@@ -149,6 +149,7 @@ export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
               })
             }
             fullWidth
+            inputProps={{ "data-testid": "start-time-input" }}
             InputLabelProps={{ shrink: true }}
             error={Boolean(getFieldError(errors, "startTime"))}
             helperText={getFieldError(errors, "startTime")}
@@ -205,6 +206,7 @@ export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
             }
             fullWidth
             InputLabelProps={{ shrink: true }}
+            inputProps={{ "data-testid": "end-time-input" }}
             error={Boolean(getFieldError(errors, "endTime"))}
             helperText={getFieldError(errors, "endTime")}
           />

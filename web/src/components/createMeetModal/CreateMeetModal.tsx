@@ -99,16 +99,25 @@ export function CreateMeetModal({
     if (open) setShowSteps(!fullScreen);
   }, [open, fullScreen]);
 
+
   // Set default organizerId and organizationId to current user and Org when available
+  // We also have to set the baseline state here so that the form doesn't think it's dirty
   useEffect(() => {
     if (user && currentOrganizationId) {
-      if (!state.organizerId)
+      if (!state.organizerId) {
         setState((prev) => ({ ...prev, organizerId: user.id }));
-      if (!state.organizationId)
+        setBaselineState((prev) => ({ ...prev, organizerId: user.id }));
+      }
+      if (!state.organizationId) {
         setState((prev) => ({
           ...prev,
           organizationId: currentOrganizationId,
         }));
+        setBaselineState((prev) => ({
+          ...prev,
+          organizationId: currentOrganizationId,
+        }));
+      }
     }
   }, [user, currentOrganizationId, state.organizerId, state.organizationId]);
 
@@ -153,6 +162,10 @@ export function CreateMeetModal({
   const isLastStep = useMemo(
     () => activeStep >= steps.length - 1,
     [activeStep],
+  );
+  const isDraft = useMemo(
+    () => (state.statusId ?? MeetStatusEnum.Draft) === MeetStatusEnum.Draft,
+    [state.statusId],
   );
 
   // Check for dirty form
@@ -440,6 +453,23 @@ export function CreateMeetModal({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to publish meet";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveAndClose = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await handleSaveStep(activeStep);
+      setBaselineState(state);
+      onCreated?.();
+      onClose();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to save changes";
       setSubmitError(message);
     } finally {
       setIsSubmitting(false);
@@ -765,7 +795,13 @@ export function CreateMeetModal({
                   )}
                   <Button
                     variant="contained"
-                    onClick={isLastStep ? handlePublish : handleNext}
+                    onClick={
+                      isLastStep
+                        ? isDraft
+                          ? handlePublish
+                          : handleSaveAndClose
+                        : handleNext
+                    }
                     disabled={
                       isSubmitting ||
                       isLoadingMeet ||
@@ -774,9 +810,13 @@ export function CreateMeetModal({
                     }
                   >
                     {isLastStep
-                      ? isPublishing
-                        ? "Publishing..."
-                        : "Publish"
+                      ? isDraft
+                        ? isPublishing
+                          ? "Publishing..."
+                          : "Publish"
+                        : isSubmitting
+                          ? "Saving..."
+                          : "Save & Close"
                       : isSubmitting
                         ? "Saving..."
                         : "Save & Continue"}
