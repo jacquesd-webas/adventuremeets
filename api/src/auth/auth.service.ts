@@ -212,6 +212,15 @@ export class AuthService {
     const created = await this.usersService.create(dto);
     const user = await this.usersService.findById(created.id);
     await this.usersService.linkByEmail(user.email, user.id);
+    if (!dto.idpProvider) {
+      try {
+        await this.requestEmailVerification(user.id);
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to send verification email to ${user.email}: ${err?.message || err}`
+        );
+      }
+    }
     return {
       accessToken: this.signAccessToken(user as any),
       refreshToken: this.signRefreshToken(user as any),
@@ -281,6 +290,17 @@ export class AuthService {
     return crypto.createHash("sha256").update(token).digest("hex");
   }
 
+  private hashVerificationCode(code: string) {
+    return crypto.createHash("sha256").update(code).digest("hex");
+  }
+
+  private generateVerificationCode() {
+    return String(crypto.randomInt(100000, 1000000));
+  }
+
+  private readonly verificationMaxAttempts = 5;
+  private readonly verificationLockMinutes = 15;
+
   async requestPasswordReset(email: string) {
     const user = await this.usersService.findByEmail(email);
     if (!user) {
@@ -337,6 +357,79 @@ export class AuthService {
         `Failed to send password reset confirmation email to ${user.email}: ${err?.message || err}`
       );
     }
+  }
+
+  async requestEmailVerification(userId: string) {
+    const info = await this.usersService.getEmailVerificationInfo(userId);
+    if (!info) {
+      throw new BadRequestException("User not found");
+    }
+    if (info.email_verified_at) {
+      return;
+    }
+
+    const code = this.generateVerificationCode();
+    const codeHash = this.hashVerificationCode(code);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    await this.usersService.setEmailVerificationToken(
+      userId,
+      codeHash,
+      expiresAt
+    );
+
+    const { subject, text, html } = renderEmailTemplate("email-verification", {
+      code,
+      expiresInMinutes: 30,
+    });
+
+    await this.emailService.sendEmail({
+      to: info.email,
+      subject,
+      text,
+      html,
+    });
+  }
+
+  async verifyEmailCode(userId: string, code: string) {
+    const info = await this.usersService.getEmailVerificationInfo(userId);
+    if (!info) {
+      throw new BadRequestException("User not found");
+    }
+    if (info.email_verified_at) {
+      return;
+    }
+    const normalizedCode = String(code || "").trim();
+    if (!info.email_verification_token || !info.email_verification_expires_at) {
+      throw new BadRequestException("Verification code not found");
+    }
+    if (info.email_verification_locked_until) {
+      const lockedUntil = new Date(info.email_verification_locked_until);
+      if (!Number.isNaN(lockedUntil.getTime()) && lockedUntil > new Date()) {
+        throw new BadRequestException(
+          "Verification temporarily locked. Please request a new code."
+        );
+      }
+    }
+    const expiresAt = new Date(info.email_verification_expires_at);
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()) {
+      await this.usersService.clearEmailVerificationToken(userId);
+      throw new BadRequestException("Verification code expired");
+    }
+
+    const codeHash = this.hashVerificationCode(normalizedCode);
+    if (codeHash !== info.email_verification_token) {
+      await this.usersService.incrementEmailVerificationAttempts(userId);
+      const attempts = Number(info.email_verification_attempts || 0) + 1;
+      if (attempts >= this.verificationMaxAttempts) {
+        const lockedUntil = new Date(
+          Date.now() + this.verificationLockMinutes * 60 * 1000
+        ).toISOString();
+        await this.usersService.lockEmailVerification(userId, lockedUntil);
+      }
+      throw new BadRequestException("Invalid verification code");
+    }
+
+    await this.usersService.markEmailVerified(userId);
   }
 
   async getGoogleAuthUrl(redirectUri?: string, state?: string) {

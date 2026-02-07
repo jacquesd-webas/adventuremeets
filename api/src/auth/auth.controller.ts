@@ -23,6 +23,7 @@ import { GoogleAuthCodeDto } from "./dto/google-auth-code.dto";
 import { GoogleIdTokenDto } from "./dto/google-id-token.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { VerifyEmailDto } from "./dto/verify-email.dto";
 
 @ApiTags("Auth")
 @Controller("auth")
@@ -105,6 +106,29 @@ export class AuthController {
   @Post("password/reset")
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto.token, dto.password);
+    return { ok: true };
+  }
+
+  @ApiBearerAuth()
+  @Post("email/verification")
+  async requestEmailVerification(@User() user?: UserProfile) {
+    if (!user) {
+      throw new UnauthorizedException("Unauthorized");
+    }
+    await this.authService.requestEmailVerification(user.id);
+    return { ok: true };
+  }
+
+  @ApiBearerAuth()
+  @Post("email/verification/confirm")
+  async confirmEmailVerification(
+    @Body() dto: VerifyEmailDto,
+    @User() user?: UserProfile
+  ) {
+    if (!user) {
+      throw new UnauthorizedException("Unauthorized");
+    }
+    await this.authService.verifyEmailCode(user.id, dto.code);
     return { ok: true };
   }
 

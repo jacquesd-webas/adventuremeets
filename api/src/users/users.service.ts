@@ -25,7 +25,7 @@ export class UsersService {
       await trx("users").insert({
         id,
         email: dto.email,
-        email_verified: false,
+        // email_verified_at is the source of truth for verification status
         first_name: dto.firstName || null,
         last_name: dto.lastName || null,
         phone: dto.phone || null,
@@ -113,6 +113,22 @@ export class UsersService {
     return this.database.getClient()("users").where({ email }).first();
   }
 
+  async getEmailVerificationInfo(userId: string) {
+    return this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .select(
+        "id",
+        "email",
+        "email_verified_at",
+        "email_verification_token",
+        "email_verification_expires_at",
+        "email_verification_attempts",
+        "email_verification_locked_until"
+      )
+      .first();
+  }
+
   async isOrganizationPrivate(organizationId: string): Promise<boolean | null> {
     const org = await this.database
       .getClient()("organizations")
@@ -141,6 +157,70 @@ export class UsersService {
       .update({
         password_reset_token: tokenHash,
         password_reset_expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      });
+  }
+
+  async setEmailVerificationToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: string
+  ) {
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        email_verification_token: tokenHash,
+        email_verification_expires_at: expiresAt,
+        email_verification_attempts: 0,
+        email_verification_locked_until: null,
+        updated_at: new Date().toISOString(),
+      });
+  }
+
+  async clearEmailVerificationToken(userId: string) {
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        email_verification_token: null,
+        email_verification_expires_at: null,
+        email_verification_attempts: 0,
+        email_verification_locked_until: null,
+        updated_at: new Date().toISOString(),
+      });
+  }
+
+  async incrementEmailVerificationAttempts(userId: string) {
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        email_verification_attempts: this.database
+          .getClient()
+          .raw("COALESCE(email_verification_attempts, 0) + 1"),
+        updated_at: new Date().toISOString(),
+      });
+  }
+
+  async lockEmailVerification(userId: string, lockedUntil: string) {
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        email_verification_locked_until: lockedUntil,
+        updated_at: new Date().toISOString(),
+      });
+  }
+
+  async markEmailVerified(userId: string) {
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        email_verified_at: new Date().toISOString(),
+        email_verification_token: null,
+        email_verification_expires_at: null,
         updated_at: new Date().toISOString(),
       });
   }
@@ -227,6 +307,9 @@ export class UsersService {
     }
     if (dto.email !== undefined) {
       updates.email = dto.email;
+      updates.email_verified_at = null;
+      updates.email_verification_token = null;
+      updates.email_verification_expires_at = null;
     }
     if (dto.idpProvider !== undefined) {
       updates.idp_provider = dto.idpProvider;

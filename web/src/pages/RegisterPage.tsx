@@ -26,6 +26,7 @@ import { getLocaleDefaults } from "../helpers/locale";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
+import { useNotistack } from "../hooks/useNotistack";
 
 function RegisterPage() {
   const location = useLocation();
@@ -53,6 +54,7 @@ function RegisterPage() {
   const api = useApi();
   const nav = useNavigate();
   const { refreshSession } = useAuth();
+  const { success } = useNotistack();
   const [emailError, setEmailError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const logoSrc = getLogoSrc();
@@ -191,6 +193,9 @@ function RegisterPage() {
     })
       .then(async () => {
         await refreshSession();
+        success(
+          "We sent a verification code to your email. Enter it in Profile > Security."
+        );
         if (pendingMeetLink) {
           nav(
             `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`,

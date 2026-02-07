@@ -29,6 +29,8 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useUpdateUser } from "../../hooks/useUpdateUser";
+import { useRequestEmailVerification } from "../../hooks/useRequestEmailVerification";
+import { useConfirmEmailVerification } from "../../hooks/useConfirmEmailVerification";
 import { useFetchOrganization } from "../../hooks/useFetchOrganization";
 import { useUpdateOrganization } from "../../hooks/useUpdateOrganization";
 import { useAuth } from "../../context/authContext";
@@ -73,7 +75,7 @@ type ProfileModalProps = {
 
 export function ProfileModal({ open, onClose }: ProfileModalProps) {
   const actionButtonSx = { alignSelf: "center", minWidth: 180 };
-  const { user } = useAuth();
+  const { user, refreshSession } = useAuth();
   const { success } = useNotistack();
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
@@ -82,6 +84,16 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     isLoading: isUserSaving,
     error: userError,
   } = useUpdateUser();
+  const {
+    requestVerificationAsync,
+    isLoading: isVerificationSending,
+    error: verificationError,
+  } = useRequestEmailVerification();
+  const {
+    confirmVerificationAsync,
+    isLoading: isVerificationConfirming,
+    error: confirmError,
+  } = useConfirmEmailVerification();
   const {
     data: organization,
     isLoading: orgLoading,
@@ -121,6 +133,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   const [personalSaved, setPersonalSaved] = useState(false);
   const [emailSaved, setEmailSaved] = useState(false);
   const [passwordSaved, setPasswordSaved] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationConfirmed, setVerificationConfirmed] = useState(false);
   const [autoFillSaved, setAutoFillSaved] = useState(false);
   const [orgSaved, setOrgSaved] = useState(false);
   const [themeSaved, setThemeSaved] = useState(false);
@@ -281,6 +296,42 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     success("Password updated");
     setPasswordSaved(true);
     window.setTimeout(() => setPasswordSaved(false), 1500);
+  };
+
+  const handleRequestVerification = async () => {
+    if (!user) return;
+    await requestVerificationAsync();
+    success("Verification email sent");
+    setVerificationSent(true);
+    window.setTimeout(() => setVerificationSent(false), 1500);
+  };
+
+  const handleConfirmVerification = async () => {
+    if (!user) return;
+    const code = verificationCode.trim();
+    if (!/^\d{6}$/.test(code)) return;
+    await confirmVerificationAsync({ code });
+    await refreshSession();
+    success("Email verified");
+    setVerificationCode("");
+    setVerificationConfirmed(true);
+    window.setTimeout(() => setVerificationConfirmed(false), 1500);
+  };
+
+  const formatVerificationError = (message: string) => {
+    if (message.includes("Invalid verification code")) {
+      return "That code is incorrect. Please try again.";
+    }
+    if (message.includes("Verification code expired")) {
+      return "That code has expired. Please request a new one.";
+    }
+    if (message.includes("Verification code not found")) {
+      return "Please request a verification code first.";
+    }
+    if (message.includes("Verification temporarily locked")) {
+      return "Too many attempts. Please request a new code and try again.";
+    }
+    return message;
   };
 
   const handleSaveAutoFill = async () => {
@@ -588,13 +639,105 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                       {emailSaved ? "Saved" : "Change Email"}
                     </Button>
                     {user?.emailVerified ? (
-                      <Alert severity="success">Verified</Alert>
+                      <Alert
+                        severity="success"
+                        sx={{ py: 0.2, px: 1.5, alignItems: "center" }}
+                      >
+                        Verified
+                      </Alert>
                     ) : (
-                      <Button variant="outlined" disabled>
-                        Verify Email
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={handleRequestVerification}
+                        disabled={isVerificationSending}
+                        startIcon={
+                          verificationSent ? (
+                            <CheckCircleIcon fontSize="small" />
+                          ) : undefined
+                        }
+                        sx={{
+                          minHeight: 36,
+                          height: 36,
+                          px: 1.5,
+                          py: 0,
+                          lineHeight: "36px",
+                          alignItems: "center",
+                          "& .MuiButton-startIcon": { alignSelf: "center" },
+                        }}
+                      >
+                        {verificationSent ? "Sent" : "Verify Email"}
                       </Button>
                     )}
                   </Stack>
+                  {!user?.emailVerified && (
+                    <Stack spacing={0.5}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        useFlexGap
+                        alignItems="center"
+                        sx={{
+                          "@media (max-width: 750px)": {
+                            flexDirection: "column",
+                            alignItems: "stretch",
+                          },
+                        }}
+                      >
+                        <TextField
+                          label="Verification code"
+                          value={verificationCode}
+                          onChange={(e) =>
+                            setVerificationCode(
+                              e.target.value.replace(/[^\d]/g, "").slice(0, 6),
+                            )
+                          }
+                          inputProps={{ inputMode: "numeric" }}
+                          sx={{
+                            width: 280,
+                            "@media (max-width: 750px)": { width: "100%" },
+                          }}
+                        />
+                        <Button
+                          variant="contained"
+                          onClick={handleConfirmVerification}
+                          disabled={
+                            isVerificationConfirming ||
+                            !/^\d{6}$/.test(verificationCode.trim())
+                          }
+                          startIcon={
+                            verificationConfirmed ? (
+                              <CheckCircleIcon fontSize="small" />
+                            ) : undefined
+                          }
+                          sx={{
+                            minWidth: 180,
+                            alignSelf: "center",
+                            "@media (max-width: 750px)": {
+                              minWidth: "100%",
+                              alignSelf: "stretch",
+                              width: "100%",
+                            },
+                          }}
+                        >
+                          {verificationConfirmed ? "Verified" : "Confirm code"}
+                        </Button>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Enter the 6 digit code from your email.
+                      </Typography>
+                    </Stack>
+                  )}
+                  {verificationError && (
+                    <Alert severity="error">
+                      {formatVerificationError(verificationError)}
+                    </Alert>
+                  )}
+                  {confirmError && (
+                    <Alert severity="error">
+                      {formatVerificationError(confirmError)}
+                    </Alert>
+                  )}
                 </Stack>
                 <Divider sx={{ width: "100%" }} />
                 <Stack spacing={2} sx={{ width: "100%" }}>

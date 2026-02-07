@@ -1,9 +1,15 @@
 export type EmailTemplateName =
   | "password-reset"
-  | "password-reset-confirmation";
+  | "password-reset-confirmation"
+  | "email-verification";
 
 export type PasswordResetTemplateVars = {
   resetUrl: string;
+};
+
+export type EmailVerificationTemplateVars = {
+  code: string;
+  expiresInMinutes?: number;
 };
 
 const BRAND_NAME = "AdventureMeets";
@@ -61,8 +67,12 @@ export function renderEmailTemplate(
   name: "password-reset-confirmation"
 ): { subject: string; text: string; html: string };
 export function renderEmailTemplate(
+  name: "email-verification",
+  vars: EmailVerificationTemplateVars
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
   name: EmailTemplateName,
-  vars?: PasswordResetTemplateVars
+  vars?: PasswordResetTemplateVars | EmailVerificationTemplateVars
 ) {
   const brand = BRAND_NAME;
 
@@ -85,6 +95,34 @@ export function renderEmailTemplate(
       <p style="margin:0 0 16px 0;font-size:13px;color:#475569;">If the button doesn't work, copy and paste this link into your browser:</p>
       <p style="word-break:break-all;font-size:13px;color:#475569;margin:0;">${vars.resetUrl}</p>
       <p style="margin:24px 0 0 0;font-size:13px;color:#475569;">If you did not request this, you can ignore this email.</p>
+    `;
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
+
+  if (name === "email-verification") {
+    const verificationVars = vars as EmailVerificationTemplateVars;
+    if (!verificationVars?.code) {
+      throw new Error("Missing code for email-verification template");
+    }
+    const expiresIn =
+      verificationVars.expiresInMinutes != null
+        ? `${verificationVars.expiresInMinutes} minutes`
+        : "a limited time";
+    const subject = `Verify your ${brand} email`;
+    const text =
+      `Use this code to verify your ${brand} email address:\n\n` +
+      `${verificationVars.code}\n\n` +
+      `This code is valid for ${expiresIn}. If you did not request this, you can ignore this email.`;
+    const htmlBody = `
+      <h2 style="margin:0 0 12px 0;font-size:20px;">Verify your email</h2>
+      <p style="margin:0 0 16px 0;">Enter this code to verify your email address.</p>
+      <div style="text-align:center;margin:24px 0;">
+        <div style="display:inline-block;background:#f1f5f9;border-radius:10px;padding:14px 24px;font-size:28px;letter-spacing:6px;font-weight:700;color:${PRIMARY_COLOR};">
+          ${verificationVars.code}
+        </div>
+      </div>
+      <p style="margin:0 0 16px 0;font-size:13px;color:#475569;">This code is valid for ${expiresIn}.</p>
+      <p style="margin:0;font-size:13px;color:#475569;">If you did not request this, you can ignore this email.</p>
     `;
     return { subject, text, html: wrapHtml(htmlBody) };
   }
