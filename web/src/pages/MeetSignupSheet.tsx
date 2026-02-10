@@ -119,7 +119,7 @@ function MeetSignupFormFields({
   isEditing,
   onSubmit,
   onCancelEdit,
-  onCheckDuplicate,
+  _onCheckDuplicate,
   onNameBlur,
   onEmailBlur,
   onPhoneBlur,
