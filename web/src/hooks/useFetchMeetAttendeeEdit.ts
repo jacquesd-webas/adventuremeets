@@ -1,37 +1,36 @@
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
-import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 
-type MeetAttendeeResponse = {
+type MeetAttendeeEditResponse = {
   attendee: {
     id: string;
-    userId?: string | null;
-    status: AttendeeStatusEnum | null;
+    name?: string | null;
     email?: string | null;
     phone?: string | null;
-    name?: string | null;
+    guests?: number | null;
+    indemnityAccepted?: boolean | null;
+    metaValues?: Array<{ fieldKey: string; value: string }>;
   };
 };
 
-export function useFetchMeetAttendeeStatus(
+export function useFetchMeetAttendeeEdit(
   meetCode?: string | null,
   attendeeId?: string | null,
 ) {
   const api = useApi();
   const query = useQuery({
-    queryKey: ["attendee-status", attendeeId],
+    queryKey: ["attendee-edit", meetCode, attendeeId],
     enabled: Boolean(meetCode) && Boolean(attendeeId),
     queryFn: async () => {
-      if (!meetCode) return null;
-      return api.get<MeetAttendeeResponse>(
-        `/meets/${meetCode}/attendeeStatus/${attendeeId}`,
+      if (!meetCode || !attendeeId) return null;
+      return api.get<MeetAttendeeEditResponse>(
+        `/meets/${meetCode}/attendee/${attendeeId}`,
       );
     },
   });
 
   return {
     data: query.data ?? null,
-    status: query.data?.attendee?.status ?? null,
     attendee: query.data?.attendee ?? null,
     isLoading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,

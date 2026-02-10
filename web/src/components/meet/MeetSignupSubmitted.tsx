@@ -4,6 +4,7 @@ import {
   Container,
   Paper,
   Stack,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -20,6 +21,8 @@ type MeetSignupSubmittedProps = {
   meetId?: string;
   attendeeId?: string;
   shareCode?: string;
+  isOrganizationPrivate?: boolean;
+  isPreview?: boolean;
 };
 
 export function MeetSignupSubmitted({
@@ -32,6 +35,8 @@ export function MeetSignupSubmitted({
   meetId,
   attendeeId,
   shareCode,
+  isOrganizationPrivate = false,
+  isPreview = false,
 }: MeetSignupSubmittedProps) {
   const nav = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -80,27 +85,51 @@ export function MeetSignupSubmitted({
             organizer when meet attendance has been finalized.
           </Typography>
           {isAuthenticated ? (
-            <Button
-              variant="contained"
-              onClick={handleShowStatus}
-              disabled={!shareCode || !attendeeId}
+            <Tooltip
+              title={
+                isPreview ? "Can't show status in preview mode" : ""
+              }
+              disableHoverListener={!isPreview}
             >
-              Show Status
-            </Button>
+              <span>
+                <Button
+                  variant="contained"
+                  onClick={handleShowStatus}
+                  disabled={!shareCode || !attendeeId || isPreview}
+                >
+                  Show Status
+                </Button>
+              </span>
+            </Tooltip>
           ) : (
             <>
               <Typography color="text.secondary">
-                If you wish you can create a profile to make future meet signups
-                faster and manage your applications. Alternatively just use the
-                link below to check the status of your application.
+                {isOrganizationPrivate
+                  ? "Use the link below to check the status of your application."
+                  : "If you wish you can create a profile to make future meet signups faster and manage your applications. Alternatively just use the link below to check the status of your application."}
               </Typography>
               <Stack direction="row" spacing={2}>
-                <Button variant="contained" onClick={handleCreateProfile}>
-                  Create Profile
-                </Button>
-                <Button variant="outlined" onClick={handleShowStatus}>
-                  Show Status
-                </Button>
+                {!isOrganizationPrivate && (
+                  <Button variant="contained" onClick={handleCreateProfile}>
+                    Create Profile
+                  </Button>
+                )}
+                <Tooltip
+                  title={
+                    isPreview ? "Can't show status in preview mode" : ""
+                  }
+                  disableHoverListener={!isPreview}
+                >
+                  <span>
+                    <Button
+                      variant="outlined"
+                      onClick={handleShowStatus}
+                      disabled={isPreview}
+                    >
+                      Show Status
+                    </Button>
+                  </span>
+                </Tooltip>
               </Stack>
             </>
           )}

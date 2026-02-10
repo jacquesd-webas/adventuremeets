@@ -2,50 +2,42 @@ import {
   Box,
   Button,
   Container,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Drawer,
-  Link,
   Paper,
   Stack,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import MeetSignupSheet from "./MeetSignupSheet";
 import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
-import { AttendeeStatusAlert } from "../components/meet/AttendeeStatusAlert";
+import { AttendeeStatusAlert } from "../components/attendeeStatus/AttendeeStatusAlert";
 import { useFetchMeetAttendeeStatus } from "../hooks/useFetchMeetAttendeeStatus";
-import { useAuth } from "../context/authContext";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { FullPageSpinner } from "../components/FullPageSpinner";
 import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
-import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
-import { useApi } from "../hooks/useApi";
-import { useNotistack } from "../hooks/useNotistack";
 import { useEffect, useState } from "react";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
+import { ContactOrganizerDialog } from "../components/attendeeStatus/ContactOrganizerDialog";
+import { WithdrawApplicationDialog } from "../components/attendeeStatus/WithdrawApplicationDialog";
+import { VerifyAttendeeEmailDialog } from "../components/attendeeStatus/VerifyAttendeeEmailDialog";
 
 export default function AttendeeStatusPage() {
   const { code, attendeeId } = useParams<{
     code: string;
     attendeeId: string;
   }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const action = searchParams.get("action");
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const { isAuthenticated } = useAuth();
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
-  const api = useApi();
-  const { error, success } = useNotistack();
+  const [isVerifyOpen, setIsVerifyOpen] = useState(false);
 
   const {
     data: meet,
@@ -58,25 +50,8 @@ export default function AttendeeStatusPage() {
   const {
     data: attendeeStatusData,
     isLoading: statusLoading,
-    refetch: refetchAttendeeStatus,
   } = useFetchMeetAttendeeStatus(code, attendeeId);
   const { mode } = useThemeMode();
-
-  const handleWithdraw = async () => {
-    if (!code || !attendeeId) return;
-    setIsWithdrawing(true);
-    try {
-      await api.patch(`/meets/${code}/attendeeStatus/${attendeeId}`);
-      await refetchAttendeeStatus();
-      success("Application withdrawn");
-      setIsWithdrawOpen(false);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      error(`Unable to withdraw application: ${message}`);
-    } finally {
-      setIsWithdrawing(false);
-    }
-  };
 
   useEffect(() => {
     const previousBackgroundColor = document.body.style.backgroundColor;
@@ -126,6 +101,10 @@ export default function AttendeeStatusPage() {
     return <MeetNotFound />;
   }
 
+  if (action === "edit") {
+    return <MeetSignupSheet />;
+  }
+
   return (
     <Box sx={{ height: "100vh", position: "relative" }}>
       <Container
@@ -164,21 +143,10 @@ export default function AttendeeStatusPage() {
             />
             <AttendeeStatusAlert status={attendeeStatusData?.attendee.status} />
 
-            {isAuthenticated && (
-              <Typography variant="body1">
-                You may choose to make changes to your application using any of
-                the links below:
-              </Typography>
-            )}
-
-            {!isAuthenticated && (
-              <Typography variant="body1">
-                To make changes to your application, please log in using the
-                button at the top right of the page. If you do not have a
-                profile and wish to make changes to your application please
-                contact the organiser of the meet.
-              </Typography>
-            )}
+            <Typography variant="body1">
+              You may choose to make changes to your application using any of
+              the links below:
+            </Typography>
 
             <Box sx={{ width: "100%" }}>
               <Stack
@@ -192,9 +160,8 @@ export default function AttendeeStatusPage() {
                   variant="outlined"
                   color="primary"
                   onClick={() => {
-                    alert("Not implemented yet!");
+                    setIsVerifyOpen(true);
                   }}
-                  disabled={!isAuthenticated}
                   fullWidth={isMobile}
                 >
                   Edit Application
@@ -205,12 +172,6 @@ export default function AttendeeStatusPage() {
                   onClick={() => {
                     setIsWithdrawOpen(true);
                   }}
-                  disabled={
-                    !isAuthenticated ||
-                    !["pending", "confirmed"].includes(
-                      attendeeStatusData?.attendee.status || "",
-                    )
-                  }
                   fullWidth={isMobile}
                 >
                   Withdraw Application
@@ -228,180 +189,36 @@ export default function AttendeeStatusPage() {
               </Stack>
             </Box>
 
-            {isMobile ? (
-              <Drawer
-                anchor="bottom"
-                open={isContactOpen}
-                onClose={() => setIsContactOpen(false)}
-              >
-                <Box sx={{ p: 2 }}>
-                  <Stack spacing={1.5}>
-                    <Typography variant="subtitle1">
-                      Contact Organiser
-                    </Typography>
-                    <Stack spacing={1}>
-                      <Typography variant="body1" fontWeight="bold">
-                        {meet.organizerName || "Organizer"}
-                      </Typography>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <EmailOutlinedIcon fontSize="small" />
-                        {meet.organizerEmail ? (
-                          <Link
-                            href={`mailto:${meet.organizerEmail}`}
-                            variant="body2"
-                            underline="hover"
-                          >
-                            {meet.organizerEmail}
-                          </Link>
-                        ) : (
-                          <Typography variant="body2">Not available</Typography>
-                        )}
-                      </Stack>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <PhoneOutlinedIcon fontSize="small" />
-                        {meet.organizerPhone ? (
-                          <Link
-                            href={`tel:${meet.organizerPhone}`}
-                            variant="body2"
-                            underline="hover"
-                          >
-                            {meet.organizerPhone}
-                          </Link>
-                        ) : (
-                          <Typography variant="body2">Not available</Typography>
-                        )}
-                      </Stack>
-                    </Stack>
-                    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                      <Button onClick={() => setIsContactOpen(false)}>
-                        Close
-                      </Button>
-                    </Box>
-                  </Stack>
-                </Box>
-              </Drawer>
-            ) : (
-              <Dialog
-                open={isContactOpen}
-                onClose={() => setIsContactOpen(false)}
-                fullWidth
-                maxWidth="sm"
-              >
-                <DialogTitle>Contact Organiser</DialogTitle>
-                <DialogContent dividers>
-                  <Stack spacing={1}>
-                    <Typography variant="body1" fontWeight="bold">
-                      {meet.organizerName || "Organizer"}
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <EmailOutlinedIcon fontSize="small" />
-                      {meet.organizerEmail ? (
-                        <Link
-                          href={`mailto:${meet.organizerEmail}`}
-                          variant="body2"
-                          underline="hover"
-                        >
-                          {meet.organizerEmail}
-                        </Link>
-                      ) : (
-                        <Typography variant="body2">Not available</Typography>
-                      )}
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <PhoneOutlinedIcon fontSize="small" />
-                      {meet.organizerPhone ? (
-                        <Link
-                          href={`tel:${meet.organizerPhone}`}
-                          variant="body2"
-                          underline="hover"
-                        >
-                          {meet.organizerPhone}
-                        </Link>
-                      ) : (
-                        <Typography variant="body2">Not available</Typography>
-                      )}
-                    </Stack>
-                  </Stack>
-                </DialogContent>
-                <DialogActions>
-                  <Button onClick={() => setIsContactOpen(false)}>Close</Button>
-                </DialogActions>
-              </Dialog>
-            )}
-
-            <ConfirmActionDialog
-              open={isWithdrawOpen}
-              title="Withdraw application?"
-              description="Withdrawing will mark your application as cancelled."
-              confirmLabel="Withdraw application"
-              onConfirm={handleWithdraw}
-              onClose={() => setIsWithdrawOpen(false)}
-              isSubmitting={isWithdrawing}
+            <ContactOrganizerDialog
+              open={isContactOpen}
+              onClose={() => setIsContactOpen(false)}
+              isMobile={isMobile}
+              meet={meet}
             />
 
-            {/*
-                <MeetSignupFormFields
-                  meet={meet}
-                  fullName={fullName}
-                  email={email}
-                  phoneCountry={phoneCountry}
-                  phoneLocal={phoneLocal}
-                  wantsGuests={wantsGuests}
-                  guestCount={guestCount}
-                  metaValues={metaValues}
-                  indemnityAccepted={indemnityAccepted}
-                  isSubmitDisabled={isSubmitDisabled}
-                  isSubmitting={isSubmitting}
-                  onSubmit={handleSubmit}
-                  onCheckDuplicate={checkForDuplicate}
-                  setField={setField}
-                  setMetaValue={setMetaValue}
-                  setPhoneCountry={setPhoneCountry}
-                  setPhoneLocal={setPhoneLocal}
-                />
-              */}
+            <WithdrawApplicationDialog
+              open={isWithdrawOpen}
+              onClose={() => setIsWithdrawOpen(false)}
+              code={code}
+              meetId={meet.id}
+              attendeeId={attendeeStatusData?.attendee.id}
+              attendeeStatus={attendeeStatusData?.attendee.status}
+              attendeeEmail={attendeeStatusData?.attendee.email}
+            />
+
+            <VerifyAttendeeEmailDialog
+              open={isVerifyOpen}
+              onClose={() => setIsVerifyOpen(false)}
+              meetId={meet.id}
+              attendeeId={attendeeStatusData?.attendee.id}
+              onVerified={() => {
+                if (!code || !attendeeId) return;
+                navigate(`/meets/${code}/${attendeeId}?action=edit`);
+              }}
+            />
           </Stack>
         </Paper>
       </Container>
     </Box>
   );
-  /*return (
-    <Container maxWidth="md" sx={{ py: 6 }}>
-      <Paper variant="outlined" sx={{ p: 3 }}>
-        <Stack spacing={2}>
-          <Box>
-            <Typography variant="h4" fontWeight={700}>
-              {meet.name}
-            </Typography>
-            {meet.location && (
-              <Typography variant="body2" color="text.secondary">
-                {meet.location}
-              </Typography>
-            )}
-            {timeLabel && (
-              <Typography variant="body2" color="text.secondary">
-                {timeLabel}
-              </Typography>
-            )}
-          </Box>
-
-          <Box>
-            <Typography variant="subtitle2" fontWeight={700}>
-              Attendee
-            </Typography>
-            <Typography variant="body1">
-              {attendee.name || attendee.email || attendee.phone || "Attendee"}
-            </Typography>
-            {typeof attendee.guests === "number" && attendee.guests > 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                Guests: {attendee.guests}
-              </Typography>
-            ) : null}
-          </Box>
-
-          <AttendeeStatusAlert status={attendee.status} />
-        </Stack>
-      </Paper>
-    </Container>
-  );*/
 }

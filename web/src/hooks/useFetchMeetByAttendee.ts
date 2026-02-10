@@ -14,13 +14,10 @@ export type AttendeeStatusResponse = {
   };
 };
 
-export function useFetchMeetByAttendee(
-  shareId?: string,
-  attendeeId?: string
-) {
+export function useFetchMeetByAttendee(shareId?: string, attendeeId?: string) {
   const api = useApi();
   const query = useQuery({
-    queryKey: ["attendee-status", shareId, attendeeId],
+    queryKey: ["attendee-status", attendeeId],
     enabled: Boolean(shareId && attendeeId),
     queryFn: async () => {
       if (!shareId || !attendeeId) return null;

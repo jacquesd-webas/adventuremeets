@@ -1,5 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Min, IsDateString, IsUUID } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { MeetMetaValueInputDto } from './create-meet-attendee.dto';
 
 export class UpdateMeetAttendeeDto {
   @ApiPropertyOptional()
@@ -52,4 +64,10 @@ export class UpdateMeetAttendeeDto {
   @IsOptional()
   @IsDateString()
   paidDepositAt?: string;
+
+  @ApiPropertyOptional({ type: [MeetMetaValueInputDto] })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => MeetMetaValueInputDto)
+  metaValues?: MeetMetaValueInputDto[];
 }
