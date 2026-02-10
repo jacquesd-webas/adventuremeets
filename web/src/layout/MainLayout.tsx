@@ -22,7 +22,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { useMemo, useState, MouseEvent, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { ProfileModal } from "../components/admin/ProfileModal";
+import { ProfileModal } from "../components/profile/ProfileModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
