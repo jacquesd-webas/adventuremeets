@@ -70,8 +70,12 @@ function RegisterPage() {
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
     | string
     | undefined;
+  const recaptchaDisabled =
+    import.meta.env.VITE_RECAPTCHA_DISABLE === "true";
   const captchaRequired =
-    Boolean(recaptchaSiteKey) && !pendingMeetLink?.attendeeId;
+    Boolean(recaptchaSiteKey) &&
+    !recaptchaDisabled &&
+    !pendingMeetLink?.attendeeId;
   const shouldShowCaptchaWarning =
     !recaptchaSiteKey && !pendingMeetLink?.attendeeId;
   const passwordStrength = getPasswordStrength(password);

@@ -30,7 +30,7 @@ export class OrganizationsService {
       .leftJoin(
         "user_organization_memberships as uom",
         "uom.organization_id",
-        "o.id"
+        "o.id",
       )
       .leftJoin("templates as t", function () {
         this.on("t.organization_id", "=", "o.id").andOnNull("t.deleted_at");
@@ -59,7 +59,7 @@ export class OrganizationsService {
       .leftJoin(
         "user_organization_memberships as uom",
         "uom.organization_id",
-        "o.id"
+        "o.id",
       )
       .leftJoin("templates as t", function () {
         this.on("t.organization_id", "=", "o.id").andOnNull("t.deleted_at");
@@ -79,6 +79,18 @@ export class OrganizationsService {
     }));
   }
 
+  async findThemeById(id: string) {
+    const row = await this.database
+      .getClient()("organizations")
+      .where({ id })
+      .select("theme")
+      .first();
+    if (!row) {
+      throw new NotFoundException("Organization not found");
+    }
+    return row.theme;
+  }
+
   async findMembers(orgId: string) {
     const rows = await this.database
       .getClient()("users as u")
@@ -94,7 +106,7 @@ export class OrganizationsService {
         "uom.role",
         "uom.status",
         "uom.created_at",
-        "uom.updated_at"
+        "uom.updated_at",
       );
 
     return rows.map((row) => this.mapMember(row));
@@ -116,7 +128,7 @@ export class OrganizationsService {
         "uom.role",
         "uom.status",
         "uom.created_at",
-        "uom.updated_at"
+        "uom.updated_at",
       );
 
     return rows.map((row) => this.mapMember(row));
@@ -125,7 +137,7 @@ export class OrganizationsService {
   async updateMember(
     orgId: string,
     userId: string,
-    payload: { role?: string; status?: string }
+    payload: { role?: string; status?: string },
   ) {
     const updates: Record<string, any> = {
       updated_at: new Date().toISOString(),
@@ -172,7 +184,7 @@ export class OrganizationsService {
         "uom.role",
         "uom.status",
         "uom.created_at",
-        "uom.updated_at"
+        "uom.updated_at",
       )
       .first();
     if (!memberRow) {
@@ -214,7 +226,7 @@ export class OrganizationsService {
         "md.label",
         "md.field_type",
         "md.required",
-        "md.config"
+        "md.config",
       );
     const unique = new Map<
       string,
@@ -294,7 +306,7 @@ export class OrganizationsService {
         required?: boolean;
         config?: Record<string, any>;
       }>;
-    }
+    },
   ) {
     const now = new Date().toISOString();
     const trx = await this.database.getClient().transaction();
@@ -318,7 +330,7 @@ export class OrganizationsService {
         await this.syncTemplateMetaDefinitions(
           trx,
           row.id,
-          payload.metaDefinitions
+          payload.metaDefinitions,
         );
       }
 
@@ -353,7 +365,7 @@ export class OrganizationsService {
       required?: boolean;
       position?: number;
       config?: Record<string, any>;
-    }>
+    }>,
   ) {
     const cleaned = metaDefinitions
       .map((definition, index) => ({
@@ -394,15 +406,16 @@ export class OrganizationsService {
         position?: number;
         config?: Record<string, any>;
       }>;
-    }
+    },
   ) {
-      const trx = await this.database.getClient().transaction();
+    const trx = await this.database.getClient().transaction();
     try {
       const updates: any = { updated_at: new Date().toISOString() };
       if (payload.name !== undefined) updates.name = payload.name;
       if (payload.description !== undefined)
         updates.description = payload.description;
-      if (payload.indemnity !== undefined) updates.indemnity = payload.indemnity;
+      if (payload.indemnity !== undefined)
+        updates.indemnity = payload.indemnity;
       if (payload.approvedResponse !== undefined)
         updates.approved_response = payload.approvedResponse;
       if (payload.rejectResponse !== undefined)
@@ -417,7 +430,7 @@ export class OrganizationsService {
         await this.syncTemplateMetaDefinitions(
           trx,
           templateId,
-          payload.metaDefinitions
+          payload.metaDefinitions,
         );
       }
       await trx.commit();
@@ -478,14 +491,14 @@ export class OrganizationsService {
         typeof row.template_count === "number"
           ? row.template_count
           : row.template_count != null
-          ? Number(row.template_count)
-          : undefined,
+            ? Number(row.template_count)
+            : undefined,
       userCount:
         typeof row.user_count === "number"
           ? row.user_count
           : row.user_count != null
-          ? Number(row.user_count)
-          : undefined,
+            ? Number(row.user_count)
+            : undefined,
       canViewAllMeets: row.can_view_all_meets ?? undefined,
       theme: row.theme ?? undefined,
       isPrivate: row.is_private ?? undefined,

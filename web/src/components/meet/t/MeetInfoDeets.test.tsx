@@ -38,7 +38,9 @@ describe("MeetInfoDeets", () => {
 
   it("renders horizontal layout and hides money row when cost is zero", () => {
     const meet = makeMeet({ costCents: 0 });
-    const { container } = render(<MeetInfoDeets meet={meet} layout="horizontal" />);
+    const { container } = render(
+      <MeetInfoDeets meet={meet} layout="horizontal" />,
+    );
 
     expect(screen.getByText("5 Applied (limit 10)")).toBeInTheDocument();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
@@ -48,13 +50,17 @@ describe("MeetInfoDeets", () => {
   });
 
   it("shows applied count only when capacity is unlimited", () => {
-    render(<MeetInfoDeets meet={makeMeet({ capacity: 0, attendeeCount: 17 })} />);
+    render(
+      <MeetInfoDeets meet={makeMeet({ capacity: 0, attendeeCount: 17 })} />,
+    );
     expect(screen.getByText("17 Applied")).toBeInTheDocument();
   });
 
   it("shows TBC location text when no location is provided", () => {
     render(<MeetInfoDeets meet={makeMeet({ location: "" })} />);
-    expect(screen.getByText(/TBC at/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /old cave/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/TBC/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /old cave/i }),
+    ).not.toBeInTheDocument();
   });
 });

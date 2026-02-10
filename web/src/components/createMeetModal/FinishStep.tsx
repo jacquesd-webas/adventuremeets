@@ -54,6 +54,7 @@ export function FinishStep({ errors, shareCode }: FinishStepProps) {
             value={shareUrl}
             fullWidth
             InputProps={{ readOnly: true }}
+            inputProps={{ "data-testid": "share-link-input" }}
           />
           <Button variant="contained" onClick={handleCopy} disabled={!shareUrl}>
             {copied ? "Copied" : "Copy link"}

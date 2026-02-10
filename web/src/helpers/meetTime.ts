@@ -22,13 +22,13 @@ export const getCardRangeLabel = (meet: Meet): string => {
 
 export const getMeetDateLabel = (meet: Meet): string => {
   // If we don't have a start time we know nothing
-  if (!meet.startTime) return "TBC";
+  if (!meet.startTime || meet.startTimeTbc) return "TBC";
 
   const startDate = new Date(meet.startTime);
   const endDate = meet.endTime ? new Date(meet.endTime) : startDate;
 
   // If we don't have an end time just return the start time
-  if (!meet.endTime || startDate <= endDate) return longDate(startDate);
+  if (!meet.endTime || endDate < startDate) return longDate(startDate);
 
   // Single day meet just show the long date
   const days = calenderDayCount(startDate, endDate);
@@ -63,28 +63,26 @@ export const getMeetTimeLabel = (meet: Meet): string => {
   if (meet.endTimeTbc) return timeString(meetStartTime);
 
   // If the times are the same, just show the start time
-  if (meetStartTime === meetEndTime) return timeString(meetStartTime);
+  if (meetStartTime.getTime() === meetEndTime.getTime())
+    return timeString(meetStartTime);
 
   return `${timeString(meetStartTime)} - ${timeString(meetEndTime)} (${hours} hours)`;
 };
 
 export const getLocationLabel = (meet: Meet): string => {
-  const meetTimeLabel = getMeetTimeLabel(meet);
+  const locationLabel = trimLocationOrTBC(meet.location);
 
   // If there is no location, then we really know nothing so just return TBC
-  if (!location) return "TBC";
+  if (locationLabel === "TBC") return "TBC";
 
   // If there is no start time, just return the location
-  if (!meet.startTime || meet.startTimeTbc)
-    return trimLocationOrTBC(meet.location);
+  if (!meet.startTime || meet.startTimeTbc) return locationLabel;
 
   // If the meet time label is single time HH:MM, then we just return the location or TBC
-  if (meetTimeLabel.match(/^\d{1,2}:\d{2}$/)) {
-    return trimLocationOrTBC(meet.location);
-  }
+  if (meet.endTimeTbc || !meet.endTime) return locationLabel;
 
   // Otherwise we have a valid time range or multi-day so show location with time
-  return `${trimLocationOrTBC(meet.location)} at ${timeString(new Date(meet.startTime))}`;
+  return `${locationLabel} at ${timeString(new Date(meet.startTime))}`;
 };
 
 function calenderDayCount(startTime: Date, endTime: Date): number {

@@ -21,7 +21,7 @@ describe("meetTime helpers", () => {
 
     it("returns date and start time when end time is missing", () => {
       const label = getCardRangeLabel(
-        baseMeet({ startTime: "2026-02-03T09:00:00.000Z" })
+        baseMeet({ startTime: "2026-02-03T09:00:00.000Z" }),
       );
       expect(label).toContain("•");
       expect(label).toContain("2026");
@@ -32,7 +32,7 @@ describe("meetTime helpers", () => {
         baseMeet({
           startTime: "2026-02-03T09:00:00.000Z",
           endTime: "2026-02-03T11:00:00.000Z",
-        })
+        }),
       );
       expect(label).toContain("•");
       expect(label).toContain("—");
@@ -43,7 +43,7 @@ describe("meetTime helpers", () => {
         baseMeet({
           startTime: "2026-02-03T09:00:00.000Z",
           endTime: "2026-02-05T11:00:00.000Z",
-        })
+        }),
       );
       expect(label).toContain("—");
       expect(label).not.toContain("•");
@@ -62,7 +62,7 @@ describe("meetTime helpers", () => {
 
     it("returns a long date when start time exists", () => {
       const label = getMeetDateLabel(
-        baseMeet({ startTime: "2026-02-03T09:00:00.000Z" })
+        baseMeet({ startTime: "2026-02-03T09:00:00.000Z" }),
       );
       expect(label).toContain("2026");
     });
@@ -72,7 +72,7 @@ describe("meetTime helpers", () => {
         baseMeet({
           startTime: "2026-02-03T09:00:00.000Z",
           endTime: "2026-02-02T11:00:00.000Z",
-        })
+        }),
       );
       expect(label).toContain("2026");
       expect(label).not.toContain("Overnight");
@@ -95,8 +95,8 @@ describe("meetTime helpers", () => {
           baseMeet({
             startTime: "2026-02-03T09:00:00.000Z",
             startTimeTbc: true,
-          })
-        )
+          }),
+        ),
       ).toBe("TBC");
     });
 
@@ -105,7 +105,7 @@ describe("meetTime helpers", () => {
         baseMeet({
           startTime: "2026-02-03T09:00:00.000Z",
           endTime: "2026-02-03T11:00:00.000Z",
-        })
+        }),
       );
       expect(label).toContain(" - ");
       expect(label).toContain("(2 hours)");
@@ -117,7 +117,7 @@ describe("meetTime helpers", () => {
           startTime: "2026-02-03T09:00:00.000Z",
           endTime: "2026-02-03T11:00:00.000Z",
           endTimeTbc: true,
-        })
+        }),
       );
       expect(label).not.toContain(" - ");
       expect(label).not.toContain("hours");
@@ -129,7 +129,7 @@ describe("meetTime helpers", () => {
           startTime: "2026-02-03T09:00:00.000Z",
           endTime: "2026-02-04T11:00:00.000Z",
           endTimeTbc: true,
-        })
+        }),
       );
       expect(label).toBe("Overnight");
     });
@@ -140,7 +140,7 @@ describe("meetTime helpers", () => {
           startTime: "2026-02-03T09:00:00.000Z",
           endTime: "2026-02-05T11:00:00.000Z",
           endTimeTbc: false,
-        })
+        }),
       );
       expect(label).toContain(" - ");
       expect(label).toContain("days");
@@ -150,7 +150,7 @@ describe("meetTime helpers", () => {
       const label = getMeetTimeLabel(
         baseMeet({
           startTime: "2026-02-03T09:00:00.000Z",
-        })
+        }),
       );
       expect(label).not.toContain("hours");
       expect(label).not.toContain(" - ");
@@ -164,8 +164,8 @@ describe("meetTime helpers", () => {
           baseMeet({
             startTime: "2026-02-03T09:00:00.000Z",
             location: "",
-          })
-        )
+          }),
+        ),
       ).toBe("TBC");
     });
 
@@ -175,19 +175,31 @@ describe("meetTime helpers", () => {
           baseMeet({
             location: "  Riverside Camp  ",
             startTimeTbc: true,
-          })
-        )
+          }),
+        ),
       ).toBe("Riverside Camp");
     });
 
-    it("returns location only when meet time label is a single time", () => {
+    it("returns TBC when location is missing and only start time is set", () => {
+      expect(
+        getLocationLabel(
+          baseMeet({
+            location: null,
+            startTime: "2026-02-03T08:00:00.000Z",
+            endTime: null,
+          }),
+        ),
+      ).toBe("TBC");
+    });
+
+    it("returns location only when end time is TBC", () => {
       const label = getLocationLabel(
         baseMeet({
           location: "Old Cave",
-          startTime: "2026-02-03T09:00:00.000Z",
-          endTime: "2026-02-03T11:00:00.000Z",
+          startTime: "2026-02-03T08:00:00.000Z",
+          endTime: "2026-02-03T10:00:00.000Z",
           endTimeTbc: true,
-        })
+        }),
       );
       expect(label).toBe("Old Cave");
     });
@@ -196,9 +208,9 @@ describe("meetTime helpers", () => {
       const label = getLocationLabel(
         baseMeet({
           location: "Old Cave",
-          startTime: "2026-02-03T09:00:00.000Z",
-          endTime: "2026-02-03T11:00:00.000Z",
-        })
+          startTime: "2026-02-03T08:00:00.000Z",
+          endTime: "2026-02-03T10:00:00.000Z",
+        }),
       );
       expect(label).toContain("Old Cave at ");
     });
@@ -208,9 +220,9 @@ describe("meetTime helpers", () => {
         baseMeet({
           location: "Old Cave",
           startTime: "invalid",
-        })
+        }),
       );
-      expect(label).toContain("at");
+      expect(label).toBe("Old Cave");
     });
   });
 });
