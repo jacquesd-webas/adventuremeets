@@ -21,6 +21,7 @@ type ConfirmActionDialogProps = {
   onClose: () => void;
   isSubmitting?: boolean;
   isLoading?: boolean;
+  confirmDisabled?: boolean;
   children?: ReactNode;
 };
 
@@ -34,6 +35,7 @@ export function ConfirmActionDialog({
   onClose,
   isLoading = false,
   isSubmitting = false,
+  confirmDisabled = false,
   children,
 }: ConfirmActionDialogProps) {
   const theme = useTheme();
@@ -58,7 +60,7 @@ export function ConfirmActionDialog({
         <Button
           variant="contained"
           onClick={onConfirm}
-          disabled={isLoading || isSubmitting}
+          disabled={isLoading || isSubmitting || confirmDisabled}
         >
           {confirmLabel}
         </Button>
@@ -80,8 +82,8 @@ export function ConfirmActionDialog({
       open={open}
       onClose={onClose}
       fullWidth
-      maxWidth="xs"
       sx={{ zIndex: dialogZIndex }}
+      PaperProps={{ sx: { minWidth: 400, maxWidth: 600 } }}
     >
       {content}
     </Dialog>
