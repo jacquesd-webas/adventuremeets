@@ -1,4 +1,6 @@
 import { InputAdornment, MenuItem, Select, TextField } from "@mui/material";
+import { useEffect } from "react";
+import { getLocaleDefaults } from "../../helpers/locale";
 
 type CountryDialCode = {
   code: string;
@@ -342,6 +344,14 @@ export function InternationalPhoneField({
   onBlur,
   disabled = false,
 }: InternationalPhoneFieldProps) {
+  useEffect(() => {
+    if (country) return;
+    const localeCountry = getLocaleDefaults().countryCode;
+    const fallback = getDefaultPhoneCountry(localeCountry);
+    if (fallback) {
+      onCountryChange(fallback);
+    }
+  }, [country, onCountryChange]);
   return (
     <TextField
       label={label}
