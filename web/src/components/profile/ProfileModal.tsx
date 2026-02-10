@@ -37,7 +37,7 @@ import {
   getDefaultPhoneCountry,
   InternationalPhoneField,
   splitInternationalPhone,
-} from "../../components/formFields/InternationalPhoneField";
+} from "../formFields/InternationalPhoneField";
 import { getLocaleDefaults } from "../../helpers/locale";
 import { useCurrentOrganization } from "../../context/organizationContext";
 import { useFetchOrganizationMetaDefinitions } from "../../hooks/useFetchOrganizationMetaDefinitions";
@@ -397,7 +397,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   disabled={isUserSaving}
                   sx={actionButtonSx}
                   startIcon={
-                    personalSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                    personalSaved ? (
+                      <CheckCircleIcon fontSize="small" />
+                    ) : undefined
                   }
                 >
                   {personalSaved ? "Saved" : "Save personal details"}
@@ -453,7 +455,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                     }
                     sx={{ minWidth: 120, height: 56, alignSelf: "flex-start" }}
                     startIcon={
-                      themeSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                      themeSaved ? (
+                        <CheckCircleIcon fontSize="small" />
+                      ) : undefined
                     }
                   >
                     {themeSaved ? "Saved" : "Change"}
@@ -544,7 +548,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                     currentOrganizationRole !== "admin"
                   }
                   sx={actionButtonSx}
-                  startIcon={orgSaved ? <CheckCircleIcon fontSize="small" /> : undefined}
+                  startIcon={
+                    orgSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                  }
                 >
                   {orgSaved ? "Saved" : "Save organization"}
                 </Button>
@@ -582,7 +588,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                       }
                       sx={{ minWidth: 180 }}
                       startIcon={
-                        emailSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                        emailSaved ? (
+                          <CheckCircleIcon fontSize="small" />
+                        ) : undefined
                       }
                     >
                       {emailSaved ? "Saved" : "Change Email"}
@@ -653,7 +661,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                     }
                     sx={actionButtonSx}
                     startIcon={
-                      passwordSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                      passwordSaved ? (
+                        <CheckCircleIcon fontSize="small" />
+                      ) : undefined
                     }
                   >
                     {passwordSaved ? "Saved" : "Update password"}
@@ -779,14 +789,16 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                   }
                   onClick={handleSaveAutoFill}
                   startIcon={
-                    autoFillSaved ? <CheckCircleIcon fontSize="small" /> : undefined
+                    autoFillSaved ? (
+                      <CheckCircleIcon fontSize="small" />
+                    ) : undefined
                   }
                 >
                   {userMetaSaving
                     ? "Saving..."
                     : autoFillSaved
-                    ? "Saved"
-                    : "Save AutoFill"}
+                      ? "Saved"
+                      : "Save AutoFill"}
                 </Button>
                 {userMetaSaveError ? (
                   <Alert severity="error">{userMetaSaveError}</Alert>
