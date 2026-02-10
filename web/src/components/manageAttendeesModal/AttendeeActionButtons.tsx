@@ -7,18 +7,25 @@ type AttendeeActionButtonsProps = {
   disabled?: boolean;
   onUpdateStatus: (status: AttendeeStatusEnum) => void;
   onPaid?: () => void;
+  hasAmount?: boolean;
+  hasDeposit?: boolean;
 };
 
 export function AttendeeActionButtons({
   attendee,
   onUpdateStatus,
   onPaid,
+  hasAmount = false,
+  hasDeposit = false,
 }: AttendeeActionButtonsProps) {
   const disabled = attendee == null;
   const isCheckedIn =
     attendee?.status === AttendeeStatusEnum.CheckedIn ||
     attendee?.status === AttendeeStatusEnum.Attended;
   const isWithdrawn = attendee?.status === AttendeeStatusEnum.Cancelled;
+  const hasPaidDeposit = Boolean(attendee?.paidDepositAt);
+  const hasPaidFull = Boolean(attendee?.paidFullAt);
+  const showPaidControl = Boolean(onPaid && (hasAmount || hasDeposit));
 
   return (
     <>
@@ -52,14 +59,20 @@ export function AttendeeActionButtons({
               Accept
             </Button>
           )}
-          {onPaid && attendee?.status === AttendeeStatusEnum.Confirmed && (
+          {showPaidControl && attendee?.status === AttendeeStatusEnum.Confirmed && (
             <Button
               color="primary"
-              onClick={() => {
-                alert("Not implemented!");
-              }}
+              onClick={() => onPaid()}
             >
-              Paid
+              {hasDeposit
+                ? hasPaidFull
+                  ? "NOT PAID"
+                  : hasPaidDeposit
+                    ? "PAID FULL"
+                    : "PAID DEP"
+                : hasPaidFull
+                  ? "NOT PAID"
+                  : "PAID"}
             </Button>
           )}
           {attendee?.status !== AttendeeStatusEnum.Rejected ? (

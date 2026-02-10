@@ -136,13 +136,37 @@ export function ManageAttendeesModal({
   };
 
   const handleAttendeePaid = async () => {
-    if (!meetId || !selectedAttendeeId) return;
+    if (!meetId || !selectedAttendeeId || !selectedAttendee) return;
+    if (!meet?.costCents && !meet?.depositCents) return;
     setIsUpdating(true);
     try {
+      const now = new Date().toISOString();
+      const hasDeposit = Boolean(selectedAttendee.paidDepositAt);
+      const hasFull = Boolean(selectedAttendee.paidFullAt);
+      const canUseDeposit = Boolean(meet?.depositCents);
+      let paidFullAt: string | null | undefined = undefined;
+      let paidDepositAt: string | null | undefined = undefined;
+
+      if (!canUseDeposit) {
+        paidFullAt = hasFull ? null : now;
+        paidDepositAt = hasFull ? null : undefined;
+      } else {
+        if (hasFull) {
+          paidFullAt = null;
+          paidDepositAt = null;
+        } else if (hasDeposit) {
+          paidFullAt = now;
+          paidDepositAt = undefined;
+        } else {
+          paidDepositAt = now;
+          paidFullAt = undefined;
+        }
+      }
       await updateMeetAttendeeAsync({
         meetId,
         attendeeId: selectedAttendeeId,
-        paidFullAt: new Date().toISOString(),
+        paidFullAt,
+        paidDepositAt,
       });
       await refetch();
     } finally {
@@ -178,9 +202,7 @@ export function ManageAttendeesModal({
 
   // TODO: Refactor this component into smaller components
   const isOrganizerSelected = Boolean(
-    selectedAttendee &&
-      meet &&
-      selectedAttendee.userId === meet.organizerId
+    selectedAttendee && meet && selectedAttendee.userId === meet.organizerId,
   );
 
   return (
@@ -260,6 +282,14 @@ export function ManageAttendeesModal({
                 attendees.map((attendee) => {
                   const label = attendeeLabel(attendee);
                   const subLabel = attendee.email || attendee.phone || "";
+                  const paidLabel = attendee.paidFullAt
+                    ? "Paid"
+                    : attendee.paidDepositAt
+                      ? "Dep"
+                      : null;
+                  const paidColor = attendee.paidFullAt
+                    ? "info.main"
+                    : "secondary.main";
                   const isConfirmed =
                     attendee.status === AttendeeStatusEnum.Confirmed ||
                     attendee.status === AttendeeStatusEnum.Attended ||
@@ -288,6 +318,7 @@ export function ManageAttendeesModal({
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            position: "relative",
                           }}
                         >
                           {isOrganizer ? (
@@ -316,6 +347,28 @@ export function ManageAttendeesModal({
                               color="disabled"
                             />
                           )}
+                          {paidLabel ? (
+                            <Box
+                              component="span"
+                              sx={{
+                                position: "absolute",
+                                top: -4,
+                                right: -6,
+                                px: 0.5,
+                                borderRadius: 999,
+                                border: "1px solid",
+                                borderColor: paidColor,
+                                color: paidColor,
+                                bgcolor: "background.paper",
+                                fontSize: 9,
+                                lineHeight: 1.2,
+                                fontWeight: 700,
+                                letterSpacing: 0.2,
+                              }}
+                            >
+                              {paidLabel}
+                            </Box>
+                          ) : null}
                         </Box>
                       ) : (
                         <Avatar sx={{ width: 32, height: 32, mr: 1.5 }}>
@@ -366,9 +419,9 @@ export function ManageAttendeesModal({
                         <AttendeeActionButtons
                           attendee={selectedAttendee}
                           onUpdateStatus={handleUpdateStatus}
-                          onPaid={
-                            meet?.costCents ? handleAttendeePaid : undefined
-                          }
+                          onPaid={handleAttendeePaid}
+                          hasAmount={Boolean(meet?.costCents)}
+                          hasDeposit={Boolean(meet?.depositCents)}
                         />
                       )}
                     </Stack>
@@ -425,12 +478,28 @@ export function ManageAttendeesModal({
                 <Divider />
                 <Box sx={{ display: "flex", justifyContent: "center" }}>
                   {isOrganizerSelected ? (
-                    <Button
-                      variant="outlined"
-                      onClick={() => setShowEditMetaDialog(true)}
-                    >
-                      Edit responses
-                    </Button>
+                    detailView === "messages" ? (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setMessageAttendeeIds(
+                            selectedAttendee
+                              ? [selectedAttendee.id]
+                              : undefined,
+                          );
+                          setMessageOpen(true);
+                        }}
+                      >
+                        Message {attendeeLabel(selectedAttendee)}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outlined"
+                        onClick={() => setShowEditMetaDialog(true)}
+                      >
+                        Edit responses
+                      </Button>
+                    )
                   ) : (
                     <Button
                       variant="outlined"
