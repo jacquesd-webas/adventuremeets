@@ -5,7 +5,9 @@ import {
 import { ThemeMode } from "../context/ThemeModeContext";
 import { OrganizationTheme } from "../types/themes";
 
-export const getOrganizationTheme = (themeName?: string | null): OrganizationTheme => {
+export const getOrganizationTheme = (
+  themeName?: string | null,
+): OrganizationTheme => {
   if (!themeName) return DEFAULT_ORGANIZATION_THEME;
   return (
     ORGANIZATION_THEMES.find((theme) => theme.name === themeName) ??
@@ -20,12 +22,16 @@ export const getOrganizationBackground = (
   const theme = getOrganizationTheme(themeName);
   const isDark = mode === "dark";
   return {
-    image: isDark ? `/static/${theme.backgroundDark}` : `/static/${theme.backgroundLight}`,
+    image: isDark
+      ? `/static/${theme.backgroundDark}`
+      : `/static/${theme.backgroundLight}`,
     color: isDark ? theme.backgroundColorDark : theme.backgroundColorLight,
   };
 };
 
-export const getAllowedThemeModes = (themeName?: string | null): ThemeMode[] => {
+export const getAllowedThemeModes = (
+  themeName?: string | null,
+): ThemeMode[] => {
   const theme = getOrganizationTheme(themeName);
   const modes: ThemeMode[] = [];
   if (theme.canLight) modes.push("light");
