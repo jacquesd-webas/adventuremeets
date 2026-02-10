@@ -103,7 +103,9 @@ export function MeetInfoDeets({
         {costLabel && (
           <Stack direction="row" spacing={1} alignItems="center">
             <AttachMoneyOutlinedIcon fontSize="small" color="disabled" />
-            <Typography variant="body2">{costLabel}</Typography>
+            <Typography variant="body2" data-testid="meet-cost">
+              {costLabel}
+            </Typography>
           </Stack>
         )}
       </Stack>
