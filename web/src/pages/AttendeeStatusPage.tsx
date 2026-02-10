@@ -47,10 +47,8 @@ export default function AttendeeStatusPage() {
   const { data: organization } = useFetchOrganization(
     meet?.organizationId || undefined,
   );
-  const {
-    data: attendeeStatusData,
-    isLoading: statusLoading,
-  } = useFetchMeetAttendeeStatus(code, attendeeId);
+  const { data: attendeeStatusData, isLoading: statusLoading } =
+    useFetchMeetAttendeeStatus(code, attendeeId);
   const { mode } = useThemeMode();
 
   useEffect(() => {
@@ -199,11 +197,9 @@ export default function AttendeeStatusPage() {
             <WithdrawApplicationDialog
               open={isWithdrawOpen}
               onClose={() => setIsWithdrawOpen(false)}
-              code={code}
               meetId={meet.id}
               attendeeId={attendeeStatusData?.attendee.id}
               attendeeStatus={attendeeStatusData?.attendee.status}
-              attendeeEmail={attendeeStatusData?.attendee.email}
             />
 
             <VerifyAttendeeEmailDialog
