@@ -351,10 +351,11 @@ function MeetSignupSheet() {
     Boolean(editAttendeeId) &&
     (action === "edit" || searchParams.has("attendeeId"));
   const { data: meet, isLoading } = useFetchMeetSignup(code);
-  const { attendee: editAttendee } = useFetchMeetAttendeeEdit(
-    isEditing ? code : null,
-    isEditing ? editAttendeeId : null,
-  );
+  const { attendee: editAttendee, refetch: refetchEditAttendee } =
+    useFetchMeetAttendeeEdit(
+      isEditing ? code : null,
+      isEditing ? editAttendeeId : null,
+    );
   const { data: organization } = useFetchOrganization(
     meet?.organizationId || undefined,
   );
@@ -696,6 +697,7 @@ function MeetSignupSheet() {
 
   const checkForDuplicate = async () => {
     if (!meet) return;
+    if (isEditing) return;
     const trimmedEmail = email.trim();
     const trimmedPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!trimmedEmail && !trimmedPhone) return;
@@ -743,15 +745,17 @@ function MeetSignupSheet() {
       return;
     }
     const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
-    const check = await checkAttendeeAsync({
-      meetId: meet.id,
-      email,
-      phone: fullPhone,
-    });
-    if (check.attendee) {
-      setExistingAttendee({ id: check.attendee.id });
-      setShowDuplicateModal(true);
-      return;
+    if (!isEditing) {
+      const check = await checkAttendeeAsync({
+        meetId: meet.id,
+        email,
+        phone: fullPhone,
+      });
+      if (check.attendee) {
+        setExistingAttendee({ id: check.attendee.id });
+        setShowDuplicateModal(true);
+        return;
+      }
     }
     const metaPayload = buildMetaPayload();
     const res = await addAttendeeAsync({
@@ -782,20 +786,21 @@ function MeetSignupSheet() {
       metaValues: metaPayload,
     };
     if (editAttendeeId && code) {
+      // TODO: move this to hook
       await api.patch(`/meets/${code}/attendee/${existingAttendee.id}`, {
         ...payload,
       });
       await queryClient.invalidateQueries({
         queryKey: ["attendee-edit", editAttendeeId],
       });
-      await queryClient.invalidateQueries({
-        queryKey: ["attendee-status", editAttendeeId],
-      });
     } else {
       await api.patch(
         `/meets/${meet.id}/attendees/${existingAttendee.id}`,
         payload,
       );
+    }
+    if (editAttendeeId) {
+      refetchEditAttendee();
     }
     setSubmittedAttendeeId(existingAttendee.id);
     setShowDuplicateModal(false);
