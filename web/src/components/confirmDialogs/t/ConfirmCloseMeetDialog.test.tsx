@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfirmCloseMeetDialog } from "../ConfirmCloseMeetDialog";
 
 vi.mock("../../../hooks/useUpdateMeetStatus", () => ({
-  useUpdateMeetStatus: () => ({ updateStatusAsync: vi.fn(), isLoading: false })
+  useUpdateMeetStatus: () => ({ updateStatusAsync: vi.fn(), isLoading: false }),
 }));
 
 describe("ConfirmCloseMeetDialog", () => {
@@ -13,12 +13,19 @@ describe("ConfirmCloseMeetDialog", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <ConfirmCloseMeetDialog open meetId="123" onConfirm={onConfirm} onClose={onClose} />
-      </QueryClientProvider>
+        <ConfirmCloseMeetDialog
+          open
+          meetId="123"
+          onConfirm={onConfirm}
+          onClose={onClose}
+        />
+      </QueryClientProvider>,
     );
 
     expect(screen.getAllByText(/Close meet\?/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Closing the meet will notify all attendees/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Closing the meet will prevent any new submissions/i),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Close meet/i }));
     fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));

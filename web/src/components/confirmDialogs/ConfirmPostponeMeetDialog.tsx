@@ -32,7 +32,7 @@ export function ConfirmPostponeMeetDialog({
     <ConfirmActionDialog
       open={open}
       title="Postpone meet?"
-      description="Postponing the meet will notify all confirmed participants and pause the meet submissions. You can update the meet details and republish it later."
+      description="Postponing the meet will pause the meet submissions. You can update the meet details and republish it later. Please check the attendees list and ensure to notify attendees of the postponement and any new date/time details once updated."
       confirmLabel="Postpone"
       onClose={onClose}
       onConfirm={async () => {

@@ -10,11 +10,13 @@ describe("ConfirmCancelMeetDialog", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ConfirmCancelMeetDialog open onConfirm={onConfirm} onClose={onClose} />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     expect(screen.getAllByText(/Cancel meet/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Cancelling will notify all confirmed attendees/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Cancelling will prevent any new submissions/i),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByText(/Cancel meet/i)[0]);
     fireEvent.click(screen.getAllByRole("button", { name: /Cancel meet/i })[0]);

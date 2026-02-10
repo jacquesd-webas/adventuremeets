@@ -29,7 +29,7 @@ export function ConfirmCloseMeetDialog({
     <ConfirmActionDialog
       open={open}
       title="Close meet?"
-      description="Closing the meet will notify all attendees and prevent any new submissions."
+      description="Closing the meet will prevent any new submissions. You may notify all attendees using the message function in the attendees list."
       confirmLabel="Close meet"
       onClose={onClose}
       onConfirm={handleCloseMeet}

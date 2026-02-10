@@ -30,7 +30,7 @@ export function ConfirmCancelMeetDialog({
     <ConfirmActionDialog
       open={open}
       title="Cancel meet?"
-      description="Cancelling will notify all confirmed attendees of the cancellation and prevent any new submissions."
+      description="Cancelling will prevent any new submissions. Please check the attendees list and ensure to notify attendees of the cancellation."
       confirmLabel="Cancel meet"
       onClose={onClose}
       onConfirm={handleCancelMeet}
