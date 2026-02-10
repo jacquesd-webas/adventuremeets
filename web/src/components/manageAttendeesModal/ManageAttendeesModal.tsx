@@ -60,12 +60,12 @@ export function ManageAttendeesModal({
   const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
   const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
-    null
+    null,
   );
   const [showEditMetaDialog, setShowEditMetaDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<AttendeeStatusEnum | null>(
-    null
+    null,
   );
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
@@ -73,15 +73,15 @@ export function ManageAttendeesModal({
     string[] | undefined
   >(undefined);
   const [detailView, setDetailView] = useState<"responses" | "messages">(
-    "responses"
+    "responses",
   );
   const { data: attendeeMessages } = useFetchAttendeeMessages(
     meetId,
-    selectedAttendeeId
+    selectedAttendeeId,
   );
   const hasUnreadMessages = useMemo(
     () => (attendeeMessages || []).some((message) => !message.isRead),
-    [attendeeMessages]
+    [attendeeMessages],
   );
 
   useEffect(() => {
@@ -108,15 +108,15 @@ export function ManageAttendeesModal({
       typeof statusVal === "number"
         ? statusVal
         : statusVal != null
-        ? Number(statusVal)
-        : null;
+          ? Number(statusVal)
+          : null;
     return !Number.isNaN(statusNum || NaN) ? statusNum : null;
   }, [meet]);
 
   const selectedAttendee = useMemo(
     () =>
       attendees.find((attendee) => attendee.id === selectedAttendeeId) || null,
-    [attendees, selectedAttendeeId]
+    [attendees, selectedAttendeeId],
   );
   const attendeeLabel = (attendee: any) =>
     attendee?.name || attendee?.email || attendee?.phone || "Unnamed attendee";
@@ -172,11 +172,16 @@ export function ManageAttendeesModal({
         if (status === AttendeeStatusEnum.Waitlisted) acc.waitlisted += 1;
         return acc;
       },
-      { accepted: 0, rejected: 0, waitlisted: 0 }
+      { accepted: 0, rejected: 0, waitlisted: 0 },
     );
   }, [attendees]);
 
   // TODO: Refactor this component into smaller components
+  const isOrganizerSelected = Boolean(
+    selectedAttendee &&
+      meet &&
+      selectedAttendee.userId === meet.organizerId
+  );
 
   return (
     <Dialog
@@ -185,13 +190,30 @@ export function ManageAttendeesModal({
       fullWidth
       maxWidth="md"
       fullScreen={fullScreen}
+      sx={{
+        "& .MuiDialog-paper": {
+          mt: 10,
+          minHeight: "85vh",
+        },
+      }}
     >
       <DialogTitle>Manage attendees</DialogTitle>
-      <DialogContent sx={{ pb: 2 }}>
+      <DialogContent
+        sx={{
+          pb: 2,
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={2}
-          sx={{ minHeight: 360 }}
+          sx={{
+            minHeight: 360,
+            height: "100%",
+            flex: 1,
+          }}
         >
           <Paper
             variant="outlined"
@@ -336,9 +358,7 @@ export function ManageAttendeesModal({
                     </Typography>
                     <Stack direction="row" spacing={1} alignItems="center">
                       {isUpdating && <CircularProgress size={18} />}
-                      {selectedAttendee &&
-                      meet &&
-                      selectedAttendee.userId === meet.organizerId ? (
+                      {isOrganizerSelected ? (
                         <Button variant="outlined" disabled>
                           Organiser
                         </Button>
@@ -380,18 +400,10 @@ export function ManageAttendeesModal({
                         disabled={!selectedAttendee}
                         active={detailView === "messages" ? "mail" : "info"}
                         showUnread={hasUnreadMessages}
-                        showEdit={
-                          selectedAttendee &&
-                          meet &&
-                          selectedAttendee.userId === meet.organizerId
-                        }
+                        showEdit={false}
                         onInfoClick={() => setDetailView("responses")}
                         onMailClick={() => setDetailView("messages")}
-                        onEditClick={() => {
-                          if (!selectedAttendee || !meet) return;
-                          if (selectedAttendee.userId !== meet.organizerId) return;
-                          setShowEditMetaDialog(true);
-                        }}
+                        onEditClick={undefined}
                       />
                     </Box>
                   </Box>
@@ -412,18 +424,27 @@ export function ManageAttendeesModal({
                 )}
                 <Divider />
                 <Box sx={{ display: "flex", justifyContent: "center" }}>
-                  <Button
-                    variant="outlined"
-                    disabled={!selectedAttendee}
-                    onClick={() => {
-                      setMessageAttendeeIds(
-                        selectedAttendee ? [selectedAttendee.id] : undefined
-                      );
-                      setMessageOpen(true);
-                    }}
-                  >
-                    Message {attendeeLabel(selectedAttendee)}
-                  </Button>
+                  {isOrganizerSelected ? (
+                    <Button
+                      variant="outlined"
+                      onClick={() => setShowEditMetaDialog(true)}
+                    >
+                      Edit responses
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      disabled={!selectedAttendee}
+                      onClick={() => {
+                        setMessageAttendeeIds(
+                          selectedAttendee ? [selectedAttendee.id] : undefined,
+                        );
+                        setMessageOpen(true);
+                      }}
+                    >
+                      Message {attendeeLabel(selectedAttendee)}
+                    </Button>
+                  )}
                 </Box>
               </Stack>
             )}

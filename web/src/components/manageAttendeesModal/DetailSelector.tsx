@@ -40,6 +40,13 @@ export function DetailSelector({
         onClick={onInfoClick}
         aria-label="Show attendee details"
         color={active === "info" ? "primary" : "default"}
+        sx={{
+          borderBottom: "2px solid",
+          borderBottomColor:
+            active === "info" ? "primary.main" : "transparent",
+          borderRadius: 0,
+          pb: 0.25,
+        }}
       >
         <InfoOutlinedIcon fontSize="medium" />
       </IconButton>
@@ -51,6 +58,11 @@ export function DetailSelector({
         color={active === "mail" ? "primary" : "default"}
         sx={{
           position: "relative",
+          borderBottom: "2px solid",
+          borderBottomColor:
+            active === "mail" ? "primary.main" : "transparent",
+          borderRadius: 0,
+          pb: 0.25,
           ...(showUnread && {
             "&::after": {
               content: '""',
