@@ -48,6 +48,7 @@ import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
 import { useFetchMeetAttendeeEdit } from "../hooks/useFetchMeetAttendeeEdit";
 import { useQueryClient } from "@tanstack/react-query";
+import { validateEmail, validatePhone, validateRequired } from "../helpers/validation";
 
 function LabeledField({
   label,
@@ -74,6 +75,9 @@ type MeetSignupFormProps = {
   email: string;
   phoneCountry: string;
   phoneLocal: string;
+  nameError?: string | null;
+  emailError?: string | null;
+  phoneError?: string | null;
   disableIdentityFields: boolean;
   disablePhone: boolean;
   wantsGuests: boolean;
@@ -86,6 +90,9 @@ type MeetSignupFormProps = {
   onSubmit: () => void;
   onCancelEdit?: () => void;
   onCheckDuplicate: () => void;
+  onNameBlur: () => void;
+  onEmailBlur: () => void;
+  onPhoneBlur: () => void;
   setField: (key: string, value: any) => void;
   setMetaValue: (key: string, value: any) => void;
   setPhoneCountry: (value: string) => void;
@@ -98,6 +105,9 @@ function MeetSignupFormFields({
   email,
   phoneCountry,
   phoneLocal,
+  nameError,
+  emailError,
+  phoneError,
   disableIdentityFields,
   disablePhone,
   wantsGuests,
@@ -110,6 +120,9 @@ function MeetSignupFormFields({
   onSubmit,
   onCancelEdit,
   onCheckDuplicate,
+  onNameBlur,
+  onEmailBlur,
+  onPhoneBlur,
   setField,
   setMetaValue,
   setPhoneCountry,
@@ -122,6 +135,9 @@ function MeetSignupFormFields({
           required
           value={fullName}
           onChange={(value) => setField("fullName", value)}
+          onBlur={onNameBlur}
+          error={Boolean(nameError)}
+          helperText={nameError || undefined}
           disabled={disableIdentityFields}
         />
       </LabeledField>
@@ -130,7 +146,10 @@ function MeetSignupFormFields({
           required
           value={email}
           onChange={(value) => setField("email", value)}
-          onBlur={onCheckDuplicate}
+          onBlur={onEmailBlur}
+          error={Boolean(emailError)}
+          helperText={emailError || undefined}
+          hideLabel
           disabled={disableIdentityFields}
         />
       </LabeledField>
@@ -147,7 +166,10 @@ function MeetSignupFormFields({
             setPhoneLocal(value);
             setField("phone", buildInternationalPhone(phoneCountry, value));
           }}
-          onBlur={onCheckDuplicate}
+          onBlur={onPhoneBlur}
+          error={Boolean(phoneError)}
+          helperText={phoneError || undefined}
+          hideLabel
           disabled={disablePhone}
         />
       </LabeledField>
@@ -364,6 +386,9 @@ function MeetSignupSheet() {
     phone: string;
   } | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const {
     indemnityAccepted,
     fullName,
@@ -640,8 +665,31 @@ function MeetSignupSheet() {
     !fullName.trim() ||
     !email.trim() ||
     !phoneLocal.trim() ||
+    Boolean(nameError) ||
+    Boolean(emailError) ||
+    Boolean(phoneError) ||
     requiredMetaMissing ||
     (meet?.hasIndemnity && !indemnityAccepted);
+
+  const handleNameBlur = () => {
+    setNameError(validateRequired(fullName, "Name"));
+  };
+
+  const handleEmailBlur = () => {
+    const formatError = validateEmail(email);
+    setEmailError(formatError);
+    if (!formatError) {
+      checkForDuplicate();
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    const error = validatePhone(phoneLocal);
+    setPhoneError(error);
+    if (!error) {
+      checkForDuplicate();
+    }
+  };
 
   const checkForDuplicate = async () => {
     if (!meet) return;
@@ -815,6 +863,9 @@ function MeetSignupSheet() {
                   email={email}
                   phoneCountry={phoneCountry}
                   phoneLocal={phoneLocal}
+                  nameError={nameError}
+                  emailError={emailError}
+                  phoneError={phoneError}
                   disableIdentityFields={disableIdentityFields}
                   disablePhone={disablePhone}
                   wantsGuests={wantsGuests}
@@ -829,6 +880,9 @@ function MeetSignupSheet() {
                   onCheckDuplicate={
                     isEditing ? () => undefined : checkForDuplicate
                   }
+                  onNameBlur={handleNameBlur}
+                  onEmailBlur={handleEmailBlur}
+                  onPhoneBlur={handlePhoneBlur}
                   setField={setField}
                   setMetaValue={setMetaValue}
                   setPhoneCountry={setPhoneCountry}

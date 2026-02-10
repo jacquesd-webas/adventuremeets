@@ -10,6 +10,9 @@ type EmailFieldProps = {
   placeholder?: string;
   fullWidth?: boolean;
   disabled?: boolean;
+  error?: boolean;
+  helperText?: string;
+  hideLabel?: boolean;
 };
 
 export function EmailField({
@@ -20,11 +23,16 @@ export function EmailField({
   onBlur,
   placeholder = "you@example.com",
   fullWidth = true,
-  disabled = false
+  disabled = false,
+  error = false,
+  helperText,
+  hideLabel = false,
 }: EmailFieldProps) {
   return (
     <TextField
-      label={label}
+      label={hideLabel ? undefined : label}
+      hiddenLabel={hideLabel}
+      InputLabelProps={hideLabel ? { shrink: true } : undefined}
       type="email"
       required={required}
       value={value}
@@ -33,6 +41,8 @@ export function EmailField({
       placeholder={placeholder}
       fullWidth={fullWidth}
       disabled={disabled}
+      error={error}
+      helperText={helperText}
       InputProps={{
         startAdornment: <EmailOutlinedIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />
       }}

@@ -170,7 +170,7 @@ export function MeetSignupUserAction({
               type="submit"
               size="small"
               variant="contained"
-              disabled={isLoading}
+              disabled={isLoading || !email.trim() || !password.trim()}
             >
               {isLoading ? "Logging in..." : "Login"}
             </Button>

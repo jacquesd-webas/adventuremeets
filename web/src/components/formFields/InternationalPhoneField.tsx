@@ -331,6 +331,9 @@ type InternationalPhoneFieldProps = {
   onLocalChange: (value: string) => void;
   onBlur?: () => void;
   disabled?: boolean;
+  error?: boolean;
+  helperText?: string;
+  hideLabel?: boolean;
 };
 
 export function InternationalPhoneField({
@@ -343,6 +346,9 @@ export function InternationalPhoneField({
   onLocalChange,
   onBlur,
   disabled = false,
+  error = false,
+  helperText,
+  hideLabel = false,
 }: InternationalPhoneFieldProps) {
   useEffect(() => {
     if (country) return;
@@ -354,7 +360,9 @@ export function InternationalPhoneField({
   }, [country, onCountryChange]);
   return (
     <TextField
-      label={label}
+      label={hideLabel ? undefined : label}
+      hiddenLabel={hideLabel}
+      InputLabelProps={hideLabel ? { shrink: true } : undefined}
       required={required}
       placeholder={placeholder}
       value={local}
@@ -362,6 +370,8 @@ export function InternationalPhoneField({
       onBlur={onBlur}
       disabled={disabled}
       fullWidth
+      error={error}
+      helperText={helperText}
       InputProps={{
         startAdornment: (
           <InputAdornment position="start">

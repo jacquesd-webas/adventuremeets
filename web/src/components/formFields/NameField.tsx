@@ -10,6 +10,8 @@ type NameFieldProps = {
   placeholder?: string;
   fullWidth?: boolean;
   disabled?: boolean;
+  error?: boolean;
+  helperText?: string;
 };
 
 export function NameField({
@@ -21,6 +23,8 @@ export function NameField({
   placeholder = "Your name",
   fullWidth = true,
   disabled = false,
+  error = false,
+  helperText,
 }: NameFieldProps) {
   return (
     <TextField
@@ -32,6 +36,8 @@ export function NameField({
       placeholder={placeholder}
       fullWidth={fullWidth}
       disabled={disabled}
+      error={error}
+      helperText={helperText}
       InputProps={{
         startAdornment: (
           <PersonOutlineIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} />

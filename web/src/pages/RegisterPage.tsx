@@ -22,6 +22,8 @@ import {
 } from "../components/formFields/InternationalPhoneField";
 import { PasswordField } from "../components/formFields/PasswordField";
 import { PasswordStrength } from "../components/formFields/PasswordStrength";
+import { useCheckEmailExists } from "../hooks/useCheckEmailExists";
+import { validateEmail, validatePhone, validateRequired } from "../helpers/validation";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
@@ -63,10 +65,14 @@ function RegisterPage() {
     null | "google" | "microsoft" | "facebook" | "email"
   >(null);
   const { registerAsync, isLoading, error } = useRegister();
+  const { checkEmailExistsAsync } = useCheckEmailExists();
   const api = useApi();
   const nav = useNavigate();
   const { refreshSession } = useAuth();
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const logoSrc = getLogoSrc();
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
@@ -86,11 +92,15 @@ function RegisterPage() {
   const isFormValid =
     firstName.trim() !== "" &&
     lastName.trim() !== "" &&
+    phoneLocal.trim() !== "" &&
     email.trim() !== "" &&
     password.trim() !== "" &&
     passwordStrength.score > 1 &&
     (!captchaRequired || Boolean(captchaToken)) &&
     !emailError &&
+    !phoneError &&
+    !firstNameError &&
+    !lastNameError &&
     !organizationInviteError;
   const chooseMethod = (
     method: null | "google" | "microsoft" | "facebook" | "email",
@@ -224,13 +234,28 @@ function RegisterPage() {
   const checkEmail = async () => {
     const value = email.trim();
     if (!value) {
-      setEmailError(null);
+      setEmailError(validateEmail(value));
       return;
     }
-    const res = await api.get<{ exists: boolean }>(
-      `/auth/register/check?email=${encodeURIComponent(value)}`,
-    );
+    const formatError = validateEmail(value);
+    if (formatError) {
+      setEmailError(formatError);
+      return;
+    }
+    const res = await checkEmailExistsAsync(value);
     setEmailError(res.exists ? "This email is already registered." : null);
+  };
+
+  const checkPhone = () => {
+    setPhoneError(validatePhone(phoneLocal));
+  };
+
+  const checkFirstName = () => {
+    setFirstNameError(validateRequired(firstName, "First name"));
+  };
+
+  const checkLastName = () => {
+    setLastNameError(validateRequired(lastName, "Last name"));
   };
 
   return (
@@ -290,7 +315,7 @@ function RegisterPage() {
                 {organizationInviteError}
               </Alert>
             )}
-            <Box component="form" onSubmit={handleSubmit}>
+            <Box component="form" onSubmit={handleSubmit} noValidate>
               <Box
                 sx={{
                   display: "grid",
@@ -302,7 +327,13 @@ function RegisterPage() {
                   label="First name"
                   required
                   value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    if (firstNameError) setFirstNameError(null);
+                  }}
+                  onBlur={checkFirstName}
+                  error={Boolean(firstNameError)}
+                  helperText={firstNameError || undefined}
                   InputProps={{
                     startAdornment: (
                       <PersonOutlineIcon
@@ -316,7 +347,13 @@ function RegisterPage() {
                   label="Last name"
                   required
                   value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    if (lastNameError) setLastNameError(null);
+                  }}
+                  onBlur={checkLastName}
+                  error={Boolean(lastNameError)}
+                  helperText={lastNameError || undefined}
                   InputProps={{
                     startAdornment: (
                       <PersonOutlineIcon
@@ -332,15 +369,29 @@ function RegisterPage() {
                   country={phoneCountry}
                   local={phoneLocal}
                   onCountryChange={setPhoneCountry}
-                  onLocalChange={setPhoneLocal}
+                  onLocalChange={(value) => {
+                    setPhoneLocal(value);
+                    if (phoneError) {
+                      setPhoneError(null);
+                    }
+                  }}
+                  onBlur={checkPhone}
+                  error={Boolean(phoneError)}
+                  helperText={phoneError || undefined}
                 />
                 <EmailField
                   required
                   value={email}
-                  onChange={(value) => setEmail(value)}
+                  onChange={(value) => {
+                    setEmail(value);
+                    if (emailError) {
+                      setEmailError(null);
+                    }
+                  }}
                   onBlur={checkEmail}
+                  error={Boolean(emailError)}
+                  helperText={emailError || undefined}
                 />
-                {emailError && <Alert severity="warning">{emailError}</Alert>}
                 <PasswordField
                   label="Password"
                   required
