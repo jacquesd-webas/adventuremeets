@@ -48,7 +48,11 @@ import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
 import { useFetchMeetAttendeeEdit } from "../hooks/useFetchMeetAttendeeEdit";
 import { useQueryClient } from "@tanstack/react-query";
-import { validateEmail, validatePhone, validateRequired } from "../helpers/validation";
+import {
+  validateEmail,
+  validatePhone,
+  validateRequired,
+} from "../helpers/validation";
 
 function LabeledField({
   label,
@@ -119,7 +123,6 @@ function MeetSignupFormFields({
   isEditing,
   onSubmit,
   onCancelEdit,
-  _onCheckDuplicate,
   onNameBlur,
   onEmailBlur,
   onPhoneBlur,
