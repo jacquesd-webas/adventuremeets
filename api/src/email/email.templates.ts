@@ -83,23 +83,24 @@ export function renderEmailTemplate(
   const brand = BRAND_NAME;
 
   if (name === "password-reset") {
-    if (!vars?.resetUrl) {
+    const resetVars = vars as PasswordResetTemplateVars | undefined;
+    if (!resetVars?.resetUrl) {
       throw new Error("Missing resetUrl for password-reset template");
     }
     const subject = `Reset your ${brand} password`;
     const text =
       `You requested a password reset for your ${brand} account.\n\n` +
-      `Use this link to reset your password (valid for 30 minutes):\n${vars.resetUrl}\n\n` +
+      `Use this link to reset your password (valid for 30 minutes):\n${resetVars.resetUrl}\n\n` +
       "If you did not request this, you can ignore this email.";
     const htmlBody = `
       <h2 style="margin:0 0 12px 0;font-size:20px;">Reset your password</h2>
       <p style="margin:0 0 16px 0;">We received a request to reset the password for your ${brand} account.</p>
       <p style="margin:0 0 24px 0;">This link is valid for 30 minutes.</p>
       <p style="margin:0 0 24px 0;text-align:center;">
-        <a href="${vars.resetUrl}" style="display:inline-block;background:${PRIMARY_COLOR};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;">Reset password</a>
+        <a href="${resetVars.resetUrl}" style="display:inline-block;background:${PRIMARY_COLOR};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;">Reset password</a>
       </p>
       <p style="margin:0 0 16px 0;font-size:13px;color:#475569;">If the button doesn't work, copy and paste this link into your browser:</p>
-      <p style="word-break:break-all;font-size:13px;color:#475569;margin:0;">${vars.resetUrl}</p>
+      <p style="word-break:break-all;font-size:13px;color:#475569;margin:0;">${resetVars.resetUrl}</p>
       <p style="margin:24px 0 0 0;font-size:13px;color:#475569;">If you did not request this, you can ignore this email.</p>
     `;
     return { subject, text, html: wrapHtml(htmlBody) };
