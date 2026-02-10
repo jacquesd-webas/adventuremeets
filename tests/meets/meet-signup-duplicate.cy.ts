@@ -9,21 +9,25 @@ const toLocalDateTimeInput = (date: Date) => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-describe("Meet signup", () => {
-  it("creates a minimal meet and publishes", () => {
+describe("Meet signup duplicate", () => {
+  it("creates a meet and handles duplicate signup", () => {
     const unique = Date.now();
-    const email = `cypress.min.${unique}@example.com`;
+    const email = `cypress.dup.${unique}@example.com`;
+    const attendeeEmail = `attendee.${unique}@example.com`;
     const meetName = `Signup Meet ${unique}`;
     const description = "Short description for signup test.";
     const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const startValue = toLocalDateTimeInput(start);
 
+    // Register and create minimal meet
+
     cy.visit("/register");
     cy.contains("Continue with Email").click();
     cy.get('input[type="text"]').first().type("Cypress");
-    cy.get('input[type="text"]').eq(1).type("Signup");
-    const randomPhone = `555${Math.floor(1000000 + Math.random() * 9000000)}`;
-    cy.get('input[placeholder="Mobile phone number"]').type(randomPhone);
+    cy.get('input[type="text"]').eq(1).type("Duplicate");
+    cy.get('input[placeholder="Mobile phone number"]').type(
+      `555${Math.floor(1000000 + Math.random() * 9000000)}`,
+    );
     cy.get('input[type="email"]').type(email);
     cy.get('input[type="password"]').type("Str0ng!Passw0rd2026");
     cy.contains("button", "Create account").click();
@@ -93,6 +97,8 @@ describe("Meet signup", () => {
     cy.get('[data-testid="account-menu-button"]').click();
     cy.contains("Logout").click();
 
+    // Wait for meet to open and sign up
+
     cy.get("@shareLink").then((shareLink) => {
       cy.visit(shareLink as unknown as string);
       cy.wait(20000);
@@ -100,17 +106,15 @@ describe("Meet signup", () => {
     });
 
     cy.get('input[placeholder="Your name"]').type("Signup User");
-    cy.get('input[placeholder="you@example.com"]').type(
-      `attendee.${unique}@example.com`,
+    cy.get('input[placeholder="you@example.com"]').type(attendeeEmail);
+    cy.get('input[placeholder="Mobile phone number"]').type(
+      `555${Math.floor(1000000 + Math.random() * 9000000)}`,
     );
-    const randomPhone2 = `555${Math.floor(1000000 + Math.random() * 9000000)}`;
-    cy.get('input[placeholder="Mobile phone number"]').type(randomPhone2);
     cy.contains("h6", "Dietary notes")
       .closest(".MuiStack-root")
-      .find("input[type=\"text\"]")
+      .find('input[type="text"]')
       .first()
       .type("No nuts");
-
     cy.contains("h6", "Pace preference")
       .closest(".MuiStack-root")
       .find('[role="combobox"]')
@@ -131,7 +135,18 @@ describe("Meet signup", () => {
       .check({ force: true });
     cy.contains("button", "Submit application").click();
     cy.contains("Application submitted").should("be.visible");
-    cy.contains("button", "Show Status").click();
+
+    // Sign up again with the same email to test duplicate handling
+    cy.get("@shareLink").then((shareLink) => {
+      cy.visit(shareLink as unknown as string);
+    });
+
+    cy.get('input[placeholder="Your name"]').type("Signup User");
+    cy.get('input[placeholder="you@example.com"]').type(attendeeEmail);
+    cy.get('input[placeholder="Mobile phone number"]').type(
+      `555${Math.floor(1000000 + Math.random() * 9000000)}`,
+    );
+    cy.contains("Already signed up").should("be.visible");
   });
 });
 export {};
