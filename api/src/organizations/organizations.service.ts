@@ -6,6 +6,7 @@ import {
 import { DatabaseService } from "../database/database.service";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { OrganizationDto } from "./dto/organization.dto";
+import { OrganizationMinimalDto } from "./dto/organization-minimal.dto";
 
 @Injectable()
 export class OrganizationsService {
@@ -51,6 +52,18 @@ export class OrganizationsService {
       user_count: Number(org.user_count || 0),
       template_count: Number(org.template_count || 0),
     };
+  }
+
+  async findByIdMinimal(id: string) {
+    const org = await this.database
+      .getClient()("organizations")
+      .where("id", id)
+      .select("theme", "is_private")
+      .first();
+    if (!org) {
+      throw new NotFoundException("Organization not found");
+    }
+    return this.toMinimalOrganizationDto(org);
   }
 
   async findAllByIds(ids: string[]) {
@@ -479,6 +492,13 @@ export class OrganizationsService {
     }
     const row = await this.findById(id);
     return this.toOrganizationDto(row);
+  }
+
+  private toMinimalOrganizationDto(row: any): OrganizationMinimalDto {
+    return {
+      theme: row.theme ?? undefined,
+      isPrivate: row.is_private ?? undefined,
+    };
   }
 
   private toOrganizationDto(row: any): OrganizationDto {

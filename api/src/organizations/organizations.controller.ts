@@ -19,6 +19,8 @@ import { UpdateTemplateDto } from "./dto/update-template.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { UpdateMemberDto } from "./dto/update-member.dto";
 import { Public } from "src/auth/decorators/public.decorator";
+import { UseGuards } from "@nestjs/common";
+import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -43,17 +45,16 @@ export class OrganizationsController {
   }
 
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(":id")
   async findOne(@Param("id") id: string, @User() user?: UserProfile) {
     // If we are not logged in we can see no iformation except the theme
-    // so that we can redner nice background for signups/logins
-    if (!user) {
+    // so that we can render nice background for signups/logins. (and also)
+    // know whether the organization if public or not to allow registration)
+    if (!user)
       return {
-        organization: {
-          theme: await this.organizationsService.findThemeById(id),
-        },
+        organization: await this.organizationsService.findByIdMinimal(id),
       };
-    }
 
     if (!this.authService.hasRole(user, id, "member")) {
       throw new ForbiddenException("You are not a member of this organization");

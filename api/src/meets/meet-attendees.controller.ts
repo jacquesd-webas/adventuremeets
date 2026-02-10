@@ -24,14 +24,14 @@ import { AuthService } from "../auth/auth.service";
 export class MeetAttendeesController {
   constructor(
     private readonly meetsService: MeetsService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
   ) {}
 
   @Get()
   async list(
     @Param("meetId") meetId: string,
     @Query("filter") filter?: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -39,7 +39,7 @@ export class MeetAttendeesController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You are not an organizer in this organization"
+        "You are not an organizer in this organization",
       );
     }
     return await this.meetsService.listAttendees(meetId, filter);
@@ -50,7 +50,7 @@ export class MeetAttendeesController {
   check(
     @Param("meetId") meetId: string,
     @Query("email") email?: string,
-    @Query("phone") phone?: string
+    @Query("phone") phone?: string,
   ) {
     return this.meetsService.findAttendeeByContact(meetId, email, phone);
   }
@@ -61,12 +61,28 @@ export class MeetAttendeesController {
     return this.meetsService.addAttendee(meetId, dto);
   }
 
+  @Public()
+  @Post(":attendeeId/verify-email")
+  async verifyEmail(
+    @Param("meetId") meetId: string,
+    @Param("attendeeId") attendeeId: string,
+    @Body() body: { email: string },
+  ) {
+    const attendee = await this.meetsService.findAttendeeForEdit(
+      meetId,
+      attendeeId,
+    );
+    const attendeeEmail = attendee.attendee.email?.trim().toLowerCase() || "";
+    const providedEmail = body.email?.trim().toLowerCase() || "";
+    return { valid: Boolean(attendeeEmail && attendeeEmail === providedEmail) };
+  }
+
   @Patch(":attendeeId")
   async update(
     @Param("meetId") meetId: string,
     @Param("attendeeId") attendeeId: string,
     @Body() dto: UpdateMeetAttendeeDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -74,7 +90,7 @@ export class MeetAttendeesController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You are not an organizer in this organization"
+        "You are not an organizer in this organization",
       );
     }
     return this.meetsService.updateAttendee(meetId, attendeeId, dto);
@@ -84,7 +100,7 @@ export class MeetAttendeesController {
   async remove(
     @Param("meetId") meetId: string,
     @Param("attendeeId") attendeeId: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -92,7 +108,7 @@ export class MeetAttendeesController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You are not an organizer in this organization"
+        "You are not an organizer in this organization",
       );
     }
     return this.meetsService.removeAttendee(meetId, attendeeId);
