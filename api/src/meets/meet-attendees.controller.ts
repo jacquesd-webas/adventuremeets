@@ -18,6 +18,8 @@ import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
 import { User } from "../auth/decorators/user.decorator";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuthService } from "../auth/auth.service";
+import { EmailService } from "../email/email.service";
+import { renderEmailTemplate } from "../email/email.templates";
 
 @ApiTags("Meet Attendees")
 @Controller("meets/:meetId/attendees")
@@ -25,6 +27,7 @@ export class MeetAttendeesController {
   constructor(
     private readonly meetsService: MeetsService,
     private readonly authService: AuthService,
+    private readonly emailService: EmailService,
   ) {}
 
   @Get()
@@ -57,8 +60,40 @@ export class MeetAttendeesController {
 
   @Public()
   @Post()
-  add(@Param("meetId") meetId: string, @Body() dto: CreateMeetAttendeeDto) {
-    return this.meetsService.addAttendee(meetId, dto);
+  async add(
+    @Param("meetId") meetId: string,
+    @Body() dto: CreateMeetAttendeeDto,
+  ) {
+    const { attendee } = await this.meetsService.addAttendee(meetId, dto);
+
+    if (dto.email) {
+      const meet = await this.meetsService.findOne(meetId);
+      if (meet?.shareCode) {
+        const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173")
+          .replace(/\/+$/, "");
+        const statusUrl = `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`;
+        const { subject, text, html } = renderEmailTemplate("meet-signup", {
+          meetName: meet.name,
+          attendeeName: dto.name ?? undefined,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          location: meet.location,
+          statusUrl,
+          organizerName: meet.organizerName,
+          organizerEmail: meet.organizerEmail,
+        });
+        await this.emailService.sendEmail({
+          to: dto.email,
+          subject,
+          text,
+          html,
+          attendeeId: attendee.id,
+          meetId,
+        });
+      }
+    }
+
+    return { attendee };
   }
 
   @Public()

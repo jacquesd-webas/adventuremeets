@@ -1,9 +1,21 @@
 export type EmailTemplateName =
   | "password-reset"
-  | "password-reset-confirmation";
+  | "password-reset-confirmation"
+  | "meet-signup";
 
 export type PasswordResetTemplateVars = {
   resetUrl: string;
+};
+
+export type MeetSignupTemplateVars = {
+  meetName: string;
+  attendeeName?: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  statusUrl?: string;
+  organizerName?: string;
+  organizerEmail?: string;
 };
 
 const BRAND_NAME = "AdventureMeets";
@@ -61,8 +73,12 @@ export function renderEmailTemplate(
   name: "password-reset-confirmation"
 ): { subject: string; text: string; html: string };
 export function renderEmailTemplate(
+  name: "meet-signup",
+  vars: MeetSignupTemplateVars
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
   name: EmailTemplateName,
-  vars?: PasswordResetTemplateVars
+  vars?: PasswordResetTemplateVars | MeetSignupTemplateVars
 ) {
   const brand = BRAND_NAME;
 
@@ -89,6 +105,81 @@ export function renderEmailTemplate(
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
+  if (name === "meet-signup") {
+    const signupVars = vars as MeetSignupTemplateVars | undefined;
+    if (!signupVars?.meetName) {
+      throw new Error("Missing meetName for meet-signup template");
+    }
+    const dateString = formatDateTime(signupVars.startTime);
+    const endString = formatDateTime(signupVars.endTime);
+    const hasRange = Boolean(dateString && endString && dateString !== endString);
+    const timeLine = hasRange
+      ? `${dateString} to ${endString}`
+      : dateString || "TBC";
+    const locationLine = signupVars.location || "TBC";
+    const greetingName = signupVars.attendeeName || "there";
+    const statusUrl = signupVars.statusUrl || "";
+    const organizerName = signupVars.organizerName || "the organizer";
+    const organizerEmail = signupVars.organizerEmail || "";
+
+    const subject = `You're signed up for ${signupVars.meetName}`;
+    const textParts = [
+      `Hi ${greetingName},`,
+      "",
+      `You're signed up for ${signupVars.meetName}.`,
+      "",
+      `When: ${timeLine}`,
+      `Where: ${locationLine}`,
+    ];
+    if (statusUrl) {
+      textParts.push("", "View your application status:", statusUrl);
+    }
+    if (organizerEmail) {
+      textParts.push(
+        "",
+        `Questions? Contact ${organizerName} at ${organizerEmail}.`,
+      );
+    }
+    const text = textParts.join("\n");
+
+    const htmlBody = `
+      <h2 style="margin:0 0 12px 0;font-size:20px;">You're signed up</h2>
+      <p style="margin:0 0 16px 0;">Hi ${escapeHtml(greetingName)},</p>
+      <p style="margin:0 0 16px 0;">You're signed up for <strong>${escapeHtml(
+        signupVars.meetName,
+      )}</strong>.</p>
+      <div style="margin:0 0 16px 0;padding:12px 14px;background:#f1f5f9;border-radius:8px;">
+        <p style="margin:0 0 6px 0;"><strong>When:</strong> ${escapeHtml(
+          timeLine,
+        )}</p>
+        <p style="margin:0;"><strong>Where:</strong> ${escapeHtml(
+          locationLine,
+        )}</p>
+      </div>
+      ${
+        statusUrl
+          ? `<p style="margin:0 0 16px 0;text-align:center;">
+              <a href="${statusUrl}" style="display:inline-block;background:${PRIMARY_COLOR};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;">View your application</a>
+            </p>`
+          : ""
+      }
+      ${
+        statusUrl
+          ? `<p style="margin:0 0 16px 0;font-size:13px;color:#475569;">If the button doesn't work, copy and paste this link into your browser:</p>
+             <p style="word-break:break-all;font-size:13px;color:#475569;margin:0 0 16px 0;">${statusUrl}</p>`
+          : ""
+      }
+      ${
+        organizerEmail
+          ? `<p style="margin:0;font-size:13px;color:#475569;">Questions? Contact ${escapeHtml(
+              organizerName,
+            )} at <a href="mailto:${organizerEmail}">${organizerEmail}</a>.</p>`
+          : ""
+      }
+    `;
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
+
   const subject = `Your ${brand} password was updated`;
   const text =
     `This is a confirmation that your ${brand} password was updated successfully. ` +
@@ -99,4 +190,23 @@ export function renderEmailTemplate(
     <p style="margin:0;font-size:13px;color:#475569;">If you did not perform this action, please contact support.</p>
   `;
   return { subject, text, html: wrapHtml(htmlBody) };
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
