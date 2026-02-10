@@ -8,19 +8,20 @@ import {
   TextField,
   Typography,
   Alert,
-  IconButton,
-  InputAdornment,
 } from "@mui/material";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { useEffect, useRef, useState } from "react";
 import ReCAPTCHA from "react-google-recaptcha";
 import { useRegister } from "../hooks/useRegister";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthSocialButtons } from "../components/auth/AuthSocialButtons";
 import { EmailField } from "../components/formFields/EmailField";
+import {
+  buildInternationalPhone,
+  InternationalPhoneField,
+} from "../components/formFields/InternationalPhoneField";
+import { PasswordField } from "../components/formFields/PasswordField";
+import { PasswordStrength } from "../components/formFields/PasswordStrength";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
@@ -47,8 +48,9 @@ function RegisterPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState("");
+  const [phoneLocal, setPhoneLocal] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [organizationId, setOrganizationId] = useState("");
   const [organizationInviteError, setOrganizationInviteError] = useState<
     string | null
@@ -70,8 +72,7 @@ function RegisterPage() {
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
     | string
     | undefined;
-  const recaptchaDisabled =
-    import.meta.env.VITE_RECAPTCHA_DISABLE === "true";
+  const recaptchaDisabled = import.meta.env.VITE_RECAPTCHA_DISABLE === "true";
   const captchaRequired =
     Boolean(recaptchaSiteKey) &&
     !recaptchaDisabled &&
@@ -199,6 +200,7 @@ function RegisterPage() {
       firstName,
       lastName,
       email,
+      phone: buildInternationalPhone(phoneCountry, phoneLocal),
       password,
       organizationId: organizationId || undefined,
       captchaToken: captchaToken || undefined,
@@ -215,7 +217,7 @@ function RegisterPage() {
         }
       })
       .catch((err) => {
-        console.error("Registration failed", err);
+        console.warn("Registration failed", err);
       });
   };
 
@@ -233,7 +235,7 @@ function RegisterPage() {
 
   return (
     <Container
-      maxWidth="md"
+      maxWidth="sm"
       sx={{
         display: "flex",
         flexDirection: "column",
@@ -241,14 +243,16 @@ function RegisterPage() {
         py: 8,
       }}
     >
-      <Box sx={{ textAlign: "center", mb: 4 }}>
-        <img
-          src={logoSrc}
-          alt="AdventureMeets logo"
-          width={320}
-          height="auto"
-        />
-      </Box>
+      {(!selectedMethod || selectedMethod !== "email") && (
+        <Box sx={{ textAlign: "center", mb: 4 }}>
+          <img
+            src={logoSrc}
+            alt="AdventureMeets logo"
+            width={320}
+            height="auto"
+          />
+        </Box>
+      )}
 
       <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
         <Box
@@ -322,6 +326,14 @@ function RegisterPage() {
                     ),
                   }}
                 />
+                <InternationalPhoneField
+                  label="Phone"
+                  required
+                  country={phoneCountry}
+                  local={phoneLocal}
+                  onCountryChange={setPhoneCountry}
+                  onLocalChange={setPhoneLocal}
+                />
                 <EmailField
                   required
                   value={email}
@@ -329,82 +341,17 @@ function RegisterPage() {
                   onBlur={checkEmail}
                 />
                 {emailError && <Alert severity="warning">{emailError}</Alert>}
-                <TextField
+                <PasswordField
                   label="Password"
-                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <LockOutlinedIcon
-                        fontSize="small"
-                        sx={{ mr: 1, color: "text.disabled" }}
-                      />
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label={
-                            showPassword ? "Hide password" : "Show password"
-                          }
-                          onClick={() => setShowPassword((prev) => !prev)}
-                          edge="end"
-                        >
-                          {showPassword ? (
-                            <VisibilityOffIcon />
-                          ) : (
-                            <VisibilityIcon />
-                          )}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
+                  onValueChange={setPassword}
                 />
-                <Box
-                  sx={{
-                    mt: -1.5,
-                    mb: 2,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      mb: 0.5,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary">
-                      Password strength
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {passwordStrength.label}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      height: 6,
-                      borderRadius: 999,
-                      backgroundColor: "action.hover",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        height: "100%",
-                        width: `${passwordStrengthPercent}%`,
-                        transition: "width 200ms ease",
-                        backgroundColor:
-                          passwordStrength.score <= 1
-                            ? "error.main"
-                            : passwordStrength.score <= 3
-                              ? "warning.main"
-                              : "success.main",
-                      }}
-                    />
-                  </Box>
-                </Box>
+                <PasswordStrength
+                  label={passwordStrength.label}
+                  percent={passwordStrengthPercent}
+                  score={passwordStrength.score}
+                />
                 {captchaRequired ? (
                   <Box display="flex" justifyContent="center" sx={{ mt: -1 }}>
                     <ReCAPTCHA
