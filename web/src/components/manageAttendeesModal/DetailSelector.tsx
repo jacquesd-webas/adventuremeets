@@ -1,24 +1,39 @@
 import { IconButton, Stack } from "@mui/material";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 
 type DetailSelectorProps = {
   disabled?: boolean;
   onInfoClick?: () => void;
   onMailClick?: () => void;
+  onEditClick?: () => void;
   active?: "info" | "mail";
   showUnread?: boolean;
+  showEdit?: boolean;
 };
 
 export function DetailSelector({
   disabled = false,
   onInfoClick,
   onMailClick,
+  onEditClick,
   active,
   showUnread = false,
+  showEdit = false,
 }: DetailSelectorProps) {
   return (
     <Stack direction="row" spacing={1} alignItems="center">
+      {showEdit && (
+        <IconButton
+          size="small"
+          disabled={disabled}
+          onClick={onEditClick}
+          aria-label="Edit attendee"
+        >
+          <EditOutlinedIcon fontSize="medium" />
+        </IconButton>
+      )}
       <IconButton
         size="small"
         disabled={disabled}

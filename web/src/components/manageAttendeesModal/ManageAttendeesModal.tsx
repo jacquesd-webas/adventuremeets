@@ -33,6 +33,7 @@ import { AttendeeActionButtons } from "./AttendeeActionButtons";
 import { DetailSelector } from "./DetailSelector";
 import { AttendeeResponses } from "./AttendeeResponses";
 import { AttendeeMessages } from "./AttendeeMessages";
+import { OrganizerMetaEditDialog } from "./OrganizerMetaEditDialog";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useFetchAttendeeMessages } from "../../hooks/useFetchAttendeeMessages";
@@ -61,6 +62,7 @@ export function ManageAttendeesModal({
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
     null
   );
+  const [showEditMetaDialog, setShowEditMetaDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<AttendeeStatusEnum | null>(
     null
@@ -378,8 +380,18 @@ export function ManageAttendeesModal({
                         disabled={!selectedAttendee}
                         active={detailView === "messages" ? "mail" : "info"}
                         showUnread={hasUnreadMessages}
+                        showEdit={
+                          selectedAttendee &&
+                          meet &&
+                          selectedAttendee.userId === meet.organizerId
+                        }
                         onInfoClick={() => setDetailView("responses")}
                         onMailClick={() => setDetailView("messages")}
+                        onEditClick={() => {
+                          if (!selectedAttendee || !meet) return;
+                          if (selectedAttendee.userId !== meet.organizerId) return;
+                          setShowEditMetaDialog(true);
+                        }}
                       />
                     </Box>
                   </Box>
@@ -460,6 +472,15 @@ export function ManageAttendeesModal({
             setIsUpdating(false);
             await refetch();
           }}
+        />
+      )}
+      {selectedAttendee && meet && meetId && (
+        <OrganizerMetaEditDialog
+          open={showEditMetaDialog}
+          onClose={() => setShowEditMetaDialog(false)}
+          meetId={meetId}
+          attendeeId={selectedAttendee.id}
+          metaValues={selectedAttendee.metaValues || []}
         />
       )}
     </Dialog>
