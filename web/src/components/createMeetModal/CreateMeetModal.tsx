@@ -16,10 +16,9 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import VerticalSplitOutlinedIcon from "@mui/icons-material/VerticalSplitOutlined";
 import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
+import ErrorIcon from "@mui/icons-material/Error";
 import ConfirmActionDialog from "../ConfirmActionDialog";
-import { steps, initialState, CreateMeetState } from "./CreateMeetState";
 import { BasicInfoStep } from "./BasicInfoStep";
-import { UserOption } from "./UserSelect";
 import { TimeAndLocationStep } from "./TimeAndLocationStep";
 import { IndemnityStep } from "./IndemnityStep";
 import { QuestionsStep } from "./QuestionsStep";
@@ -29,12 +28,23 @@ import { ResponsesStep } from "./ResponsesStep";
 import { FinishStep } from "./FinishStep";
 import { ImageStep } from "./ImageStep";
 import { useApi } from "../../hooks/useApi";
-import { useSaveMeet } from "../../hooks/useSaveMeet";
+import { useSaveMeet, SaveMeetPayload } from "../../hooks/useSaveMeet";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { getLocaleDefaults } from "../../helpers/locale";
 import { useAuth } from "../../context/authContext";
-import { useFetchOrganizers } from "../../hooks/useFetchOrganizers";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
+import {
+  steps,
+  initialState,
+  CreateMeetState,
+  mapMeetToState,
+  ensureMidnightIfDateOnly,
+  toIsoWithOffset,
+  validateStep,
+  validateAll,
+  FieldError,
+} from "./CreateMeetState";
 import { useCurrentOrganization } from "../../context/organizationContext";
 
 type CreateMeetModalProps = {
@@ -42,112 +52,6 @@ type CreateMeetModalProps = {
   onClose: () => void;
   onCreated?: () => void;
   meetId?: string | null;
-};
-
-type CreateMeetPayload = {
-  name?: string;
-  description?: string;
-  organizerId?: string;
-  location?: string;
-  locationLat?: number;
-  locationLong?: number;
-  startTime?: string;
-  endTime?: string;
-  openingDate?: string;
-  closingDate?: string;
-  scheduledDate?: string;
-  confirmDate?: string;
-  capacity?: number;
-  waitlistSize?: number;
-  statusId?: number;
-  autoPlacement?: boolean;
-  autoPromoteWaitlist?: boolean;
-  allowGuests?: boolean;
-  maxGuests?: number;
-  isVirtual?: boolean;
-  accessLink?: string;
-  confirmMessage?: string;
-  rejectMessage?: string;
-  waitlistMessage?: string;
-  allowMinorIndemnity?: boolean;
-  currencyCode?: string;
-  costCents?: number;
-  depositCents?: number;
-  hasIndemnity?: boolean;
-  indemnity?: string;
-  metaDefinitions?: {
-    id?: string;
-    fieldKey: string;
-    label: string;
-    fieldType: string;
-    required?: boolean;
-    config?: Record<string, any>;
-  }[];
-};
-
-const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
-  const toDateTimeInput = (value?: string | null) => {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    const offset = date.getTimezoneOffset() * 60 * 1000;
-    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-  };
-  const toNumberOrEmpty = (value: any) =>
-    value === null || value === undefined ? "" : Number(value);
-  const toCurrencyUnits = (value: any) =>
-    value === null || value === undefined ? "" : Number(value) / 100;
-
-  return {
-    ...initialState,
-    name: meet.name ?? "",
-    description: meet.description ?? "",
-    organizerId: meet.organizerId ?? "",
-    location: meet.location ?? "",
-    locationLat: toNumberOrEmpty(meet.locationLat),
-    locationLong: toNumberOrEmpty(meet.locationLong),
-    startTime: toDateTimeInput(meet.startTime),
-    endTime: toDateTimeInput(meet.endTime),
-    openingDate: toDateTimeInput(meet.openingDate),
-    closingDate: toDateTimeInput(meet.closingDate),
-    capacity: toNumberOrEmpty(meet.capacity),
-    waitlistSize: toNumberOrEmpty(meet.waitlistSize),
-    autoApprove: meet.autoPlacement ?? true,
-    autoCloseWaitlist: meet.autoPromoteWaitlist ?? false,
-    allowGuests: meet.allowGuests ?? false,
-    maxGuests: toNumberOrEmpty(meet.maxGuests),
-    currency: meet.currencyCode ?? initialState.currency,
-    costCents: toCurrencyUnits(meet.costCents),
-    depositCents: toCurrencyUnits(meet.depositCents),
-    approvedResponse: meet.confirmMessage ?? "",
-    rejectResponse: meet.rejectMessage ?? "",
-    waitlistResponse: meet.waitlistMessage ?? "",
-    indemnityAccepted: meet.hasIndemnity ?? false,
-    indemnityText: meet.indemnity ?? "",
-    allowMinorSign: meet.allowMinorIndemnity ?? false,
-    questions: Array.isArray(meet.metaDefinitions)
-      ? meet.metaDefinitions.map((definition: any) => ({
-          id:
-            definition.id ??
-            crypto.randomUUID?.() ??
-            Math.random().toString(36).slice(2),
-          type: definition.fieldType ?? definition.field_type ?? "text", // XXX TODO: fix this
-          label: definition.label ?? "",
-          required: definition.required ?? false,
-          includeInReports: definition.config?.includeInReports ?? false,
-          options: Array.isArray(definition.config?.options)
-            ? definition.config.options
-            : [],
-          optionsInput: Array.isArray(definition.config?.options)
-            ? definition.config.options.join(", ")
-            : "",
-          fieldKey:
-            definition.fieldKey ?? definition.field_key ?? definition.id,
-        }))
-      : [],
-    statusId: meet.statusId ?? null,
-    imagePreview: meet.imageUrl ?? "",
-  };
 };
 
 export function CreateMeetModal({
@@ -170,7 +74,7 @@ export function CreateMeetModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isLoadingMeet, setIsLoadingMeet] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -179,39 +83,49 @@ export function CreateMeetModal({
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
   const { currentOrganizationId } = useCurrentOrganization();
-  const { data: users } = useFetchOrganizers(currentOrganizationId);
+
   const { data: fetchedMeet, isLoading: isFetchingMeet } = useFetchMeet(
     meetIdProp,
-    Boolean(open && meetIdProp)
+    Boolean(open && meetIdProp),
   );
 
+  // Reset to first step when opened/closed
   useEffect(() => {
-    if (!open) {
-      setActiveStep(0);
-    }
+    if (!open) setActiveStep(0);
   }, [open]);
 
+  // Reset show/hide steps when screen size changes
   useEffect(() => {
-    if (open) {
-      setShowSteps(!fullScreen);
-    }
+    if (open) setShowSteps(!fullScreen);
   }, [open, fullScreen]);
 
+
+  // Set default organizerId and organizationId to current user and Org when available
+  // We also have to set the baseline state here so that the form doesn't think it's dirty
   useEffect(() => {
-    if (user?.id && !state.organizerId) {
-      setState((prev) => ({ ...prev, organizerId: user.id }));
-      if (!baselineState.organizerId) {
+    if (user && currentOrganizationId) {
+      if (!state.organizerId) {
+        setState((prev) => ({ ...prev, organizerId: user.id }));
         setBaselineState((prev) => ({ ...prev, organizerId: user.id }));
       }
+      if (!state.organizationId) {
+        setState((prev) => ({
+          ...prev,
+          organizationId: currentOrganizationId,
+        }));
+        setBaselineState((prev) => ({
+          ...prev,
+          organizationId: currentOrganizationId,
+        }));
+      }
     }
-  }, [user?.id, state.organizerId, baselineState.organizerId]);
+  }, [user, currentOrganizationId, state.organizerId, state.organizationId]);
 
+  // Clear all errors and form state when modal is closed or opened for a new meet
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
     setSubmitError(null);
-    setFieldErrors({});
+    setFieldErrors([]);
     if (!meetIdProp) {
       setMeetId(null);
       setShareCode(null);
@@ -227,6 +141,7 @@ export function CreateMeetModal({
     setMeetId(meetIdProp);
   }, [open, meetIdProp]);
 
+  // When meet data is fetched, populate the form and baseline state for change tracking
   useEffect(() => {
     if (!open || !meetIdProp) return;
     setIsLoadingMeet(isFetchingMeet);
@@ -237,99 +152,54 @@ export function CreateMeetModal({
       setShareCode(
         (fetchedMeet as any).shareCode ??
           (fetchedMeet as any).share_code ??
-          null
+          null,
       );
-      setFieldErrors({});
+      setFieldErrors([]);
     }
   }, [open, meetIdProp, fetchedMeet, isFetchingMeet]);
 
+  // Last step is to publish (different flow)
   const isLastStep = useMemo(
     () => activeStep >= steps.length - 1,
-    [activeStep]
+    [activeStep],
   );
+  const isDraft = useMemo(
+    () => (state.statusId ?? MeetStatusEnum.Draft) === MeetStatusEnum.Draft,
+    [state.statusId],
+  );
+
+  // Check for dirty form
   const isDirty = useMemo(
     () => JSON.stringify(state) !== JSON.stringify(baselineState),
-    [state, baselineState]
+    [state, baselineState],
   );
-  const missingPublishFields = useMemo(() => {
-    const missing: string[] = [];
-    if (!state.name.trim()) missing.push("Meet name");
-    if (!state.description.trim()) missing.push("Description");
-    if (!state.organizerId) missing.push("Organizer");
-    if (!state.location.trim()) missing.push("Location");
-    if (!state.startTime) missing.push("Start time");
-    if (!state.endTime) missing.push("End time");
-    if (!state.openingDate) missing.push("Applications open");
-    if (!state.closingDate) missing.push("Applications close");
-    if (state.capacity === "" || Number(state.capacity) < 0)
-      missing.push("Capacity");
-    if (state.waitlistSize === "" || Number(state.waitlistSize) < 0)
-      missing.push("Waitlist size");
-    return missing;
-  }, [state]);
 
-  const validateStep = (step: number, draft: CreateMeetState) => {
-    const errors: Record<string, string> = {};
-    switch (step) {
-      case 0:
-        if (!draft.name.trim()) errors.name = "Meet name is required";
-        if (!draft.description.trim())
-          errors.description = "Description is required";
-        if (!draft.organizerId)
-          errors.organizerId = "Please select an organizer";
-        break;
-      case 1:
-        if (!draft.location.trim()) errors.location = "Location is required";
-        if (!draft.startTime) errors.startTime = "Start time is required";
-        if (!draft.endTime) errors.endTime = "End time is required";
-        break;
-      case 4:
-        if (!draft.openingDate)
-          errors.openingDate = "Applications open is required";
-        if (!draft.closingDate)
-          errors.closingDate = "Applications close is required";
-        if (draft.capacity === undefined || draft.capacity === "") {
-          errors.capacity = "Capacity is required, use 0 for unlimited";
-        } else if (Number(draft.capacity) < 0) {
-          errors.capacity = "Capacity cannot be negative";
-        }
-        if (draft.waitlistSize === undefined || draft.waitlistSize === "") {
-          errors.waitlistSize = "Waitlist size is required, use 0 for none";
-        } else if (Number(draft.waitlistSize) < 0) {
-          errors.waitlistSize = "Waitlist size cannot be negative";
-        }
-        break;
-      default:
-        break;
-    }
-    return errors;
-  };
+  // Errors left to solve on final step before publishing
+  const finalErrors = useMemo(
+    () => (isLastStep ? validateAll(state) : []),
+    [state, isLastStep],
+  );
 
-  const validateAllRequired = (draft: CreateMeetState) => {
-    return {
-      ...validateStep(0, draft),
-      ...validateStep(1, draft),
-      ...validateStep(4, draft),
-    };
-  };
+  // Map steps with errors
+  const errorSteps = useMemo(
+    () => new Set(finalErrors.map((error) => error.step)),
+    [finalErrors],
+  );
 
+  // How we figure out of user has completed a step or not
   useEffect(() => {
     const trimmedName = state.name.trim();
     const trimmedDescription = state.description.trim();
     const hasBasic = Boolean(
-      trimmedName && trimmedDescription && state.organizerId
+      trimmedName && trimmedDescription && state.organizerId,
     );
-    const hasTime = Boolean(
-      state.location.trim() && state.startTime && state.endTime
-    );
+    const hasTime = Boolean(state.startTime && state.endTime);
     const hasIndemnity = Boolean(state.indemnityAccepted);
     const hasQuestion = state.questions.length > 0;
     const hasLimits =
-      Boolean(state.openingDate && state.closingDate) &&
-      state.capacity !== "" &&
-      Number(state.capacity) >= 0 &&
-      state.waitlistSize !== "" &&
-      Number(state.waitlistSize) >= 0;
+      Number(state.capacity) > 0 ||
+      Boolean(state.openingDate) ||
+      Boolean(state.closingDate);
     const hasCost =
       state.costCents !== "" && !Number.isNaN(Number(state.costCents));
     const hasResponse =
@@ -375,28 +245,58 @@ export function CreateMeetModal({
     shareCode,
   ]);
 
+  // Each step has different payload shape
   const buildPayloadForStep = (
     draft: CreateMeetState,
-    step: number
-  ): CreateMeetPayload => {
+    step: number,
+  ): SaveMeetPayload => {
     switch (step) {
       case 0:
         return {
           name: draft.name || undefined,
           description: draft.description || undefined,
           organizerId: draft.organizerId || undefined,
+          organizationId: draft.organizationId || undefined,
         };
-      case 1:
+      case 1: {
+        const normalizedStartTime = draft.startTimeTbc
+          ? ensureMidnightIfDateOnly(draft.startTime)
+          : draft.startTime || undefined;
+        const normalizedEndTime = draft.endTimeTbc
+          ? ensureMidnightIfDateOnly(draft.endTime)
+          : draft.endTime || undefined;
+        const startTimeWithZone = toIsoWithOffset(normalizedStartTime);
+        let endTimeWithZone = toIsoWithOffset(normalizedEndTime);
+        if (startTimeWithZone) {
+          const startDate = new Date(startTimeWithZone);
+          const endDate = endTimeWithZone ? new Date(endTimeWithZone) : null;
+          if (
+            !endTimeWithZone ||
+            !endDate ||
+            Number.isNaN(endDate.getTime()) ||
+            endDate < startDate
+          ) {
+            endTimeWithZone = startTimeWithZone;
+          }
+        }
         return {
-          location: draft.location || undefined,
+          location: draft.location === "" ? "" : draft.location || undefined,
           locationLat:
-            draft.locationLat === "" ? undefined : Number(draft.locationLat),
+            draft.useMap && draft.locationLat !== ""
+              ? Number(draft.locationLat)
+              : undefined,
           locationLong:
-            draft.locationLong === "" ? undefined : Number(draft.locationLong),
-          startTime: draft.startTime || undefined,
-          endTime: draft.endTime || undefined,
-          scheduledDate: draft.startTime || undefined,
+            draft.useMap && draft.locationLong !== ""
+              ? Number(draft.locationLong)
+              : undefined,
+          startTime: startTimeWithZone,
+          endTime: endTimeWithZone,
+          startTimeTbc: draft.startTimeTbc,
+          endTimeTbc: draft.endTimeTbc,
+          useMap: draft.useMap,
+          scheduledDate: startTimeWithZone,
         };
+      }
       case 2:
         return {
           hasIndemnity: draft.indemnityAccepted,
@@ -422,11 +322,17 @@ export function CreateMeetModal({
         };
       case 4:
         return {
-          openingDate: draft.openingDate || undefined,
-          closingDate: draft.closingDate || undefined,
-          capacity: draft.capacity === "" ? undefined : Number(draft.capacity),
+          openingDate:
+            draft.openingDate === ""
+              ? null
+              : toIsoWithOffset(draft.openingDate || undefined),
+          closingDate:
+            draft.closingDate === ""
+              ? null
+              : toIsoWithOffset(draft.closingDate || undefined),
+          capacity: draft.capacity === "" ? null : Number(draft.capacity),
           waitlistSize:
-            draft.waitlistSize === "" ? undefined : Number(draft.waitlistSize),
+            draft.waitlistSize === "" ? null : Number(draft.waitlistSize),
           autoPlacement: draft.autoApprove,
           autoPromoteWaitlist: draft.autoCloseWaitlist,
           allowGuests: draft.allowGuests,
@@ -452,6 +358,7 @@ export function CreateMeetModal({
     }
   };
 
+  // Save method for each step
   const handleSaveStep = async (step: number) => {
     if (step === 7 && meetId) {
       if (!state.imageFile) {
@@ -499,39 +406,88 @@ export function CreateMeetModal({
     return true;
   };
 
+  // Save method for last step
+  const handlePublish = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    // Make sure there are no erros before publishing
+    const errors = validateAll(state);
+    if (errors && errors.length > 0) {
+      setSubmitError(
+        "Please fix the following errors before publishing: " +
+          errors.join(", "),
+      );
+      return;
+    }
+    try {
+      // Really should have a meet ID by now (if not something went horribly wrong)
+      if (!meetId) throw new Error("Meet not created yet");
+
+      // If there is no opening date, set it to now to allow opening
+      if (!state.openingDate) {
+        const payload: SaveMeetPayload = {
+          openingDate: toIsoWithOffset(new Date().toISOString()),
+        };
+        await saveMeet(payload, meetId);
+      }
+
+      // If there is no closing date, use the meet start date
+      if (!state.closingDate) {
+        const payload: SaveMeetPayload = {
+          closingDate: toIsoWithOffset(state.startTime || undefined),
+        };
+        await saveMeet(payload, meetId);
+      }
+
+      // Publish the meet
+      await updateStatusAsync({ meetId, statusId: MeetStatusEnum.Published });
+
+      // Clear everything
+      onCreated?.();
+      setState(initialState);
+      setMeetId(null);
+      setShareCode(null);
+      onClose();
+      setActiveStep(0);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to publish meet";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveAndClose = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await handleSaveStep(activeStep);
+      setBaselineState(state);
+      onCreated?.();
+      onClose();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to save changes";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // User clicks "Next"
   const handleNext = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
-    const errors = isLastStep
-      ? validateAllRequired(state)
-      : validateStep(activeStep, state);
-    if (Object.keys(errors).length > 0) {
+    const errors = validateStep(activeStep, state);
+    if (errors && errors.length > 0) {
       setFieldErrors(errors);
       setIsSubmitting(false);
       return;
     }
-    setFieldErrors({});
+    setFieldErrors([]);
     try {
-      if (isLastStep) {
-        if (missingPublishFields.length > 0) {
-          setSubmitError(
-            `Missing required fields: ${missingPublishFields.join(", ")}`
-          );
-          return;
-        }
-        if (!meetId) {
-          throw new Error("Meet not created yet");
-        }
-        await updateStatusAsync({ meetId, statusId: 2 });
-        setState((prev) => ({ ...prev, statusId: 2 }));
-        onCreated?.();
-        setState(initialState);
-        setMeetId(null);
-        setShareCode(null);
-        onClose();
-        setActiveStep(0);
-        return;
-      }
       const didSave = await handleSaveStep(activeStep);
       if (didSave) {
         onCreated?.();
@@ -540,13 +496,14 @@ export function CreateMeetModal({
       setActiveStep((prev) => Math.min(prev + 1, steps.length - 1));
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to save meet";
+        error instanceof Error ? error.message : "Failed to save changes";
       setSubmitError(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // User clicks "Prev"
   const handlePrev = () => {
     if (isDirty) {
       setPendingStep(Math.max(activeStep - 1, 0));
@@ -556,6 +513,7 @@ export function CreateMeetModal({
     setActiveStep((prev) => Math.max(prev - 1, 0));
   };
 
+  // User manually selects step
   const handleStepChange = (target: number) => {
     if (target === activeStep) return;
     if (isDirty) {
@@ -569,6 +527,7 @@ export function CreateMeetModal({
     }
   };
 
+  // Mobile
   const handleTouchStart = (event: React.TouchEvent) => {
     if (!fullScreen) return;
     const touch = event.touches[0];
@@ -589,21 +548,23 @@ export function CreateMeetModal({
     }
   };
 
+  // Close the modal
   const handleCancel = () => {
     if (isDirty) {
       setPendingClose(true);
       setDirtyDialogOpen(true);
       return;
     }
-    setFieldErrors({});
+    setFieldErrors([]);
     onClose();
   };
 
+  // User is shown modal to confirm discarding changes - handles confirm discarding and reset to baselineState
   const confirmDiscard = () => {
     // Revert to last saved state before continuing the pending action
     setState(baselineState);
     setDirtyDialogOpen(false);
-    setFieldErrors({});
+    setFieldErrors([]);
     if (pendingClose) {
       setPendingClose(false);
       onClose();
@@ -618,12 +579,14 @@ export function CreateMeetModal({
     onClose();
   };
 
+  // User wants to keep editing
   const cancelDiscard = () => {
     setDirtyDialogOpen(false);
     setPendingStep(null);
     setPendingClose(false);
   };
 
+  // Main rendering of the current step
   const renderStep = () => {
     if (isLoadingMeet) {
       return (
@@ -632,29 +595,10 @@ export function CreateMeetModal({
     }
     switch (activeStep) {
       case 0: {
-        const organizerOptions: UserOption[] = users.map((u) => {
-          const label =
-            [u.firstName, u.lastName].filter(Boolean).join(" ") ||
-            u.idp_profile?.name ||
-            (u.email ? u.email.split("@")[0] : u.id);
-          return { id: u.id, label };
-        });
-        if (
-          user?.id &&
-          !organizerOptions.some((option) => option.id === user.id)
-        ) {
-          const label =
-            [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-            user.idp_profile?.name ||
-            (user.email ? user.email.split("@")[0] : user.id);
-          organizerOptions.unshift({ id: user.id, label });
-        }
         return (
           <BasicInfoStep
             state={state}
             setState={(fn) => setState(fn)}
-            organizers={organizerOptions}
-            currentUserId={user?.id}
             errors={fieldErrors}
           />
         );
@@ -688,8 +632,10 @@ export function CreateMeetModal({
       case 8:
         return (
           <FinishStep
+            state={state}
+            setState={(fn) => setState(fn)}
+            errors={finalErrors}
             shareCode={shareCode}
-            missingFields={missingPublishFields}
           />
         );
       default:
@@ -782,8 +728,28 @@ export function CreateMeetModal({
                       completed={completedSteps.includes(index + 1)}
                     >
                       <StepLabel
+                        icon={
+                          errorSteps.has(index) ? (
+                            <ErrorIcon
+                              color="error"
+                              sx={{
+                                fontSize: 28,
+                                transform: "translateX(-1px)",
+                              }}
+                            />
+                          ) : (
+                            index + 1
+                          )
+                        }
                         onClick={() => handleStepChange(index)}
-                        sx={{ cursor: "pointer" }}
+                        sx={{
+                          cursor: "pointer",
+                          "& .MuiStepLabel-label": {
+                            color: errorSteps.has(index)
+                              ? "error.main"
+                              : "inherit",
+                          },
+                        }}
                       >
                         {label}
                       </StepLabel>
@@ -829,21 +795,31 @@ export function CreateMeetModal({
                   )}
                   <Button
                     variant="contained"
-                    onClick={handleNext}
+                    onClick={
+                      isLastStep
+                        ? isDraft
+                          ? handlePublish
+                          : handleSaveAndClose
+                        : handleNext
+                    }
                     disabled={
                       isSubmitting ||
                       isLoadingMeet ||
                       isPublishing ||
-                      (isLastStep && missingPublishFields.length > 0)
+                      (finalErrors && finalErrors.length > 0)
                     }
                   >
                     {isLastStep
-                      ? isPublishing
-                        ? "Publishing..."
-                        : "Publish"
+                      ? isDraft
+                        ? isPublishing
+                          ? "Publishing..."
+                          : "Publish"
+                        : isSubmitting
+                          ? "Saving..."
+                          : "Save & Close"
                       : isSubmitting
-                      ? "Saving..."
-                      : "Save & Continue"}
+                        ? "Saving..."
+                        : "Save & Continue"}
                   </Button>
                 </Stack>
               </Box>

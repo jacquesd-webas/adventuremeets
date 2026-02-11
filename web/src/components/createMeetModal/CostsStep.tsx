@@ -17,7 +17,7 @@ export const CostsStep = ({ state, setState }: StepProps) => (
         placeholder="Total cost (e.g. 24.99)"
         value={state.costCents}
         onChange={(e) => setState((prev) => ({ ...prev, costCents: e.target.value === "" ? "" : Number(e.target.value) }))}
-        inputProps={{ step: "0.01", min: 0 }}
+        inputProps={{ step: "0.01", min: 0, "data-testid": "cost-input" }}
         InputProps={{
           startAdornment: <InputAdornment position="start">{getCurrencySymbol(state.currency)}</InputAdornment>
         }}
@@ -30,7 +30,7 @@ export const CostsStep = ({ state, setState }: StepProps) => (
         placeholder="Deposit amount (e.g. 10.00)"
         value={state.depositCents}
         onChange={(e) => setState((prev) => ({ ...prev, depositCents: e.target.value === "" ? "" : Number(e.target.value) }))}
-        inputProps={{ step: "0.01", min: 0 }}
+        inputProps={{ step: "0.01", min: 0, "data-testid": "deposit-input" }}
         InputProps={{
           startAdornment: <InputAdornment position="start">{getCurrencySymbol(state.currency)}</InputAdornment>
         }}

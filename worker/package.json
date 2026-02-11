@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start:dev": "pnpm run build && node dist/main.js",
-    "test": "vitest"
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "vitest --run"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
@@ -14,7 +15,12 @@
     "pg": "^8.11.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "@typescript-eslint/parser": "^8.50.0",
     "@types/node": "^20.9.0",
+    "eslint": "^9.39.2",
+    "globals": "^15.11.0",
     "typescript": "^5.2.2",
     "vitest": "^0.34.6"
   }

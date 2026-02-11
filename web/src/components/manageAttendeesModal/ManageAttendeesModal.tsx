@@ -33,6 +33,7 @@ import { AttendeeActionButtons } from "./AttendeeActionButtons";
 import { DetailSelector } from "./DetailSelector";
 import { AttendeeResponses } from "./AttendeeResponses";
 import { AttendeeMessages } from "./AttendeeMessages";
+import { OrganizerMetaEditDialog } from "./OrganizerMetaEditDialog";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useFetchAttendeeMessages } from "../../hooks/useFetchAttendeeMessages";
@@ -59,11 +60,12 @@ export function ManageAttendeesModal({
   const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
   const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
-    null
+    null,
   );
+  const [showEditMetaDialog, setShowEditMetaDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<AttendeeStatusEnum | null>(
-    null
+    null,
   );
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
@@ -71,15 +73,15 @@ export function ManageAttendeesModal({
     string[] | undefined
   >(undefined);
   const [detailView, setDetailView] = useState<"responses" | "messages">(
-    "responses"
+    "responses",
   );
   const { data: attendeeMessages } = useFetchAttendeeMessages(
     meetId,
-    selectedAttendeeId
+    selectedAttendeeId,
   );
   const hasUnreadMessages = useMemo(
     () => (attendeeMessages || []).some((message) => !message.isRead),
-    [attendeeMessages]
+    [attendeeMessages],
   );
 
   useEffect(() => {
@@ -106,15 +108,15 @@ export function ManageAttendeesModal({
       typeof statusVal === "number"
         ? statusVal
         : statusVal != null
-        ? Number(statusVal)
-        : null;
+          ? Number(statusVal)
+          : null;
     return !Number.isNaN(statusNum || NaN) ? statusNum : null;
   }, [meet]);
 
   const selectedAttendee = useMemo(
     () =>
       attendees.find((attendee) => attendee.id === selectedAttendeeId) || null,
-    [attendees, selectedAttendeeId]
+    [attendees, selectedAttendeeId],
   );
   const attendeeLabel = (attendee: any) =>
     attendee?.name || attendee?.email || attendee?.phone || "Unnamed attendee";
@@ -134,13 +136,37 @@ export function ManageAttendeesModal({
   };
 
   const handleAttendeePaid = async () => {
-    if (!meetId || !selectedAttendeeId) return;
+    if (!meetId || !selectedAttendeeId || !selectedAttendee) return;
+    if (!meet?.costCents && !meet?.depositCents) return;
     setIsUpdating(true);
     try {
+      const now = new Date().toISOString();
+      const hasDeposit = Boolean(selectedAttendee.paidDepositAt);
+      const hasFull = Boolean(selectedAttendee.paidFullAt);
+      const canUseDeposit = Boolean(meet?.depositCents);
+      let paidFullAt: string | null | undefined = undefined;
+      let paidDepositAt: string | null | undefined = undefined;
+
+      if (!canUseDeposit) {
+        paidFullAt = hasFull ? null : now;
+        paidDepositAt = hasFull ? null : undefined;
+      } else {
+        if (hasFull) {
+          paidFullAt = null;
+          paidDepositAt = null;
+        } else if (hasDeposit) {
+          paidFullAt = now;
+          paidDepositAt = undefined;
+        } else {
+          paidDepositAt = now;
+          paidFullAt = undefined;
+        }
+      }
       await updateMeetAttendeeAsync({
         meetId,
         attendeeId: selectedAttendeeId,
-        paidFullAt: new Date().toISOString(),
+        paidFullAt,
+        paidDepositAt,
       });
       await refetch();
     } finally {
@@ -170,11 +196,14 @@ export function ManageAttendeesModal({
         if (status === AttendeeStatusEnum.Waitlisted) acc.waitlisted += 1;
         return acc;
       },
-      { accepted: 0, rejected: 0, waitlisted: 0 }
+      { accepted: 0, rejected: 0, waitlisted: 0 },
     );
   }, [attendees]);
 
   // TODO: Refactor this component into smaller components
+  const isOrganizerSelected = Boolean(
+    selectedAttendee && meet && selectedAttendee.userId === meet.organizerId,
+  );
 
   return (
     <Dialog
@@ -183,13 +212,30 @@ export function ManageAttendeesModal({
       fullWidth
       maxWidth="md"
       fullScreen={fullScreen}
+      sx={{
+        "& .MuiDialog-paper": {
+          mt: 10,
+          minHeight: "85vh",
+        },
+      }}
     >
       <DialogTitle>Manage attendees</DialogTitle>
-      <DialogContent sx={{ pb: 2 }}>
+      <DialogContent
+        sx={{
+          pb: 2,
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={2}
-          sx={{ minHeight: 360 }}
+          sx={{
+            minHeight: 360,
+            height: "100%",
+            flex: 1,
+          }}
         >
           <Paper
             variant="outlined"
@@ -236,6 +282,14 @@ export function ManageAttendeesModal({
                 attendees.map((attendee) => {
                   const label = attendeeLabel(attendee);
                   const subLabel = attendee.email || attendee.phone || "";
+                  const paidLabel = attendee.paidFullAt
+                    ? "Paid"
+                    : attendee.paidDepositAt
+                      ? "Dep"
+                      : null;
+                  const paidColor = attendee.paidFullAt
+                    ? "info.main"
+                    : "secondary.main";
                   const isConfirmed =
                     attendee.status === AttendeeStatusEnum.Confirmed ||
                     attendee.status === AttendeeStatusEnum.Attended ||
@@ -264,6 +318,7 @@ export function ManageAttendeesModal({
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            position: "relative",
                           }}
                         >
                           {isOrganizer ? (
@@ -292,6 +347,28 @@ export function ManageAttendeesModal({
                               color="disabled"
                             />
                           )}
+                          {paidLabel ? (
+                            <Box
+                              component="span"
+                              sx={{
+                                position: "absolute",
+                                top: -4,
+                                right: -6,
+                                px: 0.5,
+                                borderRadius: 999,
+                                border: "1px solid",
+                                borderColor: paidColor,
+                                color: paidColor,
+                                bgcolor: "background.paper",
+                                fontSize: 9,
+                                lineHeight: 1.2,
+                                fontWeight: 700,
+                                letterSpacing: 0.2,
+                              }}
+                            >
+                              {paidLabel}
+                            </Box>
+                          ) : null}
                         </Box>
                       ) : (
                         <Avatar sx={{ width: 32, height: 32, mr: 1.5 }}>
@@ -334,9 +411,7 @@ export function ManageAttendeesModal({
                     </Typography>
                     <Stack direction="row" spacing={1} alignItems="center">
                       {isUpdating && <CircularProgress size={18} />}
-                      {selectedAttendee &&
-                      meet &&
-                      selectedAttendee.userId === meet.organizerId ? (
+                      {isOrganizerSelected ? (
                         <Button variant="outlined" disabled>
                           Organiser
                         </Button>
@@ -344,9 +419,9 @@ export function ManageAttendeesModal({
                         <AttendeeActionButtons
                           attendee={selectedAttendee}
                           onUpdateStatus={handleUpdateStatus}
-                          onPaid={
-                            meet?.costCents ? handleAttendeePaid : undefined
-                          }
+                          onPaid={handleAttendeePaid}
+                          hasAmount={Boolean(meet?.costCents)}
+                          hasDeposit={Boolean(meet?.depositCents)}
                         />
                       )}
                     </Stack>
@@ -378,8 +453,10 @@ export function ManageAttendeesModal({
                         disabled={!selectedAttendee}
                         active={detailView === "messages" ? "mail" : "info"}
                         showUnread={hasUnreadMessages}
+                        showEdit={false}
                         onInfoClick={() => setDetailView("responses")}
                         onMailClick={() => setDetailView("messages")}
+                        onEditClick={undefined}
                       />
                     </Box>
                   </Box>
@@ -400,18 +477,43 @@ export function ManageAttendeesModal({
                 )}
                 <Divider />
                 <Box sx={{ display: "flex", justifyContent: "center" }}>
-                  <Button
-                    variant="outlined"
-                    disabled={!selectedAttendee}
-                    onClick={() => {
-                      setMessageAttendeeIds(
-                        selectedAttendee ? [selectedAttendee.id] : undefined
-                      );
-                      setMessageOpen(true);
-                    }}
-                  >
-                    Message {attendeeLabel(selectedAttendee)}
-                  </Button>
+                  {isOrganizerSelected ? (
+                    detailView === "messages" ? (
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setMessageAttendeeIds(
+                            selectedAttendee
+                              ? [selectedAttendee.id]
+                              : undefined,
+                          );
+                          setMessageOpen(true);
+                        }}
+                      >
+                        Message {attendeeLabel(selectedAttendee)}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outlined"
+                        onClick={() => setShowEditMetaDialog(true)}
+                      >
+                        Edit responses
+                      </Button>
+                    )
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      disabled={!selectedAttendee}
+                      onClick={() => {
+                        setMessageAttendeeIds(
+                          selectedAttendee ? [selectedAttendee.id] : undefined,
+                        );
+                        setMessageOpen(true);
+                      }}
+                    >
+                      Message {attendeeLabel(selectedAttendee)}
+                    </Button>
+                  )}
                 </Box>
               </Stack>
             )}
@@ -460,6 +562,15 @@ export function ManageAttendeesModal({
             setIsUpdating(false);
             await refetch();
           }}
+        />
+      )}
+      {selectedAttendee && meet && meetId && (
+        <OrganizerMetaEditDialog
+          open={showEditMetaDialog}
+          onClose={() => setShowEditMetaDialog(false)}
+          meetId={meetId}
+          attendeeId={selectedAttendee.id}
+          metaValues={selectedAttendee.metaValues || []}
         />
       )}
     </Dialog>

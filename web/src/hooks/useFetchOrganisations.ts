@@ -30,6 +30,10 @@ export function useFetchOrganisations(
   const mapOrganization = (org: any): Organization => ({
     id: org.id,
     name: org.name,
+    isPrivate: org.isPrivate ?? org.is_private ?? undefined,
+    theme: org.theme ?? undefined,
+    canViewAllMeets:
+      org.canViewAllMeets ?? org.can_view_all_meets ?? undefined,
     createdAt: org.createdAt ?? org.created_at,
     updatedAt: org.updatedAt ?? org.updated_at,
     userCount:

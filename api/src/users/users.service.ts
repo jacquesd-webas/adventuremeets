@@ -43,6 +43,7 @@ export class UsersService {
       });
 
       let organizationId = dto.organizationId;
+      let createdPrivateOrganization = false;
       if (!organizationId) {
         // create a new personal organization for this user
         const orgNameBase =
@@ -53,6 +54,7 @@ export class UsersService {
         const createdOrg = await trx("organizations")
           .insert({
             name: orgName,
+            is_private: true,
             created_at: now,
             updated_at: now,
           })
@@ -61,13 +63,14 @@ export class UsersService {
           ? (createdOrg[0] as any).id
           : (createdOrg as any).id;
         organizationId = newOrgId;
+        createdPrivateOrganization = true;
       }
 
       await trx("user_organization_memberships").insert({
         user_id: id,
         organization_id: organizationId,
-        role: "member",
-        role_id: 4,
+        role: createdPrivateOrganization ? "admin" : "member",
+        role_id: createdPrivateOrganization ? 2 : 4,
         status: "active",
         created_at: now,
         updated_at: now,
@@ -108,6 +111,51 @@ export class UsersService {
 
   async findByEmail(email: string) {
     return this.database.getClient()("users").where({ email }).first();
+  }
+
+  async isOrganizationPrivate(organizationId: string): Promise<boolean | null> {
+    const org = await this.database
+      .getClient()("organizations")
+      .where({ id: organizationId })
+      .select("is_private")
+      .first();
+    if (!org) return null;
+    return Boolean(org.is_private);
+  }
+
+  async findByPasswordResetToken(tokenHash: string) {
+    return this.database
+      .getClient()("users")
+      .where({ password_reset_token: tokenHash })
+      .first();
+  }
+
+  async setPasswordResetToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: string
+  ) {
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        password_reset_token: tokenHash,
+        password_reset_expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      });
+  }
+
+  async updatePasswordFromReset(userId: string, password: string) {
+    const passwordHash = await bcrypt.hash(password, 10);
+    await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update({
+        password_hash: passwordHash,
+        password_reset_token: null,
+        password_reset_expires_at: null,
+        updated_at: new Date().toISOString(),
+      });
   }
 
   async isValidAttendee(attendeeId: string) {

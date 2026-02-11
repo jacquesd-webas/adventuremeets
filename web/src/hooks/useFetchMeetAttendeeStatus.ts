@@ -15,16 +15,16 @@ type MeetAttendeeResponse = {
 
 export function useFetchMeetAttendeeStatus(
   meetCode?: string | null,
-  attendeeId?: string | null
+  attendeeId?: string | null,
 ) {
   const api = useApi();
   const query = useQuery({
-    queryKey: ["attendee-status", meetCode, attendeeId],
+    queryKey: ["attendee-status", attendeeId],
     enabled: Boolean(meetCode) && Boolean(attendeeId),
     queryFn: async () => {
       if (!meetCode) return null;
       return api.get<MeetAttendeeResponse>(
-        `/meets/${meetCode}/attendeeStatus/${attendeeId}`
+        `/meets/${meetCode}/attendeeStatus/${attendeeId}`,
       );
     },
   });

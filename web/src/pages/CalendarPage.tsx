@@ -15,7 +15,7 @@ import { useMemo, useState } from "react";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useCurrentOrganization } from "../context/organizationContext";
 import Meet from "../types/MeetModel";
-import { MeetInfoModal } from "../components/MeetInfoModal";
+import { MeetInfoModal } from "../components/meet/MeetInfoModal";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -24,6 +24,9 @@ const startOfMonth = (date: Date) =>
 
 const addMonths = (date: Date, delta: number) =>
   new Date(date.getFullYear(), date.getMonth() + delta, 1);
+
+const startOfDay = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
 const formatKey = (date: Date) => {
   const year = date.getFullYear();
@@ -46,9 +49,17 @@ const getMonthGrid = (monthDate: Date) => {
   return cells;
 };
 
+const chunkWeeks = (cells: Date[]) => {
+  const weeks: Date[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+  return weeks;
+};
+
 const getMonthLabel = (date: Date) =>
   new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(
-    date
+    date,
   );
 
 export default function CalendarPage() {
@@ -65,20 +76,70 @@ export default function CalendarPage() {
     organizationId: currentOrganizationId || "",
   });
 
-  const meetsByDay = useMemo(() => {
-    const map = new Map<string, Meet[]>();
+  const multiDayMeetsByDay = useMemo(() => {
+    const map = new Map<
+      string,
+      Array<{ meet: Meet; renderId: string; weekKey: string }>
+    >();
     meets.forEach((meet) => {
       const start = meet.startTime ? new Date(meet.startTime) : null;
       if (!start || Number.isNaN(start.getTime())) return;
-      const key = formatKey(start);
-      const list = map.get(key) || [];
-      list.push(meet);
-      map.set(key, list);
+
+      const end = meet.endTime ? new Date(meet.endTime) : null;
+      if (!end || Number.isNaN(end.getTime())) return;
+
+      const startDay = startOfDay(start);
+      const endDay = startOfDay(end);
+      if (endDay <= startDay) {
+        return;
+      }
+
+      for (
+        let cursor = new Date(startDay);
+        cursor <= endDay;
+        cursor.setDate(cursor.getDate() + 1)
+      ) {
+        const key = formatKey(cursor);
+        const weekStart = new Date(cursor);
+        weekStart.setDate(cursor.getDate() - cursor.getDay());
+        const weekKey = formatKey(weekStart);
+        const list = map.get(key) || [];
+        const uniqueWeekKey = `${meet.id}-${weekKey}`;
+        list.push({ meet, renderId: uniqueWeekKey, weekKey: uniqueWeekKey });
+        map.set(key, list);
+      }
     });
     return map;
   }, [meets]);
 
+  const singleDayMeetsByDay = useMemo(() => {
+    const map = new Map<string, Meet[]>();
+    meets.forEach((meet) => {
+      const start = meet.startTime ? new Date(meet.startTime) : null;
+      if (!start || Number.isNaN(start.getTime())) return;
+
+      const end = meet.endTime ? new Date(meet.endTime) : null;
+      if (!end || Number.isNaN(end.getTime())) {
+        const key = formatKey(start);
+        const list = map.get(key) || [];
+        list.push(meet);
+        map.set(key, list);
+        return;
+      }
+
+      const startDay = startOfDay(start);
+      const endDay = startOfDay(end);
+      if (endDay <= startDay) {
+        const key = formatKey(startDay);
+        const list = map.get(key) || [];
+        list.push(meet);
+        map.set(key, list);
+      }
+    });
+    return map;
+  }, [meets]);
   const monthCells = useMemo(() => getMonthGrid(currentMonth), [currentMonth]);
+  const weeks = useMemo(() => chunkWeeks(monthCells), [monthCells]);
   const monthLabel = useMemo(() => getMonthLabel(currentMonth), [currentMonth]);
   const monthIndex = currentMonth.getMonth();
 
@@ -89,6 +150,10 @@ export default function CalendarPage() {
     theme.palette.mode === "dark" ? "#2c2c2c" : "rgba(255,255,255,0.8)";
   const notThisMonthColor =
     theme.palette.mode === "dark" ? "#1a1a1a" : "rgba(0,0,0,0.02)";
+  const dayPadding = 6;
+  const headerHeight = 18;
+  const itemRowHeight = 20;
+  const itemRowGap = 4;
 
   return (
     <Box sx={{ flex: 1, overflow: "auto", pt: 0, pb: 3 }}>
@@ -157,103 +222,236 @@ export default function CalendarPage() {
                   </Typography>
                 ))}
               </Box>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(7, 1fr)",
-                  gap: 0.75,
-                }}
-              >
-                {monthCells.map((day) => {
-                  const key = formatKey(day);
-                  const isCurrentMonth = day.getMonth() === monthIndex;
-                  const items = meetsByDay.get(key) || [];
-                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                  const visible = items;
+              <Stack spacing={0.75}>
+                {weeks.map((week, weekIndex) => {
+                  const weekGroups = new Map<
+                    string,
+                    {
+                      minX: number;
+                      maxX: number;
+                      minY: number;
+                      maxY: number;
+                      meet: Meet;
+                    }
+                  >();
+                  const weekDayItems = week.map((day) => {
+                    const key = formatKey(day);
+                    return multiDayMeetsByDay.get(key) || [];
+                  });
+
+                  weekDayItems.forEach((items, dayIndex) => {
+                    items.forEach((item, itemIndex) => {
+                      const group = weekGroups.get(item.weekKey) || {
+                        minX: dayIndex,
+                        maxX: dayIndex,
+                        minY: itemIndex,
+                        maxY: itemIndex,
+                        meet: item.meet,
+                      };
+                      group.minX = Math.min(group.minX, dayIndex);
+                      group.maxX = Math.max(group.maxX, dayIndex);
+                      group.minY = Math.min(group.minY, itemIndex);
+                      group.maxY = Math.max(group.maxY, itemIndex);
+                      weekGroups.set(item.weekKey, group);
+                    });
+                  });
+
                   return (
                     <Box
-                      key={key}
+                      key={`week-${weekIndex}`}
                       sx={{
-                        height: isMobile ? 92 : 120,
-                        borderRadius: 1.5,
-                        border: "1px solid",
-                        borderColor: "divider",
-                        p: 0.75,
-                        backgroundColor: isCurrentMonth
-                          ? isWeekend
-                            ? weekendColor
-                            : thisMonthColor
-                          : notThisMonthColor,
-                        color: isCurrentMonth
-                          ? "text.primary"
-                          : "text.disabled",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 0.4,
-                        overflow: "hidden",
+                        position: "relative",
+                        "--day-padding": `${dayPadding}px`,
+                        "--header-height": `${headerHeight}px`,
+                        "--item-row-height": `${itemRowHeight}px`,
+                        "--item-row-gap": `${itemRowGap}px`,
                       }}
                     >
-                      <Typography
-                        variant="caption"
-                        fontWeight={600}
-                        sx={{ fontSize: "0.7rem" }}
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(7, 1fr)",
+                          gap: 0.75,
+                        }}
                       >
-                        {day.getDate()}
-                      </Typography>
-                      {isLoading ? (
-                        <Typography variant="caption" color="text.secondary">
-                          Loading...
-                        </Typography>
-                      ) : (
-                        <>
-                          {visible.map((meet) => {
-                            const isTruncated = meet.name.length > 26;
-                            const label = isTruncated
-                              ? `${meet.name.slice(0, 16)}...`
-                              : meet.name;
-                            const content = (
+                        {week.map((day, dayIndex) => {
+                          const key = formatKey(day);
+                          const isCurrentMonth = day.getMonth() === monthIndex;
+                          const items = weekDayItems[dayIndex];
+                          const singleDayItems =
+                            singleDayMeetsByDay.get(key) || [];
+                          const isWeekend =
+                            day.getDay() === 0 || day.getDay() === 6;
+                          return (
+                            <Box
+                              key={key}
+                              sx={{
+                                height: isMobile ? 92 : 120,
+                                borderRadius: 1.5,
+                                border: "1px solid",
+                                borderColor: "divider",
+                                backgroundColor: isCurrentMonth
+                                  ? isWeekend
+                                    ? weekendColor
+                                    : thisMonthColor
+                                  : notThisMonthColor,
+                                color: isCurrentMonth
+                                  ? "text.primary"
+                                  : "text.disabled",
+                                overflow: "hidden",
+                              }}
+                            >
                               <Box
                                 sx={{
-                                  px: 0.75,
-                                  py: 0.4,
-                                  borderRadius: 1,
-                                  backgroundColor: theme.palette.primary.main,
-                                  color:
-                                    theme.palette.mode === "dark"
-                                      ? "#222222"
-                                      : theme.palette.primary.contrastText,
-                                  fontSize: "0.62rem",
-                                  lineHeight: 1.2,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  cursor: "pointer",
+                                  height: "100%",
+                                  px: "var(--day-padding)",
+                                  pt: "var(--day-padding)",
+                                  pb: "var(--day-padding)",
+                                  boxSizing: "border-box",
+                                  display: "flex",
+                                  flexDirection: "column",
                                 }}
-                                onClick={() => setSelectedMeet(meet)}
                               >
                                 <Typography
                                   variant="caption"
                                   fontWeight={600}
-                                  sx={{ display: "block" }}
+                                  sx={{
+                                    fontSize: "0.7rem",
+                                    height: "var(--header-height)",
+                                    lineHeight: "var(--header-height)",
+                                  }}
                                 >
-                                  {label}
+                                  {day.getDate()}
                                 </Typography>
+                                <Box sx={{ mt: "var(--item-row-gap)" }}>
+                                  {isLoading ? (
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
+                                    >
+                                      Loading...
+                                    </Typography>
+                                  ) : (
+                                    <>
+                                      {items.map(({ meet, renderId }) => {
+                                        const isTruncated =
+                                          meet.name.length > 26;
+                                        const label = isTruncated
+                                          ? `${meet.name.slice(0, 16)}...`
+                                          : meet.name;
+                                        const content = (
+                                          <Box
+                                            sx={{
+                                              px: 0.75,
+                                              height: "var(--item-row-height)",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              borderRadius: 1,
+                                              backgroundColor:
+                                                theme.palette.primary.main,
+                                              color:
+                                                theme.palette.mode === "dark"
+                                                  ? "#222222"
+                                                  : theme.palette.primary
+                                                      .contrastText,
+                                              fontSize: "0.62rem",
+                                              lineHeight: 1.2,
+                                              whiteSpace: "nowrap",
+                                              overflow: "hidden",
+                                              textOverflow: "ellipsis",
+                                              cursor: "pointer",
+                                            }}
+                                            onClick={() =>
+                                              setSelectedMeet(meet)
+                                            }
+                                          >
+                                            <Typography
+                                              variant="caption"
+                                              fontWeight={600}
+                                              sx={{ display: "block" }}
+                                            >
+                                              {label}
+                                            </Typography>
+                                          </Box>
+                                        );
+                                        return isTruncated ? (
+                                          <Tooltip
+                                            key={renderId}
+                                            title={meet.name}
+                                            arrow
+                                          >
+                                            {content}
+                                          </Tooltip>
+                                        ) : (
+                                          <Box key={renderId}>{content}</Box>
+                                        );
+                                      })}
+                                      {singleDayItems.map((meet) => {
+                                        const isTruncated =
+                                          meet.name.length > 26;
+                                        const label = isTruncated
+                                          ? `${meet.name.slice(0, 16)}...`
+                                          : meet.name;
+                                        const content = (
+                                          <Box
+                                            sx={{
+                                              px: 0.75,
+                                              height: "var(--item-row-height)",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              borderRadius: 1,
+                                              backgroundColor:
+                                                theme.palette.primary.main,
+                                              color:
+                                                theme.palette.mode === "dark"
+                                                  ? "#222222"
+                                                  : theme.palette.primary
+                                                      .contrastText,
+                                              fontSize: "0.62rem",
+                                              lineHeight: 1.2,
+                                              whiteSpace: "nowrap",
+                                              overflow: "hidden",
+                                              textOverflow: "ellipsis",
+                                              cursor: "pointer",
+                                            }}
+                                            onClick={() =>
+                                              setSelectedMeet(meet)
+                                            }
+                                          >
+                                            <Typography
+                                              variant="caption"
+                                              fontWeight={600}
+                                              sx={{ display: "block" }}
+                                            >
+                                              {label}
+                                            </Typography>
+                                          </Box>
+                                        );
+                                        return isTruncated ? (
+                                          <Tooltip
+                                            key={meet.id}
+                                            title={meet.name}
+                                            arrow
+                                          >
+                                            {content}
+                                          </Tooltip>
+                                        ) : (
+                                          <Box key={meet.id}>{content}</Box>
+                                        );
+                                      })}
+                                    </>
+                                  )}
+                                </Box>
                               </Box>
-                            );
-                            return isTruncated ? (
-                              <Tooltip key={meet.id} title={meet.name} arrow>
-                                {content}
-                              </Tooltip>
-                            ) : (
-                              <Box key={meet.id}>{content}</Box>
-                            );
-                          })}
-                        </>
-                      )}
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                      {/* Week span overlays intentionally hidden for now */}
                     </Box>
                   );
                 })}
-              </Box>
+              </Stack>
             </Paper>
           )}
         </Stack>

@@ -21,6 +21,8 @@ import { RegisterDto } from "./dto/register.dto";
 import { GoogleAuthUrlDto } from "./dto/google-auth-url.dto";
 import { GoogleAuthCodeDto } from "./dto/google-auth-code.dto";
 import { GoogleIdTokenDto } from "./dto/google-id-token.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
 
 @ApiTags("Auth")
 @Controller("auth")
@@ -53,6 +55,18 @@ export class AuthController {
   }
 
   @Public()
+  @Get("register/organization")
+  async registerOrganizationCheck(
+    @Query("organizationId") organizationId?: string
+  ) {
+    if (!organizationId) {
+      throw new BadRequestException("organizationId is required");
+    }
+    await this.authService.ensureOrganizationJoinable(organizationId);
+    return { allowed: true };
+  }
+
+  @Public()
   @Get("google/url")
   async googleUrl(@Query() query: GoogleAuthUrlDto) {
     const url = await this.authService.getGoogleAuthUrl(
@@ -78,6 +92,20 @@ export class AuthController {
   @Post("refresh")
   async refresh(@Body() dto: RefreshDto): Promise<TokenPair> {
     return this.authService.refresh(dto);
+  }
+
+  @Public()
+  @Post("password/forgot")
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.requestPasswordReset(dto.email);
+    return { ok: true };
+  }
+
+  @Public()
+  @Post("password/reset")
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.password);
+    return { ok: true };
   }
 
   @ApiBearerAuth()

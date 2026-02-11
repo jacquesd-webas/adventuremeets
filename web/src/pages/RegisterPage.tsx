@@ -9,37 +9,54 @@ import {
   Typography,
   Alert,
 } from "@mui/material";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { useEffect, useRef, useState } from "react";
 import ReCAPTCHA from "react-google-recaptcha";
 import { useRegister } from "../hooks/useRegister";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AuthSocialButtons } from "../components/AuthSocialButtons";
-import { EmailField } from "../components/meetSignup/EmailField";
+import { AuthSocialButtons } from "../components/auth/AuthSocialButtons";
+import { EmailField } from "../components/formFields/EmailField";
 import {
-  InternationalPhoneField,
   buildInternationalPhone,
-  getDefaultPhoneCountry,
-} from "../components/meetSignup/InternationalPhoneField";
-import { getLocaleDefaults } from "../helpers/locale";
+  InternationalPhoneField,
+} from "../components/formFields/InternationalPhoneField";
+import { PasswordField } from "../components/formFields/PasswordField";
+import { PasswordStrength } from "../components/formFields/PasswordStrength";
+import { useCheckEmailExists } from "../hooks/useCheckEmailExists";
+import { validateEmail, validatePhone, validateRequired } from "../helpers/validation";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
+import zxcvbn from "zxcvbn";
+
+const getPasswordStrength = (value: string) => {
+  if (!value) return { score: 0, label: "Enter a password" };
+  const result = zxcvbn(value);
+  const score = result.score; // 0-4
+  const label =
+    score <= 1
+      ? "Weak"
+      : score === 2
+        ? "Fair"
+        : score === 3
+          ? "Good"
+          : "Strong";
+  return { score, label };
+};
 
 function RegisterPage() {
   const location = useLocation();
   const prefillApplied = useRef(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState(() => {
-    const localeCountry = getLocaleDefaults().countryCode;
-    return getDefaultPhoneCountry(localeCountry);
-  });
-  const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState("");
+  const [phoneLocal, setPhoneLocal] = useState("");
   const [password, setPassword] = useState("");
   const [organizationId, setOrganizationId] = useState("");
+  const [organizationInviteError, setOrganizationInviteError] = useState<
+    string | null
+  >(null);
   const [pendingMeetLink, setPendingMeetLink] = useState<{
     attendeeId: string;
     shareCode: string;
@@ -48,21 +65,45 @@ function RegisterPage() {
     null | "google" | "microsoft" | "facebook" | "email"
   >(null);
   const { registerAsync, isLoading, error } = useRegister();
+  const { checkEmailExistsAsync } = useCheckEmailExists();
   const api = useApi();
   const nav = useNavigate();
   const { refreshSession } = useAuth();
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const logoSrc = getLogoSrc();
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
     | string
     | undefined;
+  const recaptchaDisabled = import.meta.env.VITE_RECAPTCHA_DISABLE === "true";
   const captchaRequired =
-    Boolean(recaptchaSiteKey) && !pendingMeetLink?.attendeeId;
+    Boolean(recaptchaSiteKey) &&
+    !recaptchaDisabled &&
+    !pendingMeetLink?.attendeeId;
   const shouldShowCaptchaWarning =
     !recaptchaSiteKey && !pendingMeetLink?.attendeeId;
+  const passwordStrength = getPasswordStrength(password);
+  const passwordStrengthPercent = Math.round(
+    (passwordStrength.score / 4) * 100,
+  );
+  const isFormValid =
+    firstName.trim() !== "" &&
+    lastName.trim() !== "" &&
+    phoneLocal.trim() !== "" &&
+    email.trim() !== "" &&
+    password.trim() !== "" &&
+    passwordStrength.score > 1 &&
+    (!captchaRequired || Boolean(captchaToken)) &&
+    !emailError &&
+    !phoneError &&
+    !firstNameError &&
+    !lastNameError &&
+    !organizationInviteError;
   const chooseMethod = (
-    method: null | "google" | "microsoft" | "facebook" | "email"
+    method: null | "google" | "microsoft" | "facebook" | "email",
   ) => {
     setSelectedMethod(method);
     setCaptchaToken(null);
@@ -74,8 +115,6 @@ function RegisterPage() {
       firstName?: string;
       lastName?: string;
       email?: string;
-      phoneCountry?: string;
-      phoneLocal?: string;
       organizationId?: string;
       meetId?: string;
       shareCode?: string;
@@ -85,8 +124,6 @@ function RegisterPage() {
       state.firstName ||
       state.lastName ||
       state.email ||
-      state.phoneCountry ||
-      state.phoneLocal ||
       state.organizationId ||
       state.shareCode ||
       state.attendeeId
@@ -94,10 +131,6 @@ function RegisterPage() {
       setFirstName(state.firstName || "");
       setLastName(state.lastName || "");
       setEmail(state.email || "");
-      if (state.phoneCountry) {
-        setPhoneCountry(state.phoneCountry);
-      }
-      setPhoneLocal(state.phoneLocal || "");
       setOrganizationId(state.organizationId || "");
       if (state.shareCode && state.attendeeId) {
         setPendingMeetLink({
@@ -134,16 +167,50 @@ function RegisterPage() {
     };
   }, [location.search]);
 
+  useEffect(() => {
+    let isActive = true;
+    const checkOrganizationInvite = async () => {
+      if (!organizationId) {
+        setOrganizationInviteError(null);
+        return;
+      }
+      try {
+        await api.get<{ allowed: boolean }>(
+          `/auth/register/organization?organizationId=${encodeURIComponent(
+            organizationId,
+          )}`,
+        );
+        if (isActive) {
+          setOrganizationInviteError(null);
+        }
+      } catch (err: any) {
+        if (!isActive) return;
+        if (err?.status === 403 || err?.status === 404) {
+          setOrganizationInviteError("Invalid organisation invitation link");
+        } else {
+          setOrganizationInviteError("Invalid organisation invitation link");
+        }
+      }
+    };
+    checkOrganizationInvite();
+    return () => {
+      isActive = false;
+    };
+  }, [api, organizationId]);
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (captchaRequired && !captchaToken) {
       return;
     }
+    if (organizationInviteError) {
+      return;
+    }
     registerAsync({
       firstName,
       lastName,
-      phone: buildInternationalPhone(phoneCountry, phoneLocal),
       email,
+      phone: buildInternationalPhone(phoneCountry, phoneLocal),
       password,
       organizationId: organizationId || undefined,
       captchaToken: captchaToken || undefined,
@@ -153,27 +220,42 @@ function RegisterPage() {
         await refreshSession();
         if (pendingMeetLink) {
           nav(
-            `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
+            `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`,
           );
         } else {
           nav("/");
         }
       })
       .catch((err) => {
-        console.error("Registration failed", err);
+        console.warn("Registration failed", err);
       });
   };
 
   const checkEmail = async () => {
     const value = email.trim();
     if (!value) {
-      setEmailError(null);
+      setEmailError(validateEmail(value));
       return;
     }
-    const res = await api.get<{ exists: boolean }>(
-      `/auth/register/check?email=${encodeURIComponent(value)}`
-    );
+    const formatError = validateEmail(value);
+    if (formatError) {
+      setEmailError(formatError);
+      return;
+    }
+    const res = await checkEmailExistsAsync(value);
     setEmailError(res.exists ? "This email is already registered." : null);
+  };
+
+  const checkPhone = () => {
+    setPhoneError(validatePhone(phoneLocal));
+  };
+
+  const checkFirstName = () => {
+    setFirstNameError(validateRequired(firstName, "First name"));
+  };
+
+  const checkLastName = () => {
+    setLastNameError(validateRequired(lastName, "Last name"));
   };
 
   return (
@@ -186,19 +268,28 @@ function RegisterPage() {
         py: 8,
       }}
     >
-      <Box sx={{ textAlign: "center", mb: 4 }}>
-        <img
-          src={logoSrc}
-          alt="AdventureMeets logo"
-          width={320}
-          height="auto"
-        />
-      </Box>
+      {(!selectedMethod || selectedMethod !== "email") && (
+        <Box sx={{ textAlign: "center", mb: 4 }}>
+          <img
+            src={logoSrc}
+            alt="AdventureMeets logo"
+            width={320}
+            height="auto"
+          />
+        </Box>
+      )}
 
       <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
-        <Typography variant="h5" mb={2}>
-          Create account
-        </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Typography variant="h5">Create account</Typography>
+        </Box>
         {!selectedMethod && (
           <AuthSocialButtons showEmail onSelect={chooseMethod} />
         )}
@@ -219,13 +310,30 @@ function RegisterPage() {
                 {error.message}
               </Alert>
             )}
-            <Box component="form" onSubmit={handleSubmit}>
-              <Stack spacing={2}>
+            {organizationInviteError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {organizationInviteError}
+              </Alert>
+            )}
+            <Box component="form" onSubmit={handleSubmit} noValidate>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr",
+                  gap: 2,
+                }}
+              >
                 <TextField
                   label="First name"
                   required
                   value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    if (firstNameError) setFirstNameError(null);
+                  }}
+                  onBlur={checkFirstName}
+                  error={Boolean(firstNameError)}
+                  helperText={firstNameError || undefined}
                   InputProps={{
                     startAdornment: (
                       <PersonOutlineIcon
@@ -239,7 +347,13 @@ function RegisterPage() {
                   label="Last name"
                   required
                   value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    if (lastNameError) setLastNameError(null);
+                  }}
+                  onBlur={checkLastName}
+                  error={Boolean(lastNameError)}
+                  helperText={lastNameError || undefined}
                   InputProps={{
                     startAdornment: (
                       <PersonOutlineIcon
@@ -255,32 +369,42 @@ function RegisterPage() {
                   country={phoneCountry}
                   local={phoneLocal}
                   onCountryChange={setPhoneCountry}
-                  onLocalChange={setPhoneLocal}
+                  onLocalChange={(value) => {
+                    setPhoneLocal(value);
+                    if (phoneError) {
+                      setPhoneError(null);
+                    }
+                  }}
+                  onBlur={checkPhone}
+                  error={Boolean(phoneError)}
+                  helperText={phoneError || undefined}
                 />
                 <EmailField
                   required
                   value={email}
-                  onChange={(value) => setEmail(value)}
+                  onChange={(value) => {
+                    setEmail(value);
+                    if (emailError) {
+                      setEmailError(null);
+                    }
+                  }}
                   onBlur={checkEmail}
+                  error={Boolean(emailError)}
+                  helperText={emailError || undefined}
                 />
-                {emailError && <Alert severity="warning">{emailError}</Alert>}
-                <TextField
+                <PasswordField
                   label="Password"
-                  type="password"
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <LockOutlinedIcon
-                        fontSize="small"
-                        sx={{ mr: 1, color: "text.disabled" }}
-                      />
-                    ),
-                  }}
+                  onValueChange={setPassword}
+                />
+                <PasswordStrength
+                  label={passwordStrength.label}
+                  percent={passwordStrengthPercent}
+                  score={passwordStrength.score}
                 />
                 {captchaRequired ? (
-                  <Box display="flex" justifyContent="center">
+                  <Box display="flex" justifyContent="center" sx={{ mt: -1 }}>
                     <ReCAPTCHA
                       sitekey={recaptchaSiteKey}
                       onChange={(token) => setCaptchaToken(token)}
@@ -288,7 +412,7 @@ function RegisterPage() {
                     />
                   </Box>
                 ) : shouldShowCaptchaWarning ? (
-                  <Alert severity="warning">
+                  <Alert severity="warning" sx={{ mt: -1 }}>
                     reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
                     enable.
                   </Alert>
@@ -298,24 +422,26 @@ function RegisterPage() {
                   variant="contained"
                   size="large"
                   sx={{ textTransform: "uppercase" }}
-                  disabled={
-                    Boolean(emailError) ||
-                    (captchaRequired && !captchaToken) ||
-                    isLoading
-                  }
+                  disabled={!isFormValid || isLoading}
                 >
                   {isLoading ? "Creating..." : "Create account"}
                 </Button>
-                <Button variant="text" onClick={() => chooseMethod(null)}>
-                  Choose another method
-                </Button>
-              </Stack>
+              </Box>
             </Box>
           </>
         )}
 
         <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
           <Link href="/login">Already have an account?</Link>
+          {selectedMethod === "email" && (
+            <Link
+              component="button"
+              type="button"
+              onClick={() => chooseMethod(null)}
+            >
+              Choose another method
+            </Link>
+          )}
         </Stack>
       </Paper>
     </Container>

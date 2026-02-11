@@ -28,6 +28,7 @@ import { CreateMeetDto } from "./dto/create-meet.dto";
 import { MeetDto } from "./dto/meet.dto";
 import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetStatusDto } from "./dto/update-meet-status.dto";
+import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Public } from "../auth/decorators/public.decorator";
@@ -154,6 +155,20 @@ export class MeetsController {
   }
 
   @Public()
+  @Get(":code/attendee/:attendeeId([0-9a-fA-F-]{36})")
+  async findAttendeeForEdit(
+    @Param("code") code: string,
+    @Param("attendeeId") attendeeId: string
+  ) {
+    const attendee = await this.meetsService.findAttendeeForEdit(
+      code,
+      attendeeId
+    );
+    if (!attendee) throw new NotFoundException("Meet attendee not found");
+    return attendee;
+  }
+
+  @Public()
   @Patch(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
   async withdrawAttendee(
     @Param("code") code: string,
@@ -162,6 +177,19 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(code);
     return this.meetsService.updateAttendee(meet.id, attendeeId, {
       status: "cancelled",
+    });
+  }
+
+  @Public()
+  @Patch(":code/attendee/:attendeeId([0-9a-fA-F-]{36})")
+  async updateAttendeeByCode(
+    @Param("code") code: string,
+    @Param("attendeeId") attendeeId: string,
+    @Body() dto: UpdateMeetAttendeeDto
+  ) {
+    const meet = await this.meetsService.findOne(code);
+    return this.meetsService.updateAttendee(meet.id, attendeeId, dto, {
+      resetCancelledToPending: true,
     });
   }
 

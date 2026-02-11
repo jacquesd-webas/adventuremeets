@@ -17,11 +17,12 @@ import {
 } from "@mui/material";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
+import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import { useMemo, useState, MouseEvent } from "react";
+import { useMemo, useState, MouseEvent, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { ProfileModal } from "../components/ProfileModal";
+import { ProfileModal } from "../components/profile/ProfileModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
@@ -29,6 +30,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { ChooseOrganizationModal } from "../components/auth/ChooseOrganizationModal";
+import {
+  getAllowedThemeModes,
+  getOrganizationBackground,
+} from "../helpers/organizationTheme";
 
 const navItems = [
   { label: "Dashboard", path: "/" },
@@ -43,18 +48,26 @@ function MainLayout() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [adminAnchorEl, setAdminAnchorEl] = useState<null | HTMLElement>(null);
   const [orgModalOpen, setOrgModalOpen] = useState(false);
+  const [baseMode, setBaseMode] = useState<"light" | "dark">(() => {
+    const stored =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("themeBaseMode")
+        : null;
+    if (stored === "dark") return "dark";
+    return "light";
+  });
 
   const { user } = useAuth();
   const { currentOrganizationId, organizationIds, currentOrganizationRole } =
     useCurrentOrganization();
   const { data: organization } = useFetchOrganization(
-    currentOrganizationId || undefined
+    currentOrganizationId || undefined,
   );
   const [profileOpen, setProfileOpen] = useState(false);
-  const { mode, toggleMode } = useThemeMode();
+  const { mode, setMode } = useThemeMode();
   const queryClient = useQueryClient();
   const isAdmin = Boolean(
-    user?.organizations && Object.values(user.organizations).includes("admin")
+    user?.organizations && Object.values(user.organizations).includes("admin"),
   );
   const isCurrentOrgAdmin = currentOrganizationRole === "admin";
 
@@ -109,12 +122,72 @@ function MainLayout() {
     nav("/login");
   };
 
-  const handleToggleMode = () => {
-    toggleMode();
+  const allowedThemeModes = useMemo(
+    () => getAllowedThemeModes(organization?.theme),
+    [organization?.theme],
+  );
+
+  const canLight = allowedThemeModes.includes("light");
+  const canDark = allowedThemeModes.includes("dark");
+  const canGlass = allowedThemeModes.includes("glass");
+
+  const resolveNextBaseMode = (current: "light" | "dark") => {
+    if (canLight && canDark) {
+      return current === "dark" ? "light" : "dark";
+    }
+    if (canDark) return "dark";
+    return "light";
+  };
+
+  const handleToggleLightDark = () => {
+    const currentBase =
+      mode === "glass" ? baseMode : mode === "dark" ? "dark" : "light";
+    const nextBase = resolveNextBaseMode(currentBase);
+    setBaseMode(nextBase);
+    window.localStorage.setItem("themeBaseMode", nextBase);
+    setMode(nextBase);
     handleMenuClose();
   };
 
-  const logoSrc = getLogoSrc(mode);
+  const handleToggleGlass = () => {
+    if (!canGlass) return;
+    if (mode === "glass") {
+      setMode(baseMode);
+    } else {
+      setMode("glass");
+    }
+    handleMenuClose();
+  };
+
+  const logoSrc = getLogoSrc(mode, organization?.theme);
+
+  useEffect(() => {
+    const { image, color } = getOrganizationBackground(
+      mode,
+      organization?.theme,
+    );
+    document.body.style.backgroundColor = color;
+    document.body.style.backgroundImage = `url("${image}")`;
+    document.body.setAttribute("data-theme-base", baseMode);
+    if (organization?.theme) {
+      document.body.setAttribute("data-org-theme", organization.theme);
+    } else {
+      document.body.removeAttribute("data-org-theme");
+    }
+  }, [mode, organization?.theme, baseMode]);
+
+  useEffect(() => {
+    if (!allowedThemeModes.includes(mode)) {
+      setMode(allowedThemeModes[0]);
+    }
+  }, [allowedThemeModes, mode, setMode]);
+
+  useEffect(() => {
+    if (mode === "light" || mode === "dark") {
+      setBaseMode(mode);
+      window.localStorage.setItem("themeBaseMode", mode);
+    }
+  }, [mode]);
 
   return (
     <Box
@@ -181,12 +254,27 @@ function MainLayout() {
                 variant="outlined"
                 color="primary"
                 size="small"
+                data-testid="organization-switcher-button"
                 sx={{
                   mr: 2,
                   maxWidth: 240,
                   textTransform: "none",
                   fontWeight: 600,
                   justifyContent: "flex-start",
+                  ...(theme.palette.mode === "light"
+                    ? {
+                        borderColor: "#000000",
+                        color: "#000000",
+                        "&:hover": {
+                          borderColor: "#000000",
+                          backgroundColor: "rgba(0, 0, 0, 0.06)",
+                        },
+                        "&.Mui-focusVisible": {
+                          outline: "2px solid #000000",
+                          outlineOffset: 2,
+                        },
+                      }
+                    : {}),
                 }}
               >
                 <Typography variant="body2" noWrap>
@@ -201,6 +289,7 @@ function MainLayout() {
                 onClick={handleAvatarClick}
                 size="small"
                 sx={{ ml: 2 }}
+                data-testid="account-menu-button"
               >
                 <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
               </IconButton>
@@ -211,16 +300,33 @@ function MainLayout() {
               onClose={handleMenuClose}
               transformOrigin={{ vertical: "top", horizontal: "right" }}
             >
-              <MenuItem onClick={handleToggleMode}>
-                <ListItemIcon>
-                  {mode === "light" ? (
-                    <DarkModeIcon fontSize="small" />
-                  ) : (
-                    <LightModeIcon fontSize="small" />
-                  )}
-                </ListItemIcon>
-                {mode === "light" ? "Dark mode" : "Light mode"}
-              </MenuItem>
+              {(canLight || canDark) && (
+                <MenuItem
+                  onClick={handleToggleLightDark}
+                  disabled={!canLight || !canDark}
+                >
+                  <ListItemIcon>
+                    {(mode === "glass" ? baseMode : mode) === "dark" ? (
+                      <LightModeIcon fontSize="small" />
+                    ) : (
+                      <DarkModeIcon fontSize="small" />
+                    )}
+                  </ListItemIcon>
+                  {(mode === "glass" ? baseMode : mode) === "dark"
+                    ? "Light mode"
+                    : "Dark mode"}
+                </MenuItem>
+              )}
+              {canGlass && (
+                <MenuItem onClick={handleToggleGlass}>
+                  <ListItemIcon>
+                    <ViewDayOutlinedIcon fontSize="small" />
+                  </ListItemIcon>
+                  {mode === "glass"
+                    ? "Disable glass mode"
+                    : "Enable glass mode"}
+                </MenuItem>
+              )}
               <MenuItem onClick={handleProfile}>
                 <ListItemIcon>
                   <PersonOutlineIcon fontSize="small" />

@@ -54,6 +54,28 @@ export async function seed(knex: Knex): Promise<void> {
   }
 
   const membershipRows = insertedUsers.flatMap((user) => {
+    if (user.email === "alice@nowhere.com") {
+      return [
+        {
+          user_id: user.id,
+          organization_id: org1,
+          role: "admin",
+          role_id: 2,
+          status: "active",
+          created_at: now,
+          updated_at: now
+        },
+        {
+          user_id: user.id,
+          organization_id: org2,
+          role: "admin",
+          role_id: 2,
+          status: "active",
+          created_at: now,
+          updated_at: now
+        }
+      ];
+    }
     if (user.email === "bob@nowhere.com") {
       return [
         {
@@ -84,8 +106,8 @@ export async function seed(knex: Knex): Promise<void> {
       {
         user_id: user.id,
         organization_id: org1,
-        role: user.email === "alice@nowhere.com" ? "organizer" : "member",
-        role_id: user.email === "alice@nowhere.com" ? 3 : 4,
+        role: "member",
+        role_id: 4,
         status: "active",
         created_at: now,
         updated_at: now

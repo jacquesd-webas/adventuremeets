@@ -2,9 +2,9 @@ import { Typography, Paper, Stack, Button, Box } from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { useMemo, useState } from "react";
 import { Heading } from "../components/Heading";
-import { MeetStatus } from "../components/MeetStatus";
-import { MeetActionsMenu } from "../components/MeetActionsMenu";
-import { MeetActionsDialogs } from "../components/MeetActionsDialogs";
+import { MeetStatus } from "../components/meet/MeetStatus";
+import { MeetActionsMenu } from "../components/meet/MeetActionsMenu";
+import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { defaultPendingAction } from "../helpers/defaultPendingAction";
 import { MeetActionsEnum } from "../types/MeetActionsEnum";
@@ -16,7 +16,7 @@ import PlaceIcon from "@mui/icons-material/Place";
 function ListPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<MeetActionsEnum | null>(
-    null
+    null,
   );
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
@@ -115,7 +115,7 @@ function ListPage() {
         ),
       },
     ],
-    [setPendingAction, setSelectedMeetId, user?.id]
+    [setPendingAction, setSelectedMeetId, user?.id],
   );
 
   return (

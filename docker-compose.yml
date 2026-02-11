@@ -77,32 +77,28 @@ services:
       - ./env/development.env
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-adventuremeets}@${DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME:-adventuremeets}
-      DB_HOST: db
-      MINIO_ENDPOINT: minio
-      MINIO_PORT: 9000
-      API_PORT: ${API_PORT:-3000}
+    ports:
+      - "${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
       minio:
         condition: service_started
-    ports:
-      - "${API_PORT:-3000}:3000"
-    command: ["npm", "run", "start"]
-
+    command: [ "node", "dist/main.js" ]
+    
   web:
     build:
       context: .
       dockerfile: ./web/Dockerfile
       args:
-        VITE_API_BASEURL: http://localhost:${API_PORT:-3000}
+        VITE_API_BASEURL: http://localhost:${API_PORT:-8000}
     env_file:
       - ./env/base.env
       - ./env/development.env
     depends_on:
       - api
     ports:
-      - "${WEB_PORT:-5173}:80"
+      - "${WEB_PORT:-3000}:80"
 
   worker:
     build:

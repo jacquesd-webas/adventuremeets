@@ -14,7 +14,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import { useState } from "react";
 import { useLogin } from "../hooks/useLogin";
 import { useNavigate } from "react-router-dom";
-import { AuthSocialButtons } from "../components/AuthSocialButtons";
+import { AuthSocialButtons } from "../components/auth/AuthSocialButtons";
 import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
 
@@ -113,7 +113,7 @@ function LoginPage() {
 
         <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
           <Link href="/register">Create Account</Link>
-          <Link href="#">Forgot password?</Link>
+          <Link href="/forgot-password">Forgot password?</Link>
         </Stack>
       </Paper>
     </Container>

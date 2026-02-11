@@ -56,6 +56,15 @@ vi.mock("../ConfirmClosedStatusDialog", () => ({
     open ? <div>Confirm dialog</div> : null,
 }));
 
+vi.mock("../../../hooks/useNotistack", () => ({
+  useNotistack: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  }),
+}));
+
 describe("ManageAttendeesModal", () => {
   beforeAll(() => {
     Object.defineProperty(window, "matchMedia", {

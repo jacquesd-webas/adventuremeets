@@ -76,7 +76,7 @@ export function LoginForm({
           variant="contained"
           size="large"
           sx={{ textTransform: "uppercase" }}
-          disabled={isLoading}
+          disabled={isLoading || !email.trim() || !password.trim()}
         >
           {isLoading ? "Logging in..." : submitLabel}
         </Button>

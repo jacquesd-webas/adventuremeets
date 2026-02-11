@@ -18,14 +18,14 @@ import {
 } from "@mui/material";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { MeetNotFound } from "../components/MeetNotFound";
-import { MeetStatus } from "../constants/meetStatus";
+import { MeetNotFound } from "../components/meet/MeetNotFound";
+import { MeetStatusEnum } from "../types/MeetStatusEnum";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { useAddAttendee } from "../hooks/useAddAttendee";
 import { useCheckMeetAttendee } from "../hooks/useCheckMeetAttendee";
 import { useApi } from "../hooks/useApi";
-import { MeetSignupDuplicateDialog } from "../components/meetSignup/MeetSignupDuplicateDialog";
-import { MeetSignupSubmitted } from "../components/meetSignup/MeetSignupSubmitted";
+import { MeetSignupDuplicateDialog } from "../components/meet/MeetSignupDuplicateDialog";
+import { MeetSignupSubmitted } from "../components/meet/MeetSignupSubmitted";
 import { useMeetSignupSheetState } from "./MeetSignupSheetState";
 import { getLocaleDefaults } from "../helpers/locale";
 import {
@@ -33,16 +33,26 @@ import {
   buildInternationalPhone,
   getDefaultPhoneCountry,
   splitInternationalPhone,
-} from "../components/meetSignup/InternationalPhoneField";
-import { EmailField } from "../components/meetSignup/EmailField";
-import { MeetInfoSummary } from "../components/MeetInfoSummary";
-import { NameField } from "../components/meetSignup/NameField";
-import { PreviewBanner } from "../components/PreviewBanner";
+} from "../components/formFields/InternationalPhoneField";
+import { EmailField } from "../components/formFields/EmailField";
+import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
+import { NameField } from "../components/formFields/NameField";
+import { PreviewBanner } from "../components/meet/PreviewBanner";
 import { LoginForm } from "../components/auth/LoginForm";
-import { MeetStatusAlert } from "../components/MeetStatusAlert";
+import { MeetStatusAlert } from "../components/meet/MeetStatusAlert";
 import { useAuth } from "../context/authContext";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
-import { MeetSignupUserAction } from "../components/MeetSignupUserAction";
+import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
+import { useThemeMode } from "../context/ThemeModeContext";
+import { getOrganizationBackground } from "../helpers/organizationTheme";
+import { useFetchMeetAttendeeEdit } from "../hooks/useFetchMeetAttendeeEdit";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  validateEmail,
+  validatePhone,
+  validateRequired,
+} from "../helpers/validation";
 
 function LabeledField({
   label,
@@ -69,6 +79,9 @@ type MeetSignupFormProps = {
   email: string;
   phoneCountry: string;
   phoneLocal: string;
+  nameError?: string | null;
+  emailError?: string | null;
+  phoneError?: string | null;
   disableIdentityFields: boolean;
   disablePhone: boolean;
   wantsGuests: boolean;
@@ -77,8 +90,13 @@ type MeetSignupFormProps = {
   indemnityAccepted: boolean;
   isSubmitDisabled: boolean;
   isSubmitting: boolean;
+  isEditing: boolean;
   onSubmit: () => void;
+  onCancelEdit?: () => void;
   onCheckDuplicate: () => void;
+  onNameBlur: () => void;
+  onEmailBlur: () => void;
+  onPhoneBlur: () => void;
   setField: (key: string, value: any) => void;
   setMetaValue: (key: string, value: any) => void;
   setPhoneCountry: (value: string) => void;
@@ -91,6 +109,9 @@ function MeetSignupFormFields({
   email,
   phoneCountry,
   phoneLocal,
+  nameError,
+  emailError,
+  phoneError,
   disableIdentityFields,
   disablePhone,
   wantsGuests,
@@ -99,8 +120,12 @@ function MeetSignupFormFields({
   indemnityAccepted,
   isSubmitDisabled,
   isSubmitting,
+  isEditing,
   onSubmit,
-  onCheckDuplicate,
+  onCancelEdit,
+  onNameBlur,
+  onEmailBlur,
+  onPhoneBlur,
   setField,
   setMetaValue,
   setPhoneCountry,
@@ -113,6 +138,9 @@ function MeetSignupFormFields({
           required
           value={fullName}
           onChange={(value) => setField("fullName", value)}
+          onBlur={onNameBlur}
+          error={Boolean(nameError)}
+          helperText={nameError || undefined}
           disabled={disableIdentityFields}
         />
       </LabeledField>
@@ -121,7 +149,10 @@ function MeetSignupFormFields({
           required
           value={email}
           onChange={(value) => setField("email", value)}
-          onBlur={onCheckDuplicate}
+          onBlur={onEmailBlur}
+          error={Boolean(emailError)}
+          helperText={emailError || undefined}
+          hideLabel
           disabled={disableIdentityFields}
         />
       </LabeledField>
@@ -138,7 +169,10 @@ function MeetSignupFormFields({
             setPhoneLocal(value);
             setField("phone", buildInternationalPhone(phoneCountry, value));
           }}
-          onBlur={onCheckDuplicate}
+          onBlur={onPhoneBlur}
+          error={Boolean(phoneError)}
+          helperText={phoneError || undefined}
+          hideLabel
           disabled={disablePhone}
         />
       </LabeledField>
@@ -175,7 +209,7 @@ function MeetSignupFormFields({
                     <MenuItem key={idx} value={idx}>
                       {idx}
                     </MenuItem>
-                  )
+                  ),
                 )}
               </TextField>
             </LabeledField>
@@ -183,10 +217,10 @@ function MeetSignupFormFields({
         </Stack>
       )}
       {(meet.metaDefinitions || []).map((field: any) => {
-        const key = field.field_key;
+        const key = field.fieldKey;
         const value = metaValues[key];
 
-        if (field.field_type === "checkbox" || field.field_type === "switch") {
+        if (field.fieldType === "checkbox" || field.fieldType === "switch") {
           return (
             <FormControlLabel
               key={field.id}
@@ -201,7 +235,7 @@ function MeetSignupFormFields({
           );
         }
 
-        if (field.field_type === "select") {
+        if (field.fieldType === "select") {
           const options = Array.isArray(field.config?.options)
             ? field.config.options
             : [];
@@ -235,7 +269,7 @@ function MeetSignupFormFields({
             required={field.required}
           >
             <TextField
-              type={field.field_type === "number" ? "number" : "text"}
+              type={field.fieldType === "number" ? "number" : "text"}
               value={
                 typeof value === "number" || typeof value === "string"
                   ? value
@@ -244,9 +278,9 @@ function MeetSignupFormFields({
               onChange={(e) =>
                 setMetaValue(
                   key,
-                  field.field_type === "number" && e.target.value !== ""
+                  field.fieldType === "number" && e.target.value !== ""
                     ? Number(e.target.value)
-                    : e.target.value
+                    : e.target.value,
                 )
               }
               fullWidth
@@ -254,14 +288,14 @@ function MeetSignupFormFields({
           </LabeledField>
         );
       })}
-      {meet.requiresIndemnity && (
+      {meet.hasIndemnity && (
         <Stack spacing={1} mt={2}>
           <Alert
             severity="warning"
             icon={false}
             sx={{ whiteSpace: "pre-line" }}
           >
-            {meet.indemnityText || "Indemnity details not provided."}
+            {meet.indemnity || "Indemnity details not provided."}
           </Alert>
           <FormControlLabel
             control={
@@ -276,24 +310,55 @@ function MeetSignupFormFields({
           />
         </Stack>
       )}
-      <Stack direction="row" justifyContent="center" pt={2}>
-        <Button
-          variant="contained"
-          disabled={isSubmitting || isSubmitDisabled}
-          onClick={onSubmit}
-        >
-          Submit application
-        </Button>
+      <Stack direction="row" justifyContent="center" pt={2} spacing={2}>
+        {isEditing ? (
+          <>
+            <Button variant="outlined" onClick={onCancelEdit}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              disabled={isSubmitting || isSubmitDisabled}
+              onClick={onSubmit}
+            >
+              Update
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="contained"
+            disabled={isSubmitting || isSubmitDisabled}
+            onClick={onSubmit}
+          >
+            Submit application
+          </Button>
+        )}
       </Stack>
     </Stack>
   );
 }
 
 function MeetSignupSheet() {
-  const { code } = useParams<{ code: string }>();
+  const { code, attendeeId: attendeeIdParam } = useParams<{
+    code: string;
+    attendeeId?: string;
+  }>();
   const [searchParams] = useSearchParams();
   const isPreview = searchParams.get("preview") === "true";
+  const action = searchParams.get("action");
+  const editAttendeeId = attendeeIdParam || searchParams.get("attendeeId");
+  const isEditing =
+    Boolean(editAttendeeId) &&
+    (action === "edit" || searchParams.has("attendeeId"));
   const { data: meet, isLoading } = useFetchMeetSignup(code);
+  const { attendee: editAttendee, refetch: refetchEditAttendee } =
+    useFetchMeetAttendeeEdit(
+      isEditing ? code : null,
+      isEditing ? editAttendeeId : null,
+    );
+  const { data: organization } = useFetchOrganization(
+    meet?.organizationId || undefined,
+  );
   const { state, setField, setMetaValue, resetState } =
     useMeetSignupSheetState();
   const { addAttendeeAsync, isLoading: isSubmitting } = useAddAttendee();
@@ -301,12 +366,15 @@ function MeetSignupSheet() {
   const api = useApi();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const { mode } = useThemeMode();
   const { user, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const suppressAutofillRef = useRef(false);
   const metaAutofillRef = useRef(false);
+  const editPrefillRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedAttendeeId, setSubmittedAttendeeId] = useState<string | null>(
-    null
+    null,
   );
   const [existingAttendee, setExistingAttendee] = useState<{
     id: string;
@@ -322,6 +390,9 @@ function MeetSignupSheet() {
     phone: string;
   } | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const {
     indemnityAccepted,
     fullName,
@@ -366,7 +437,7 @@ function MeetSignupSheet() {
     }
     const byKey = new Map(userMetaValues.map((item) => [item.key, item.value]));
     (meet.metaDefinitions || []).forEach((field: any) => {
-      const key = field.field_key;
+      const key = field.fieldKey;
       const existingValue = metaValues[key];
       if (
         existingValue !== undefined &&
@@ -377,11 +448,11 @@ function MeetSignupSheet() {
       }
       const raw = byKey.get(key);
       if (raw === undefined) return;
-      if (field.field_type === "checkbox" || field.field_type === "switch") {
+      if (field.fieldType === "checkbox" || field.fieldType === "switch") {
         setMetaValue(key, raw === "true");
         return;
       }
-      if (field.field_type === "number") {
+      if (field.fieldType === "number") {
         const parsed = Number(raw);
         if (!Number.isNaN(parsed)) {
           setMetaValue(key, parsed);
@@ -408,12 +479,112 @@ function MeetSignupSheet() {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!editAttendee || editPrefillRef.current) return;
+    if (!meet) return;
+    editPrefillRef.current = true;
+    suppressAutofillRef.current = true;
+    metaAutofillRef.current = true;
+    setExistingAttendee({ id: editAttendee.id });
+    setLastCheckedContact({
+      email: editAttendee.email ?? "",
+      phone: editAttendee.phone ?? "",
+    });
+    if (editAttendee.name) {
+      setField("fullName", editAttendee.name);
+    }
+    if (editAttendee.email) {
+      setField("email", editAttendee.email);
+    }
+    if (editAttendee.phone) {
+      const parsed = splitInternationalPhone(editAttendee.phone);
+      setPhoneCountry(parsed.country);
+      setPhoneLocal(parsed.local);
+      setField("phone", buildInternationalPhone(parsed.country, parsed.local));
+    }
+    const guests = Number(editAttendee.guests || 0);
+    setField("wantsGuests", guests > 0);
+    setField("guestCount", guests);
+    if (editAttendee.indemnityAccepted !== undefined) {
+      setField("indemnityAccepted", Boolean(editAttendee.indemnityAccepted));
+    }
+    const valuesByKey = new Map(
+      (editAttendee.metaValues || []).map((item) => [
+        item.fieldKey,
+        item.value,
+      ]),
+    );
+    (meet.metaDefinitions || []).forEach((field: any) => {
+      const raw = valuesByKey.get(field.fieldKey);
+      if (raw === undefined || raw === null) return;
+      if (field.fieldType === "checkbox" || field.fieldType === "switch") {
+        setMetaValue(field.fieldKey, raw === "true");
+        return;
+      }
+      if (field.fieldType === "number") {
+        const parsed = Number(raw);
+        if (!Number.isNaN(parsed)) {
+          setMetaValue(field.fieldKey, parsed);
+        }
+        return;
+      }
+      setMetaValue(field.fieldKey, raw);
+    });
+  }, [
+    editAttendee,
+    meet,
+    setField,
+    setMetaValue,
+    setPhoneCountry,
+    setPhoneLocal,
+  ]);
+
+  useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previous;
     };
   }, []);
+
+  useEffect(() => {
+    const previousBackgroundColor = document.body.style.backgroundColor;
+    const previousBackgroundImage = document.body.style.backgroundImage;
+    const previousOrgTheme = document.body.getAttribute("data-org-theme");
+    const previousThemeBase = document.body.getAttribute("data-theme-base");
+
+    const resolvedBase =
+      mode === "glass"
+        ? window.localStorage.getItem("themeBaseMode") || "light"
+        : mode;
+    const { image, color } = getOrganizationBackground(
+      mode,
+      organization?.theme,
+    );
+    document.body.style.backgroundColor = color;
+    document.body.style.backgroundImage = `url("${image}")`;
+    document.body.setAttribute("data-theme-base", resolvedBase);
+
+    if (organization?.theme) {
+      document.body.setAttribute("data-org-theme", organization.theme);
+    } else {
+      document.body.removeAttribute("data-org-theme");
+    }
+
+    return () => {
+      document.body.style.backgroundColor = previousBackgroundColor;
+      document.body.style.backgroundImage = previousBackgroundImage;
+      if (previousOrgTheme) {
+        document.body.setAttribute("data-org-theme", previousOrgTheme);
+      } else {
+        document.body.removeAttribute("data-org-theme");
+      }
+      if (previousThemeBase) {
+        document.body.setAttribute("data-theme-base", previousThemeBase);
+      } else {
+        document.body.removeAttribute("data-theme-base");
+      }
+    };
+  }, [mode, organization?.theme]);
 
   const handleLogout = () => {
     suppressAutofillRef.current = true;
@@ -431,7 +602,7 @@ function MeetSignupSheet() {
     setSubmittedAttendeeId(null);
   };
 
-  const isOpenMeet = meet?.statusId === MeetStatus.Open;
+  const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
 
   if (!isLoading && !meet) {
     return <MeetNotFound />;
@@ -475,6 +646,8 @@ function MeetSignupSheet() {
             meetId={meet?.id}
             attendeeId={submittedAttendeeId || undefined}
             shareCode={code}
+            isOrganizationPrivate={organization?.isPrivate}
+            isPreview={isPreview}
           />
         </Box>
       </Box>
@@ -483,9 +656,9 @@ function MeetSignupSheet() {
 
   const requiredMetaMissing = (meet?.metaDefinitions || []).some((field) => {
     if (!field.required) return false;
-    const key = field.field_key;
+    const key = field.fieldKey;
     const value = metaValues[key];
-    if (field.field_type === "checkbox" || field.field_type === "switch") {
+    if (field.fieldType === "checkbox" || field.fieldType === "switch") {
       return value !== true;
     }
     return value === undefined || value === null || value === "";
@@ -496,11 +669,35 @@ function MeetSignupSheet() {
     !fullName.trim() ||
     !email.trim() ||
     !phoneLocal.trim() ||
+    Boolean(nameError) ||
+    Boolean(emailError) ||
+    Boolean(phoneError) ||
     requiredMetaMissing ||
-    (meet?.requiresIndemnity && !indemnityAccepted);
+    (meet?.hasIndemnity && !indemnityAccepted);
+
+  const handleNameBlur = () => {
+    setNameError(validateRequired(fullName, "Name"));
+  };
+
+  const handleEmailBlur = () => {
+    const formatError = validateEmail(email);
+    setEmailError(formatError);
+    if (!formatError) {
+      checkForDuplicate();
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    const error = validatePhone(phoneLocal);
+    setPhoneError(error);
+    if (!error) {
+      checkForDuplicate();
+    }
+  };
 
   const checkForDuplicate = async () => {
     if (!meet) return;
+    if (isEditing) return;
     const trimmedEmail = email.trim();
     const trimmedPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!trimmedEmail && !trimmedPhone) return;
@@ -523,26 +720,10 @@ function MeetSignupSheet() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!meet) return;
-    if (isPreview) {
-      setSubmitted(true);
-      return;
-    }
-    const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
-    const check = await checkAttendeeAsync({
-      meetId: meet.id,
-      email,
-      phone: fullPhone,
-    });
-    if (check.attendee) {
-      setExistingAttendee({ id: check.attendee.id });
-      setShowDuplicateModal(true);
-      return;
-    }
-    const metaPayload = (meet.metaDefinitions || [])
+  const buildMetaPayload = () =>
+    (meet?.metaDefinitions || [])
       .map((field) => {
-        const key = field.field_key;
+        const key = field.fieldKey;
         const value = metaValues[key];
         if (value === undefined || value === null || value === "") {
           return null;
@@ -550,8 +731,33 @@ function MeetSignupSheet() {
         return { definitionId: field.id, value: String(value) };
       })
       .filter((value): value is { definitionId: string; value: string } =>
-        Boolean(value)
+        Boolean(value),
       );
+
+  const handleSubmit = async () => {
+    if (!meet) return;
+    if (isPreview) {
+      setSubmitted(true);
+      return;
+    }
+    if (isEditing && existingAttendee) {
+      await handleUpdate();
+      return;
+    }
+    const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
+    if (!isEditing) {
+      const check = await checkAttendeeAsync({
+        meetId: meet.id,
+        email,
+        phone: fullPhone,
+      });
+      if (check.attendee) {
+        setExistingAttendee({ id: check.attendee.id });
+        setShowDuplicateModal(true);
+        return;
+      }
+    }
+    const metaPayload = buildMetaPayload();
     const res = await addAttendeeAsync({
       meetId: meet.id,
       name: fullName,
@@ -569,17 +775,41 @@ function MeetSignupSheet() {
   const handleUpdate = async () => {
     if (!meet || !existingAttendee) return;
     const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
-    await api.patch(`/meets/${meet.id}/attendees/${existingAttendee.id}`, {
+    const metaPayload = buildMetaPayload();
+    const payload = {
       name: fullName,
       email,
       phone: fullPhone,
       guests: wantsGuests ? guestCount : 0,
       indemnityAccepted: indemnityAccepted,
       indemnityMinors: "",
-    });
+      metaValues: metaPayload,
+    };
+    if (editAttendeeId && code) {
+      // TODO: move this to hook
+      await api.patch(`/meets/${code}/attendee/${existingAttendee.id}`, {
+        ...payload,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["attendee-edit", editAttendeeId],
+      });
+    } else {
+      await api.patch(
+        `/meets/${meet.id}/attendees/${existingAttendee.id}`,
+        payload,
+      );
+    }
+    if (editAttendeeId) {
+      refetchEditAttendee();
+    }
     setSubmittedAttendeeId(existingAttendee.id);
     setShowDuplicateModal(false);
     setSubmitted(true);
+  };
+
+  const handleCancelEdit = () => {
+    if (!code || !editAttendeeId) return;
+    window.location.href = `/meets/${code}/${editAttendeeId}`;
   };
 
   const handleRemove = async () => {
@@ -641,6 +871,9 @@ function MeetSignupSheet() {
                   email={email}
                   phoneCountry={phoneCountry}
                   phoneLocal={phoneLocal}
+                  nameError={nameError}
+                  emailError={emailError}
+                  phoneError={phoneError}
                   disableIdentityFields={disableIdentityFields}
                   disablePhone={disablePhone}
                   wantsGuests={wantsGuests}
@@ -649,8 +882,15 @@ function MeetSignupSheet() {
                   indemnityAccepted={indemnityAccepted}
                   isSubmitDisabled={isSubmitDisabled}
                   isSubmitting={isSubmitting}
+                  isEditing={isEditing}
                   onSubmit={handleSubmit}
-                  onCheckDuplicate={checkForDuplicate}
+                  onCancelEdit={handleCancelEdit}
+                  onCheckDuplicate={
+                    isEditing ? () => undefined : checkForDuplicate
+                  }
+                  onNameBlur={handleNameBlur}
+                  onEmailBlur={handleEmailBlur}
+                  onPhoneBlur={handlePhoneBlur}
                   setField={setField}
                   setMetaValue={setMetaValue}
                   setPhoneCountry={setPhoneCountry}

@@ -3,6 +3,7 @@ import Meet from "../../types/MeetModel";
 import { MeetCard } from "./MeetCard";
 import { useAuth } from "../../context/authContext";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
+import { defaultPendingAction } from "../../helpers/defaultPendingAction";
 
 type MeetColumnProps = {
   title: string;
@@ -55,7 +56,10 @@ export function MeetColumn({
               meet={meet}
               isOrganizer={meet.organizerId === user?.id}
               statusLabel={getStatusLabel(meet.statusId, statusFallback)}
-              onClick={() => {}}
+              onClick={() => {
+                setSelectedMeetId(meet.id);
+                setPendingAction(defaultPendingAction(meet.statusId));
+              }}
               setSelectedMeetId={setSelectedMeetId}
               setPendingAction={setPendingAction}
             />

@@ -19,7 +19,19 @@ build:
 	$(COMPOSE) build
 
 test:
+	@echo Running linters...
+	cd api @@ pnpm lint
+	cd web && pnpm lint
+	cd worker && pnpm lint
+	@echo Testing build...
+	cd api && pnpm build
+	cd web && pnpm build
+	cd worker && pnpm build
+	@echo Running tests...
 	cd api && pnpm test
+	cd web && pnpm test
+	cd worker && pnpm test
+	
 
 down:
 	$(COMPOSE) down

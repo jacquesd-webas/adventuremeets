@@ -12,6 +12,8 @@ import OrganisationsPage from "./pages/OrganisationsPage";
 import MembersPage from "./pages/MembersPage";
 import UsersPage from "./pages/UsersPage";
 import TemplatesPage from "./pages/TemplatesPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 function App() {
   return (
@@ -35,6 +37,8 @@ function App() {
       <Route path="/meets/:code/:attendeeId" element={<AttendeeStatusPage />} />
       <Route path="/meets/:code" element={<MeetSignupSheet />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

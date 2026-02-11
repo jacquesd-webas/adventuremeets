@@ -2,9 +2,56 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSnackbar } from "notistack";
 import { useApi } from "./useApi";
 
+export type CreateMeetPayload = {
+  name: string;
+  description: string;
+  organizerId: string;
+  organizationId: string;
+  location?: string;
+  locationLat?: number;
+  locationLong?: number;
+  startTime?: string;
+  startTimeTbc?: boolean;
+  endTime?: string;
+  endTimeTbc?: boolean;
+  useMap?: boolean;
+  openingDate?: string | null;
+  closingDate?: string | null;
+  scheduledDate?: string;
+  confirmDate?: string;
+  capacity?: number | null;
+  waitlistSize?: number | null;
+  statusId?: number;
+  autoPlacement?: boolean;
+  autoPromoteWaitlist?: boolean;
+  allowGuests?: boolean;
+  maxGuests?: number;
+  isVirtual?: boolean;
+  accessLink?: string;
+  confirmMessage?: string;
+  rejectMessage?: string;
+  waitlistMessage?: string;
+  allowMinorIndemnity?: boolean;
+  currencyCode?: string;
+  costCents?: number;
+  depositCents?: number;
+  hasIndemnity?: boolean;
+  indemnity?: string;
+  metaDefinitions?: {
+    id?: string;
+    fieldKey: string;
+    label: string;
+    fieldType: string;
+    required?: boolean;
+    config?: Record<string, any>;
+  }[];
+};
+
+export type SaveMeetPayload = Partial<CreateMeetPayload>;
+
 type SaveMeetArgs = {
   meetId?: string | null;
-  payload: Record<string, any>;
+  payload: SaveMeetPayload;
 };
 
 export function useSaveMeet(defaultMeetId?: string | null) {
@@ -35,8 +82,8 @@ export function useSaveMeet(defaultMeetId?: string | null) {
   });
 
   const save = async (
-    payload: Record<string, any>,
-    meetIdOverride?: string | null
+    payload: SaveMeetPayload,
+    meetIdOverride?: string | null,
   ) => {
     const result = await mutation.mutateAsync({
       meetId: meetIdOverride ?? defaultMeetId,
