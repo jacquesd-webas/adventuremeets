@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import { ProfileModal } from "../ProfileModal";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 let mockedOrganization: Record<string, any> = {
   id: "org-1",
@@ -85,6 +86,13 @@ vi.mock("../../../hooks/useNotistack", () => ({
 }));
 
 describe("ProfileModal", () => {
+  const renderWithQueryClient = (ui: React.ReactElement) => {
+    const queryClient = new QueryClient();
+    return render(
+      <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    );
+  };
+
   beforeEach(() => {
     mockedOrganization = {
       id: "org-1",
@@ -95,7 +103,7 @@ describe("ProfileModal", () => {
   });
 
   it("renders and allows section navigation", () => {
-    render(<ProfileModal open onClose={vi.fn()} />);
+    renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
 
     expect(
       screen.getByRole("heading", { name: "Personal details" }),
@@ -113,7 +121,7 @@ describe("ProfileModal", () => {
 
   it("calls onClose when close is clicked", () => {
     const onClose = vi.fn();
-    render(<ProfileModal open onClose={onClose} />);
+    renderWithQueryClient(<ProfileModal open onClose={onClose} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -126,7 +134,7 @@ describe("ProfileModal", () => {
       isPrivate: true,
     };
 
-    render(<ProfileModal open onClose={vi.fn()} />);
+    renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Organisation" }));
 
     expect(
