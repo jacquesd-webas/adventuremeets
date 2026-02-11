@@ -69,15 +69,13 @@ export class MeetAttendeesController {
     if (dto.email) {
       const meet = await this.meetsService.findOne(meetId);
       if (meet?.shareCode) {
-        const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173")
-          .replace(/\/+$/, "");
+        const frontendUrl = (
+          process.env.FRONTEND_URL || "http://localhost:5173"
+        ).replace(/\/+$/, "");
         const statusUrl = `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`;
         const { subject, text, html } = renderEmailTemplate("meet-signup", {
           meetName: meet.name,
           attendeeName: dto.name ?? undefined,
-          startTime: meet.startTime,
-          endTime: meet.endTime,
-          location: meet.location,
           statusUrl,
           organizerName: meet.organizerName,
           organizerEmail: meet.organizerEmail,
