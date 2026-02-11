@@ -92,6 +92,18 @@ export const ORGANIZATION_THEMES: OrganizationTheme[] = [
     backgroundColorLight: "#e6f0f6",
     backgroundColorDark: "#1b2730",
   },
+  {
+    name: "Original",
+    canLight: true,
+    canDark: true,
+    canGlass: false,
+    backgroundLight: "background-original.png",
+    backgroundDark: "background-original-dark.png",
+    logoLight: "adventuremeets-logo.svg",
+    logoDark: "adventuremeets-logo-dark.svg",
+    backgroundColorLight: "#f7f8fb",
+    backgroundColorDark: "#0b1220",
+  },
 ];
 
 export const DEFAULT_ORGANIZATION_THEME = ORGANIZATION_THEMES[0];
