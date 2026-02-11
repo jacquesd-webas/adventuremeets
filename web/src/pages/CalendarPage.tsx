@@ -155,7 +155,6 @@ export default function CalendarPage() {
   const itemRowHeight = 20;
   const itemRowGap = 4;
 
-  console.log({ multiDayMeetsByDay, singleDayMeetsByDay });
   return (
     <Box sx={{ flex: 1, overflow: "auto", pt: 0, pb: 3 }}>
       <Container maxWidth="xl">
@@ -255,8 +254,6 @@ export default function CalendarPage() {
                       group.maxY = Math.max(group.maxY, itemIndex);
                       weekGroups.set(item.weekKey, group);
                     });
-
-                    console.log({ weekDayItems, weekGroups });
                   });
 
                   return (
@@ -337,59 +334,58 @@ export default function CalendarPage() {
                                   ) : (
                                     <>
                                       {items.map(({ meet, renderId }) => {
-                                          const isTruncated =
-                                            meet.name.length > 26;
-                                          const label = isTruncated
-                                            ? `${meet.name.slice(0, 16)}...`
-                                            : meet.name;
-                                          const content = (
-                                            <Box
-                                              sx={{
-                                                px: 0.75,
-                                                height:
-                                                  "var(--item-row-height)",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                borderRadius: 1,
-                                                backgroundColor:
-                                                  theme.palette.primary.main,
-                                                color:
-                                                  theme.palette.mode === "dark"
-                                                    ? "#222222"
-                                                    : theme.palette.primary
-                                                        .contrastText,
-                                                fontSize: "0.62rem",
-                                                lineHeight: 1.2,
-                                                whiteSpace: "nowrap",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                cursor: "pointer",
-                                              }}
-                                              onClick={() =>
-                                                setSelectedMeet(meet)
-                                              }
+                                        const isTruncated =
+                                          meet.name.length > 26;
+                                        const label = isTruncated
+                                          ? `${meet.name.slice(0, 16)}...`
+                                          : meet.name;
+                                        const content = (
+                                          <Box
+                                            sx={{
+                                              px: 0.75,
+                                              height: "var(--item-row-height)",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              borderRadius: 1,
+                                              backgroundColor:
+                                                theme.palette.primary.main,
+                                              color:
+                                                theme.palette.mode === "dark"
+                                                  ? "#222222"
+                                                  : theme.palette.primary
+                                                      .contrastText,
+                                              fontSize: "0.62rem",
+                                              lineHeight: 1.2,
+                                              whiteSpace: "nowrap",
+                                              overflow: "hidden",
+                                              textOverflow: "ellipsis",
+                                              cursor: "pointer",
+                                            }}
+                                            onClick={() =>
+                                              setSelectedMeet(meet)
+                                            }
+                                          >
+                                            <Typography
+                                              variant="caption"
+                                              fontWeight={600}
+                                              sx={{ display: "block" }}
                                             >
-                                              <Typography
-                                                variant="caption"
-                                                fontWeight={600}
-                                                sx={{ display: "block" }}
-                                              >
-                                                {label}
-                                              </Typography>
-                                            </Box>
-                                          );
-                                          return isTruncated ? (
-                                            <Tooltip
-                                              key={renderId}
-                                              title={meet.name}
-                                              arrow
-                                            >
-                                              {content}
-                                            </Tooltip>
-                                          ) : (
-                                            <Box key={renderId}>{content}</Box>
-                                          );
-                                        })}
+                                              {label}
+                                            </Typography>
+                                          </Box>
+                                        );
+                                        return isTruncated ? (
+                                          <Tooltip
+                                            key={renderId}
+                                            title={meet.name}
+                                            arrow
+                                          >
+                                            {content}
+                                          </Tooltip>
+                                        ) : (
+                                          <Box key={renderId}>{content}</Box>
+                                        );
+                                      })}
                                       {singleDayItems.map((meet) => {
                                         const isTruncated =
                                           meet.name.length > 26;
