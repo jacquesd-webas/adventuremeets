@@ -17,7 +17,6 @@ body {
 body {
   margin: 0;
   background-color: #f7f8fb;
-  background-image: url("/static/background-diving.png");
   background-repeat: no-repeat;
   background-position: center top;
   background-size: cover;
@@ -27,13 +26,11 @@ body {
 body[data-theme="dark"] {
   color: #e2e8f0;
   background-color: #0b1220;
-  background-image: url("/static/background-diving-dark.png");
 }
 
 body[data-theme="glass"] {
   color: #0f172a;
   background-color: #f7f8fb;
-  background-image: url("/static/background-diving.png");
 }
 body[data-theme="glass"][data-theme-base="dark"] {
   color: #e2e8f0;
