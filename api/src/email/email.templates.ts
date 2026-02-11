@@ -1,18 +1,24 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 export type EmailTemplateName =
   | "password-reset"
   | "password-reset-confirmation"
-  | "meet-signup";
+  | "meet-signup"
+  | "verify-email";
 
 export type PasswordResetTemplateVars = {
   resetUrl: string;
 };
 
+export type VerifyEmailTemplateVars = {
+  verificationCode: string;
+  expiresIn: string;
+};
+
 export type MeetSignupTemplateVars = {
   meetName: string;
   attendeeName?: string;
-  startTime?: string;
-  endTime?: string;
-  location?: string;
   statusUrl?: string;
   organizerName?: string;
   organizerEmail?: string;
@@ -21,28 +27,92 @@ export type MeetSignupTemplateVars = {
 const BRAND_NAME = "AdventureMeets";
 const SUPPORT_EMAIL = "support@fringecoding.com";
 const PRIMARY_COLOR = "#0f172a";
+const SECONDARY_COLOR = "#475569";
+const FROM_NAME = "AdventureMeets";
+
+const baseVarsMap = {
+  brand: BRAND_NAME,
+  supportEmail: SUPPORT_EMAIL,
+  primaryColor: PRIMARY_COLOR,
+  secondaryColor: SECONDARY_COLOR,
+  fromName: FROM_NAME,
+};
 
 const getFrontendUrl = () =>
   (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
-const getLogoUrl = () =>
-  `${getFrontendUrl()}/static/adventuremeets-logo.png`;
+const getLogoUrl = () => `${getFrontendUrl()}/static/adventuremeets-logo.png`;
+
+const templateCache = new Map<string, string>();
+
+const loadTemplate = (name: EmailTemplateName, ext: "html" | "txt") => {
+  const key = `${name}.${ext}`;
+  const cached = templateCache.get(key);
+  if (cached) return cached;
+  const filePath = join(__dirname, "templates", key);
+  const contents = readFileSync(filePath, "utf8");
+  templateCache.set(key, contents);
+  return contents;
+};
+
+const renderTemplate = (
+  name: EmailTemplateName,
+  ext: "html" | "txt",
+  vars: Record<string, string>,
+  flags?: Record<string, boolean>,
+) => {
+  let template = loadTemplate(name, ext);
+  const withFlags = flags || {};
+  Object.keys(withFlags).forEach((flag) => {
+    const on = withFlags[flag];
+    const open = `{{#${flag}}}`;
+    const close = `{{/${flag}}}`;
+    if (on) {
+      template = template.split(open).join("").split(close).join("");
+    } else {
+      const regex = new RegExp(`${open}[\\s\\S]*?${close}`, "g");
+      template = template.replace(regex, "");
+    }
+  });
+  Object.entries(vars).forEach(([key, value]) => {
+    template = template.split(`{{${key}}}`).join(value);
+  });
+  return template.replace(/\n{3,}/g, "\n\n").trim();
+};
+
+const textToHtmlParagraphs = (text: string) => {
+  const lines = text.split("\n");
+  const paragraphs: string[] = [];
+  let buffer: string[] = [];
+  const flush = () => {
+    if (buffer.length === 0) return;
+    const content = escapeHtml(buffer.join(" ").trim());
+    if (content) {
+      paragraphs.push(`<p style="margin:0 0 16px 0;">${content}</p>`);
+    }
+    buffer = [];
+  };
+  lines.forEach((line) => {
+    if (!line.trim()) {
+      flush();
+    } else {
+      buffer.push(line.trim());
+    }
+  });
+  flush();
+  return paragraphs.join("");
+};
 
 function wrapHtml(content: string) {
-  const brand = BRAND_NAME;
   const logoUrl = getLogoUrl();
-  const primary = PRIMARY_COLOR;
-  const supportEmail = SUPPORT_EMAIL;
 
   const logoBlock = logoUrl
     ? `<div style="text-align:center;margin-bottom:24px;">
-        <img src="${logoUrl}" alt="${brand} logo" style="max-width:180px;height:auto;" />
+        <img src="${logoUrl}" logo" alt="${BRAND_NAME} logo" style="max-width:180px;height:auto;" />
       </div>`
-    : `<div style="text-align:center;margin-bottom:24px;">
-        <div style="font-size:20px;font-weight:700;color:${primary};">${brand}</div>
-      </div>`;
+    : "";
 
-  const supportBlock = supportEmail
-    ? `<p style="margin:24px 0 0 0;font-size:13px;color:#64748b;">Need help? Contact <a href="mailto:${supportEmail}">${supportEmail}</a>.</p>`
+  const supportBlock = SUPPORT_EMAIL
+    ? `<p style="margin:24px 0 0 0;font-size:13px;color:#64748b;">Need help? Contact <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p>`
     : "";
 
   return `<!doctype html>
@@ -50,7 +120,7 @@ function wrapHtml(content: string) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${brand}</title>
+    <title>${BRAND_NAME}</title>
   </head>
   <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
     <div style="max-width:600px;margin:0 auto;padding:32px 20px;">
@@ -59,7 +129,7 @@ function wrapHtml(content: string) {
         ${content}
       </div>
       ${supportBlock}
-      <p style="margin:16px 0 0 0;font-size:12px;color:#94a3b8;">© ${new Date().getFullYear()} ${brand}</p>
+      <p style="margin:16px 0 0 0;font-size:12px;color:#94a3b8;">© ${new Date().getFullYear()} ${BRAND_NAME}</p>
     </div>
   </body>
 </html>`;
@@ -67,42 +137,33 @@ function wrapHtml(content: string) {
 
 export function renderEmailTemplate(
   name: "password-reset",
-  vars: PasswordResetTemplateVars
+  vars: PasswordResetTemplateVars,
 ): { subject: string; text: string; html: string };
-export function renderEmailTemplate(
-  name: "password-reset-confirmation"
-): { subject: string; text: string; html: string };
+export function renderEmailTemplate(name: "password-reset-confirmation"): {
+  subject: string;
+  text: string;
+  html: string;
+};
 export function renderEmailTemplate(
   name: "meet-signup",
-  vars: MeetSignupTemplateVars
+  vars: MeetSignupTemplateVars,
 ): { subject: string; text: string; html: string };
 export function renderEmailTemplate(
   name: EmailTemplateName,
-  vars?: PasswordResetTemplateVars | MeetSignupTemplateVars
+  vars?: PasswordResetTemplateVars | MeetSignupTemplateVars,
 ) {
-  const brand = BRAND_NAME;
-
   if (name === "password-reset") {
     const resetVars = vars as PasswordResetTemplateVars | undefined;
     if (!resetVars?.resetUrl) {
       throw new Error("Missing resetUrl for password-reset template");
     }
-    const subject = `Reset your ${brand} password`;
-    const text =
-      `You requested a password reset for your ${brand} account.\n\n` +
-      `Use this link to reset your password (valid for 30 minutes):\n${resetVars.resetUrl}\n\n` +
-      "If you did not request this, you can ignore this email.";
-    const htmlBody = `
-      <h2 style="margin:0 0 12px 0;font-size:20px;">Reset your password</h2>
-      <p style="margin:0 0 16px 0;">We received a request to reset the password for your ${brand} account.</p>
-      <p style="margin:0 0 24px 0;">This link is valid for 30 minutes.</p>
-      <p style="margin:0 0 24px 0;text-align:center;">
-        <a href="${resetVars.resetUrl}" style="display:inline-block;background:${PRIMARY_COLOR};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;">Reset password</a>
-      </p>
-      <p style="margin:0 0 16px 0;font-size:13px;color:#475569;">If the button doesn't work, copy and paste this link into your browser:</p>
-      <p style="word-break:break-all;font-size:13px;color:#475569;margin:0;">${resetVars.resetUrl}</p>
-      <p style="margin:24px 0 0 0;font-size:13px;color:#475569;">If you did not request this, you can ignore this email.</p>
-    `;
+    const subject = `Reset your ${BRAND_NAME} password`;
+    const varsMap = {
+      ...baseVarsMap,
+      resetUrl: resetVars.resetUrl,
+    };
+    const text = renderTemplate("password-reset", "txt", varsMap);
+    const htmlBody = textToHtmlParagraphs(text);
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
@@ -111,96 +172,53 @@ export function renderEmailTemplate(
     if (!signupVars?.meetName) {
       throw new Error("Missing meetName for meet-signup template");
     }
-    const dateString = formatDateTime(signupVars.startTime);
-    const endString = formatDateTime(signupVars.endTime);
-    const hasRange = Boolean(dateString && endString && dateString !== endString);
-    const timeLine = hasRange
-      ? `${dateString} to ${endString}`
-      : dateString || "TBC";
-    const locationLine = signupVars.location || "TBC";
     const greetingName = signupVars.attendeeName || "there";
     const statusUrl = signupVars.statusUrl || "";
     const organizerName = signupVars.organizerName || "the organizer";
     const organizerEmail = signupVars.organizerEmail || "";
 
     const subject = `You're signed up for ${signupVars.meetName}`;
-    const textParts = [
-      `Hi ${greetingName},`,
-      "",
-      `You're signed up for ${signupVars.meetName}.`,
-      "",
-      `When: ${timeLine}`,
-      `Where: ${locationLine}`,
-    ];
-    if (statusUrl) {
-      textParts.push("", "View your application status:", statusUrl);
-    }
-    if (organizerEmail) {
-      textParts.push(
-        "",
-        `Questions? Contact ${organizerName} at ${organizerEmail}.`,
-      );
-    }
-    const text = textParts.join("\n");
-
-    const htmlBody = `
-      <h2 style="margin:0 0 12px 0;font-size:20px;">You're signed up</h2>
-      <p style="margin:0 0 16px 0;">Hi ${escapeHtml(greetingName)},</p>
-      <p style="margin:0 0 16px 0;">You're signed up for <strong>${escapeHtml(
-        signupVars.meetName,
-      )}</strong>.</p>
-      <div style="margin:0 0 16px 0;padding:12px 14px;background:#f1f5f9;border-radius:8px;">
-        <p style="margin:0 0 6px 0;"><strong>When:</strong> ${escapeHtml(
-          timeLine,
-        )}</p>
-        <p style="margin:0;"><strong>Where:</strong> ${escapeHtml(
-          locationLine,
-        )}</p>
-      </div>
-      ${
-        statusUrl
-          ? `<p style="margin:0 0 16px 0;text-align:center;">
-              <a href="${statusUrl}" style="display:inline-block;background:${PRIMARY_COLOR};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;">View your application</a>
-            </p>`
-          : ""
-      }
-      ${
-        statusUrl
-          ? `<p style="margin:0 0 16px 0;font-size:13px;color:#475569;">If the button doesn't work, copy and paste this link into your browser:</p>
-             <p style="word-break:break-all;font-size:13px;color:#475569;margin:0 0 16px 0;">${statusUrl}</p>`
-          : ""
-      }
-      ${
-        organizerEmail
-          ? `<p style="margin:0;font-size:13px;color:#475569;">Questions? Contact ${escapeHtml(
-              organizerName,
-            )} at <a href="mailto:${organizerEmail}">${organizerEmail}</a>.</p>`
-          : ""
-      }
-    `;
+    const varsMap = {
+      ...baseVarsMap,
+      attendeeName: escapeHtml(greetingName),
+      meetName: escapeHtml(signupVars.meetName),
+      statusUrl,
+      organizerName: escapeHtml(organizerName),
+      organizerEmail,
+    };
+    const flags = {
+      ifStatusUrl: Boolean(statusUrl),
+      ifOrganizerEmail: Boolean(organizerEmail),
+    };
+    const text = renderTemplate("meet-signup", "txt", varsMap, flags);
+    const htmlBody = renderTemplate("meet-signup", "html", varsMap, flags);
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
-  const subject = `Your ${brand} password was updated`;
-  const text =
-    `This is a confirmation that your ${brand} password was updated successfully. ` +
-    "If you did not perform this action, please contact support.";
-  const htmlBody = `
-    <h2 style="margin:0 0 12px 0;font-size:20px;">Password updated</h2>
-    <p style="margin:0 0 16px 0;">Your ${brand} password was updated successfully.</p>
-    <p style="margin:0;font-size:13px;color:#475569;">If you did not perform this action, please contact support.</p>
-  `;
-  return { subject, text, html: wrapHtml(htmlBody) };
-}
+  if (name === "password-reset-confirmation") {
+    const subject = `Your ${BRAND_NAME} password was updated`;
+    const varsMap = {
+      ...baseVarsMap,
+    };
+    const text = renderTemplate("password-reset-confirmation", "txt", varsMap);
+    const htmlBody = renderTemplate(
+      "password-reset-confirmation",
+      "html",
+      varsMap,
+    );
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
 
-function formatDateTime(value?: string) {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  if (name === "verify-email") {
+    const subject = `Verify your ${BRAND_NAME} email address`;
+    const varsMap = {
+      ...baseVarsMap,
+      expiresIn: "30 minutes",
+    };
+    const text = renderTemplate("verify-email", "txt", varsMap);
+    const htmlBody = renderTemplate("verify-email", "html", varsMap);
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
 }
 
 function escapeHtml(value: string) {

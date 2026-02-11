@@ -1,0 +1,14 @@
+Hi {{attendeeName}},
+
+You have signed up for the meet: {{meetName}}.
+
+The meet organiser will process your application and notify you of the outcome. Should you wish to check
+the status or make any changes, please use the link below:
+
+View your application status:
+{{statusUrl}}
+
+If you have any questions you may reply to this email or contact {{organizerName}} at {{organizerEmail}}
+
+Best regards,
+{{fromName}}
