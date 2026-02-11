@@ -149,8 +149,15 @@ export function renderEmailTemplate(
   vars: MeetSignupTemplateVars,
 ): { subject: string; text: string; html: string };
 export function renderEmailTemplate(
+  name: "verify-email",
+  vars: VerifyEmailTemplateVars,
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
   name: EmailTemplateName,
-  vars?: PasswordResetTemplateVars | MeetSignupTemplateVars,
+  vars?:
+    | PasswordResetTemplateVars
+    | MeetSignupTemplateVars
+    | VerifyEmailTemplateVars,
 ) {
   if (name === "password-reset") {
     const resetVars = vars as PasswordResetTemplateVars | undefined;

@@ -23,10 +23,15 @@ import {
 import { PasswordField } from "../components/formFields/PasswordField";
 import { PasswordStrength } from "../components/formFields/PasswordStrength";
 import { useCheckEmailExists } from "../hooks/useCheckEmailExists";
-import { validateEmail, validatePhone, validateRequired } from "../helpers/validation";
+import {
+  validateEmail,
+  validatePhone,
+  validateRequired,
+} from "../helpers/validation";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
+import { useNotistack } from "../hooks/useNotistack";
 import zxcvbn from "zxcvbn";
 
 const getPasswordStrength = (value: string) => {
@@ -69,6 +74,7 @@ function RegisterPage() {
   const api = useApi();
   const nav = useNavigate();
   const { refreshSession } = useAuth();
+  const { success } = useNotistack();
   const [emailError, setEmailError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [firstNameError, setFirstNameError] = useState<string | null>(null);
@@ -218,6 +224,9 @@ function RegisterPage() {
     })
       .then(async () => {
         await refreshSession();
+        success(
+          "We sent a verification code to your email. Enter it in Profile > Security.",
+        );
         if (pendingMeetLink) {
           nav(
             `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`,
