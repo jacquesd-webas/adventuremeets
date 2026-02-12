@@ -336,17 +336,29 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
 
   const handleSaveAutoFill = async () => {
     if (!user || !currentOrganizationId) return;
-    const values = metaDefinitions.map((definition) => {
-      const raw = autoFillValues[definition.fieldKey];
+    const fieldKeys = new Set<string>([
+      ...metaDefinitions.map((definition) => definition.fieldKey),
+      ...userMetaValues.map((item) => item.key),
+    ]);
+    const definitionByKey = new Map(
+      metaDefinitions.map((definition) => [definition.fieldKey, definition]),
+    );
+    const values = Array.from(fieldKeys).map((key) => {
+      const raw = autoFillValues[key];
+      const fieldType = definitionByKey.get(key)?.fieldType;
       let value: string | null;
       if (raw === "" || raw === undefined || raw === null) {
         value = null;
-      } else if (typeof raw === "boolean") {
+      } else if (
+        typeof raw === "boolean" ||
+        fieldType === "checkbox" ||
+        fieldType === "switch"
+      ) {
         value = raw ? "true" : "false";
       } else {
         value = String(raw);
       }
-      return { key: definition.fieldKey, value };
+      return { key, value };
     });
     await updateMetaValuesAsync({
       userId: user.id,
