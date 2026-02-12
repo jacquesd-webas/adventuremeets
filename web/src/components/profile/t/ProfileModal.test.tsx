@@ -10,6 +10,9 @@ let mockedOrganization: Record<string, any> = {
   isPrivate: false,
   canViewAllMeets: true,
 };
+let mockedMetaDefinitions: Array<Record<string, any>> = [];
+let mockedUserMetaValues: Array<Record<string, any>> = [];
+const mockedUpdateMetaValuesAsync = vi.fn();
 
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
@@ -57,7 +60,7 @@ vi.mock("../../../hooks/useUpdateOrganization", () => ({
 
 vi.mock("../../../hooks/useFetchOrganizationMetaDefinitions", () => ({
   useFetchOrganizationMetaDefinitions: () => ({
-    data: [],
+    data: mockedMetaDefinitions,
     isLoading: false,
     error: null,
   }),
@@ -65,7 +68,7 @@ vi.mock("../../../hooks/useFetchOrganizationMetaDefinitions", () => ({
 
 vi.mock("../../../hooks/useFetchUserMetaValues", () => ({
   useFetchUserMetaValues: () => ({
-    data: [],
+    data: mockedUserMetaValues,
     isLoading: false,
     error: null,
   }),
@@ -73,7 +76,7 @@ vi.mock("../../../hooks/useFetchUserMetaValues", () => ({
 
 vi.mock("../../../hooks/useUpdateUserMetaValues", () => ({
   useUpdateUserMetaValues: () => ({
-    updateMetaValuesAsync: vi.fn(),
+    updateMetaValuesAsync: mockedUpdateMetaValuesAsync,
     isLoading: false,
     error: null,
   }),
@@ -94,12 +97,15 @@ describe("ProfileModal", () => {
   };
 
   beforeEach(() => {
+    mockedUpdateMetaValuesAsync.mockReset();
     mockedOrganization = {
       id: "org-1",
       name: "Adventure Meets",
       isPrivate: false,
       canViewAllMeets: true,
     };
+    mockedMetaDefinitions = [];
+    mockedUserMetaValues = [];
   });
 
   it("renders and allows section navigation", () => {
@@ -144,5 +150,35 @@ describe("ProfileModal", () => {
     expect(
       screen.queryByRole("button", { name: "Copy invite link" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("sends empty values for omitted autofill fields", () => {
+    mockedMetaDefinitions = [
+      {
+        fieldKey: "name",
+        label: "Name",
+        fieldType: "text",
+      },
+    ];
+    mockedUserMetaValues = [
+      { key: "name", value: "Alice" },
+      { key: "dietary", value: "Vegan" },
+    ];
+
+    renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "AutoFill" }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Alice Updated" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save AutoFill" }));
+
+    expect(mockedUpdateMetaValuesAsync).toHaveBeenCalledWith({
+      userId: "user-1",
+      organizationId: "org-1",
+      values: [
+        { key: "name", value: "Alice Updated" },
+        { key: "dietary", value: null },
+      ],
+    });
   });
 });
