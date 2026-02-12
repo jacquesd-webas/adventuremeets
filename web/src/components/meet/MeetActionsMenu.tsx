@@ -13,6 +13,7 @@ import {
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import OpenInNewOutlinedIcon from "@mui/icons-material/OpenInNewOutlined";
+import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
@@ -84,6 +85,12 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
         statusId === MeetStatusEnum.Open ||
         statusId === MeetStatusEnum.Closed
       );
+    case "copy-link":
+      return (
+        statusId === MeetStatusEnum.Published ||
+        statusId === MeetStatusEnum.Open ||
+        statusId === MeetStatusEnum.Postponed
+      );
     case "details":
       return true;
     case "apply":
@@ -129,6 +136,22 @@ export function MeetActionsMenu({
   const handleClose = () => {
     setAnchorEl(null);
     setDrawerOpen(false);
+  };
+
+  const handleCopyLink = async (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    if (!previewLinkCode || typeof navigator === "undefined") {
+      handleClose();
+      return;
+    }
+
+    const shareUrl =
+      typeof window === "undefined"
+        ? `/meets/${previewLinkCode}`
+        : `${window.location.origin}/meets/${previewLinkCode}`;
+
+    await navigator.clipboard.writeText(shareUrl);
+    handleClose();
   };
 
   const handleAction = (
@@ -252,6 +275,14 @@ export function MeetActionsMenu({
                 <OpenInNewOutlinedIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText>Preview</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow(MeetActionsEnum.CopyLink, statusId) && (
+            <MenuItem onClick={handleCopyLink}>
+              <ListItemIcon>
+                <ContentCopyOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Copy link</ListItemText>
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Edit, statusId) && (
