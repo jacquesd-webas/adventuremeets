@@ -34,6 +34,7 @@ type MeetActionsMenuProps = {
   setSelectedMeetId: (meetId: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   previewLinkCode?: string;
+  menuButtonRef?: React.Ref<HTMLButtonElement>;
 };
 
 // Helper to decide what to show in the menu
@@ -50,7 +51,10 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
         MeetStatusEnum.Cancelled
       );
     case "open":
-      return statusId === MeetStatusEnum.Published;
+      return (
+        statusId === MeetStatusEnum.Published ||
+        statusId === MeetStatusEnum.Closed
+      );
     case "close":
       return statusId === MeetStatusEnum.Open;
     case "edit":
@@ -105,6 +109,7 @@ export function MeetActionsMenu({
   setSelectedMeetId,
   setPendingAction,
   previewLinkCode,
+  menuButtonRef,
 }: MeetActionsMenuProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -250,7 +255,9 @@ export function MeetActionsMenu({
               <ListItemIcon>
                 <LockOpenOutlinedIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Open meet</ListItemText>
+              <ListItemText>
+                {statusId === MeetStatusEnum.Closed ? "Re-open meet" : "Open meet"}
+              </ListItemText>
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Preview, statusId) && (
@@ -383,6 +390,7 @@ export function MeetActionsMenu({
       <IconButton
         size="small"
         onClick={handleOpen}
+        ref={menuButtonRef}
         sx={{
           color:
             theme.palette.mode === "dark"

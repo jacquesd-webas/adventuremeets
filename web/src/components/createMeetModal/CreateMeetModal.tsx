@@ -167,6 +167,10 @@ export function CreateMeetModal({
     () => (state.statusId ?? MeetStatusEnum.Draft) === MeetStatusEnum.Draft,
     [state.statusId],
   );
+  const isPostponed = useMemo(
+    () => state.statusId === MeetStatusEnum.Postponed,
+    [state.statusId],
+  );
 
   // Check for dirty form
   const isDirty = useMemo(
@@ -464,6 +468,9 @@ export function CreateMeetModal({
     setSubmitError(null);
     try {
       await handleSaveStep(activeStep);
+      if (meetId && state.statusId === MeetStatusEnum.Postponed) {
+        await updateStatusAsync({ meetId, statusId: MeetStatusEnum.Published });
+      }
       setBaselineState(state);
       onCreated?.();
       onClose();
@@ -779,27 +786,15 @@ export function CreateMeetModal({
                   Previous
                 </Button>
                 <Stack direction="row" spacing={1}>
-                  {isLastStep && (
-                    <Button
-                      variant="outlined"
-                      onClick={() => {
-                        setState(initialState);
-                        setMeetId(null);
-                        setShareCode(null);
-                        handleCancel();
-                        setActiveStep(0);
-                      }}
-                    >
-                      Save & close
-                    </Button>
-                  )}
                   <Button
                     variant="contained"
                     onClick={
                       isLastStep
                         ? isDraft
                           ? handlePublish
-                          : handleSaveAndClose
+                          : isPostponed
+                            ? handlePublish
+                            : handleSaveAndClose
                         : handleNext
                     }
                     disabled={
@@ -810,7 +805,7 @@ export function CreateMeetModal({
                     }
                   >
                     {isLastStep
-                      ? isDraft
+                      ? isDraft || isPostponed
                         ? isPublishing
                           ? "Publishing..."
                           : "Publish"
