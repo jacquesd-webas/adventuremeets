@@ -347,13 +347,14 @@ export class UsersService {
           .whereIn("key", keys)
           .del();
       }
-      if (values.length) {
+      const valuesToInsert = values.filter((item) => item.value != null);
+      if (valuesToInsert.length) {
         await trx("user_meta_values").insert(
-          values.map((item) => ({
+          valuesToInsert.map((item) => ({
             user_id: userId,
             organization_id: organizationId,
             key: item.key,
-            value: item.value ?? null,
+            value: item.value,
           })),
         );
       }
