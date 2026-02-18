@@ -31,7 +31,7 @@ export async function seed(knex: Knex): Promise<void> {
   const userRows = await Promise.all(
     users.map(async (user) => ({
       email: user.email,
-      email_verified: false,
+      email_verified_at: now,
       first_name: user.name,
       last_name: null,
       phone: null,
