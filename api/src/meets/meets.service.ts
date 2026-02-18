@@ -32,8 +32,11 @@ export class MeetsService {
     page = 1,
     limit = 20,
     organizationIds: string[] = [],
-    includeHidden = false,
+    isOrganizer = false,
     userId?: string,
+    fromTime: Date | null = null,
+    toTime: Date | null = null,
+    search: string | null = null,
   ) {
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
@@ -70,6 +73,7 @@ export class MeetsService {
       )
       .groupBy("meet_id")
       .as("ma");
+
     const query = this.db
       .getClient()("meets as m")
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
@@ -106,8 +110,13 @@ export class MeetsService {
           ? this.db.getClient().raw("ua.status as my_attendee_status")
           : this.db.getClient().raw("null as my_attendee_status"),
       );
-    if (view === "my") {
-      // either the user is attending or the meet is still open
+
+    const totalQuery = this.db
+      .getClient()("meets")
+      .count<{ count: string }[]>("* as count");
+
+    // If the user is not an organizer, only show meets they are attending or meets that are open
+    if (!isOrganizer) {
       query.where((qb) => {
         qb.whereExists(function () {
           this.select("*")
@@ -118,30 +127,53 @@ export class MeetsService {
         qb.orWhere("m.status_id", "3"); // Open
       });
     }
-    if (view === "reports") {
-      query.whereIn("m.status_id", [4, 5, 7]);
-    }
-    if (view === "plan") {
-      query.whereIn("m.status_id", [1, 2, 3, 6]);
-    }
-    query.orderBy("start_time", "asc");
 
-    const totalQuery = this.db
-      .getClient()("meets")
-      .count<{ count: string }[]>("* as count");
-    if (view === "reports") {
-      totalQuery.whereIn("status_id", [4, 5, 7]);
+    if (view === "upcoming") {
+      query.where("start_time", ">=", new Date().toISOString());
+      query.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+      query.orderBy("start_time", "asc");
+      totalQuery.where("start_time", ">=", new Date().toISOString());
+      totalQuery.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
     }
-    if (view === "plan") {
-      totalQuery.whereIn("status_id", [1, 2, 3, 6]);
+    if (view === "past") {
+      query.where("start_time", "<", new Date().toISOString());
+      query.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+      query.orderBy("start_time", "desc");
+      totalQuery.where("start_time", "<", new Date().toISOString());
+      totalQuery.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+    }
+    if (view === "draft") {
+      query.where("status_id", "1"); // Draft
+      totalQuery.where("status_id", "1"); // Draft
     }
     if (organizationIds.length > 0) {
       query.whereIn("m.organization_id", organizationIds);
       totalQuery.whereIn("organization_id", organizationIds);
     }
-    if (!includeHidden) {
+    if (!isOrganizer) {
       query.where("m.is_hidden", false);
       totalQuery.where("is_hidden", false);
+    }
+    if (fromTime) {
+      query.where("start_time", ">=", fromTime.toISOString());
+      totalQuery.where("start_time", ">=", fromTime.toISOString());
+    }
+    if (toTime) {
+      query.where("start_time", "<=", toTime.toISOString());
+      totalQuery.where("start_time", "<=", toTime.toISOString());
+    }
+    if (search) {
+      const like = `%${search.toLowerCase()}%`;
+      query.where((qb) => {
+        qb.whereRaw("lower(m.name) like ?", [like])
+          .orWhereRaw("lower(m.location) like ?", [like])
+          .orWhereRaw("lower(m.description) like ?", [like]);
+      });
+      totalQuery.where((qb) => {
+        qb.whereRaw("lower(name) like ?", [like])
+          .orWhereRaw("lower(location) like ?", [like])
+          .orWhereRaw("lower(description) like ?", [like]);
+      });
     }
     const [{ count }] = await totalQuery;
     const total = Number(count);

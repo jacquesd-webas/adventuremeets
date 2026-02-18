@@ -48,7 +48,7 @@ export class MeetsController {
     private readonly meetsService: MeetsService,
     private readonly emailService: EmailService,
     private readonly db: DatabaseService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
   ) {}
 
   @Get()
@@ -56,7 +56,7 @@ export class MeetsController {
     name: "view",
     required: false,
     type: String,
-    description: "Filter view: reports, plan, all",
+    description: "Filter view: upcoming, past, draft, all",
   })
   @ApiQuery({
     name: "page",
@@ -78,12 +78,33 @@ export class MeetsController {
     type: String,
     description: "Restrict to a specific organization",
   })
+  @ApiQuery({
+    name: "fromTime",
+    required: false,
+    type: String,
+    description: "Filter meets starting from this time (ISO format)",
+  })
+  @ApiQuery({
+    name: "toTime",
+    required: false,
+    type: String,
+    description: "Filter meets up to this time (ISO format)",
+  })
+  @ApiQuery({
+    name: "search",
+    required: false,
+    type: String,
+    description: "Search meets by name, location, or description",
+  })
   async findAll(
     @Query("view") view = "all",
     @Query("page") page = "1",
     @Query("limit") limit = "20",
     @Query("organizationId") organizationId?: string,
-    @User() user?: UserProfile
+    @Query("fromTime") fromTime?: string,
+    @Query("toTime") toTime?: string,
+    @Query("search") search?: string,
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
     if (!organizationId)
@@ -97,28 +118,32 @@ export class MeetsController {
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.max(
       1,
-      Math.min(100, parseInt(limit as string, 10) || 20)
+      Math.min(100, parseInt(limit as string, 10) || 20),
     );
     const isOrganizer = this.authService.hasRole(
       user,
       organizationId,
-      "organizer"
+      "organizer",
     );
 
-    return await this.meetsService.findAll(
+    const meets = await this.meetsService.findAll(
       normalizedView,
       pageNum,
       limitNum,
       [organizationId],
       isOrganizer,
-      user.id
+      user.id,
+      fromTime ? new Date(fromTime) : null,
+      toTime ? new Date(toTime) : null,
+      search?.trim() || null,
     );
+    return meets;
   }
 
   @Get(":id([0-9a-fA-F-]{36})")
   async findOne(
     @Param("id") id: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ): Promise<MeetDto> {
     if (!user) throw new UnauthorizedException();
 
@@ -144,11 +169,11 @@ export class MeetsController {
   @Get(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
   async findAttendeeStatus(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const attendee = await this.meetsService.findAttendeeStatus(
       code,
-      attendeeId
+      attendeeId,
     );
     if (!attendee) throw new NotFoundException("Meet attendee not found");
     return attendee;
@@ -158,11 +183,11 @@ export class MeetsController {
   @Get(":code/attendee/:attendeeId([0-9a-fA-F-]{36})")
   async findAttendeeForEdit(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const attendee = await this.meetsService.findAttendeeForEdit(
       code,
-      attendeeId
+      attendeeId,
     );
     if (!attendee) throw new NotFoundException("Meet attendee not found");
     return attendee;
@@ -172,7 +197,7 @@ export class MeetsController {
   @Patch(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
   async withdrawAttendee(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const meet = await this.meetsService.findOne(code);
     return this.meetsService.updateAttendee(meet.id, attendeeId, {
@@ -185,7 +210,7 @@ export class MeetsController {
   async updateAttendeeByCode(
     @Param("code") code: string,
     @Param("attendeeId") attendeeId: string,
-    @Body() dto: UpdateMeetAttendeeDto
+    @Body() dto: UpdateMeetAttendeeDto,
   ) {
     const meet = await this.meetsService.findOne(code);
     return this.meetsService.updateAttendee(meet.id, attendeeId, dto, {
@@ -200,19 +225,19 @@ export class MeetsController {
     // Set default organizationId if user belongs to only one organization
     const organizerOrgIds = this.authService.getUserOrganizationIds(
       user,
-      "organizer"
+      "organizer",
     );
     if (!dto.organizationId && organizerOrgIds.length === 1) {
       dto.organizationId = organizerOrgIds[0];
     }
     if (!dto.organizationId) {
       throw new BadRequestException(
-        "Must specify organizationId when belonging to multiple organizations"
+        "Must specify organizationId when belonging to multiple organizations",
       );
     }
     if (!this.authService.hasRole(user, dto.organizationId, "organizer")) {
       throw new ForbiddenException(
-        "Cannot create a meet for an organization you do not belong to as an organizer"
+        "Cannot create a meet for an organization you do not belong to as an organizer",
       );
     }
 
@@ -227,7 +252,7 @@ export class MeetsController {
   async update(
     @Param("id") id: string,
     @Body() dto: UpdateMeetDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -236,7 +261,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer"
+        "Cannot update a meet for an organization you do not belong to as an organizer",
       );
     }
 
@@ -253,7 +278,7 @@ export class MeetsController {
     @Param("id") id: string,
     @Body() dto: UpdateMeetStatusDto,
     @Headers("x-api-key") apiKey?: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     // Shortcut the entire process as worker API can do anything
     if (apiKey && apiKey === process.env.WORKER_API_KEY) {
@@ -268,7 +293,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer"
+        "Cannot update a meet for an organization you do not belong to as an organizer",
       );
     }
 
@@ -281,7 +306,7 @@ export class MeetsController {
     @Param("id") id: string,
     @UploadedFile() file: any,
     @Body() dto: CreateMeetImageDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -290,7 +315,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot add an image to a meet for an organisation you do not belong to as an organizer"
+        "Cannot add an image to a meet for an organisation you do not belong to as an organizer",
       );
     }
 
@@ -312,7 +337,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot delete a meet for an organisation you do not belong to as an organizer"
+        "Cannot delete a meet for an organisation you do not belong to as an organizer",
       );
     }
     return this.meetsService.remove(id);
@@ -341,7 +366,7 @@ export class MeetsController {
       html?: string;
       attendeeIds?: string[];
     },
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -350,7 +375,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You do not have permission to message attendees of this meet"
+        "You do not have permission to message attendees of this meet",
       );
     }
 
@@ -374,18 +399,18 @@ export class MeetsController {
         if (attendedContactInfo?.email) {
           recipients.set(attendeeId, attendedContactInfo.email);
         }
-      })
+      }),
     );
 
     if (!recipients.size) {
       throw new BadRequestException(
-        "No recipients email addresses found for attendees"
+        "No recipients email addresses found for attendees",
       );
     }
 
     if (recipients.size !== body.attendeeIds.length) {
       throw new BadRequestException(
-        "One or more attendees do not have email addresses"
+        "One or more attendees do not have email addresses",
       );
     }
 
@@ -399,7 +424,7 @@ export class MeetsController {
           html: body.html ?? "",
           meetId: meet.id,
         });
-      })
+      }),
     );
 
     await Promise.all(
@@ -412,7 +437,7 @@ export class MeetsController {
           meetId: meet.id,
           attendeeId,
         });
-      })
+      }),
     );
 
     await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
@@ -424,7 +449,7 @@ export class MeetsController {
   async listAttendeeMessages(
     @Param("id") id: string,
     @Param("attendeeId") attendeeId: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -433,13 +458,13 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You do not have permission to view attendee messages for this meet"
+        "You do not have permission to view attendee messages for this meet",
       );
     }
 
     const messages = await this.meetsService.listAttendeeMessages(
       id,
-      attendeeId
+      attendeeId,
     );
     return { messages };
   }
@@ -449,7 +474,7 @@ export class MeetsController {
   async markMessageRead(
     @Param("id") id: string,
     @Param("messageId") messageId: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -458,7 +483,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You do not have permission to update attendee messages for this meet"
+        "You do not have permission to update attendee messages for this meet",
       );
     }
 
@@ -476,7 +501,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot create a report for a meet you do not organize"
+        "Cannot create a report for a meet you do not organize",
       );
     }
 
