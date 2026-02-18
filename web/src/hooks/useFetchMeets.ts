@@ -9,6 +9,7 @@ type UseFetchMeetsOptions = {
   page?: number;
   limit?: number;
   organizationId: string;
+  search?: string;
 };
 
 type MeetsApiResponse = {
@@ -21,16 +22,23 @@ type MeetsApiResponse = {
 export function useFetchMeets(options: UseFetchMeetsOptions) {
   const api = useApi();
 
-  const { view = "all", page = 1, limit = 20, organizationId } = options;
+  const {
+    view = "all",
+    page = 1,
+    limit = 20,
+    organizationId,
+    search,
+  } = options;
 
   const query = useQuery({
-    queryKey: ["meets", { view, page, limit, organizationId }],
+    queryKey: ["meets", { view, page, limit, organizationId, search }],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (view !== "all") params.set("view", view);
       params.set("page", String(page));
       params.set("limit", String(limit));
       if (organizationId) params.set("organizationId", organizationId);
+      if (search) params.set("search", search);
       const res = await api.get<MeetsResponse | MeetsApiResponse>(
         `/meets?${params.toString()}`
       );

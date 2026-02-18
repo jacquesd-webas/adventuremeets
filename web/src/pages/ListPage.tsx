@@ -1,6 +1,16 @@
-import { Typography, Paper, Stack, Button, Box } from "@mui/material";
+import {
+  Typography,
+  Paper,
+  Stack,
+  Button,
+  Box,
+  TextField,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Heading } from "../components/Heading";
 import { MeetStatus } from "../components/meet/MeetStatus";
 import { MeetActionsMenu } from "../components/meet/MeetActionsMenu";
@@ -12,6 +22,7 @@ import { useCurrentOrganization } from "../context/organizationContext";
 import { useAuth } from "../context/authContext";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PlaceIcon from "@mui/icons-material/Place";
+import SearchIcon from "@mui/icons-material/Search";
 
 function ListPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
@@ -22,13 +33,23 @@ function ListPage() {
     page: 0,
     pageSize: 10,
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [view, setView] = useState<"all" | "draft" | "upcoming" | "past">(
+    "upcoming",
+  );
   const { currentOrganizationId } = useCurrentOrganization();
   const { user } = useAuth();
-  const { data: meets, isLoading } = useFetchMeets({
-    view: "all",
-    page: 1,
-    limit: 50,
+  const {
+    data: meets,
+    total,
+    isLoading,
+  } = useFetchMeets({
+    view,
+    page: paginationModel.page + 1,
+    limit: paginationModel.pageSize,
     organizationId: currentOrganizationId,
+    search: debouncedSearch.trim() || undefined,
   });
 
   const columns = useMemo<GridColDef[]>(
@@ -97,6 +118,7 @@ function ListPage() {
         minWidth: 120,
         sortable: false,
         filterable: false,
+        hideable: false,
         headerAlign: "right",
         align: "right",
         renderCell: (params: GridRenderCellParams) => (
@@ -118,20 +140,70 @@ function ListPage() {
     [setPendingAction, setSelectedMeetId, user?.id],
   );
 
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPaginationModel((prev) =>
+        prev.page === 0 ? prev : { ...prev, page: 0 },
+      );
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPaginationModel((prev) =>
+      prev.page === 0 ? prev : { ...prev, page: 0 },
+    );
+  }, [view]);
+
   return (
     <Stack spacing={2}>
       <Heading
         title="Meets List"
         subtitle="Manage all meets from one place."
         actionComponent={
-          <Button
-            variant="outlined"
-            onClick={() => {
-              setPendingAction(MeetActionsEnum.Create);
-            }}
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="wrap"
           >
-            New meet
-          </Button>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={view}
+              onChange={(_event, nextView) => {
+                if (nextView) setView(nextView);
+              }}
+            >
+              <ToggleButton value="draft">Draft</ToggleButton>
+              <ToggleButton value="upcoming">Upcoming</ToggleButton>
+              <ToggleButton value="past">Past</ToggleButton>
+            </ToggleButtonGroup>
+            <TextField
+              size="small"
+              variant="standard"
+              placeholder="Search meets"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              sx={{ minWidth: 350 }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <SearchIcon fontSize="small" color="disabled" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Button
+              variant="contained"
+              onClick={() => {
+                setPendingAction(MeetActionsEnum.Create);
+              }}
+            >
+              New meet
+            </Button>
+          </Stack>
         }
       />
       <Paper variant="outlined" sx={{ width: "100%", bgcolor: "transparent" }}>
@@ -142,9 +214,12 @@ function ListPage() {
           getRowId={(row) => row.id}
           loading={isLoading}
           pagination
+          paginationMode="server"
+          rowCount={total}
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 25, 50]}
+          disableColumnFilter
           disableRowSelectionOnClick
           onRowClick={(params) => {
             setSelectedMeetId(params.row.id);
