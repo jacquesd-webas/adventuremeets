@@ -4,8 +4,12 @@ import {
   Box,
   Button,
   Container,
+  Drawer,
   IconButton,
+  List,
+  ListItemButton,
   ListItemIcon,
+  ListItemText,
   Menu,
   MenuItem,
   Stack,
@@ -18,6 +22,7 @@ import {
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
+import MenuIcon from "@mui/icons-material/Menu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { useMemo, useState, MouseEvent, useEffect } from "react";
@@ -44,10 +49,11 @@ const navItems = [
 function MainLayout() {
   const nav = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down(820));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [adminAnchorEl, setAdminAnchorEl] = useState<null | HTMLElement>(null);
   const [orgModalOpen, setOrgModalOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [baseMode, setBaseMode] = useState<"light" | "dark">(() => {
     const stored =
       typeof window !== "undefined"
@@ -97,6 +103,10 @@ function MainLayout() {
   const handleNavigate = (path: string) => {
     nav(path);
     handleMenuClose();
+  };
+  const handleMobileNavigate = (path: string) => {
+    nav(path);
+    setMobileNavOpen(false);
   };
   const handleAdminNavigate = (path: string) => {
     nav(path);
@@ -160,6 +170,53 @@ function MainLayout() {
   };
 
   const logoSrc = getLogoSrc(mode, organization?.theme);
+
+  const accountMenu = (
+    <Menu
+      anchorEl={anchorEl}
+      open={Boolean(anchorEl)}
+      onClose={handleMenuClose}
+      transformOrigin={{ vertical: "top", horizontal: "right" }}
+    >
+      {(canLight || canDark) && (
+        <MenuItem
+          onClick={handleToggleLightDark}
+          disabled={!canLight || !canDark}
+        >
+          <ListItemIcon>
+            {(mode === "glass" ? baseMode : mode) === "dark" ? (
+              <LightModeIcon fontSize="small" />
+            ) : (
+              <DarkModeIcon fontSize="small" />
+            )}
+          </ListItemIcon>
+          {(mode === "glass" ? baseMode : mode) === "dark"
+            ? "Light mode"
+            : "Dark mode"}
+        </MenuItem>
+      )}
+      {canGlass && (
+        <MenuItem onClick={handleToggleGlass}>
+          <ListItemIcon>
+            <ViewDayOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          {mode === "glass" ? "Disable glass mode" : "Enable glass mode"}
+        </MenuItem>
+      )}
+      <MenuItem onClick={handleProfile}>
+        <ListItemIcon>
+          <PersonOutlineIcon fontSize="small" />
+        </ListItemIcon>
+        Profile
+      </MenuItem>
+      <MenuItem onClick={handleLogout}>
+        <ListItemIcon>
+          <LogoutIcon fontSize="small" />
+        </ListItemIcon>
+        Logout
+      </MenuItem>
+    </Menu>
+  );
 
   useEffect(() => {
     const { image, color } = getOrganizationBackground(
@@ -294,52 +351,6 @@ function MainLayout() {
                 <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
               </IconButton>
             </Tooltip>
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleMenuClose}
-              transformOrigin={{ vertical: "top", horizontal: "right" }}
-            >
-              {(canLight || canDark) && (
-                <MenuItem
-                  onClick={handleToggleLightDark}
-                  disabled={!canLight || !canDark}
-                >
-                  <ListItemIcon>
-                    {(mode === "glass" ? baseMode : mode) === "dark" ? (
-                      <LightModeIcon fontSize="small" />
-                    ) : (
-                      <DarkModeIcon fontSize="small" />
-                    )}
-                  </ListItemIcon>
-                  {(mode === "glass" ? baseMode : mode) === "dark"
-                    ? "Light mode"
-                    : "Dark mode"}
-                </MenuItem>
-              )}
-              {canGlass && (
-                <MenuItem onClick={handleToggleGlass}>
-                  <ListItemIcon>
-                    <ViewDayOutlinedIcon fontSize="small" />
-                  </ListItemIcon>
-                  {mode === "glass"
-                    ? "Disable glass mode"
-                    : "Enable glass mode"}
-                </MenuItem>
-              )}
-              <MenuItem onClick={handleProfile}>
-                <ListItemIcon>
-                  <PersonOutlineIcon fontSize="small" />
-                </ListItemIcon>
-                Profile
-              </MenuItem>
-              <MenuItem onClick={handleLogout}>
-                <ListItemIcon>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                Logout
-              </MenuItem>
-            </Menu>
             {isAdmin && (
               <Menu
                 anchorEl={adminAnchorEl}
@@ -369,6 +380,71 @@ function MainLayout() {
           </Toolbar>
         </AppBar>
       )}
+      {isMobile && (
+        <AppBar
+          position="sticky"
+          color="transparent"
+          elevation={0}
+          sx={{ borderBottom: 1, borderColor: "divider", top: 0 }}
+        >
+          <Toolbar sx={{ minHeight: 56 }}>
+            <IconButton
+              edge="start"
+              color="inherit"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation"
+            >
+              <MenuIcon />
+            </IconButton>
+            <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
+              <Box
+                component="img"
+                src={logoSrc}
+                alt="AdventureMeets logo"
+                sx={{ height: 28 }}
+              />
+            </Box>
+            <Tooltip title="Account">
+              <IconButton
+                onClick={handleAvatarClick}
+                size="small"
+                data-testid="account-menu-button"
+              >
+                <Avatar sx={{ width: 34, height: 34 }}>{initials}</Avatar>
+              </IconButton>
+            </Tooltip>
+          </Toolbar>
+          <Drawer
+            anchor="left"
+            open={mobileNavOpen}
+            onClose={() => setMobileNavOpen(false)}
+          >
+            <Box sx={{ width: 280, py: 1 }}>
+              <List>
+                {navItems.map((item) => (
+                  <ListItemButton
+                    key={item.path}
+                    onClick={() => handleMobileNavigate(item.path)}
+                  >
+                    <ListItemText primary={item.label} />
+                  </ListItemButton>
+                ))}
+                {organizationIds.length > 1 && (
+                  <ListItemButton
+                    onClick={() => {
+                      setOrgModalOpen(true);
+                      setMobileNavOpen(false);
+                    }}
+                  >
+                    <ListItemText primary="Switch organisation" />
+                  </ListItemButton>
+                )}
+              </List>
+            </Box>
+          </Drawer>
+        </AppBar>
+      )}
+      {accountMenu}
       <Container
         maxWidth={isMobile ? false : "lg"}
         disableGutters={isMobile}
@@ -386,6 +462,7 @@ function MainLayout() {
       <ChooseOrganizationModal
         open={orgModalOpen || !currentOrganizationId}
         onClose={() => setOrgModalOpen(false)}
+        disableClose={!currentOrganizationId}
       />
     </Box>
   );
