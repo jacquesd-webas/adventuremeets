@@ -2,12 +2,15 @@ import {
   Box,
   Button,
   Container,
+  Drawer,
   Link,
   Paper,
   Stack,
   TextField,
   Typography,
   Alert,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { useEffect, useRef, useState } from "react";
@@ -50,6 +53,8 @@ const getPasswordStrength = (value: string) => {
 };
 
 function RegisterPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const location = useLocation();
   const prefillApplied = useRef(false);
   const [firstName, setFirstName] = useState("");
@@ -267,193 +272,239 @@ function RegisterPage() {
     setLastNameError(validateRequired(lastName, "Last name"));
   };
 
-  return (
-    <Container
-      maxWidth="sm"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        py: 8,
-      }}
-    >
-      {(!selectedMethod || selectedMethod !== "email") && (
-        <Box sx={{ textAlign: "center", mb: 4 }}>
-          <img
-            src={logoSrc}
-            alt="AdventureMeets logo"
-            width={320}
-            height="auto"
-          />
-        </Box>
+  const registerContent = (
+    <>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2,
+        }}
+      >
+        <Typography variant="h5">Create account</Typography>
+      </Box>
+      {!selectedMethod && (
+        <AuthSocialButtons showEmail onSelect={chooseMethod} />
+      )}
+      {selectedMethod && selectedMethod !== "email" && (
+        <Stack spacing={2}>
+          <Alert severity="info">
+            Continue with {selectedMethod} is not configured yet.
+          </Alert>
+          <Button variant="text" onClick={() => chooseMethod(null)}>
+            Choose another method
+          </Button>
+        </Stack>
+      )}
+      {selectedMethod === "email" && (
+        <>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error.message}
+            </Alert>
+          )}
+          {organizationInviteError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {organizationInviteError}
+            </Alert>
+          )}
+          <Box component="form" onSubmit={handleSubmit} noValidate>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: 2,
+              }}
+            >
+              <TextField
+                label="First name"
+                required
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  if (firstNameError) setFirstNameError(null);
+                }}
+                onBlur={checkFirstName}
+                error={Boolean(firstNameError)}
+                helperText={firstNameError || undefined}
+                InputProps={{
+                  startAdornment: (
+                    <PersonOutlineIcon
+                      fontSize="small"
+                      sx={{ mr: 1, color: "text.disabled" }}
+                    />
+                  ),
+                }}
+              />
+              <TextField
+                label="Last name"
+                required
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  if (lastNameError) setLastNameError(null);
+                }}
+                onBlur={checkLastName}
+                error={Boolean(lastNameError)}
+                helperText={lastNameError || undefined}
+                InputProps={{
+                  startAdornment: (
+                    <PersonOutlineIcon
+                      fontSize="small"
+                      sx={{ mr: 1, color: "text.disabled" }}
+                    />
+                  ),
+                }}
+              />
+              <InternationalPhoneField
+                label="Phone"
+                required
+                country={phoneCountry}
+                local={phoneLocal}
+                onCountryChange={setPhoneCountry}
+                onLocalChange={(value) => {
+                  setPhoneLocal(value);
+                  if (phoneError) {
+                    setPhoneError(null);
+                  }
+                }}
+                onBlur={checkPhone}
+                error={Boolean(phoneError)}
+                helperText={phoneError || undefined}
+              />
+              <EmailField
+                required
+                value={email}
+                onChange={(value) => {
+                  setEmail(value);
+                  if (emailError) {
+                    setEmailError(null);
+                  }
+                }}
+                onBlur={checkEmail}
+                error={Boolean(emailError)}
+                helperText={emailError || undefined}
+              />
+              <PasswordField
+                label="Password"
+                required
+                value={password}
+                onValueChange={setPassword}
+              />
+              <PasswordStrength
+                label={passwordStrength.label}
+                percent={passwordStrengthPercent}
+                score={passwordStrength.score}
+              />
+              {captchaRequired ? (
+                <Box display="flex" justifyContent="center" sx={{ mt: -1 }}>
+                  <ReCAPTCHA
+                    sitekey={recaptchaSiteKey}
+                    onChange={(token) => setCaptchaToken(token)}
+                    onExpired={() => setCaptchaToken(null)}
+                  />
+                </Box>
+              ) : shouldShowCaptchaWarning ? (
+                <Alert severity="warning" sx={{ mt: -1 }}>
+                  reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
+                  enable.
+                </Alert>
+              ) : null}
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                sx={{ textTransform: "uppercase" }}
+                disabled={!isFormValid || isLoading}
+              >
+                {isLoading ? "Creating..." : "Create account"}
+              </Button>
+            </Box>
+          </Box>
+        </>
       )}
 
-      <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mb: 2,
+      <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
+        <Link href="/login">Already have an account?</Link>
+        {selectedMethod === "email" && (
+          <Link
+            component="button"
+            type="button"
+            onClick={() => chooseMethod(null)}
+          >
+            Choose another method
+          </Link>
+        )}
+      </Stack>
+    </>
+  );
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+      }}
+    >
+      <Container
+        maxWidth="sm"
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          py: isMobile ? 4 : 8,
+        }}
+      >
+        {(!selectedMethod || selectedMethod !== "email") && (
+          <Box sx={{ textAlign: "center", mb: 2 }}>
+            <img
+              src={logoSrc}
+              alt="AdventureMeets logo"
+              width={isMobile ? 260 : 320}
+              height="auto"
+            />
+          </Box>
+        )}
+        {!isMobile && (
+          <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
+            {registerContent}
+          </Paper>
+        )}
+      </Container>
+      {isMobile && (
+        <Drawer
+          anchor="bottom"
+          open={true}
+          onClose={(_event, reason) => {
+            if (reason === "backdropClick" || reason === "escapeKeyDown")
+              return;
+          }}
+          disableEscapeKeyDown
+          slotProps={{
+            backdrop: {
+              sx: { backgroundColor: "rgba(0,0,0,0.35)" },
+            },
+          }}
+          ModalProps={{
+            keepMounted: true,
+            disableAutoFocus: true,
+            disableEnforceFocus: true,
+            disableRestoreFocus: true,
+          }}
+          PaperProps={{
+            sx: {
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              maxHeight: "78vh",
+              overflowY: "auto",
+              pb: "calc(16px + env(safe-area-inset-bottom))",
+            },
           }}
         >
-          <Typography variant="h5">Create account</Typography>
-        </Box>
-        {!selectedMethod && (
-          <AuthSocialButtons showEmail onSelect={chooseMethod} />
-        )}
-        {selectedMethod && selectedMethod !== "email" && (
-          <Stack spacing={2}>
-            <Alert severity="info">
-              Continue with {selectedMethod} is not configured yet.
-            </Alert>
-            <Button variant="text" onClick={() => chooseMethod(null)}>
-              Choose another method
-            </Button>
-          </Stack>
-        )}
-        {selectedMethod === "email" && (
-          <>
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error.message}
-              </Alert>
-            )}
-            {organizationInviteError && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {organizationInviteError}
-              </Alert>
-            )}
-            <Box component="form" onSubmit={handleSubmit} noValidate>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr",
-                  gap: 2,
-                }}
-              >
-                <TextField
-                  label="First name"
-                  required
-                  value={firstName}
-                  onChange={(e) => {
-                    setFirstName(e.target.value);
-                    if (firstNameError) setFirstNameError(null);
-                  }}
-                  onBlur={checkFirstName}
-                  error={Boolean(firstNameError)}
-                  helperText={firstNameError || undefined}
-                  InputProps={{
-                    startAdornment: (
-                      <PersonOutlineIcon
-                        fontSize="small"
-                        sx={{ mr: 1, color: "text.disabled" }}
-                      />
-                    ),
-                  }}
-                />
-                <TextField
-                  label="Last name"
-                  required
-                  value={lastName}
-                  onChange={(e) => {
-                    setLastName(e.target.value);
-                    if (lastNameError) setLastNameError(null);
-                  }}
-                  onBlur={checkLastName}
-                  error={Boolean(lastNameError)}
-                  helperText={lastNameError || undefined}
-                  InputProps={{
-                    startAdornment: (
-                      <PersonOutlineIcon
-                        fontSize="small"
-                        sx={{ mr: 1, color: "text.disabled" }}
-                      />
-                    ),
-                  }}
-                />
-                <InternationalPhoneField
-                  label="Phone"
-                  required
-                  country={phoneCountry}
-                  local={phoneLocal}
-                  onCountryChange={setPhoneCountry}
-                  onLocalChange={(value) => {
-                    setPhoneLocal(value);
-                    if (phoneError) {
-                      setPhoneError(null);
-                    }
-                  }}
-                  onBlur={checkPhone}
-                  error={Boolean(phoneError)}
-                  helperText={phoneError || undefined}
-                />
-                <EmailField
-                  required
-                  value={email}
-                  onChange={(value) => {
-                    setEmail(value);
-                    if (emailError) {
-                      setEmailError(null);
-                    }
-                  }}
-                  onBlur={checkEmail}
-                  error={Boolean(emailError)}
-                  helperText={emailError || undefined}
-                />
-                <PasswordField
-                  label="Password"
-                  required
-                  value={password}
-                  onValueChange={setPassword}
-                />
-                <PasswordStrength
-                  label={passwordStrength.label}
-                  percent={passwordStrengthPercent}
-                  score={passwordStrength.score}
-                />
-                {captchaRequired ? (
-                  <Box display="flex" justifyContent="center" sx={{ mt: -1 }}>
-                    <ReCAPTCHA
-                      sitekey={recaptchaSiteKey}
-                      onChange={(token) => setCaptchaToken(token)}
-                      onExpired={() => setCaptchaToken(null)}
-                    />
-                  </Box>
-                ) : shouldShowCaptchaWarning ? (
-                  <Alert severity="warning" sx={{ mt: -1 }}>
-                    reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
-                    enable.
-                  </Alert>
-                ) : null}
-                <Button
-                  type="submit"
-                  variant="contained"
-                  size="large"
-                  sx={{ textTransform: "uppercase" }}
-                  disabled={!isFormValid || isLoading}
-                >
-                  {isLoading ? "Creating..." : "Create account"}
-                </Button>
-              </Box>
-            </Box>
-          </>
-        )}
-
-        <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
-          <Link href="/login">Already have an account?</Link>
-          {selectedMethod === "email" && (
-            <Link
-              component="button"
-              type="button"
-              onClick={() => chooseMethod(null)}
-            >
-              Choose another method
-            </Link>
-          )}
-        </Stack>
-      </Paper>
-    </Container>
+          <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>{registerContent}</Box>
+        </Drawer>
+      )}
+    </Box>
   );
 }
 
