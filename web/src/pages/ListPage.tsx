@@ -8,6 +8,8 @@ import {
   InputAdornment,
   ToggleButton,
   ToggleButtonGroup,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { useEffect, useMemo, useState } from "react";
@@ -25,6 +27,8 @@ import PlaceIcon from "@mui/icons-material/Place";
 import SearchIcon from "@mui/icons-material/Search";
 
 function ListPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down(820));
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<MeetActionsEnum | null>(
     null,
@@ -156,6 +160,9 @@ function ListPage() {
     );
   }, [view]);
 
+  const totalPages = Math.max(1, Math.ceil(total / paginationModel.pageSize));
+  const currentPage = paginationModel.page + 1;
+
   return (
     <Stack spacing={2}>
       <Heading
@@ -163,10 +170,11 @@ function ListPage() {
         subtitle="Manage all meets from one place."
         actionComponent={
           <Stack
-            direction="row"
+            direction={isMobile ? "column" : "row"}
             spacing={1}
-            alignItems="center"
+            alignItems={isMobile ? "stretch" : "center"}
             flexWrap="wrap"
+            sx={{ width: isMobile ? "100%" : "auto" }}
           >
             <ToggleButtonGroup
               exclusive
@@ -174,6 +182,14 @@ function ListPage() {
               value={view}
               onChange={(_event, nextView) => {
                 if (nextView) setView(nextView);
+              }}
+              sx={{
+                width: isMobile ? "100%" : "auto",
+                display: "flex",
+                flexWrap: "wrap",
+                "& .MuiToggleButton-root": {
+                  flex: isMobile ? 1 : "unset",
+                },
               }}
             >
               <ToggleButton value="draft">Draft</ToggleButton>
@@ -186,7 +202,10 @@ function ListPage() {
               placeholder="Search meets"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              sx={{ minWidth: 350 }}
+              sx={{
+                minWidth: isMobile ? 0 : 350,
+                width: isMobile ? "100%" : "auto",
+              }}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -200,62 +219,161 @@ function ListPage() {
               onClick={() => {
                 setPendingAction(MeetActionsEnum.Create);
               }}
+              sx={{ width: isMobile ? "100%" : "auto" }}
             >
               New meet
             </Button>
           </Stack>
         }
       />
-      <Paper variant="outlined" sx={{ width: "100%", bgcolor: "transparent" }}>
-        <DataGrid
-          autoHeight
-          rows={meets}
-          columns={columns}
-          getRowId={(row) => row.id}
-          loading={isLoading}
-          pagination
-          paginationMode="server"
-          rowCount={total}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          pageSizeOptions={[10, 25, 50]}
-          disableColumnFilter
-          disableRowSelectionOnClick
-          onRowClick={(params) => {
-            setSelectedMeetId(params.row.id);
-            setPendingAction(defaultPendingAction(params.row.statusId));
-          }}
-          sx={(theme) => ({
-            bgcolor:
-              theme.palette.mode === "dark"
-                ? "rgba(16, 16, 16, 0.7)"
-                : "rgba(255, 255, 255, 0.7)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            "& .MuiDataGrid-cell:first-of-type": {
-              pl: 2,
-            },
-            "& .MuiDataGrid-cell:last-of-type": {
-              pr: 2,
-            },
-            "& .MuiDataGrid-columnHeader:first-of-type": {
-              pl: 2,
-            },
-            "& .MuiDataGrid-columnHeader:last-of-type": {
-              pr: 2,
-            },
-          })}
-          slots={{
-            noRowsOverlay: () => (
-              <Box sx={{ p: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  No meets found.
-                </Typography>
-              </Box>
-            ),
-          }}
-        />
-      </Paper>
+      {!isMobile ? (
+        <Paper
+          variant="outlined"
+          sx={{ width: "100%", bgcolor: "transparent" }}
+        >
+          <DataGrid
+            autoHeight
+            rows={meets}
+            columns={columns}
+            getRowId={(row) => row.id}
+            loading={isLoading}
+            pagination
+            paginationMode="server"
+            rowCount={total}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[10, 25, 50]}
+            disableColumnFilter
+            disableRowSelectionOnClick
+            onRowClick={(params) => {
+              setSelectedMeetId(params.row.id);
+              setPendingAction(defaultPendingAction(params.row.statusId));
+            }}
+            sx={(theme) => ({
+              bgcolor:
+                theme.palette.mode === "dark"
+                  ? "rgba(16, 16, 16, 0.7)"
+                  : "rgba(255, 255, 255, 0.7)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              "& .MuiDataGrid-cell:first-of-type": {
+                pl: 2,
+              },
+              "& .MuiDataGrid-cell:last-of-type": {
+                pr: 2,
+              },
+              "& .MuiDataGrid-columnHeader:first-of-type": {
+                pl: 2,
+              },
+              "& .MuiDataGrid-columnHeader:last-of-type": {
+                pr: 2,
+              },
+            })}
+            slots={{
+              noRowsOverlay: () => (
+                <Box sx={{ p: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No meets found.
+                  </Typography>
+                </Box>
+              ),
+            }}
+          />
+        </Paper>
+      ) : (
+        <Stack spacing={1.5}>
+          {meets.length === 0 && !isLoading && (
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                No meets found.
+              </Typography>
+            </Paper>
+          )}
+          {meets.map((meet) => (
+            <Paper
+              key={meet.id}
+              variant="outlined"
+              onClick={() => {
+                setSelectedMeetId(meet.id);
+                setPendingAction(defaultPendingAction(meet.statusId));
+              }}
+              sx={{
+                p: 1.5,
+                cursor: "pointer",
+              }}
+            >
+              <Stack spacing={1.25}>
+                <Stack
+                  direction="row"
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                  spacing={1}
+                >
+                  <Typography fontWeight={600}>{meet.name}</Typography>
+                  <Box onClick={(event) => event.stopPropagation()}>
+                    <MeetActionsMenu
+                      meetId={meet.id}
+                      statusId={meet.statusId}
+                      isOrganizer={meet.organizerId === user?.id}
+                      setSelectedMeetId={setSelectedMeetId}
+                      setPendingAction={setPendingAction}
+                    />
+                  </Box>
+                </Stack>
+                <Stack spacing={1} direction="row" alignItems="center">
+                  <AccessTimeIcon fontSize="small" color="disabled" />
+                  <Typography color="text.secondary" variant="body2">
+                    {meet.startTime
+                      ? new Date(meet.startTime).toLocaleDateString()
+                      : ""}
+                  </Typography>
+                </Stack>
+                <Stack spacing={1} direction="row" alignItems="center">
+                  <PlaceIcon fontSize="small" color="disabled" />
+                  <Typography color="text.secondary" variant="body2">
+                    {meet.location}
+                  </Typography>
+                </Stack>
+                <Box>
+                  <MeetStatus
+                    statusId={meet.statusId}
+                    fallbackLabel={meet.status || "Unknown"}
+                  />
+                </Box>
+              </Stack>
+            </Paper>
+          ))}
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Button
+              variant="outlined"
+              onClick={() =>
+                setPaginationModel((prev) => ({
+                  ...prev,
+                  page: Math.max(0, prev.page - 1),
+                }))
+              }
+              disabled={currentPage <= 1}
+            >
+              Previous
+            </Button>
+            <Typography variant="body2" color="text.secondary">
+              Page {currentPage} of {totalPages}
+            </Typography>
+            <Button
+              variant="outlined"
+              onClick={() =>
+                setPaginationModel((prev) => ({
+                  ...prev,
+                  page: Math.min(totalPages - 1, prev.page + 1),
+                }))
+              }
+              disabled={currentPage >= totalPages}
+            >
+              Next
+            </Button>
+          </Stack>
+        </Stack>
+      )}
       <MeetActionsDialogs
         meetId={selectedMeetId}
         pendingAction={pendingAction || undefined}

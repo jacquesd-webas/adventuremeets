@@ -1,15 +1,19 @@
 import {
+  Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Drawer,
   FormControl,
   InputLabel,
   MenuItem,
   Select,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrentOrganization } from "../../context/organizationContext";
@@ -26,6 +30,8 @@ export function ChooseOrganizationModal({
   onClose,
   disableClose = false,
 }: ChooseOrganizationModalProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down(820));
   const { organizationIds, currentOrganizationId, setCurrentOrganizationId } =
     useCurrentOrganization();
   const { data: organizations, isLoading } = useFetchOrganisations({
@@ -74,6 +80,64 @@ export function ChooseOrganizationModal({
     onClose();
   };
 
+  const modalContent = (
+    <Stack spacing={2} sx={{ mt: 1 }}>
+      <Typography variant="body2" color="text.secondary">
+        Select the organization you want to work with.
+      </Typography>
+      <FormControl size="small" fullWidth>
+        <InputLabel id="organization-select-label">Organization</InputLabel>
+        <Select
+          labelId="organization-select-label"
+          label="Organization"
+          value={selectedId}
+          onChange={(event) => setSelectedId(event.target.value)}
+          disabled={isLoading}
+          MenuProps={{ sx: { zIndex: 1501 } }}
+        >
+          {options.map((org) => (
+            <MenuItem key={org.id} value={org.id}>
+              {org.name || "Untitled organization"}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    </Stack>
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer
+        anchor="bottom"
+        open={open}
+        onClose={disableClose ? () => undefined : onClose}
+        ModalProps={{ disableEscapeKeyDown: disableClose }}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            px: 2,
+            py: 2,
+          },
+        }}
+      >
+        <Box sx={{ width: "100%" }}>
+          <Typography variant="h6">Choose organisation</Typography>
+          {modalContent}
+          <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
+            <Button
+              variant="contained"
+              onClick={handleSave}
+              disabled={!selectedId}
+            >
+              Choose
+            </Button>
+          </Stack>
+        </Box>
+      </Drawer>
+    );
+  }
+
   return (
     <Dialog
       open={open}
@@ -83,30 +147,7 @@ export function ChooseOrganizationModal({
       disableEscapeKeyDown={disableClose}
     >
       <DialogTitle>Choose organisation</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Select the organization you want to work with.
-          </Typography>
-          <FormControl size="small" fullWidth>
-            <InputLabel id="organization-select-label">Organization</InputLabel>
-            <Select
-              labelId="organization-select-label"
-              label="Organization"
-              value={selectedId}
-              onChange={(event) => setSelectedId(event.target.value)}
-              disabled={isLoading}
-              MenuProps={{ sx: { zIndex: 1501 } }}
-            >
-              {options.map((org) => (
-                <MenuItem key={org.id} value={org.id}>
-                  {org.name || "Untitled organization"}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Stack>
-      </DialogContent>
+      <DialogContent>{modalContent}</DialogContent>
       <DialogActions>
         <Button variant="contained" onClick={handleSave} disabled={!selectedId}>
           Choose
