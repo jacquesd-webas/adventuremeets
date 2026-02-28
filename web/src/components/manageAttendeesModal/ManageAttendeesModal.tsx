@@ -460,16 +460,28 @@ export function ManageAttendeesModal({
                     {isOrganizer ? (
                       <SupervisorAccountOutlinedIcon
                         fontSize="large"
-                        color="primary"
+                        style={{ color: theme.palette.primary.main }}
                       />
                     ) : isConfirmed ? (
-                      <CheckCircleOutlineIcon fontSize="large" color="success" />
+                      <CheckCircleOutlineIcon
+                        fontSize="large"
+                        style={{ color: theme.palette.success.main }}
+                      />
                     ) : isWaitlisted ? (
-                      <CheckCircleOutlineIcon fontSize="large" color="warning" />
+                      <CheckCircleOutlineIcon
+                        fontSize="large"
+                        style={{ color: theme.palette.warning.main }}
+                      />
                     ) : isRejected ? (
-                      <CancelOutlinedIcon fontSize="large" color="error" />
+                      <CancelOutlinedIcon
+                        fontSize="large"
+                        style={{ color: theme.palette.error.main }}
+                      />
                     ) : (
-                      <QuestionMarkOutlinedIcon fontSize="large" color="disabled" />
+                      <QuestionMarkOutlinedIcon
+                        fontSize="large"
+                        style={{ color: theme.palette.action.disabled }}
+                      />
                     )}
                     {paidLabel ? (
                       <Box
