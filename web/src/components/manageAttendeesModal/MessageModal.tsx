@@ -24,8 +24,15 @@ type MessageModalProps = {
   onClose: () => void;
   meet?: Meet | null;
   attendeeIds?: string[];
-  attendees?: { id: string; status?: string }[];
+  attendees?: {
+    id: string;
+    status?: string;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }[];
   defaultSubject?: string;
+  showRecipientLabel?: boolean;
 };
 
 export function MessageModal({
@@ -35,6 +42,7 @@ export function MessageModal({
   attendeeIds,
   attendees,
   defaultSubject = "",
+  showRecipientLabel = false,
 }: MessageModalProps) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
@@ -54,6 +62,18 @@ export function MessageModal({
       ? (attendees?.find((att) => att.id === attendeeIds[0])
           ?.status as AttendeeStatusEnum)
       : undefined;
+  const recipientLabel = useMemo(() => {
+    if (attendeeIds && attendeeIds.length === 1) {
+      const attendee = attendees?.find((att) => att.id === attendeeIds[0]);
+      return (
+        attendee?.name || attendee?.email || attendee?.phone || "Selected attendee"
+      );
+    }
+    if (attendeeIds && attendeeIds.length > 1) {
+      return `${attendeeIds.length} attendees`;
+    }
+    return "All attendees";
+  }, [attendeeIds, attendees]);
   const defaultMessageOptions = useMemo(
     () => ({
       meetName: meet?.name,
@@ -217,7 +237,14 @@ export function MessageModal({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Send message</DialogTitle>
+      <DialogTitle>
+        Send message
+        {showRecipientLabel ? (
+          <Typography variant="body2" color="text.secondary">
+            {recipientLabel}
+          </Typography>
+        ) : null}
+      </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && (
