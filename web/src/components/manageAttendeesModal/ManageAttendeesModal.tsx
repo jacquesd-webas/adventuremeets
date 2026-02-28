@@ -851,11 +851,6 @@ export function ManageAttendeesModal({
             >
               <Box sx={{ width: "100%", maxWidth: 720, mx: "auto", p: 2 }}>
                 <Typography variant="h6">Send message</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {messageDrawerAttendee
-                    ? attendeeLabel(messageDrawerAttendee)
-                    : "All attendees"}
-                </Typography>
                 <Stack spacing={2} sx={{ mt: 2 }}>
                   {messageDrawerError && (
                     <span style={{ color: "#d32f2f", fontSize: 14, fontWeight: 600 }}>
@@ -1014,7 +1009,6 @@ export function ManageAttendeesModal({
           meet={meet}
           attendeeIds={messageAttendeeIds}
           attendees={attendees}
-          showRecipientLabel={fullScreen}
         />
       )}
       {meet && (
