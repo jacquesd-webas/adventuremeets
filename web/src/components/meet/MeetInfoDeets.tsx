@@ -60,7 +60,9 @@ export function MeetInfoDeets({
       <Stack
         direction={isHorizontal ? { xs: "column", sm: "row" } : "column"}
         spacing={isHorizontal ? 2 : 1}
-        alignItems={isHorizontal ? "center" : undefined}
+        alignItems={
+          isHorizontal ? { xs: "flex-start", sm: "center" } : "flex-start"
+        }
         justifyContent={isHorizontal ? "flex-start" : undefined}
         flexWrap={isHorizontal ? "wrap" : undefined}
       >
