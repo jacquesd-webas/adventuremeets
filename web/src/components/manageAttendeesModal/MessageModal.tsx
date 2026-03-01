@@ -24,7 +24,13 @@ type MessageModalProps = {
   onClose: () => void;
   meet?: Meet | null;
   attendeeIds?: string[];
-  attendees?: { id: string; status?: string }[];
+  attendees?: {
+    id: string;
+    status?: string;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }[];
   defaultSubject?: string;
 };
 
