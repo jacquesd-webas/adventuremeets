@@ -104,6 +104,7 @@ export class UsersService {
       .join("user_organization_memberships as uom", "uom.user_id", "u.id")
       .whereIn("uom.organization_id", organizationIds)
       .andWhere("uom.status", "active")
+      .distinct("u.id")
       .select("u.*");
     return rows.map((row) => this.stripSensitive(row));
   }
