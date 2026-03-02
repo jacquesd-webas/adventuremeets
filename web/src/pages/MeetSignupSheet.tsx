@@ -369,6 +369,7 @@ function MeetSignupSheet() {
   const { mode } = useThemeMode();
   const { user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
+  const mobilePreviewTopOffset = "var(--preview-banner-height, 0px)";
   const suppressAutofillRef = useRef(false);
   const metaAutofillRef = useRef(false);
   const editPrefillRef = useRef(false);
@@ -635,7 +636,7 @@ function MeetSignupSheet() {
             </Typography>
           </Box>
         ) : null}
-        <Box sx={{ pt: isPreview ? 10 : 0 }}>
+        <Box sx={{ pt: isPreview ? (isMobile ? mobilePreviewTopOffset : 10) : 0 }}>
           <MeetSignupSubmitted
             firstName={fullName.trim().split(/\s+/)[0] || ""}
             lastName={fullName.trim().split(/\s+/).slice(1).join(" ") || ""}
@@ -828,7 +829,13 @@ function MeetSignupSheet() {
         disableGutters={isMobile}
         sx={{
           py: isMobile ? 0 : 6,
-          pt: isPreview ? (isMobile ? 10 : 6) : isMobile ? 2 : 6,
+          pt: isPreview
+            ? isMobile
+              ? mobilePreviewTopOffset
+              : 6
+            : isMobile
+              ? 0
+              : 6,
           minHeight: "100vh",
           height: "100%",
           overflowY: "auto",
