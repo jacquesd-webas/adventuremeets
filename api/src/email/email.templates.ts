@@ -48,7 +48,7 @@ const loadTemplate = (name: EmailTemplateName, ext: "html" | "txt") => {
   const key = `${name}.${ext}`;
   const cached = templateCache.get(key);
   if (cached) return cached;
-  const filePath = join(__dirname, "templates", key);
+  const filePath = join(process.cwd(), "templates", key);
   const contents = readFileSync(filePath, "utf8");
   templateCache.set(key, contents);
   return contents;
