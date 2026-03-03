@@ -12,7 +12,8 @@ import {
   useTheme,
 } from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { Heading } from "../components/Heading";
 import { MeetStatus } from "../components/meet/MeetStatus";
 import { MeetActionsMenu } from "../components/meet/MeetActionsMenu";
@@ -25,10 +26,13 @@ import { useAuth } from "../context/authContext";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PlaceIcon from "@mui/icons-material/Place";
 import SearchIcon from "@mui/icons-material/Search";
+import AddIcon from "@mui/icons-material/Add";
+import { MainLayoutOutletContext } from "../layout/MainLayout";
 
 function ListPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down(820));
+  const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<MeetActionsEnum | null>(
     null,
@@ -160,6 +164,30 @@ function ListPage() {
     );
   }, [view]);
 
+  const handleNewMeet = useCallback(() => {
+    setPendingAction(MeetActionsEnum.Create);
+  }, [setPendingAction]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileHeaderAction(null);
+      return;
+    }
+    setMobileHeaderAction(
+      <Button
+        variant="text"
+        color="inherit"
+        size="small"
+        startIcon={<AddIcon />}
+        onClick={handleNewMeet}
+        sx={{ textTransform: "none", whiteSpace: "nowrap", minWidth: 0, px: 1 }}
+      >
+        NEW MEET
+      </Button>,
+    );
+    return () => setMobileHeaderAction(null);
+  }, [handleNewMeet, isMobile, setMobileHeaderAction]);
+
   const totalPages = Math.max(1, Math.ceil(total / paginationModel.pageSize));
   const currentPage = paginationModel.page + 1;
 
@@ -214,15 +242,15 @@ function ListPage() {
                 ),
               }}
             />
-            <Button
-              variant="contained"
-              onClick={() => {
-                setPendingAction(MeetActionsEnum.Create);
-              }}
-              sx={{ width: isMobile ? "100%" : "auto" }}
-            >
-              New meet
-            </Button>
+            {!isMobile && (
+              <Button
+                variant="contained"
+                onClick={handleNewMeet}
+                sx={{ width: "auto" }}
+              >
+                New meet
+              </Button>
+            )}
           </Stack>
         }
       />
