@@ -73,7 +73,11 @@ type ProfileModalProps = {
   onClose: () => void;
 };
 
-export function ProfileModal({ open, onClose }: ProfileModalProps) {
+type ProfileContentProps = {
+  open: boolean;
+};
+
+export function ProfileContent({ open }: ProfileContentProps) {
   const actionButtonSx = { alignSelf: "center", minWidth: 180 };
   const { user, refreshSession } = useAuth();
   const { success } = useNotistack();
@@ -391,16 +395,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="md"
-      PaperProps={{ sx: { minHeight: "80vh" } }}
-    >
-      <DialogTitle>Profile</DialogTitle>
-      <DialogContent dividers>
-        <Grid container spacing={2} sx={{ mt: 0 }}>
+    <Grid container spacing={2} sx={{ mt: 0 }}>
           <Grid item xs={12} sm={4} md={3}>
             <List component="nav">
               {[
@@ -1024,6 +1019,21 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
             )}
           </Grid>
         </Grid>
+  );
+}
+
+export function ProfileModal({ open, onClose }: ProfileModalProps) {
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="md"
+      PaperProps={{ sx: { minHeight: "80vh" } }}
+    >
+      <DialogTitle>Profile</DialogTitle>
+      <DialogContent dividers>
+        <ProfileContent open={open} />
       </DialogContent>
       <Divider />
       <DialogActions>
