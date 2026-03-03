@@ -1,14 +1,11 @@
-Hi {{attendeeName}},
-
-You have applied for {{meetName}}.
+{{messageBody}}
 
 {{#ifStatusUrl}}
 View your application status:
 {{statusUrl}}
 {{/ifStatusUrl}}
 {{#ifOrganizerEmail}}
-
-Questions? Contact {{organizerName}} at {{organizerEmail}}.
+If you need to reply, contact {{organizerName}} at {{organizerEmail}}.
 {{/ifOrganizerEmail}}
 
 Best regards,

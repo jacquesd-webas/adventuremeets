@@ -84,6 +84,11 @@ export class CreateMeetDto {
   @IsDateString()
   endTime?: string;
 
+  @ApiPropertyOptional({ description: "IANA timezone for the meet" })
+  @IsOptional()
+  @IsString()
+  timeZone?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsDateString()

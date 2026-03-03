@@ -1,8 +1,7 @@
-Hi {{attendeeName}},
-
-You have applied for {{meetName}}.
+{{messageBody}}
 
 {{#ifStatusUrl}}
+
 View your application status:
 {{statusUrl}}
 {{/ifStatusUrl}}

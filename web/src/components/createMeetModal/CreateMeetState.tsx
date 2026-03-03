@@ -31,6 +31,7 @@ export type CreateMeetState = {
   locationLong: number | string;
   startTime: string;
   endTime: string;
+  timeZone: string;
   startTimeTbc: boolean;
   endTimeTbc: boolean;
   useMap: boolean;
@@ -68,6 +69,7 @@ export const initialState: CreateMeetState = {
   locationLong: "",
   startTime: "",
   endTime: "",
+  timeZone: "Africa/Johannesburg",
   startTimeTbc: false,
   endTimeTbc: false,
   useMap: true,
@@ -124,6 +126,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     locationLong: toNumberOrEmpty(meet.locationLong),
     startTime: toDateTimeInput(meet.startTime),
     endTime: toDateTimeInput(meet.endTime),
+    timeZone: meet.timeZone ?? initialState.timeZone,
     startTimeTbc: meet.startTimeTbc ?? false,
     endTimeTbc: meet.endTimeTbc ?? false,
     useMap: meet.useMap ?? true,
