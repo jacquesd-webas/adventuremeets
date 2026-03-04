@@ -37,6 +37,7 @@ import { User } from "../auth/decorators/user.decorator";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { EmailService } from "../email/email.service";
+import { renderEmailTemplate } from "../email/email.templates";
 import { DatabaseService } from "../database/database.service";
 import * as ExcelJS from "exceljs";
 
@@ -283,7 +284,12 @@ export class MeetsController {
   ) {
     // Shortcut the entire process as worker API can do anything
     if (apiKey && apiKey === process.env.WORKER_API_KEY) {
-      return await this.meetsService.updateStatus(id, dto.statusId);
+      const updated = await this.meetsService.updateStatus(id, dto.statusId);
+      if (dto.notifyAttendees && dto.statusId === 4) {
+        const meet = await this.meetsService.findOne(id);
+        await this.notifyAttendeesOfStatus(meet);
+      }
+      return updated;
     }
 
     // Otherwise authorize normally
@@ -298,7 +304,77 @@ export class MeetsController {
       );
     }
 
-    return await this.meetsService.updateStatus(id, dto.statusId);
+    const updated = await this.meetsService.updateStatus(id, dto.statusId);
+    if (dto.notifyAttendees && dto.statusId === 4) {
+      await this.notifyAttendeesOfStatus(meet);
+    }
+    return updated;
+  }
+
+  private async notifyAttendeesOfStatus(meet: MeetDto) {
+    if (!process.env.MAIL_DOMAIN) {
+      throw new BadRequestException("Mail is not enabled");
+    }
+    const { attendees } = await this.meetsService.listAttendees(meet.id);
+    if (!attendees.length) return;
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const notifiedIds: string[] = [];
+    await Promise.all(
+      attendees.map(async (attendee: any) => {
+        if (!attendee.email) return;
+        const status = attendee.status;
+        let template: "meet-confirm" | "meet-reject" | "meet-waitlist" | null =
+          null;
+        if (status === "confirmed" || status === "checked-in" || status === "attended") {
+          template = "meet-confirm";
+        } else if (status === "waitlisted") {
+          template = "meet-waitlist";
+        } else if (status === "rejected" || status === "cancelled") {
+          template = "meet-reject";
+        }
+        if (!template) return;
+        const statusUrl = meet.shareCode
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
+          : "";
+        const organizerName = meet.organizerName || "the organizer";
+        const organizerEmail = meet.organizerEmail || "";
+        const attendeeName =
+          attendee.name || attendee.email || attendee.phone || "there";
+        const { subject, text, html } = renderEmailTemplate(template, {
+          meetName: meet.name,
+          attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
+          statusUrl,
+          organizerName,
+          organizerEmail,
+        });
+        await this.emailService.sendEmail({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        await this.emailService.saveMessage({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        notifiedIds.push(attendee.id);
+      }),
+    );
+    if (notifiedIds.length) {
+      await this.meetsService.updateAttendeesNotified(meet.id, notifiedIds);
+    }
   }
 
   @Post(":id/images")
@@ -415,26 +491,63 @@ export class MeetsController {
       );
     }
 
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
     // Send all the emails (just skip any nulls it's fine)
     await Promise.all(
-      Array.from(recipients.entries()).map(([, email]) => {
+      Array.from(recipients.entries()).map(async ([attendeeId, email]) => {
+        const attendee =
+          await this.meetsService.getAttendeeContactById(attendeeId);
+        const statusUrl = `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`;
+        const attendeeName =
+          attendee?.name || attendee?.email || attendee?.phone || "there";
+        const organizerName = meet.organizerName || "the organizer";
+        const organizerEmail = meet.organizerEmail || "";
+        const { text, html } = renderEmailTemplate("meet-message", {
+          meetName: meet.name,
+          attendeeName,
+          statusUrl,
+          organizerName,
+          organizerEmail,
+          messageBody: body.text ?? body.html ?? "",
+        });
         return this.emailService.sendEmail({
           to: email,
           subject: body.subject,
-          text: body.text ?? "",
-          html: body.html ?? "",
+          text,
+          html,
           meetId: meet.id,
+          attendeeId,
         });
       }),
     );
 
     await Promise.all(
       Array.from(recipients.keys()).map(async (attendeeId) => {
+        const attendee =
+          await this.meetsService.getAttendeeContactById(attendeeId);
+        const statusUrl = `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`;
+        const attendeeName =
+          attendee?.name || attendee?.email || attendee?.phone || "there";
+        const organizerName = meet.organizerName || "the organizer";
+        const organizerEmail = meet.organizerEmail || "";
+        const { text } = renderEmailTemplate("meet-message", {
+          meetName: meet.name,
+          attendeeName,
+          statusUrl,
+          organizerName,
+          organizerEmail,
+          messageBody: body.text ?? body.html ?? "",
+        });
+        const textWithoutStatus = text
+          .split("View your application status:")[0]
+          .trim();
         await this.emailService.saveMessage({
           to: recipients.get(attendeeId)!,
           subject: body.subject,
-          text: body.text ?? "",
-          html: body.html ?? "",
+          text: textWithoutStatus,
+          html: "",
           meetId: meet.id,
           attendeeId,
         });

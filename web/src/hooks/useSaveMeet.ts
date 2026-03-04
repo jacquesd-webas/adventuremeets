@@ -14,6 +14,7 @@ export type CreateMeetPayload = {
   startTimeTbc?: boolean;
   endTime?: string;
   endTimeTbc?: boolean;
+  timeZone?: string;
   useMap?: boolean;
   openingDate?: string | null;
   closingDate?: string | null;

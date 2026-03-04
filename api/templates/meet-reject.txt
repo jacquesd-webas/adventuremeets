@@ -1,0 +1,12 @@
+{{messageBody}}
+
+{{#ifStatusUrl}}
+You can view your application status here:
+{{statusUrl}}
+{{/ifStatusUrl}}
+{{#ifOrganizerEmail}}
+If you have questions, contact {{organizerName}} at {{organizerEmail}}.
+{{/ifOrganizerEmail}}
+
+Best regards,
+{{fromName}}

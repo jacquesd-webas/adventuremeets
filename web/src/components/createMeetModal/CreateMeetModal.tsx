@@ -254,6 +254,9 @@ export function CreateMeetModal({
     draft: CreateMeetState,
     step: number,
   ): SaveMeetPayload => {
+    const resolvedTimeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone ||
+      "Africa/Johannesburg";
     switch (step) {
       case 0:
         return {
@@ -295,6 +298,7 @@ export function CreateMeetModal({
               : undefined,
           startTime: startTimeWithZone,
           endTime: endTimeWithZone,
+          timeZone: draft.timeZone || resolvedTimeZone,
           startTimeTbc: draft.startTimeTbc,
           endTimeTbc: draft.endTimeTbc,
           useMap: draft.useMap,

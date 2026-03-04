@@ -1,0 +1,13 @@
+<h2 style="margin:0 0 12px 0;font-size:20px;">Sorry, your application was not successful</h2>
+<p style="margin:0 0 16px 0;">{{messageBody}}</p>
+
+{{#ifStatusUrl}}
+<p style="margin:0 0 16px 0;text-align:center;">
+  <a href="{{statusUrl}}" style="display:inline-block;background:{{primaryColor}};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;">View your application</a>
+</p>
+<p style="margin:0 0 16px 0;font-size:13px;color:#475569;">If the button doesn't work, copy and paste this link into your browser:</p>
+<p style="word-break:break-all;font-size:13px;color:#475569;margin:0 0 16px 0;">{{statusUrl}}</p>
+{{/ifStatusUrl}}
+{{#ifOrganizerEmail}}
+<p style="margin:0;font-size:13px;color:#475569;">Questions? Contact {{organizerName}} at <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a>.</p>
+{{/ifOrganizerEmail}}

@@ -5,7 +5,11 @@ export type EmailTemplateName =
   | "password-reset"
   | "password-reset-confirmation"
   | "meet-signup"
-  | "verify-email";
+  | "verify-email"
+  | "meet-confirm"
+  | "meet-reject"
+  | "meet-waitlist"
+  | "meet-message";
 
 export type PasswordResetTemplateVars = {
   resetUrl: string;
@@ -19,9 +23,34 @@ export type VerifyEmailTemplateVars = {
 export type MeetSignupTemplateVars = {
   meetName: string;
   attendeeName?: string;
+  startTime?: string;
+  endTime?: string;
+  timeZone?: string;
+  location?: string;
   statusUrl?: string;
   organizerName?: string;
   organizerEmail?: string;
+};
+
+export type MeetStatusTemplateVars = {
+  meetName: string;
+  attendeeName?: string;
+  startTime?: string;
+  endTime?: string;
+  timeZone?: string;
+  location?: string;
+  statusUrl?: string;
+  organizerName?: string;
+  organizerEmail?: string;
+};
+
+export type MeetMessageTemplateVars = {
+  meetName: string;
+  attendeeName?: string;
+  statusUrl?: string;
+  organizerName?: string;
+  organizerEmail?: string;
+  messageBody: string;
 };
 
 const BRAND_NAME = "AdventureMeets";
@@ -48,7 +77,7 @@ const loadTemplate = (name: EmailTemplateName, ext: "html" | "txt") => {
   const key = `${name}.${ext}`;
   const cached = templateCache.get(key);
   if (cached) return cached;
-  const filePath = join(__dirname, "templates", key);
+  const filePath = join(process.cwd(), "templates", key);
   const contents = readFileSync(filePath, "utf8");
   templateCache.set(key, contents);
   return contents;
@@ -77,29 +106,6 @@ const renderTemplate = (
     template = template.split(`{{${key}}}`).join(value);
   });
   return template.replace(/\n{3,}/g, "\n\n").trim();
-};
-
-const textToHtmlParagraphs = (text: string) => {
-  const lines = text.split("\n");
-  const paragraphs: string[] = [];
-  let buffer: string[] = [];
-  const flush = () => {
-    if (buffer.length === 0) return;
-    const content = escapeHtml(buffer.join(" ").trim());
-    if (content) {
-      paragraphs.push(`<p style="margin:0 0 16px 0;">${content}</p>`);
-    }
-    buffer = [];
-  };
-  lines.forEach((line) => {
-    if (!line.trim()) {
-      flush();
-    } else {
-      buffer.push(line.trim());
-    }
-  });
-  flush();
-  return paragraphs.join("");
 };
 
 function wrapHtml(content: string) {
@@ -153,11 +159,29 @@ export function renderEmailTemplate(
   vars: VerifyEmailTemplateVars,
 ): { subject: string; text: string; html: string };
 export function renderEmailTemplate(
+  name: "meet-confirm",
+  vars: MeetStatusTemplateVars,
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
+  name: "meet-reject",
+  vars: MeetStatusTemplateVars,
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
+  name: "meet-waitlist",
+  vars: MeetStatusTemplateVars,
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
+  name: "meet-message",
+  vars: MeetMessageTemplateVars,
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
   name: EmailTemplateName,
   vars?:
     | PasswordResetTemplateVars
     | MeetSignupTemplateVars
-    | VerifyEmailTemplateVars,
+    | VerifyEmailTemplateVars
+    | MeetStatusTemplateVars
+    | MeetMessageTemplateVars,
 ) {
   if (name === "password-reset") {
     const resetVars = vars as PasswordResetTemplateVars | undefined;
@@ -168,9 +192,10 @@ export function renderEmailTemplate(
     const varsMap = {
       ...baseVarsMap,
       resetUrl: resetVars.resetUrl,
+      expiresIn: "30 minutes",
     };
     const text = renderTemplate("password-reset", "txt", varsMap);
-    const htmlBody = textToHtmlParagraphs(text);
+    const htmlBody = renderTemplate("password-reset", "html", varsMap);
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
@@ -183,12 +208,24 @@ export function renderEmailTemplate(
     const statusUrl = signupVars.statusUrl || "";
     const organizerName = signupVars.organizerName || "the organizer";
     const organizerEmail = signupVars.organizerEmail || "";
+    const dateString = formatDateTime(
+      signupVars.startTime,
+      signupVars.timeZone,
+    );
+    const endString = formatDateTime(signupVars.endTime, signupVars.timeZone);
+    const hasRange = Boolean(dateString && endString && dateString !== endString);
+    const timeLine = hasRange
+      ? `${dateString} to ${endString}`
+      : dateString || "TBC";
+    const locationLine = signupVars.location || "TBC";
 
     const subject = `You're signed up for ${signupVars.meetName}`;
     const varsMap = {
       ...baseVarsMap,
       attendeeName: escapeHtml(greetingName),
       meetName: escapeHtml(signupVars.meetName),
+      timeLine: escapeHtml(timeLine),
+      locationLine: escapeHtml(locationLine),
       statusUrl,
       organizerName: escapeHtml(organizerName),
       organizerEmail,
@@ -199,6 +236,133 @@ export function renderEmailTemplate(
     };
     const text = renderTemplate("meet-signup", "txt", varsMap, flags);
     const htmlBody = renderTemplate("meet-signup", "html", varsMap, flags);
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
+
+  if (name === "meet-confirm") {
+    const meetVars = vars as MeetStatusTemplateVars | undefined;
+    if (!meetVars?.meetName) {
+      throw new Error("Missing meetName for meet-confirm template");
+    }
+    const greetingName = meetVars.attendeeName || "there";
+    const statusUrl = meetVars.statusUrl || "";
+    const organizerName = meetVars.organizerName || "the organizer";
+    const organizerEmail = meetVars.organizerEmail || "";
+    const dateString = formatDateTime(meetVars.startTime, meetVars.timeZone);
+    const endString = formatDateTime(meetVars.endTime, meetVars.timeZone);
+    const hasRange = Boolean(dateString && endString && dateString !== endString);
+    const timeLine = hasRange
+      ? `${dateString} to ${endString}`
+      : dateString || "TBC";
+    const locationLine = meetVars.location || "TBC";
+    const subject = `You're confirmed for ${meetVars.meetName}`;
+    const varsMap = {
+      ...baseVarsMap,
+      attendeeName: escapeHtml(greetingName),
+      meetName: escapeHtml(meetVars.meetName),
+      timeLine: escapeHtml(timeLine),
+      locationLine: escapeHtml(locationLine),
+      statusUrl,
+      organizerName: escapeHtml(organizerName),
+      organizerEmail,
+    };
+    const flags = {
+      ifStatusUrl: Boolean(statusUrl),
+      ifOrganizerEmail: Boolean(organizerEmail),
+    };
+    const text = renderTemplate("meet-confirm", "txt", varsMap, flags);
+    const htmlBody = renderTemplate("meet-confirm", "html", varsMap, flags);
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
+
+  if (name === "meet-reject") {
+    const meetVars = vars as MeetStatusTemplateVars | undefined;
+    if (!meetVars?.meetName) {
+      throw new Error("Missing meetName for meet-reject template");
+    }
+    const greetingName = meetVars.attendeeName || "there";
+    const statusUrl = meetVars.statusUrl || "";
+    const organizerName = meetVars.organizerName || "the organizer";
+    const organizerEmail = meetVars.organizerEmail || "";
+    const subject = `Update on your application for ${meetVars.meetName}`;
+    const varsMap = {
+      ...baseVarsMap,
+      attendeeName: escapeHtml(greetingName),
+      meetName: escapeHtml(meetVars.meetName),
+      statusUrl,
+      organizerName: escapeHtml(organizerName),
+      organizerEmail,
+    };
+    const flags = {
+      ifStatusUrl: Boolean(statusUrl),
+      ifOrganizerEmail: Boolean(organizerEmail),
+    };
+    const text = renderTemplate("meet-reject", "txt", varsMap, flags);
+    const htmlBody = renderTemplate("meet-reject", "html", varsMap, flags);
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
+
+  if (name === "meet-waitlist") {
+    const meetVars = vars as MeetStatusTemplateVars | undefined;
+    if (!meetVars?.meetName) {
+      throw new Error("Missing meetName for meet-waitlist template");
+    }
+    const greetingName = meetVars.attendeeName || "there";
+    const statusUrl = meetVars.statusUrl || "";
+    const organizerName = meetVars.organizerName || "the organizer";
+    const organizerEmail = meetVars.organizerEmail || "";
+    const dateString = formatDateTime(meetVars.startTime, meetVars.timeZone);
+    const endString = formatDateTime(meetVars.endTime, meetVars.timeZone);
+    const hasRange = Boolean(dateString && endString && dateString !== endString);
+    const timeLine = hasRange
+      ? `${dateString} to ${endString}`
+      : dateString || "TBC";
+    const locationLine = meetVars.location || "TBC";
+    const subject = `You're on the waitlist for ${meetVars.meetName}`;
+    const varsMap = {
+      ...baseVarsMap,
+      attendeeName: escapeHtml(greetingName),
+      meetName: escapeHtml(meetVars.meetName),
+      timeLine: escapeHtml(timeLine),
+      locationLine: escapeHtml(locationLine),
+      statusUrl,
+      organizerName: escapeHtml(organizerName),
+      organizerEmail,
+    };
+    const flags = {
+      ifStatusUrl: Boolean(statusUrl),
+      ifOrganizerEmail: Boolean(organizerEmail),
+    };
+    const text = renderTemplate("meet-waitlist", "txt", varsMap, flags);
+    const htmlBody = renderTemplate("meet-waitlist", "html", varsMap, flags);
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
+
+  if (name === "meet-message") {
+    const messageVars = vars as MeetMessageTemplateVars | undefined;
+    if (!messageVars?.meetName) {
+      throw new Error("Missing meetName for meet-message template");
+    }
+    const greetingName = messageVars.attendeeName || "there";
+    const statusUrl = messageVars.statusUrl || "";
+    const organizerName = messageVars.organizerName || "the organizer";
+    const organizerEmail = messageVars.organizerEmail || "";
+    const subject = `Message about ${messageVars.meetName}`;
+    const varsMap = {
+      ...baseVarsMap,
+      attendeeName: escapeHtml(greetingName),
+      meetName: escapeHtml(messageVars.meetName),
+      statusUrl,
+      organizerName: escapeHtml(organizerName),
+      organizerEmail,
+      messageBody: escapeHtml(messageVars.messageBody),
+    };
+    const flags = {
+      ifStatusUrl: Boolean(statusUrl),
+      ifOrganizerEmail: Boolean(organizerEmail),
+    };
+    const text = renderTemplate("meet-message", "txt", varsMap, flags);
+    const htmlBody = renderTemplate("meet-message", "html", varsMap, flags);
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
@@ -217,15 +381,33 @@ export function renderEmailTemplate(
   }
 
   if (name === "verify-email") {
+    const verifyVars = vars as VerifyEmailTemplateVars | undefined;
     const subject = `Verify your ${BRAND_NAME} email address`;
     const varsMap = {
       ...baseVarsMap,
-      expiresIn: "30 minutes",
+      verificationCode: verifyVars?.verificationCode || "",
+      expiresIn: verifyVars?.expiresIn || "30 minutes",
     };
     const text = renderTemplate("verify-email", "txt", varsMap);
     const htmlBody = renderTemplate("verify-email", "html", varsMap);
     return { subject, text, html: wrapHtml(htmlBody) };
   }
+}
+
+function formatDateTime(value?: string, timeZone?: string) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    if (timeZone) {
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(parsed);
+    }
+    return parsed.toISOString().replace("T", " ").slice(0, 16);
+  }
+  return value;
 }
 
 function escapeHtml(value: string) {

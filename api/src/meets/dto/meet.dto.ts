@@ -84,6 +84,10 @@ export class MeetDto {
   endTime?: string;
 
   @ApiPropertyOptional()
+  @IsString()
+  timeZone?: string;
+
+  @ApiPropertyOptional()
   @IsDateString()
   openingDate?: string;
 
