@@ -102,11 +102,6 @@ const chunkWeeks = (cells: Date[]) => {
   return weeks;
 };
 
-const getMonthLabel = (date: Date) =>
-  new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(
-    date,
-  );
-
 export default function CalendarPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -188,7 +183,6 @@ export default function CalendarPage() {
   }, [meets]);
   const monthCells = useMemo(() => getMonthGrid(currentMonth), [currentMonth]);
   const weeks = useMemo(() => chunkWeeks(monthCells), [monthCells]);
-  const monthLabel = useMemo(() => getMonthLabel(currentMonth), [currentMonth]);
   const monthIndex = currentMonth.getMonth();
   const agendaDayKeys = useMemo(() => {
     const start = startOfMonth(currentMonth);
