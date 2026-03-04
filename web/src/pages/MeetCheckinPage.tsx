@@ -23,6 +23,7 @@ import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
+import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,18 +51,18 @@ function MeetCheckinPage() {
         phone: attendee.phone || "",
         status: attendee.status || "",
       })),
-    [attendees]
+    [attendees],
   );
 
   useEffect(() => {
     const initial = attendeeList.reduce<Record<string, boolean>>(
       (acc, attendee) => {
-        if (attendee.status === "checked-in") {
+        if (attendee.status === AttendeeStatusEnum.CheckedIn) {
           acc[attendee.id] = true;
         }
         return acc;
       },
-      {}
+      {},
     );
     setChecked(initial);
   }, [attendeeList]);
