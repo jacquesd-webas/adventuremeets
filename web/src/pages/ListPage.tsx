@@ -198,7 +198,7 @@ function ListPage() {
         subtitle="Manage all meets from one place."
         actionComponent={
           <Stack
-            direction={isMobile ? "column" : "row"}
+            direction="row"
             spacing={1}
             alignItems={isMobile ? "stretch" : "center"}
             flexWrap="wrap"
@@ -224,24 +224,6 @@ function ListPage() {
               <ToggleButton value="upcoming">Upcoming</ToggleButton>
               <ToggleButton value="past">Past</ToggleButton>
             </ToggleButtonGroup>
-            <TextField
-              size="small"
-              variant="standard"
-              placeholder="Search meets"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              sx={{
-                minWidth: isMobile ? 0 : 350,
-                width: isMobile ? "100%" : "auto",
-              }}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <SearchIcon fontSize="small" color="disabled" />
-                  </InputAdornment>
-                ),
-              }}
-            />
             {!isMobile && (
               <Button
                 variant="contained"
@@ -254,6 +236,23 @@ function ListPage() {
           </Stack>
         }
       />
+      {isMobile && (
+        <TextField
+          size="small"
+          variant="standard"
+          placeholder="Search meets"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          sx={{ width: "100%" }}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <SearchIcon fontSize="small" color="disabled" />
+              </InputAdornment>
+            ),
+          }}
+        />
+      )}
       {!isMobile ? (
         <Paper
           variant="outlined"

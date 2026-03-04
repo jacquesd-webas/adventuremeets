@@ -21,6 +21,7 @@ import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useCurrentOrganization } from "../context/organizationContext";
 import Meet from "../types/MeetModel";
 import { MeetInfoModal } from "../components/meet/MeetInfoModal";
+import { Heading } from "../components/Heading";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const pad2 = (v: number) => `${v}`.padStart(2, "0");
@@ -297,7 +298,11 @@ export default function CalendarPage() {
       month: "short",
     });
   const formatDateShort = (date: Date) =>
-    date.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    date.toLocaleDateString([], {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
 
   const getOccurrencePhaseLabel = (occurrence: MobileOccurrence) => {
     if (occurrence.isStart && !occurrence.isEnd) {
@@ -379,9 +384,7 @@ export default function CalendarPage() {
       <Container maxWidth="xl">
         <Stack spacing={2}>
           <Stack direction="row" alignItems="center" spacing={2}>
-            <Typography variant={isMobile ? "h5" : "h4"} fontWeight={700}>
-              Calendar
-            </Typography>
+            <Heading title="Calendar" />
             <Box sx={{ flexGrow: 1 }} />
             <Stack direction="row" spacing={1} alignItems="center">
               <IconButton
@@ -389,8 +392,11 @@ export default function CalendarPage() {
               >
                 <ChevronLeftIcon />
               </IconButton>
-              <Typography variant="h6" fontWeight={600}>
-                {monthLabel}
+              <Typography variant="body1" fontWeight={600}>
+                {currentMonth.toLocaleDateString("en-US", {
+                  month: "short",
+                  year: "numeric",
+                })}
               </Typography>
               <IconButton
                 onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
@@ -440,11 +446,16 @@ export default function CalendarPage() {
                     <Stack spacing={1.5}>
                       {agendaDayKeys.map((key) => {
                         const day = parseDayKey(key);
-                        const dayOccurrences = occurrencesByDayKey.get(key) || [];
+                        const dayOccurrences =
+                          occurrencesByDayKey.get(key) || [];
                         if (!dayOccurrences.length) return null;
                         return (
                           <Box key={key}>
-                            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
+                            <Typography
+                              variant="subtitle2"
+                              fontWeight={700}
+                              sx={{ mb: 0.75 }}
+                            >
                               {formatDayHeader(day)}
                             </Typography>
                             <Stack spacing={0.75}>
@@ -494,7 +505,8 @@ export default function CalendarPage() {
                       >
                         {monthCells.map((day) => {
                           const key = dayKey(day);
-                          const dayOccurrences = occurrencesByDayKey.get(key) || [];
+                          const dayOccurrences =
+                            occurrencesByDayKey.get(key) || [];
                           const count = dayOccurrences.length;
                           const startMarkerCount = dayOccurrences.filter(
                             (occurrence) =>
@@ -540,17 +552,19 @@ export default function CalendarPage() {
                                 {count > 0 ? (
                                   count <= 3 ? (
                                     <Stack direction="row" spacing={0.35}>
-                                      {Array.from({ length: count }).map((_, index) => (
-                                        <Box
-                                          key={`${key}-dot-${index}`}
-                                          sx={{
-                                            width: 5,
-                                            height: 5,
-                                            borderRadius: "50%",
-                                            backgroundColor: "primary.main",
-                                          }}
-                                        />
-                                      ))}
+                                      {Array.from({ length: count }).map(
+                                        (_, index) => (
+                                          <Box
+                                            key={`${key}-dot-${index}`}
+                                            sx={{
+                                              width: 5,
+                                              height: 5,
+                                              borderRadius: "50%",
+                                              backgroundColor: "primary.main",
+                                            }}
+                                          />
+                                        ),
+                                      )}
                                     </Stack>
                                   ) : (
                                     <Typography
@@ -571,7 +585,10 @@ export default function CalendarPage() {
                                     <Typography
                                       variant="caption"
                                       color="text.secondary"
-                                      sx={{ fontSize: "0.58rem", lineHeight: 1 }}
+                                      sx={{
+                                        fontSize: "0.58rem",
+                                        lineHeight: 1,
+                                      }}
                                     >
                                       →{startMarkerCount}
                                     </Typography>
@@ -580,7 +597,10 @@ export default function CalendarPage() {
                                     <Typography
                                       variant="caption"
                                       color="text.secondary"
-                                      sx={{ fontSize: "0.58rem", lineHeight: 1 }}
+                                      sx={{
+                                        fontSize: "0.58rem",
+                                        lineHeight: 1,
+                                      }}
                                     >
                                       ⋯{continueMarkerCount}
                                     </Typography>
@@ -589,7 +609,10 @@ export default function CalendarPage() {
                                     <Typography
                                       variant="caption"
                                       color="text.secondary"
-                                      sx={{ fontSize: "0.58rem", lineHeight: 1 }}
+                                      sx={{
+                                        fontSize: "0.58rem",
+                                        lineHeight: 1,
+                                      }}
                                     >
                                       ←{endMarkerCount}
                                     </Typography>
@@ -685,7 +708,8 @@ export default function CalendarPage() {
                           >
                             {week.map((day) => {
                               const key = formatKey(day);
-                              const isCurrentMonth = day.getMonth() === monthIndex;
+                              const isCurrentMonth =
+                                day.getMonth() === monthIndex;
                               const singleDayItems =
                                 singleDayMeetsByDay.get(key) || [];
                               const isWeekend =
@@ -751,14 +775,16 @@ export default function CalendarPage() {
                                               <Box
                                                 sx={{
                                                   px: 0.75,
-                                                  height: "var(--item-row-height)",
+                                                  height:
+                                                    "var(--item-row-height)",
                                                   display: "flex",
                                                   alignItems: "center",
                                                   borderRadius: 1,
                                                   backgroundColor:
                                                     theme.palette.primary.main,
                                                   color:
-                                                    theme.palette.mode === "dark"
+                                                    theme.palette.mode ===
+                                                    "dark"
                                                       ? "#222222"
                                                       : theme.palette.primary
                                                           .contrastText,
@@ -825,7 +851,8 @@ export default function CalendarPage() {
                                       height: "var(--item-row-height)",
                                       px: 0.75,
                                       borderRadius: 1,
-                                      backgroundColor: theme.palette.primary.main,
+                                      backgroundColor:
+                                        theme.palette.primary.main,
                                       color:
                                         theme.palette.mode === "dark"
                                           ? "#222222"
@@ -843,14 +870,21 @@ export default function CalendarPage() {
                                     <Typography
                                       variant="caption"
                                       fontWeight={600}
-                                      sx={{ display: "block", lineHeight: "inherit" }}
+                                      sx={{
+                                        display: "block",
+                                        lineHeight: "inherit",
+                                      }}
                                     >
                                       {label}
                                     </Typography>
                                   </Box>
                                 );
                                 return isTruncated ? (
-                                  <Tooltip key={group.weekKey} title={group.meet.name} arrow>
+                                  <Tooltip
+                                    key={group.weekKey}
+                                    title={group.meet.name}
+                                    arrow
+                                  >
                                     {content}
                                   </Tooltip>
                                 ) : (
