@@ -7,6 +7,7 @@ import { NotistackProvider } from "./components/NotistackProvider";
 import { ThemeModeProvider } from "./context/ThemeModeContext";
 import { AuthProvider } from "./context/AuthProvider";
 import { OrganizationProvider } from "./context/OrganizationProvider";
+import { registerServiceWorker } from "./helpers/registerServiceWorker";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -34,3 +35,7 @@ ReactDOM.createRoot(root).render(
     </ThemeModeProvider>
   </React.StrictMode>
 );
+
+if (import.meta.env.PROD) {
+  registerServiceWorker();
+}
