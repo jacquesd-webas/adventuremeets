@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useState } from "react";
+import { MouseEvent, useState } from "react";
 import {
   Box,
   Drawer,
@@ -115,32 +115,15 @@ export function MeetActionsMenu({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const nav = useNavigate();
-
-  // If the viewport switches while a menu is open, convert to the appropriate UI.
-  useEffect(() => {
-    if (isMobile && open) {
-      setAnchorEl(null);
-      setDrawerOpen(true);
-    }
-    if (!isMobile && drawerOpen) {
-      setDrawerOpen(false);
-    }
-  }, [isMobile, open, drawerOpen]);
 
   const handleOpen = (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
-    if (isMobile) {
-      setDrawerOpen(true);
-    } else {
-      setAnchorEl(event.currentTarget);
-    }
+    setAnchorEl(event.currentTarget);
   };
 
   const handleClose = () => {
     setAnchorEl(null);
-    setDrawerOpen(false);
   };
 
   const handleCopyLink = async (event: MouseEvent<HTMLElement>) => {
@@ -256,7 +239,9 @@ export function MeetActionsMenu({
                 <LockOpenOutlinedIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText>
-                {statusId === MeetStatusEnum.Closed ? "Re-open meet" : "Open meet"}
+                {statusId === MeetStatusEnum.Closed
+                  ? "Re-open meet"
+                  : "Open meet"}
               </ListItemText>
             </MenuItem>
           )}
@@ -415,7 +400,7 @@ export function MeetActionsMenu({
       {isMobile && (
         <Drawer
           anchor="bottom"
-          open={drawerOpen}
+          open={open}
           onClose={handleClose}
           PaperProps={{
             sx: { borderTopLeftRadius: 12, borderTopRightRadius: 12, pb: 1 },
@@ -425,7 +410,7 @@ export function MeetActionsMenu({
             sx={{ width: "100%", maxWidth: 480, mx: "auto", pt: 1 }}
             onClick={(event) => event.stopPropagation()}
           >
-            {renderItems(handleAction)}
+            {renderItems()}
           </Box>
         </Drawer>
       )}

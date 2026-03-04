@@ -1,5 +1,4 @@
 import {
-  Avatar,
   Box,
   Button,
   Chip,
@@ -12,8 +11,6 @@ import {
   FormControlLabel,
   IconButton,
   List,
-  ListItemButton,
-  ListItemText,
   Paper,
   Stack,
   Switch,
@@ -29,11 +26,8 @@ import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
 import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
-import QuestionMarkOutlinedIcon from "@mui/icons-material/QuestionMarkOutlined";
-import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccountOutlined";
 import CloseIcon from "@mui/icons-material/Close";
+import { AttendeeItem } from "./AttendeeItem";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
 import Meet from "../../types/MeetModel";
@@ -69,7 +63,8 @@ export function ManageAttendeesModal({
   } = useFetchMeetAttendees(meetId, open ? "all" : null);
   const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
   const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
-  const { notifyAttendeeAsync, isLoading: isMessageSending } = useNotifyAttendee();
+  const { notifyAttendeeAsync, isLoading: isMessageSending } =
+    useNotifyAttendee();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
@@ -160,8 +155,9 @@ export function ManageAttendeesModal({
   const messageDrawerAttendee = useMemo(
     () =>
       messageDrawerRecipientIds && messageDrawerRecipientIds.length === 1
-        ? attendees.find((attendee) => attendee.id === messageDrawerRecipientIds[0]) ||
-          null
+        ? attendees.find(
+            (attendee) => attendee.id === messageDrawerRecipientIds[0],
+          ) || null
         : null,
     [attendees, messageDrawerRecipientIds],
   );
@@ -422,101 +418,16 @@ export function ManageAttendeesModal({
           attendees.map((attendee) => {
             const label = attendeeLabel(attendee);
             const subLabel = attendee.email || attendee.phone || "";
-            const paidLabel = attendee.paidFullAt
-              ? "Paid"
-              : attendee.paidDepositAt
-                ? "Dep"
-                : null;
-            const paidColor = attendee.paidFullAt ? "info.main" : "secondary.main";
-            const isConfirmed =
-              attendee.status === AttendeeStatusEnum.Confirmed ||
-              attendee.status === AttendeeStatusEnum.Attended ||
-              attendee.status === AttendeeStatusEnum.CheckedIn;
-            const isRejected =
-              attendee.status === AttendeeStatusEnum.Rejected ||
-              attendee.status === AttendeeStatusEnum.Cancelled;
-            const isPending = attendee.status === AttendeeStatusEnum.Pending;
-            const isWaitlisted = attendee.status === AttendeeStatusEnum.Waitlisted;
-            const isOrganizer =
-              attendee && meet && attendee.userId === meet.organizerId;
             return (
-              <ListItemButton
+              <AttendeeItem
                 key={attendee.id}
-                selected={attendee.id === selectedAttendeeId}
-                onClick={() => setSelectedAttendeeId(attendee.id)}
-              >
-                {!isPending ? (
-                  <Box
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      mr: 1.5,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      position: "relative",
-                    }}
-                  >
-                    {isOrganizer ? (
-                      <SupervisorAccountOutlinedIcon
-                        fontSize="large"
-                        style={{ color: theme.palette.primary.main }}
-                      />
-                    ) : isConfirmed ? (
-                      <CheckCircleOutlineIcon
-                        fontSize="large"
-                        style={{ color: theme.palette.success.main }}
-                      />
-                    ) : isWaitlisted ? (
-                      <CheckCircleOutlineIcon
-                        fontSize="large"
-                        style={{ color: theme.palette.warning.main }}
-                      />
-                    ) : isRejected ? (
-                      <CancelOutlinedIcon
-                        fontSize="large"
-                        style={{ color: theme.palette.error.main }}
-                      />
-                    ) : (
-                      <QuestionMarkOutlinedIcon
-                        fontSize="large"
-                        style={{ color: theme.palette.action.disabled }}
-                      />
-                    )}
-                    {paidLabel ? (
-                      <Box
-                        component="span"
-                        sx={{
-                          position: "absolute",
-                          top: -4,
-                          right: -6,
-                          px: 0.5,
-                          borderRadius: 999,
-                          border: "1px solid",
-                          borderColor: paidColor,
-                          color: paidColor,
-                          bgcolor: "background.paper",
-                          fontSize: 9,
-                          lineHeight: 1.2,
-                          fontWeight: 700,
-                          letterSpacing: 0.2,
-                        }}
-                      >
-                        {paidLabel}
-                      </Box>
-                    ) : null}
-                  </Box>
-                ) : (
-                  <Avatar sx={{ width: 32, height: 32, mr: 1.5 }}>
-                    {label.slice(0, 1).toUpperCase()}
-                  </Avatar>
-                )}
-                <ListItemText
-                  primary={label}
-                  secondary={subLabel}
-                  primaryTypographyProps={{ fontWeight: 600 }}
-                />
-              </ListItemButton>
+                attendee={attendee}
+                meet={meet}
+                selectedAttendeeId={selectedAttendeeId}
+                onSelect={setSelectedAttendeeId}
+                label={label}
+                subLabel={subLabel}
+              />
             );
           })
         ) : (
@@ -548,7 +459,9 @@ export function ManageAttendeesModal({
             justifyContent="space-between"
             spacing={2}
           >
-            <Typography variant="h6">{attendeeLabel(selectedAttendee)}</Typography>
+            <Typography variant="h6">
+              {attendeeLabel(selectedAttendee)}
+            </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
               {isUpdating && <CircularProgress size={18} />}
               {isOrganizerSelected ? (
@@ -582,7 +495,10 @@ export function ManageAttendeesModal({
                 <Chip size="small" label={selectedAttendee.phone} />
               ) : null}
               {selectedAttendee.guests ? (
-                <Chip size="small" label={`Guests: ${selectedAttendee.guests}`} />
+                <Chip
+                  size="small"
+                  label={`Guests: ${selectedAttendee.guests}`}
+                />
               ) : null}
             </Stack>
             <Box sx={{ ml: "auto" }}>
@@ -619,14 +535,19 @@ export function ManageAttendeesModal({
               <Button
                 variant="outlined"
                 onClick={() => {
-                  setMessageAttendeeIds(selectedAttendee ? [selectedAttendee.id] : undefined);
+                  setMessageAttendeeIds(
+                    selectedAttendee ? [selectedAttendee.id] : undefined,
+                  );
                   setMessageOpen(true);
                 }}
               >
                 Message {attendeeLabel(selectedAttendee)}
               </Button>
             ) : (
-              <Button variant="outlined" onClick={() => setShowEditMetaDialog(true)}>
+              <Button
+                variant="outlined"
+                onClick={() => setShowEditMetaDialog(true)}
+              >
                 Edit responses
               </Button>
             )
@@ -635,7 +556,9 @@ export function ManageAttendeesModal({
               variant="outlined"
               disabled={!selectedAttendee}
               onClick={() => {
-                setMessageAttendeeIds(selectedAttendee ? [selectedAttendee.id] : undefined);
+                setMessageAttendeeIds(
+                  selectedAttendee ? [selectedAttendee.id] : undefined,
+                );
                 setMessageOpen(true);
               }}
             >
@@ -660,8 +583,14 @@ export function ManageAttendeesModal({
             borderColor: "divider",
           }}
         >
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6">{attendeeLabel(selectedAttendee)}</Typography>
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+          >
+            <Typography variant="h6">
+              {attendeeLabel(selectedAttendee)}
+            </Typography>
             <IconButton
               onClick={() => setSelectedAttendeeId(null)}
               aria-label="Close attendee details"
@@ -785,7 +714,19 @@ export function ManageAttendeesModal({
         },
       }}
     >
-      <DialogTitle>Manage attendees</DialogTitle>
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          pr: 1,
+        }}
+      >
+        <span>Manage attendees</span>
+        <IconButton onClick={onClose} aria-label="Close attendees modal">
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
       <DialogContent
         sx={{
           pb: fullScreen ? 0 : 2,
@@ -798,7 +739,14 @@ export function ManageAttendeesModal({
         }}
       >
         {fullScreen ? (
-          <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             <Box sx={{ flex: 1, minHeight: 0 }}>{attendeeList}</Box>
             <Box
               sx={{
@@ -824,7 +772,11 @@ export function ManageAttendeesModal({
               >
                 Send Message to All Attendees
               </Button>
-              <Button variant="contained" sx={{ flexShrink: 0 }} onClick={onClose}>
+              <Button
+                variant="contained"
+                sx={{ flexShrink: 0 }}
+                onClick={onClose}
+              >
                 Close
               </Button>
             </Box>
@@ -865,7 +817,13 @@ export function ManageAttendeesModal({
                 <Typography variant="h6">Send message</Typography>
                 <Stack spacing={2} sx={{ mt: 2 }}>
                   {messageDrawerError && (
-                    <span style={{ color: "#d32f2f", fontSize: 14, fontWeight: 600 }}>
+                    <span
+                      style={{
+                        color: "#d32f2f",
+                        fontSize: 14,
+                        fontWeight: 600,
+                      }}
+                    >
                       {messageDrawerError}
                     </span>
                   )}
@@ -893,12 +851,20 @@ export function ManageAttendeesModal({
                             const checked = event.target.checked;
                             setMessageDrawerAutoResponse(checked);
                             if (checked) {
-                              setMessageDrawerManualSubject(messageDrawerSubject);
+                              setMessageDrawerManualSubject(
+                                messageDrawerSubject,
+                              );
                               setMessageDrawerManualBody(messageDrawerBody);
-                              setMessageDrawerSubject(mobileMessageDefault.subject);
-                              setMessageDrawerBody(mobileMessageDefault.content);
+                              setMessageDrawerSubject(
+                                mobileMessageDefault.subject,
+                              );
+                              setMessageDrawerBody(
+                                mobileMessageDefault.content,
+                              );
                             } else {
-                              setMessageDrawerSubject(messageDrawerManualSubject);
+                              setMessageDrawerSubject(
+                                messageDrawerManualSubject,
+                              );
                               setMessageDrawerBody(messageDrawerManualBody);
                             }
                           }}
@@ -929,7 +895,9 @@ export function ManageAttendeesModal({
                           <Switch
                             checked={messageDrawerIncludeConfirmed}
                             onChange={(event) =>
-                              setMessageDrawerIncludeConfirmed(event.target.checked)
+                              setMessageDrawerIncludeConfirmed(
+                                event.target.checked,
+                              )
                             }
                           />
                         }
@@ -940,7 +908,9 @@ export function ManageAttendeesModal({
                           <Switch
                             checked={messageDrawerIncludeWaitlisted}
                             onChange={(event) =>
-                              setMessageDrawerIncludeWaitlisted(event.target.checked)
+                              setMessageDrawerIncludeWaitlisted(
+                                event.target.checked,
+                              )
                             }
                           />
                         }
@@ -951,7 +921,9 @@ export function ManageAttendeesModal({
                           <Switch
                             checked={messageDrawerIncludeRejected}
                             onChange={(event) =>
-                              setMessageDrawerIncludeRejected(event.target.checked)
+                              setMessageDrawerIncludeRejected(
+                                event.target.checked,
+                              )
                             }
                           />
                         }
