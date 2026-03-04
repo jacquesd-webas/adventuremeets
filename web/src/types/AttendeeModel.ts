@@ -1,10 +1,11 @@
+import AttendeeStatusEnum from "./AttendeeStatusEnum";
 import { MetaValue } from "./MetaValueModel";
 
 export type Attendee = {
   id: string;
   meetId: string;
   userId?: string;
-  status: string;
+  status: AttendeeStatusEnum;
   sequence: number;
   respondedAt: string;
   name: string;
