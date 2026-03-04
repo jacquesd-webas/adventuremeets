@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Headers,
+  Res,
   UnauthorizedException,
   UploadedFile,
   UseInterceptors,
@@ -493,8 +494,22 @@ export class MeetsController {
 
   @Post(":id/report")
   @ApiOperation({ summary: "Create attendee report and email organizer" })
-  async createReport(@Param("id") id: string, @User() user?: UserProfile) {
+  async createReport(
+    @Param("id") id: string,
+    @User() user?: UserProfile,
+    @Body()
+    body?: {
+      sendEmail?: boolean;
+      downloadReport?: boolean;
+    },
+    @Res({ passthrough: true }) res?: any,
+  ) {
     if (!user) throw new UnauthorizedException();
+    const sendEmail = body?.sendEmail ?? true;
+    const downloadReport = body?.downloadReport ?? false;
+    if (!sendEmail && !downloadReport) {
+      throw new BadRequestException("Select at least one delivery method");
+    }
 
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
@@ -505,8 +520,10 @@ export class MeetsController {
       );
     }
 
-    const organizerEmail = await this.meetsService.getOrganizerEmail(meet.id);
-    if (!organizerEmail) {
+    const organizerEmail = sendEmail
+      ? await this.meetsService.getOrganizerEmail(meet.id)
+      : null;
+    if (sendEmail && !organizerEmail) {
       throw new BadRequestException("Organizer email not found");
     }
 
@@ -517,22 +534,18 @@ export class MeetsController {
     const worksheet = workbook.addWorksheet("Attendees");
 
     const baseColumns = [
-      { header: "Attendee ID", key: "id" },
-      { header: "Name", key: "name" },
-      { header: "Email", key: "email" },
-      { header: "Phone", key: "phone" },
-      { header: "Status", key: "status" },
-      { header: "Guests", key: "guests" },
-      { header: "Responded At", key: "respondedAt" },
-      { header: "Notified At", key: "notifiedAt" },
-      { header: "Paid Deposit At", key: "paidDepositAt" },
-      { header: "Paid Full At", key: "paidFullAt" },
-      { header: "Created At", key: "createdAt" },
-      { header: "Updated At", key: "updatedAt" },
+      { header: "Name", key: "name", width: 24 },
+      { header: "Email", key: "email", width: 30 },
+      { header: "Phone", key: "phone", width: 18 },
+      { header: "Status", key: "status", width: 14 },
+      { header: "Guests", key: "guests", width: 10 },
+      { header: "Paid Deposit At", key: "paidDepositAt", width: 20 },
+      { header: "Paid Full At", key: "paidFullAt", width: 20 },
     ];
     const metaColumns = metaDefinitions.map((definition) => ({
       header: definition.label,
       key: `meta_${definition.id}`,
+      width: 28,
     }));
     worksheet.columns = [...baseColumns, ...metaColumns];
 
@@ -542,14 +555,10 @@ export class MeetsController {
         name: attendee.name ?? "",
         email: attendee.email ?? "",
         phone: attendee.phone ?? "",
-        status: attendee.status ?? "",
+        status: attendee.status === "confirmed" ? "no-show" : attendee.status ?? "",
         guests: attendee.guests ?? "",
-        respondedAt: attendee.respondedAt ?? "",
-        notifiedAt: attendee.notifiedAt ?? "",
         paidDepositAt: attendee.paidDepositAt ?? "",
         paidFullAt: attendee.paidFullAt ?? "",
-        createdAt: attendee.createdAt ?? "",
-        updatedAt: attendee.updatedAt ?? "",
       };
       attendee.metaValues?.forEach((meta: any) => {
         row[`meta_${meta.definitionId}`] = meta.value ?? "";
@@ -569,14 +578,25 @@ export class MeetsController {
       contentDisposition: "attachment" as const,
     };
 
-    await this.emailService.sendEmail({
-      to: organizerEmail,
-      subject: `${meet.name} attendee report`,
-      text: `Attached is the attendee report for ${meet.name}.`,
-      attachments: [attachment],
-      meetId: meet.id,
-    });
+    if (sendEmail && organizerEmail) {
+      await this.emailService.sendEmail({
+        to: organizerEmail,
+        subject: `${meet.name} attendee report`,
+        text: `Attached is the attendee report for ${meet.name}.`,
+        attachments: [attachment],
+        meetId: meet.id,
+      });
+    }
 
-    return { status: "sent", to: organizerEmail };
+    if (downloadReport && res) {
+      res.set({
+        "Content-Type": attachment.contentType,
+        "Content-Disposition": `attachment; filename="${attachment.filename}"`,
+      });
+      res.send(content);
+      return;
+    }
+
+    return { status: "sent", to: organizerEmail ?? undefined };
   }
 }
