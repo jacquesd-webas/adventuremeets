@@ -38,6 +38,7 @@ import { UserProfile } from "../users/dto/user-profile.dto";
 import { EmailService } from "../email/email.service";
 import { DatabaseService } from "../database/database.service";
 import * as ExcelJS from "exceljs";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 
 @ApiTags("Meets")
 @Controller("meets")
@@ -48,7 +49,8 @@ export class MeetsController {
     private readonly meetsService: MeetsService,
     private readonly emailService: EmailService,
     private readonly db: DatabaseService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Get()
@@ -551,6 +553,8 @@ export class MeetsController {
       attachments: [attachment],
       meetId: meet.id,
     });
+
+    this.eventEmitter.emit("meet.report_generated", { meet });
 
     return { status: "sent", to: organizerEmail };
   }
