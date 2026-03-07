@@ -22,6 +22,7 @@ import { useApi } from "../../hooks/useApi";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
+import { ExpenseSubmissionModal } from "../workflows/ExpenseSubmissionModal";
 
 type ReportsModalProps = {
   open: boolean;
@@ -34,6 +35,7 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const api = useApi();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [pendingExpenseTask, setPendingExpenseTask] = useState<any | null>(null);
   const { data: attendees, isLoading } = useFetchMeetAttendees(
     meetId,
     "accepted"
@@ -70,7 +72,15 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
     setIsGenerating(true);
     try {
       await api.post(`/meets/${meetId}/report`);
-      onClose();
+      const { tasks } = await api.get<{ tasks: any[] }>(
+        `/meets/${meetId}/expense-submissions/workflow-tasks`,
+      );
+      const expenseTask = tasks.find((t) => t.workflowType === "expense_submission");
+      if (expenseTask) {
+        setPendingExpenseTask(expenseTask);
+      } else {
+        onClose();
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -98,6 +108,23 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
     p: fullScreen ? 2 : 3,
     outline: "none",
   };
+
+  if (pendingExpenseTask) {
+    return (
+      <ExpenseSubmissionModal
+        open={true}
+        task={pendingExpenseTask}
+        onClose={() => {
+          setPendingExpenseTask(null);
+          onClose();
+        }}
+        onSubmitted={() => {
+          setPendingExpenseTask(null);
+          onClose();
+        }}
+      />
+    );
+  }
 
   return (
     <Modal open={open} onClose={onClose}>
