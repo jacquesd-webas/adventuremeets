@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { DatabaseService } from "../database/database.service";
 import {
   CreateMeetDto,
@@ -331,6 +331,7 @@ export class MeetsService {
             email: organizer?.email ?? null,
             phone: organizer?.phone ?? null,
             status: "confirmed",
+            responded_at: now,
             created_at: now,
             updated_at: now,
           },
@@ -450,6 +451,9 @@ export class MeetsService {
         "phone",
         "name",
         "guests",
+        "guest_of",
+        "is_minor",
+        "guardian_name",
         "indemnity_accepted",
         "indemnity_minors",
       )
@@ -502,7 +506,7 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position");
+      .select("id", "label", "field_type", "required", "position", "config");
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -524,6 +528,7 @@ export class MeetsService {
         fieldType: definition.field_type,
         required: definition.required,
         position: definition.position,
+        config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
       })),
     }));
@@ -543,7 +548,7 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position");
+      .select("id", "label", "field_type", "required", "position", "config");
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -565,6 +570,7 @@ export class MeetsService {
         fieldType: definition.field_type,
         required: definition.required,
         position: definition.position,
+        config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
       })),
     }));
@@ -637,8 +643,25 @@ export class MeetsService {
     }, {});
   }
 
-  async addAttendee(meetId: string, dto: CreateMeetAttendeeDto) {
+  async addAttendee(
+    meetId: string,
+    dto: CreateMeetAttendeeDto,
+    context?: { ip?: string; userAgent?: string; locale?: string },
+  ) {
     const created = await this.db.getClient().transaction(async (trx) => {
+      const guardianName =
+        dto.GuardianName ?? (dto as any).guardianName ?? null;
+      const acceptedByName =
+        dto.isMinor && guardianName ? guardianName : dto.name ?? null;
+      const sequenceRow = await trx("meet_attendees")
+        .where({ meet_id: meetId })
+        .max("sequence as max")
+        .first();
+      const maxSequence =
+        sequenceRow && (sequenceRow as any).max != null
+          ? Number((sequenceRow as any).max)
+          : 0;
+      const nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
       const [attendee] = await trx("meet_attendees").insert(
         {
           meet_id: meetId,
@@ -647,11 +670,37 @@ export class MeetsService {
           phone: dto.phone ?? null,
           email: dto.email ?? null,
           guests: dto.guests ?? null,
+          guest_of: dto.guestOf ?? null,
+          sequence: nextSequence,
+          is_minor: dto.isMinor ?? false,
+          guardian_name: guardianName,
           indemnity_accepted: dto.indemnityAccepted ?? null,
           indemnity_minors: dto.indemnityMinors ?? null,
         },
         ["*"],
       );
+      if (dto.indemnityAccepted) {
+        const meet = await trx("meets")
+          .where({ id: meetId })
+          .first("indemnity", "time_zone");
+        const indemnityText = meet?.indemnity ?? "";
+        const indemnityHash = indemnityText
+          ? createHash("sha256").update(indemnityText).digest("hex")
+          : null;
+        await trx("meet_attendee_indemnity_acceptances").insert({
+          attendee_id: attendee.id,
+          meet_id: meetId,
+          accepted_at: new Date().toISOString(),
+          indemnity_text_hash: indemnityHash,
+          acceptance_ip: context?.ip ?? null,
+          acceptance_user_agent: context?.userAgent ?? null,
+          accepted_by_name: acceptedByName,
+          accepted_by_email: dto.email ?? null,
+          accepted_by_phone: dto.phone ?? null,
+          locale: context?.locale ?? null,
+          time_zone: meet?.time_zone ?? null,
+        });
+      }
       if (dto.metaValues && dto.metaValues.length > 0) {
         const records = dto.metaValues
           .filter(
@@ -682,6 +731,8 @@ export class MeetsService {
     options?: { resetCancelledToPending?: boolean },
   ) {
     const updated = await this.db.getClient().transaction(async (trx) => {
+      const guardianName =
+        dto.GuardianName ?? (dto as any).guardianName ?? undefined;
       let statusOverride: string | undefined;
       if (options?.resetCancelledToPending) {
         const existing = await trx("meet_attendees")
@@ -699,6 +750,8 @@ export class MeetsService {
             phone: dto.phone,
             email: dto.email,
             guests: dto.guests,
+            is_minor: dto.isMinor,
+            guardian_name: guardianName,
             indemnity_accepted: dto.indemnityAccepted,
             indemnity_minors: dto.indemnityMinors,
             status: statusOverride ?? dto.status,
@@ -1019,6 +1072,9 @@ export class MeetsService {
       phone: attendee.phone ?? undefined,
       email: attendee.email ?? undefined,
       guests: attendee.guests ?? undefined,
+      guestOf: attendee.guest_of ?? undefined,
+      isMinor: attendee.is_minor ?? undefined,
+      guardianName: attendee.guardian_name ?? undefined,
       indemnityAccepted: attendee.indemnity_accepted ?? undefined,
       indemnityMinors: attendee.indemnity_minors ?? undefined,
       paidFullAt: attendee.paid_full_at ?? undefined,
