@@ -1,17 +1,12 @@
 import {
-  Alert,
   Box,
-  Button,
+  Chip,
   Container,
   Dialog,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
-  MenuItem,
   Paper,
   Stack,
-  Switch,
-  TextField,
   Typography,
   useMediaQuery,
   useTheme,
@@ -29,14 +24,11 @@ import { MeetSignupSubmitted } from "../components/meet/MeetSignupSubmitted";
 import { useMeetSignupSheetState } from "./MeetSignupSheetState";
 import { getLocaleDefaults } from "../helpers/locale";
 import {
-  InternationalPhoneField,
   buildInternationalPhone,
   getDefaultPhoneCountry,
   splitInternationalPhone,
 } from "../components/formFields/InternationalPhoneField";
-import { EmailField } from "../components/formFields/EmailField";
 import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
-import { NameField } from "../components/formFields/NameField";
 import { PreviewBanner } from "../components/meet/PreviewBanner";
 import { LoginForm } from "../components/auth/LoginForm";
 import { MeetStatusAlert } from "../components/meet/MeetStatusAlert";
@@ -53,290 +45,7 @@ import {
   validatePhone,
   validateRequired,
 } from "../helpers/validation";
-
-function LabeledField({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Stack spacing={0.5}>
-      <Typography variant="subtitle2" fontWeight={700}>
-        {label} {required && <span style={{ color: "#ef4444" }}>*</span>}
-      </Typography>
-      {children}
-    </Stack>
-  );
-}
-
-type MeetSignupFormProps = {
-  meet: any;
-  fullName: string;
-  email: string;
-  phoneCountry: string;
-  phoneLocal: string;
-  nameError?: string | null;
-  emailError?: string | null;
-  phoneError?: string | null;
-  disableIdentityFields: boolean;
-  disablePhone: boolean;
-  wantsGuests: boolean;
-  guestCount: number;
-  metaValues: Record<string, any>;
-  indemnityAccepted: boolean;
-  isSubmitDisabled: boolean;
-  isSubmitting: boolean;
-  isEditing: boolean;
-  onSubmit: () => void;
-  onCancelEdit?: () => void;
-  onCheckDuplicate: () => void;
-  onNameBlur: () => void;
-  onEmailBlur: () => void;
-  onPhoneBlur: () => void;
-  setField: (key: string, value: any) => void;
-  setMetaValue: (key: string, value: any) => void;
-  setPhoneCountry: (value: string) => void;
-  setPhoneLocal: (value: string) => void;
-};
-
-function MeetSignupFormFields({
-  meet,
-  fullName,
-  email,
-  phoneCountry,
-  phoneLocal,
-  nameError,
-  emailError,
-  phoneError,
-  disableIdentityFields,
-  disablePhone,
-  wantsGuests,
-  guestCount,
-  metaValues,
-  indemnityAccepted,
-  isSubmitDisabled,
-  isSubmitting,
-  isEditing,
-  onSubmit,
-  onCancelEdit,
-  onNameBlur,
-  onEmailBlur,
-  onPhoneBlur,
-  setField,
-  setMetaValue,
-  setPhoneCountry,
-  setPhoneLocal,
-}: MeetSignupFormProps) {
-  return (
-    <Stack spacing={2} mt={2}>
-      <LabeledField label="Name" required>
-        <NameField
-          required
-          value={fullName}
-          onChange={(value) => setField("fullName", value)}
-          onBlur={onNameBlur}
-          error={Boolean(nameError)}
-          helperText={nameError || undefined}
-          disabled={disableIdentityFields}
-        />
-      </LabeledField>
-      <LabeledField label="Email" required>
-        <EmailField
-          required
-          value={email}
-          onChange={(value) => setField("email", value)}
-          onBlur={onEmailBlur}
-          error={Boolean(emailError)}
-          helperText={emailError || undefined}
-          hideLabel
-          disabled={disableIdentityFields}
-        />
-      </LabeledField>
-      <LabeledField label="Phone" required>
-        <InternationalPhoneField
-          required
-          country={phoneCountry}
-          local={phoneLocal}
-          onCountryChange={(value) => {
-            setPhoneCountry(value);
-            setField("phone", buildInternationalPhone(value, phoneLocal));
-          }}
-          onLocalChange={(value) => {
-            setPhoneLocal(value);
-            setField("phone", buildInternationalPhone(phoneCountry, value));
-          }}
-          onBlur={onPhoneBlur}
-          error={Boolean(phoneError)}
-          helperText={phoneError || undefined}
-          hideLabel
-          disabled={disablePhone}
-        />
-      </LabeledField>
-      {meet.allowGuests && (
-        <Stack spacing={1}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={wantsGuests}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setField("wantsGuests", checked);
-                  if (!checked) {
-                    setField("guestCount", 0);
-                  }
-                }}
-              />
-            }
-            label="I would like to bring guests"
-          />
-          {wantsGuests && (
-            <LabeledField label="Number of guests" required>
-              <TextField
-                select
-                value={guestCount}
-                onChange={(e) => setField("guestCount", Number(e.target.value))}
-                fullWidth
-              >
-                {Array.from(
-                  {
-                    length: Math.max(0, Number(meet.maxGuests || 0)) + 1,
-                  },
-                  (_, idx) => (
-                    <MenuItem key={idx} value={idx}>
-                      {idx}
-                    </MenuItem>
-                  ),
-                )}
-              </TextField>
-            </LabeledField>
-          )}
-        </Stack>
-      )}
-      {(meet.metaDefinitions || []).map((field: any) => {
-        const key = field.fieldKey;
-        const value = metaValues[key];
-
-        if (field.fieldType === "checkbox" || field.fieldType === "switch") {
-          return (
-            <FormControlLabel
-              key={field.id}
-              control={
-                <Switch
-                  checked={Boolean(value)}
-                  onChange={(e) => setMetaValue(key, e.target.checked)}
-                />
-              }
-              label={`${field.label}${field.required ? " *" : ""}`}
-            />
-          );
-        }
-
-        if (field.fieldType === "select") {
-          const options = Array.isArray(field.config?.options)
-            ? field.config.options
-            : [];
-          return (
-            <LabeledField
-              key={field.id}
-              label={field.label}
-              required={field.required}
-            >
-              <TextField
-                select
-                value={typeof value === "string" ? value : ""}
-                onChange={(e) => setMetaValue(key, e.target.value)}
-                fullWidth
-              >
-                <MenuItem value="">Select an option</MenuItem>
-                {options.map((option: string) => (
-                  <MenuItem key={option} value={option}>
-                    {option}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </LabeledField>
-          );
-        }
-
-        return (
-          <LabeledField
-            key={field.id}
-            label={field.label}
-            required={field.required}
-          >
-            <TextField
-              type={field.fieldType === "number" ? "number" : "text"}
-              value={
-                typeof value === "number" || typeof value === "string"
-                  ? value
-                  : ""
-              }
-              onChange={(e) =>
-                setMetaValue(
-                  key,
-                  field.fieldType === "number" && e.target.value !== ""
-                    ? Number(e.target.value)
-                    : e.target.value,
-                )
-              }
-              fullWidth
-            />
-          </LabeledField>
-        );
-      })}
-      {meet.hasIndemnity && (
-        <Stack spacing={1} mt={2}>
-          <Alert
-            severity="warning"
-            icon={false}
-            sx={{ whiteSpace: "pre-line" }}
-          >
-            {meet.indemnity || "Indemnity details not provided."}
-          </Alert>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={indemnityAccepted}
-                onChange={(e) => {
-                  setField("indemnityAccepted", e.target.checked);
-                }}
-              />
-            }
-            label="I accept the indemnity"
-          />
-        </Stack>
-      )}
-      <Stack direction="row" justifyContent="center" pt={2} spacing={2}>
-        {isEditing ? (
-          <>
-            <Button variant="outlined" onClick={onCancelEdit}>
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              disabled={isSubmitting || isSubmitDisabled}
-              onClick={onSubmit}
-            >
-              Update
-            </Button>
-          </>
-        ) : (
-          <Button
-            variant="contained"
-            disabled={isSubmitting || isSubmitDisabled}
-            onClick={onSubmit}
-          >
-            Submit application
-          </Button>
-        )}
-      </Stack>
-    </Stack>
-  );
-}
+import { MeetSignupFormFields } from "../components/meetSignup/MeetSignupFormFields";
 
 function MeetSignupSheet() {
   const { code, attendeeId: attendeeIdParam } = useParams<{
@@ -345,6 +54,7 @@ function MeetSignupSheet() {
   }>();
   const [searchParams] = useSearchParams();
   const isPreview = searchParams.get("preview") === "true";
+  const guestOf = searchParams.get("guestOf");
   const action = searchParams.get("action");
   const editAttendeeId = attendeeIdParam || searchParams.get("attendeeId");
   const isEditing =
@@ -399,24 +109,30 @@ function MeetSignupSheet() {
     fullName,
     email,
     wantsGuests,
-    guestCount,
+    guests,
     metaValues,
+    guardianName,
+    isMinor,
   } = state;
   const disableIdentityFields = Boolean(isAuthenticated);
   const disablePhone = false;
+  const disableGuests = Boolean(guestOf);
 
   const { data: userMetaValues, isLoading: userMetaLoading } =
     useFetchUserMetaValues(user?.id, meet?.organizationId);
 
+  const loggedInName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+      user.idp_profile?.name ||
+      ""
+    : "";
+
+  // Automatically populate fields if user is logged in (minor name can be different though)
   useEffect(() => {
     if (!user || !isAuthenticated) return;
     if (suppressAutofillRef.current) return;
-    const name =
-      [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-      user.idp_profile?.name ||
-      "";
-    if (name) {
-      setField("fullName", name);
+    if (loggedInName && !isMinor) {
+      setField("fullName", loggedInName);
     }
     if (user.email) {
       setField("email", user.email);
@@ -427,8 +143,17 @@ function MeetSignupSheet() {
       setPhoneLocal(parsed.local);
       setField("phone", buildInternationalPhone(parsed.country, parsed.local));
     }
-  }, [isAuthenticated, user, setField, setPhoneCountry, setPhoneLocal]);
+  }, [
+    isAuthenticated,
+    user,
+    setField,
+    setPhoneCountry,
+    setPhoneLocal,
+    isMinor,
+    loggedInName,
+  ]);
 
+  // Auto-fill questions based on users profile
   useEffect(() => {
     if (!isAuthenticated || !meet || userMetaLoading) return;
     if (metaAutofillRef.current) return;
@@ -472,6 +197,7 @@ function MeetSignupSheet() {
     userMetaValues,
   ]);
 
+  // Suppress auto-filling when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
       suppressAutofillRef.current = false;
@@ -479,6 +205,7 @@ function MeetSignupSheet() {
     }
   }, [isAuthenticated]);
 
+  // Edit mode - pre-fill form with existing attendee data
   useEffect(() => {
     if (!editAttendee || editPrefillRef.current) return;
     if (!meet) return;
@@ -502,11 +229,23 @@ function MeetSignupSheet() {
       setPhoneLocal(parsed.local);
       setField("phone", buildInternationalPhone(parsed.country, parsed.local));
     }
-    const guests = Number(editAttendee.guests || 0);
-    setField("wantsGuests", guests > 0);
-    setField("guestCount", guests);
+    const guestsCount = Number(editAttendee.guests || 0);
+    setField("wantsGuests", guestsCount > 0);
+    setField(
+      "guests",
+      Array.from({ length: Math.max(0, guestsCount) }, () => ({
+        name: "",
+        isMinor: false,
+      })),
+    );
     if (editAttendee.indemnityAccepted !== undefined) {
       setField("indemnityAccepted", Boolean(editAttendee.indemnityAccepted));
+    }
+    if (editAttendee.isMinor !== undefined && editAttendee.isMinor !== null) {
+      setField("isMinor", Boolean(editAttendee.isMinor));
+    }
+    if (editAttendee.guardianName) {
+      setField("guardianName", editAttendee.guardianName);
     }
     const valuesByKey = new Map(
       (editAttendee.metaValues || []).map((item) => [
@@ -539,6 +278,7 @@ function MeetSignupSheet() {
     setPhoneLocal,
   ]);
 
+  // Prevent background scrolling when modal is open
   useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -547,6 +287,7 @@ function MeetSignupSheet() {
     };
   }, []);
 
+  // Set organization-specific background and theme, and clean up on unmount
   useEffect(() => {
     const previousBackgroundColor = document.body.style.backgroundColor;
     const previousBackgroundImage = document.body.style.backgroundImage;
@@ -586,6 +327,26 @@ function MeetSignupSheet() {
       }
     };
   }, [mode, organization?.theme]);
+
+  // Switch name and guardian fields if the user is a minor and user is logged in
+  useEffect(() => {
+    if (disableIdentityFields && isMinor) {
+      console.log({ loggedInName, guardianName, fullName });
+      if (loggedInName && loggedInName !== guardianName) {
+        setField("guardianName", loggedInName);
+        setField("fullName", "");
+        setNameError("");
+      }
+    }
+  }, [
+    isMinor,
+    disableIdentityFields,
+    loggedInName,
+    setField,
+    setNameError,
+    guardianName,
+    fullName,
+  ]);
 
   const handleLogout = () => {
     suppressAutofillRef.current = true;
@@ -636,7 +397,9 @@ function MeetSignupSheet() {
             </Typography>
           </Box>
         ) : null}
-        <Box sx={{ pt: isPreview ? (isMobile ? mobilePreviewTopOffset : 10) : 0 }}>
+        <Box
+          sx={{ pt: isPreview ? (isMobile ? mobilePreviewTopOffset : 10) : 0 }}
+        >
           <MeetSignupSubmitted
             firstName={fullName.trim().split(/\s+/)[0] || ""}
             lastName={fullName.trim().split(/\s+/).slice(1).join(" ") || ""}
@@ -647,6 +410,7 @@ function MeetSignupSheet() {
             meetId={meet?.id}
             attendeeId={submittedAttendeeId || undefined}
             shareCode={code}
+            guests={guests}
             isOrganizationPrivate={organization?.isPrivate}
             isPreview={isPreview}
           />
@@ -683,7 +447,7 @@ function MeetSignupSheet() {
   const handleEmailBlur = () => {
     const formatError = validateEmail(email);
     setEmailError(formatError);
-    if (!formatError) {
+    if (!formatError && !isMinor) {
       checkForDuplicate();
     }
   };
@@ -699,7 +463,7 @@ function MeetSignupSheet() {
   const checkForDuplicate = async () => {
     if (!meet) return;
     if (isEditing) return;
-    const trimmedEmail = email.trim();
+    const trimmedEmail = isMinor ? "" : email.trim();
     const trimmedPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!trimmedEmail && !trimmedPhone) return;
     if (
@@ -747,9 +511,10 @@ function MeetSignupSheet() {
     }
     const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!isEditing) {
+      const trimmedEmail = isMinor ? "" : email.trim();
       const check = await checkAttendeeAsync({
         meetId: meet.id,
-        email,
+        email: trimmedEmail || undefined,
         phone: fullPhone,
       });
       if (check.attendee) {
@@ -764,7 +529,11 @@ function MeetSignupSheet() {
       name: fullName,
       email,
       phone: fullPhone,
-      guests: wantsGuests ? guestCount : 0,
+      guestOf: guestOf || undefined,
+      isMinor: isMinor,
+      GuardianName: isMinor ? guardianName || undefined : undefined,
+      guests: wantsGuests ? guests.length : 0,
+      guestsList: wantsGuests ? guests : [],
       indemnityAccepted: indemnityAccepted,
       indemnityMinors: "",
       metaValues: metaPayload,
@@ -781,7 +550,10 @@ function MeetSignupSheet() {
       name: fullName,
       email,
       phone: fullPhone,
-      guests: wantsGuests ? guestCount : 0,
+      isMinor: isMinor,
+      GuardianName: isMinor ? guardianName || undefined : undefined,
+      guests: wantsGuests ? guests.length : 0,
+      guestsList: wantsGuests ? guests : [],
       indemnityAccepted: indemnityAccepted,
       indemnityMinors: "",
       metaValues: metaPayload,
@@ -859,10 +631,14 @@ function MeetSignupSheet() {
                 meet={meet}
                 isPreview={isPreview}
                 actionSlot={
-                  <MeetSignupUserAction
-                    formEmail={undefined}
-                    onLogout={handleLogout}
-                  />
+                  guestOf ? (
+                    <Chip label="Guest" size="small" color="info" />
+                  ) : (
+                    <MeetSignupUserAction
+                      formEmail={undefined}
+                      onLogout={handleLogout}
+                    />
+                  )
                 }
               />
               {!isPreview && (
@@ -883,10 +659,14 @@ function MeetSignupSheet() {
                   phoneError={phoneError}
                   disableIdentityFields={disableIdentityFields}
                   disablePhone={disablePhone}
+                  disableGuests={disableGuests}
+                  guestOf={guestOf}
+                  guardianName={guardianName}
                   wantsGuests={wantsGuests}
-                  guestCount={guestCount}
+                  guests={guests}
                   metaValues={metaValues}
                   indemnityAccepted={indemnityAccepted}
+                  isMinor={isMinor}
                   isSubmitDisabled={isSubmitDisabled}
                   isSubmitting={isSubmitting}
                   isEditing={isEditing}
