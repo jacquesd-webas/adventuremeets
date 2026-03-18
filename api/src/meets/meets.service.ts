@@ -1008,7 +1008,6 @@ export class MeetsService {
   ) {
     const cleaned = metaDefinitions
       .map((definition, index) => ({
-        id: definition.id,
         meet_id: meetId,
         field_key: definition.fieldKey || `field_${index + 1}`,
         label: definition.label,
