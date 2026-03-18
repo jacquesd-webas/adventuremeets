@@ -83,6 +83,16 @@ export function CreateMeetModal({
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
   const { currentOrganizationId } = useCurrentOrganization();
+  const statusId =
+    typeof state.statusId === "number"
+      ? state.statusId
+      : state.statusId != null
+        ? Number(state.statusId)
+        : null;
+  const isEditing = Boolean(meetIdProp);
+  const isIndemnityLocked =
+    isEditing &&
+    (statusId === MeetStatusEnum.Open || statusId === MeetStatusEnum.Closed);
 
   const { data: fetchedMeet, isLoading: isFetchingMeet } = useFetchMeet(
     meetIdProp,
@@ -623,7 +633,13 @@ export function CreateMeetModal({
           />
         );
       case 2:
-        return <IndemnityStep state={state} setState={(fn) => setState(fn)} />;
+        return (
+          <IndemnityStep
+            state={state}
+            setState={(fn) => setState(fn)}
+            disableIndemnityText={isIndemnityLocked}
+          />
+        );
       case 3:
         return <QuestionsStep state={state} setState={(fn) => setState(fn)} />;
       case 4:
