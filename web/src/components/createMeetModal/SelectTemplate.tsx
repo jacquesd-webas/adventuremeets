@@ -9,12 +9,14 @@ import { Template, TemplateMetaDefinition } from "../../types/TemplateModel";
 
 type SelectTemplateProps = {
   organizationId?: string;
+  disabled?: boolean;
   onApply?: (questions: QuestionField[]) => void;
   onApplyTemplate?: (template: Template) => void;
 };
 
 export function SelectTemplate({
   organizationId,
+  disabled = false,
   onApply,
   onApplyTemplate,
 }: SelectTemplateProps) {
@@ -56,7 +58,7 @@ export function SelectTemplate({
           value={selectedId}
           displayEmpty
           onChange={(event) => setSelectedId(event.target.value)}
-          disabled={!resolvedOrgId || isLoading}
+          disabled={disabled || !resolvedOrgId || isLoading}
           MenuProps={{ sx: { zIndex: 1501 } }}
           renderValue={(value) => {
             if (!value) {
