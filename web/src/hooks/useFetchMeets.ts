@@ -32,6 +32,7 @@ export function useFetchMeets(options: UseFetchMeetsOptions) {
 
   const query = useQuery({
     queryKey: ["meets", { view, page, limit, organizationId, search }],
+    enabled: !!organizationId,
     queryFn: async () => {
       const params = new URLSearchParams();
       if (view !== "all") params.set("view", view);
@@ -40,7 +41,7 @@ export function useFetchMeets(options: UseFetchMeetsOptions) {
       if (organizationId) params.set("organizationId", organizationId);
       if (search) params.set("search", search);
       const res = await api.get<MeetsResponse | MeetsApiResponse>(
-        `/meets?${params.toString()}`
+        `/meets?${params.toString()}`,
       );
       if (Array.isArray(res)) {
         return { meets: res as Meet[], total: res.length, page, limit };
