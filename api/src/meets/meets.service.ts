@@ -38,6 +38,16 @@ export class MeetsService {
     toTime: Date | null = null,
     search: string | null = null,
   ) {
+    const STATUS = {
+      Draft: 1,
+      Published: 2,
+      Open: 3,
+      Closed: 4,
+      Cancelled: 5,
+      Postponed: 6,
+      Completed: 7,
+    } as const;
+
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
       .select("meet_id")
@@ -130,21 +140,21 @@ export class MeetsService {
 
     if (view === "upcoming") {
       query.where("start_time", ">=", new Date().toISOString());
-      query.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+      query.whereNotIn("status_id", [STATUS.Draft, STATUS.Cancelled]); // Not Draft or Cancelled
       query.orderBy("start_time", "asc");
       totalQuery.where("start_time", ">=", new Date().toISOString());
-      totalQuery.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+      totalQuery.whereNotIn("status_id", [STATUS.Draft, STATUS.Cancelled]); // Not Draft or Cancelled
     }
     if (view === "past") {
       query.where("start_time", "<", new Date().toISOString());
-      query.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+      query.whereNotIn("status_id", [STATUS.Draft, STATUS.Cancelled]); // Not Draft or Cancelled
       query.orderBy("start_time", "desc");
       totalQuery.where("start_time", "<", new Date().toISOString());
-      totalQuery.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+      totalQuery.whereNotIn("status_id", [STATUS.Draft, STATUS.Cancelled]); // Not Draft or Cancelled
     }
     if (view === "draft") {
-      query.where("status_id", "1"); // Draft
-      totalQuery.where("status_id", "1"); // Draft
+      query.where("status_id", STATUS.Draft); // Draft
+      totalQuery.where("status_id", STATUS.Draft); // Draft
     }
     if (organizationIds.length > 0) {
       query.whereIn("m.organization_id", organizationIds);
