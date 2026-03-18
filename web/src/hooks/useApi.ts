@@ -5,6 +5,15 @@ type ApiOptions = {
   token?: string;
 };
 
+class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export function useApi(options: ApiOptions = {}) {
   const envBaseUrl =
     import.meta.env.VITE_API_BASEURL || import.meta.env.API_BASEURL;
@@ -98,7 +107,10 @@ export function useApi(options: ApiOptions = {}) {
     }
     if (!res.ok) {
       const message = await res.text();
-      throw new Error(message || `Request failed with status ${res.status}`);
+      throw new ApiError(
+        res.status,
+        message || `Request failed with status ${res.status}`
+      );
     }
     if (res.status === 204) {
       return undefined as T;
