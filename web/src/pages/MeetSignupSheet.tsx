@@ -660,7 +660,6 @@ function MeetSignupSheet() {
                   disableIdentityFields={disableIdentityFields}
                   disablePhone={disablePhone}
                   disableGuests={disableGuests}
-                  guestOf={guestOf}
                   guardianName={guardianName}
                   wantsGuests={wantsGuests}
                   guests={guests}

@@ -48,6 +48,7 @@ export type MeetMessageTemplateVars = {
   meetName: string;
   attendeeName?: string;
   statusUrl?: string;
+  includeStatusUrl?: boolean;
   organizerName?: string;
   organizerEmail?: string;
   messageBody: string;
@@ -168,6 +169,10 @@ export function renderEmailTemplate(
 ): { subject: string; text: string; html: string };
 export function renderEmailTemplate(
   name: "meet-waitlist",
+  vars: MeetStatusTemplateVars,
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
+  name: "meet-confirm" | "meet-reject" | "meet-waitlist",
   vars: MeetStatusTemplateVars,
 ): { subject: string; text: string; html: string };
 export function renderEmailTemplate(
@@ -344,7 +349,8 @@ export function renderEmailTemplate(
       throw new Error("Missing meetName for meet-message template");
     }
     const greetingName = messageVars.attendeeName || "there";
-    const statusUrl = messageVars.statusUrl || "";
+    const includeStatusUrl = messageVars.includeStatusUrl !== false;
+    const statusUrl = includeStatusUrl ? messageVars.statusUrl || "" : "";
     const organizerName = messageVars.organizerName || "the organizer";
     const organizerEmail = messageVars.organizerEmail || "";
     const subject = `Message about ${messageVars.meetName}`;
@@ -362,7 +368,7 @@ export function renderEmailTemplate(
       messageBody: messageBodyText,
     };
     const flags = {
-      ifStatusUrl: Boolean(statusUrl),
+      ifStatusUrl: includeStatusUrl && Boolean(statusUrl),
       ifOrganizerEmail: Boolean(organizerEmail),
     };
     const text = renderTemplate("meet-message", "txt", varsMap, flags);

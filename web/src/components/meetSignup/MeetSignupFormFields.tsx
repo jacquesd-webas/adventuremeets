@@ -51,7 +51,6 @@ export type MeetSignupFormFieldsProps = {
   disableIdentityFields: boolean;
   disablePhone: boolean;
   disableGuests: boolean;
-  guestOf?: string | null;
   guardianName: string;
   wantsGuests: boolean;
   guests: GuestInput[];
@@ -85,7 +84,6 @@ export function MeetSignupFormFields({
   disableIdentityFields,
   disablePhone,
   disableGuests,
-  guestOf,
   guardianName,
   wantsGuests,
   guests,

@@ -38,6 +38,7 @@ type MessageModalProps = {
   }[];
   defaultSubject?: string;
   defaultBody?: string;
+  includeStatusUrl?: boolean;
 };
 
 export function MessageModal({
@@ -48,6 +49,7 @@ export function MessageModal({
   attendees,
   defaultSubject = "",
   defaultBody = "",
+  includeStatusUrl = true,
 }: MessageModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -244,6 +246,7 @@ export function MessageModal({
         text: body,
         attendeeIds: ids.length ? ids : undefined,
         markNotified: autoResponse || markAsNotified,
+        includeStatusUrl,
       });
       await Promise.all(
         ids.map((attendeeId) =>

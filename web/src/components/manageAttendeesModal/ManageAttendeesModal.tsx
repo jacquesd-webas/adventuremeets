@@ -97,6 +97,7 @@ export function ManageAttendeesModal({
   const [messageModalDefaults, setMessageModalDefaults] = useState({
     subject: "",
     body: "",
+    includeStatusUrl: true,
   });
   const [messageModalKey, setMessageModalKey] = useState(0);
   const [messageDrawerOpen, setMessageDrawerOpen] = useState(false);
@@ -112,6 +113,8 @@ export function ManageAttendeesModal({
   const [messageDrawerManualBody, setMessageDrawerManualBody] = useState("");
   const [messageDrawerMarkAsNotified, setMessageDrawerMarkAsNotified] =
     useState(false);
+  const [messageDrawerIncludeStatusUrl, setMessageDrawerIncludeStatusUrl] =
+    useState(true);
   const [messageDrawerError, setMessageDrawerError] = useState<string | null>(
     null,
   );
@@ -485,13 +488,19 @@ export function ManageAttendeesModal({
     attendeeIds,
     defaultSubject = "",
     defaultBody = "",
+    includeStatusUrl = true,
   }: {
     attendeeIds?: string[];
     defaultSubject?: string;
     defaultBody?: string;
+    includeStatusUrl?: boolean;
   }) => {
     setMessageAttendeeIds(attendeeIds);
-    setMessageModalDefaults({ subject: defaultSubject, body: defaultBody });
+    setMessageModalDefaults({
+      subject: defaultSubject,
+      body: defaultBody,
+      includeStatusUrl,
+    });
     setMessageModalKey((prev) => prev + 1);
     setMessageOpen(true);
   };
@@ -525,6 +534,7 @@ export function ManageAttendeesModal({
       setMessageDrawerManualSubject(defaultSubject);
       setMessageDrawerManualBody(defaultBody);
       setMessageDrawerAutoResponse(false);
+      setMessageDrawerIncludeStatusUrl(false);
       setMessageDrawerOpen(true);
       return;
     }
@@ -532,6 +542,7 @@ export function ManageAttendeesModal({
       attendeeIds: [selectedAttendee.id],
       defaultSubject,
       defaultBody,
+      includeStatusUrl: false,
     });
   };
   const mobileDrawerOpen = fullScreen && Boolean(selectedAttendee);
@@ -543,6 +554,7 @@ export function ManageAttendeesModal({
     setMessageDrawerManualBody("");
     setMessageDrawerError(null);
     setMessageDrawerMarkAsNotified(false);
+    setMessageDrawerIncludeStatusUrl(true);
     setMessageDrawerIncludeConfirmed(true);
     setMessageDrawerIncludeWaitlisted(false);
     setMessageDrawerIncludeRejected(false);
@@ -591,6 +603,7 @@ export function ManageAttendeesModal({
         text: messageDrawerBody,
         attendeeIds: ids.length ? ids : undefined,
         markNotified: messageDrawerAutoResponse || messageDrawerMarkAsNotified,
+        includeStatusUrl: messageDrawerIncludeStatusUrl,
       });
       await Promise.all(
         ids.map((attendeeId) =>
@@ -1298,6 +1311,7 @@ export function ManageAttendeesModal({
           attendees={attendees}
           defaultSubject={messageModalDefaults.subject}
           defaultBody={messageModalDefaults.body}
+          includeStatusUrl={messageModalDefaults.includeStatusUrl}
         />
       )}
       {meet && (

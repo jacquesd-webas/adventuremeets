@@ -36,6 +36,7 @@ export function GuestSwitchField({
   LabeledFieldComponent,
 }: GuestSwitchFieldProps) {
   if (!allowGuests || disabled) return null
+  const canAddGuests = maxGuests <= 0 || guests.length < maxGuests
 
   return (
     <Stack spacing={1}>
@@ -106,11 +107,13 @@ export function GuestSwitchField({
             <Button
               size="small"
               variant="outlined"
+              disabled={!canAddGuests}
               onClick={() => {
+                if (!canAddGuests) return
                 onGuestsChange([...guests, { name: "", isMinor: false }])
               }}
             >
-              + Add guest
+              {canAddGuests ? "+ Add guest" : "Guest limit reached"}
             </Button>
           </Box>
         </Stack>

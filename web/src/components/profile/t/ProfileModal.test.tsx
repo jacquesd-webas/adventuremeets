@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import { ProfileModal } from "../ProfileModal";
@@ -89,11 +89,15 @@ vi.mock("../../../hooks/useNotistack", () => ({
 }));
 
 describe("ProfileModal", () => {
-  const renderWithQueryClient = (ui: React.ReactElement) => {
+  const renderWithQueryClient = async (ui: React.ReactElement) => {
     const queryClient = new QueryClient();
-    return render(
-      <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
-    );
+    let result: ReturnType<typeof render> | undefined;
+    await act(async () => {
+      result = render(
+        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+      );
+    });
+    return result!;
   };
 
   beforeEach(() => {
@@ -108,8 +112,8 @@ describe("ProfileModal", () => {
     mockedUserMetaValues = [];
   });
 
-  it("renders and allows section navigation", () => {
-    renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+  it("renders and allows section navigation", async () => {
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
 
     expect(
       screen.getByRole("heading", { name: "Personal details" }),
@@ -125,22 +129,22 @@ describe("ProfileModal", () => {
     expect(screen.getByText("Update password")).toBeInTheDocument();
   });
 
-  it("calls onClose when close is clicked", () => {
+  it("calls onClose when close is clicked", async () => {
     const onClose = vi.fn();
-    renderWithQueryClient(<ProfileModal open onClose={onClose} />);
+    await renderWithQueryClient(<ProfileModal open onClose={onClose} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows invite toggle instead of invite link when organization is private", () => {
+  it("shows invite toggle instead of invite link when organization is private", async () => {
     mockedOrganization = {
       id: "org-1",
       name: "Adventure Meets",
       isPrivate: true,
     };
 
-    renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Organisation" }));
 
     expect(
@@ -152,7 +156,7 @@ describe("ProfileModal", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("sends empty values for omitted autofill fields", () => {
+  it("sends empty values for omitted autofill fields", async () => {
     mockedMetaDefinitions = [
       {
         fieldKey: "name",
@@ -165,7 +169,7 @@ describe("ProfileModal", () => {
       { key: "dietary", value: "Vegan" },
     ];
 
-    renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "AutoFill" }));
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Alice Updated" },

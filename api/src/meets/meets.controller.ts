@@ -431,6 +431,7 @@ export class MeetsController {
         text: { type: "string" },
         html: { type: "string" },
         markNotified: { type: "boolean" },
+        includeStatusUrl: { type: "boolean" },
       },
       required: ["subject"],
     },
@@ -444,6 +445,7 @@ export class MeetsController {
       html?: string;
       attendeeIds?: string[];
       markNotified?: boolean;
+      includeStatusUrl?: boolean;
     },
     @User() user?: UserProfile,
   ) {
@@ -497,11 +499,14 @@ export class MeetsController {
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
     // Send all the emails (just skip any nulls it's fine)
+    const includeStatusUrl = body.includeStatusUrl !== false;
     await Promise.all(
       Array.from(recipients.entries()).map(async ([attendeeId, email]) => {
         const attendee =
           await this.meetsService.getAttendeeContactById(attendeeId);
-        const statusUrl = `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`;
+        const statusUrl = includeStatusUrl
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
+          : "";
         const attendeeName =
           attendee?.name || attendee?.email || attendee?.phone || "there";
         const organizerName = meet.organizerName || "the organizer";
@@ -510,6 +515,7 @@ export class MeetsController {
           meetName: meet.name,
           attendeeName,
           statusUrl,
+          includeStatusUrl,
           organizerName,
           organizerEmail,
           messageBody: body.text ?? body.html ?? "",
@@ -529,7 +535,9 @@ export class MeetsController {
       Array.from(recipients.keys()).map(async (attendeeId) => {
         const attendee =
           await this.meetsService.getAttendeeContactById(attendeeId);
-        const statusUrl = `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`;
+        const statusUrl = includeStatusUrl
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
+          : "";
         const attendeeName =
           attendee?.name || attendee?.email || attendee?.phone || "there";
         const organizerName = meet.organizerName || "the organizer";
@@ -538,6 +546,7 @@ export class MeetsController {
           meetName: meet.name,
           attendeeName,
           statusUrl,
+          includeStatusUrl,
           organizerName,
           organizerEmail,
           messageBody: body.text ?? body.html ?? "",
