@@ -348,6 +348,10 @@ export function renderEmailTemplate(
     const organizerName = messageVars.organizerName || "the organizer";
     const organizerEmail = messageVars.organizerEmail || "";
     const subject = `Message about ${messageVars.meetName}`;
+    const messageBodyText = escapeHtml(messageVars.messageBody || "");
+    const messageBodyHtml = formatMessageBodyHtml(
+      messageVars.messageBody || "",
+    );
     const varsMap = {
       ...baseVarsMap,
       attendeeName: escapeHtml(greetingName),
@@ -355,14 +359,19 @@ export function renderEmailTemplate(
       statusUrl,
       organizerName: escapeHtml(organizerName),
       organizerEmail,
-      messageBody: escapeHtml(messageVars.messageBody),
+      messageBody: messageBodyText,
     };
     const flags = {
       ifStatusUrl: Boolean(statusUrl),
       ifOrganizerEmail: Boolean(organizerEmail),
     };
     const text = renderTemplate("meet-message", "txt", varsMap, flags);
-    const htmlBody = renderTemplate("meet-message", "html", varsMap, flags);
+    const htmlBody = renderTemplate(
+      "meet-message",
+      "html",
+      { ...varsMap, messageBody: messageBodyHtml },
+      flags,
+    );
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
@@ -417,4 +426,9 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function formatMessageBodyHtml(value: string) {
+  if (!value) return "";
+  return escapeHtml(value).replace(/\r\n|\r|\n/g, "<br/>");
 }
