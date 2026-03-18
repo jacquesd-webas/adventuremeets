@@ -78,6 +78,7 @@ describe("MessageModal", () => {
         text: "Body",
         attendeeIds: ["a1"],
         markNotified: false,
+        includeStatusUrl: true,
       });
     });
     expect(enqueueSnackbar).toHaveBeenCalled();
@@ -114,6 +115,7 @@ describe("MessageModal", () => {
         text: "Body",
         attendeeIds: ["a1"],
         markNotified: true,
+        includeStatusUrl: true,
       });
     });
   });
@@ -142,6 +144,7 @@ describe("MessageModal", () => {
         text: "Auto body",
         attendeeIds: ["a1"],
         markNotified: true,
+        includeStatusUrl: true,
       });
     });
   });
