@@ -16,7 +16,16 @@ if (!root) {
   throw new Error("Root container missing in index.html");
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: any) => {
+        if (error?.status === 404) return false;
+        return failureCount < 3;
+      },
+    },
+  },
+});
 
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
