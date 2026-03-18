@@ -11,7 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { MeetMetaValueInputDto } from './create-meet-attendee.dto';
+import { GuestInputDto, MeetMetaValueInputDto } from './create-meet-attendee.dto';
 
 export class UpdateMeetAttendeeDto {
   @ApiPropertyOptional()
@@ -34,6 +34,22 @@ export class UpdateMeetAttendeeDto {
   @IsInt()
   @Min(0)
   guests?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isMinor?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  GuardianName?: string;
+
+  @ApiPropertyOptional({ type: [GuestInputDto] })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => GuestInputDto)
+  guestsList?: GuestInputDto[];
 
   @ApiPropertyOptional()
   @IsOptional()

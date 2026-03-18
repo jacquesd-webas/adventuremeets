@@ -430,6 +430,7 @@ export class MeetsController {
         attendeeIds: { type: "array", items: { type: "string" } },
         text: { type: "string" },
         html: { type: "string" },
+        markNotified: { type: "boolean" },
       },
       required: ["subject"],
     },
@@ -442,6 +443,7 @@ export class MeetsController {
       text?: string;
       html?: string;
       attendeeIds?: string[];
+      markNotified?: boolean;
     },
     @User() user?: UserProfile,
   ) {
@@ -554,7 +556,9 @@ export class MeetsController {
       }),
     );
 
-    await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
+    if (body.markNotified !== false) {
+      await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
+    }
     return { status: "sent", count: recipients.size };
   }
 

@@ -12,6 +12,16 @@ export class MeetMetaValueInputDto {
   value!: string;
 }
 
+export class GuestInputDto {
+  @ApiPropertyOptional()
+  @IsString()
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  isMinor!: boolean;
+}
+
 export class CreateMeetAttendeeDto {
   @ApiPropertyOptional({ description: 'Existing user id (UUID)' })
   @IsOptional()
@@ -40,6 +50,27 @@ export class CreateMeetAttendeeDto {
   @IsInt()
   @Min(0)
   guests?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isMinor?: boolean;
+
+  @ApiPropertyOptional({ description: 'Attendee id for guest-of relation (UUID)' })
+  @IsOptional()
+  @IsUUID()
+  guestOf?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  GuardianName?: string;
+
+  @ApiPropertyOptional({ type: [GuestInputDto] })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => GuestInputDto)
+  guestsList?: GuestInputDto[];
 
   @ApiPropertyOptional()
   @IsOptional()
