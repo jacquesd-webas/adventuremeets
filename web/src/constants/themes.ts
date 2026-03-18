@@ -9,7 +9,7 @@ export const ORGANIZATION_THEMES: OrganizationTheme[] = [
     logoLight: "adventuremeets-logo.svg",
     logoDark: "adventuremeets-logo-dark.svg",
     backgroundColorLight: "#F6F4EF",
-    backgroundColorDark: "#0A1424",
+    backgroundColorDark: "#24252f",
   },
   {
     name: "Alpine",

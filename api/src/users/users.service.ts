@@ -25,7 +25,6 @@ export class UsersService {
       await trx("users").insert({
         id,
         email: dto.email,
-        email_verified: false,
         first_name: dto.firstName || null,
         last_name: dto.lastName || null,
         phone: dto.phone || null,
@@ -105,12 +104,29 @@ export class UsersService {
       .join("user_organization_memberships as uom", "uom.user_id", "u.id")
       .whereIn("uom.organization_id", organizationIds)
       .andWhere("uom.status", "active")
+      .distinct("u.id")
       .select("u.*");
     return rows.map((row) => this.stripSensitive(row));
   }
 
   async findByEmail(email: string) {
     return this.database.getClient()("users").where({ email }).first();
+  }
+
+  async getEmailVerificationInfo(userId: string) {
+    return this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .select(
+        "id",
+        "email",
+        "email_verified_at",
+        "email_verification_token",
+        "email_verification_expires_at",
+        "email_verification_attempts",
+        "email_verification_locked_until",
+      )
+      .first();
   }
 
   async isOrganizationPrivate(organizationId: string): Promise<boolean | null> {
@@ -133,29 +149,75 @@ export class UsersService {
   async setPasswordResetToken(
     userId: string,
     tokenHash: string,
-    expiresAt: string
+    expiresAt: string,
   ) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      password_reset_token: tokenHash,
+      password_reset_expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async setEmailVerificationToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: string,
+  ) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      email_verification_token: tokenHash,
+      email_verification_expires_at: expiresAt,
+      email_verification_attempts: 0,
+      email_verification_locked_until: null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async clearEmailVerificationToken(userId: string) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      email_verification_token: null,
+      email_verification_expires_at: null,
+      email_verification_attempts: 0,
+      email_verification_locked_until: null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async incrementEmailVerificationAttempts(userId: string) {
     await this.database
       .getClient()("users")
       .where({ id: userId })
       .update({
-        password_reset_token: tokenHash,
-        password_reset_expires_at: expiresAt,
+        email_verification_attempts: this.database
+          .getClient()
+          .raw("COALESCE(email_verification_attempts, 0) + 1"),
         updated_at: new Date().toISOString(),
       });
   }
 
+  async lockEmailVerification(userId: string, lockedUntil: string) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      email_verification_locked_until: lockedUntil,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async markEmailVerified(userId: string) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      email_verified_at: new Date().toISOString(),
+      email_verification_token: null,
+      email_verification_expires_at: null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
   async updatePasswordFromReset(userId: string, password: string) {
     const passwordHash = await bcrypt.hash(password, 10);
-    await this.database
-      .getClient()("users")
-      .where({ id: userId })
-      .update({
-        password_hash: passwordHash,
-        password_reset_token: null,
-        password_reset_expires_at: null,
-        updated_at: new Date().toISOString(),
-      });
+    await this.database.getClient()("users").where({ id: userId }).update({
+      password_hash: passwordHash,
+      password_reset_token: null,
+      password_reset_expires_at: null,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   async isValidAttendee(attendeeId: string) {
@@ -227,6 +289,9 @@ export class UsersService {
     }
     if (dto.email !== undefined) {
       updates.email = dto.email;
+      updates.email_verified_at = null;
+      updates.email_verification_token = null;
+      updates.email_verification_expires_at = null;
     }
     if (dto.idpProvider !== undefined) {
       updates.idp_provider = dto.idpProvider;
@@ -272,7 +337,7 @@ export class UsersService {
   async saveUserMetaValues(
     userId: string,
     organizationId: string,
-    values: Array<{ key: string; value?: string | null }>
+    values: Array<{ key: string; value?: string | null }>,
   ) {
     const trx = await this.database.getClient().transaction();
     try {
@@ -283,14 +348,15 @@ export class UsersService {
           .whereIn("key", keys)
           .del();
       }
-      if (values.length) {
+      const valuesToInsert = values.filter((item) => item.value != null);
+      if (valuesToInsert.length) {
         await trx("user_meta_values").insert(
-          values.map((item) => ({
+          valuesToInsert.map((item) => ({
             user_id: userId,
             organization_id: organizationId,
             key: item.key,
-            value: item.value ?? null,
-          }))
+            value: item.value,
+          })),
         );
       }
       await trx.commit();

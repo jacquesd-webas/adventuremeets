@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
@@ -20,6 +21,7 @@ import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import type { Request } from "express";
 
 @ApiTags("Meet Attendees")
 @Controller("meets/:meetId/attendees")
@@ -63,20 +65,31 @@ export class MeetAttendeesController {
   async add(
     @Param("meetId") meetId: string,
     @Body() dto: CreateMeetAttendeeDto,
+    @Req() req: Request,
   ) {
-    const { attendee } = await this.meetsService.addAttendee(meetId, dto);
+    const forwardedFor = req.headers["x-forwarded-for"];
+    const forwardedIp = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor?.split(",")[0]?.trim();
+    const { attendee } = await this.meetsService.addAttendee(meetId, dto, {
+      ip: forwardedIp || req.ip,
+      userAgent: req.headers["user-agent"] as string | undefined,
+      locale: req.headers["accept-language"] as string | undefined,
+    });
 
     if (dto.email) {
       const meet = await this.meetsService.findOne(meetId);
       if (meet?.shareCode) {
-        const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173")
-          .replace(/\/+$/, "");
+        const frontendUrl = (
+          process.env.FRONTEND_URL || "http://localhost:5173"
+        ).replace(/\/+$/, "");
         const statusUrl = `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`;
         const { subject, text, html } = renderEmailTemplate("meet-signup", {
           meetName: meet.name,
           attendeeName: dto.name ?? undefined,
           startTime: meet.startTime,
           endTime: meet.endTime,
+          timeZone: meet.timeZone,
           location: meet.location,
           statusUrl,
           organizerName: meet.organizerName,

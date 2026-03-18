@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { GuestInput } from "../types/GuestInput";
 
 export type MeetSignupSheetState = {
   indemnityAccepted: boolean;
@@ -7,8 +8,10 @@ export type MeetSignupSheetState = {
   email: string;
   phone: string;
   wantsGuests: boolean;
-  guestCount: number;
+  guests: GuestInput[];
   metaValues: Record<string, string | number | boolean>;
+  guardianName: string;
+  isMinor: boolean;
 };
 
 const initialState: MeetSignupSheetState = {
@@ -18,8 +21,10 @@ const initialState: MeetSignupSheetState = {
   email: "",
   phone: "",
   wantsGuests: false,
-  guestCount: 0,
-  metaValues: {}
+  guests: [],
+  metaValues: {},
+  guardianName: "",
+  isMinor: false,
 };
 
 export function useMeetSignupSheetState() {

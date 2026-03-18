@@ -83,6 +83,16 @@ export function CreateMeetModal({
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
   const { currentOrganizationId } = useCurrentOrganization();
+  const statusId =
+    typeof state.statusId === "number"
+      ? state.statusId
+      : state.statusId != null
+        ? Number(state.statusId)
+        : null;
+  const isEditing = Boolean(meetIdProp);
+  const isIndemnityLocked =
+    isEditing &&
+    (statusId === MeetStatusEnum.Open || statusId === MeetStatusEnum.Closed);
 
   const { data: fetchedMeet, isLoading: isFetchingMeet } = useFetchMeet(
     meetIdProp,
@@ -165,6 +175,10 @@ export function CreateMeetModal({
   );
   const isDraft = useMemo(
     () => (state.statusId ?? MeetStatusEnum.Draft) === MeetStatusEnum.Draft,
+    [state.statusId],
+  );
+  const isPostponed = useMemo(
+    () => state.statusId === MeetStatusEnum.Postponed,
     [state.statusId],
   );
 
@@ -250,6 +264,9 @@ export function CreateMeetModal({
     draft: CreateMeetState,
     step: number,
   ): SaveMeetPayload => {
+    const resolvedTimeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone ||
+      "Africa/Johannesburg";
     switch (step) {
       case 0:
         return {
@@ -291,6 +308,7 @@ export function CreateMeetModal({
               : undefined,
           startTime: startTimeWithZone,
           endTime: endTimeWithZone,
+          timeZone: draft.timeZone || resolvedTimeZone,
           startTimeTbc: draft.startTimeTbc,
           endTimeTbc: draft.endTimeTbc,
           useMap: draft.useMap,
@@ -464,6 +482,9 @@ export function CreateMeetModal({
     setSubmitError(null);
     try {
       await handleSaveStep(activeStep);
+      if (meetId && state.statusId === MeetStatusEnum.Postponed) {
+        await updateStatusAsync({ meetId, statusId: MeetStatusEnum.Published });
+      }
       setBaselineState(state);
       onCreated?.();
       onClose();
@@ -612,7 +633,13 @@ export function CreateMeetModal({
           />
         );
       case 2:
-        return <IndemnityStep state={state} setState={(fn) => setState(fn)} />;
+        return (
+          <IndemnityStep
+            state={state}
+            setState={(fn) => setState(fn)}
+            disableIndemnityText={isIndemnityLocked}
+          />
+        );
       case 3:
         return <QuestionsStep state={state} setState={(fn) => setState(fn)} />;
       case 4:
@@ -779,27 +806,15 @@ export function CreateMeetModal({
                   Previous
                 </Button>
                 <Stack direction="row" spacing={1}>
-                  {isLastStep && (
-                    <Button
-                      variant="outlined"
-                      onClick={() => {
-                        setState(initialState);
-                        setMeetId(null);
-                        setShareCode(null);
-                        handleCancel();
-                        setActiveStep(0);
-                      }}
-                    >
-                      Save & close
-                    </Button>
-                  )}
                   <Button
                     variant="contained"
                     onClick={
                       isLastStep
                         ? isDraft
                           ? handlePublish
-                          : handleSaveAndClose
+                          : isPostponed
+                            ? handlePublish
+                            : handleSaveAndClose
                         : handleNext
                     }
                     disabled={
@@ -810,7 +825,7 @@ export function CreateMeetModal({
                     }
                   >
                     {isLastStep
-                      ? isDraft
+                      ? isDraft || isPostponed
                         ? isPublishing
                           ? "Publishing..."
                           : "Publish"

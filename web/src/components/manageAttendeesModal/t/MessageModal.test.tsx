@@ -25,6 +25,11 @@ vi.mock("../../../hooks/useDefaultMessage", () => ({
 }));
 
 describe("MessageModal", () => {
+  beforeEach(() => {
+    enqueueSnackbar.mockClear();
+    notifyAttendeeAsync.mockClear();
+  });
+
   it("validates required fields", () => {
     const queryClient = new QueryClient();
     render(
@@ -72,8 +77,75 @@ describe("MessageModal", () => {
         subject: "Hello",
         text: "Body",
         attendeeIds: ["a1"],
+        markNotified: false,
+        includeStatusUrl: true,
       });
     });
     expect(enqueueSnackbar).toHaveBeenCalled();
+  });
+
+  it("allows marking attendees as notified for manual messages", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendeeIds={["a1"]}
+          attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
+        />
+      </QueryClientProvider>
+    );
+
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "Hello" },
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Body" },
+    });
+
+    fireEvent.click(screen.getByLabelText("Mark attendee as notified"));
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenCalledWith({
+        meetId: "m1",
+        subject: "Hello",
+        text: "Body",
+        attendeeIds: ["a1"],
+        markNotified: true,
+        includeStatusUrl: true,
+      });
+    });
+  });
+
+  it("marks attendees as notified when auto is enabled", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendeeIds={["a1"]}
+          attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
+        />
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenCalledWith({
+        meetId: "m1",
+        subject: "Auto subject",
+        text: "Auto body",
+        attendeeIds: ["a1"],
+        markNotified: true,
+        includeStatusUrl: true,
+      });
+    });
   });
 });

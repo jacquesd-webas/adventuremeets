@@ -4,8 +4,13 @@ import {
   Box,
   Button,
   Container,
+  Divider,
+  Drawer,
   IconButton,
+  List,
+  ListItemButton,
   ListItemIcon,
+  ListItemText,
   Menu,
   MenuItem,
   Stack,
@@ -18,11 +23,13 @@ import {
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
+import MenuIcon from "@mui/icons-material/Menu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import { useMemo, useState, MouseEvent, useEffect } from "react";
+import CloseIcon from "@mui/icons-material/Close";
+import { useMemo, useState, MouseEvent, useEffect, ReactNode } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { ProfileModal } from "../components/profile/ProfileModal";
+import { ProfileContent, ProfileModal } from "../components/profile/ProfileModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
@@ -41,13 +48,21 @@ const navItems = [
   { label: "List", path: "/plan" },
 ];
 
+export type MainLayoutOutletContext = {
+  setMobileHeaderAction: (action: ReactNode | null) => void;
+};
+
 function MainLayout() {
   const nav = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down(820));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [adminAnchorEl, setAdminAnchorEl] = useState<null | HTMLElement>(null);
   const [orgModalOpen, setOrgModalOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileHeaderAction, setMobileHeaderAction] = useState<ReactNode | null>(
+    null,
+  );
   const [baseMode, setBaseMode] = useState<"light" | "dark">(() => {
     const stored =
       typeof window !== "undefined"
@@ -98,6 +113,10 @@ function MainLayout() {
     nav(path);
     handleMenuClose();
   };
+  const handleMobileNavigate = (path: string) => {
+    nav(path);
+    setMobileNavOpen(false);
+  };
   const handleAdminNavigate = (path: string) => {
     nav(path);
     handleAdminClose();
@@ -119,6 +138,17 @@ function MainLayout() {
     window.localStorage.removeItem("refreshToken");
     queryClient.clear();
     handleMenuClose();
+    nav("/login");
+  };
+  const handleMobileProfile = () => {
+    setProfileOpen(true);
+    setMobileNavOpen(false);
+  };
+  const handleMobileLogout = () => {
+    window.localStorage.removeItem("accessToken");
+    window.localStorage.removeItem("refreshToken");
+    queryClient.clear();
+    setMobileNavOpen(false);
     nav("/login");
   };
 
@@ -160,6 +190,53 @@ function MainLayout() {
   };
 
   const logoSrc = getLogoSrc(mode, organization?.theme);
+
+  const accountMenu = (
+    <Menu
+      anchorEl={anchorEl}
+      open={Boolean(anchorEl)}
+      onClose={handleMenuClose}
+      transformOrigin={{ vertical: "top", horizontal: "right" }}
+    >
+      {(canLight || canDark) && (
+        <MenuItem
+          onClick={handleToggleLightDark}
+          disabled={!canLight || !canDark}
+        >
+          <ListItemIcon>
+            {(mode === "glass" ? baseMode : mode) === "dark" ? (
+              <LightModeIcon fontSize="small" />
+            ) : (
+              <DarkModeIcon fontSize="small" />
+            )}
+          </ListItemIcon>
+          {(mode === "glass" ? baseMode : mode) === "dark"
+            ? "Light mode"
+            : "Dark mode"}
+        </MenuItem>
+      )}
+      {canGlass && (
+        <MenuItem onClick={handleToggleGlass}>
+          <ListItemIcon>
+            <ViewDayOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          {mode === "glass" ? "Disable glass mode" : "Enable glass mode"}
+        </MenuItem>
+      )}
+      <MenuItem onClick={handleProfile}>
+        <ListItemIcon>
+          <PersonOutlineIcon fontSize="small" />
+        </ListItemIcon>
+        Profile
+      </MenuItem>
+      <MenuItem onClick={handleLogout}>
+        <ListItemIcon>
+          <LogoutIcon fontSize="small" />
+        </ListItemIcon>
+        Logout
+      </MenuItem>
+    </Menu>
+  );
 
   useEffect(() => {
     const { image, color } = getOrganizationBackground(
@@ -289,57 +366,12 @@ function MainLayout() {
                 onClick={handleAvatarClick}
                 size="small"
                 sx={{ ml: 2 }}
+                aria-label="Open account menu"
                 data-testid="account-menu-button"
               >
                 <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
               </IconButton>
             </Tooltip>
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleMenuClose}
-              transformOrigin={{ vertical: "top", horizontal: "right" }}
-            >
-              {(canLight || canDark) && (
-                <MenuItem
-                  onClick={handleToggleLightDark}
-                  disabled={!canLight || !canDark}
-                >
-                  <ListItemIcon>
-                    {(mode === "glass" ? baseMode : mode) === "dark" ? (
-                      <LightModeIcon fontSize="small" />
-                    ) : (
-                      <DarkModeIcon fontSize="small" />
-                    )}
-                  </ListItemIcon>
-                  {(mode === "glass" ? baseMode : mode) === "dark"
-                    ? "Light mode"
-                    : "Dark mode"}
-                </MenuItem>
-              )}
-              {canGlass && (
-                <MenuItem onClick={handleToggleGlass}>
-                  <ListItemIcon>
-                    <ViewDayOutlinedIcon fontSize="small" />
-                  </ListItemIcon>
-                  {mode === "glass"
-                    ? "Disable glass mode"
-                    : "Enable glass mode"}
-                </MenuItem>
-              )}
-              <MenuItem onClick={handleProfile}>
-                <ListItemIcon>
-                  <PersonOutlineIcon fontSize="small" />
-                </ListItemIcon>
-                Profile
-              </MenuItem>
-              <MenuItem onClick={handleLogout}>
-                <ListItemIcon>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                Logout
-              </MenuItem>
-            </Menu>
             {isAdmin && (
               <Menu
                 anchorEl={adminAnchorEl}
@@ -369,6 +401,143 @@ function MainLayout() {
           </Toolbar>
         </AppBar>
       )}
+      {isMobile && (
+        <AppBar
+          position="sticky"
+          color="transparent"
+          elevation={0}
+          sx={{ borderBottom: 1, borderColor: "divider", top: 0 }}
+        >
+          <Toolbar sx={{ minHeight: 56 }}>
+            <IconButton
+              edge="start"
+              color="inherit"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation"
+            >
+              <MenuIcon />
+            </IconButton>
+            <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
+              <Box
+                component="img"
+                src={logoSrc}
+                alt="AdventureMeets logo"
+                sx={{ height: 28 }}
+              />
+            </Box>
+            <Box
+              sx={{
+                minWidth: 34,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+              }}
+            >
+              {mobileHeaderAction}
+            </Box>
+          </Toolbar>
+          <Drawer
+            anchor="left"
+            open={mobileNavOpen}
+            onClose={() => setMobileNavOpen(false)}
+          >
+            <Box sx={{ width: 280, py: 1 }}>
+              <Box sx={{ px: 2, py: 1.25 }}>
+                <Box
+                  component="img"
+                  src={logoSrc}
+                  alt="AdventureMeets logo"
+                  sx={{ height: 30 }}
+                />
+              </Box>
+              <List>
+                {navItems.map((item) => (
+                  <ListItemButton
+                    key={item.path}
+                    onClick={() => handleMobileNavigate(item.path)}
+                  >
+                    <ListItemText primary={item.label} />
+                  </ListItemButton>
+                ))}
+                {organizationIds.length > 1 && (
+                  <ListItemButton
+                    onClick={() => {
+                      setOrgModalOpen(true);
+                      setMobileNavOpen(false);
+                    }}
+                  >
+                    <ListItemText primary="Switch organisation" />
+                  </ListItemButton>
+                )}
+              </List>
+              <Divider sx={{ my: 1 }} />
+              <Box sx={{ px: 2, pb: 0.5 }}>
+                <Typography variant="overline" color="text.secondary">
+                  Account
+                </Typography>
+              </Box>
+              <List>
+                {(canLight || canDark) && (
+                  <ListItemButton
+                    onClick={() => {
+                      handleToggleLightDark();
+                      setMobileNavOpen(false);
+                    }}
+                    disabled={!canLight || !canDark}
+                  >
+                    <ListItemIcon>
+                      {(mode === "glass" ? baseMode : mode) === "dark" ? (
+                        <LightModeIcon fontSize="small" />
+                      ) : (
+                        <DarkModeIcon fontSize="small" />
+                      )}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        (mode === "glass" ? baseMode : mode) === "dark"
+                          ? "Light mode"
+                          : "Dark mode"
+                      }
+                    />
+                  </ListItemButton>
+                )}
+                {canGlass && (
+                  <ListItemButton
+                    onClick={() => {
+                      handleToggleGlass();
+                      setMobileNavOpen(false);
+                    }}
+                  >
+                    <ListItemIcon>
+                      <ViewDayOutlinedIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        mode === "glass"
+                          ? "Disable glass mode"
+                          : "Enable glass mode"
+                      }
+                    />
+                  </ListItemButton>
+                )}
+                <ListItemButton onClick={handleMobileProfile}>
+                  <ListItemIcon>
+                    <PersonOutlineIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Profile" />
+                </ListItemButton>
+                <ListItemButton onClick={handleMobileLogout}>
+                  <ListItemIcon>
+                    <LogoutIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Logout" />
+                </ListItemButton>
+              </List>
+            </Box>
+          </Drawer>
+        </AppBar>
+      )}
+      {!isMobile && accountMenu}
       <Container
         maxWidth={isMobile ? false : "lg"}
         disableGutters={isMobile}
@@ -380,12 +549,48 @@ function MainLayout() {
           px: isMobile ? 1.5 : 0,
         }}
       >
-        <Outlet />
+        <Outlet context={{ setMobileHeaderAction }} />
       </Container>
-      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      {isMobile ? (
+        <Drawer
+          anchor="bottom"
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          PaperProps={{
+            sx: {
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              maxHeight: "85vh",
+              overflow: "hidden",
+            },
+          }}
+        >
+          <Box sx={{ p: 2, height: "100%", overflowY: "auto" }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              sx={{ mb: 1 }}
+            >
+              <Typography variant="h6">Profile</Typography>
+              <IconButton
+                onClick={() => setProfileOpen(false)}
+                size="small"
+                aria-label="Close"
+              >
+                <CloseIcon />
+              </IconButton>
+            </Stack>
+            <ProfileContent open={profileOpen} />
+          </Box>
+        </Drawer>
+      ) : (
+        <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      )}
       <ChooseOrganizationModal
         open={orgModalOpen || !currentOrganizationId}
         onClose={() => setOrgModalOpen(false)}
+        disableClose={!currentOrganizationId}
       />
     </Box>
   );

@@ -65,6 +65,13 @@ vi.mock("../../../hooks/useNotistack", () => ({
   }),
 }));
 
+vi.mock("notistack", () => ({
+  useSnackbar: () => ({
+    enqueueSnackbar: vi.fn(),
+  }),
+  SnackbarProvider: ({ children }: { children: any }) => children,
+}));
+
 describe("ManageAttendeesModal", () => {
   beforeAll(() => {
     Object.defineProperty(window, "matchMedia", {

@@ -147,8 +147,7 @@ export class IncomingMailController {
     await this.emailService.sendEmail({
       to: organizer.email,
       subject: subject || `Message for meet: ${meet.name}`,
-      text:
-        `Forwarded message from ${sender}:\n\n` + (pertinentBody || fullBody),
+      text: pertinentBody || fullBody,
       meetId: meet.id,
     });
 

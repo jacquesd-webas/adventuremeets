@@ -18,7 +18,7 @@ import { CreateTemplateDto } from "./dto/create-template.dto";
 import { UpdateTemplateDto } from "./dto/update-template.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { UpdateMemberDto } from "./dto/update-member.dto";
-import { Public } from "src/auth/decorators/public.decorator";
+import { Public } from "../auth/decorators/public.decorator";
 import { UseGuards } from "@nestjs/common";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 

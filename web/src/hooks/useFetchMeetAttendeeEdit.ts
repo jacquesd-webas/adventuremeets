@@ -8,6 +8,8 @@ type MeetAttendeeEditResponse = {
     email?: string | null;
     phone?: string | null;
     guests?: number | null;
+    isMinor?: boolean | null;
+    guardianName?: string | null;
     indemnityAccepted?: boolean | null;
     metaValues?: Array<{ fieldKey: string; value: string }>;
   };

@@ -1,4 +1,4 @@
-import { Button, Stack } from "@mui/material";
+import { Button, Stack, useMediaQuery, useTheme } from "@mui/material";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 
 type AuthSocialButtonsProps = {
@@ -12,6 +12,22 @@ export function AuthSocialButtons({
   showEmail = false,
   onSelect,
 }: AuthSocialButtonsProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const iconOnlySocial = isMobile && compact;
+  const iconOnlyButtonSx = iconOnlySocial
+    ? {
+        px: 1,
+        minHeight: 44,
+        minWidth: 44,
+        justifyContent: "center",
+        "& .MuiButton-startIcon": {
+          marginLeft: 0,
+          marginRight: 0,
+        },
+      }
+    : { minHeight: 44 };
+
   const handleSelect = (
     provider: "google" | "microsoft" | "facebook" | "email"
   ) => {
@@ -26,17 +42,19 @@ export function AuthSocialButtons({
       <Stack direction="row" spacing={1} sx={{ width: "100%" }} flexWrap="wrap">
         <Button
           variant="outlined"
-          sx={{ flex: 1, minWidth: 0 }}
+          sx={{ flex: 1, minWidth: 0, ...iconOnlyButtonSx }}
           startIcon={
             <img src="/static/google.svg" alt="Google" width={18} height={18} />
           }
+          aria-label="Google"
+          title="Google"
           disabled
         >
-          Google
+          {iconOnlySocial ? null : "Google"}
         </Button>
         <Button
           variant="outlined"
-          sx={{ flex: 1, minWidth: 0 }}
+          sx={{ flex: 1, minWidth: 0, ...iconOnlyButtonSx }}
           startIcon={
             <img
               src="/static/microsoft.svg"
@@ -45,12 +63,15 @@ export function AuthSocialButtons({
               height={18}
             />
           }
+          aria-label="Microsoft"
+          title="Microsoft"
+          disabled
         >
-          Microsoft
+          {iconOnlySocial ? null : "Microsoft"}
         </Button>
         <Button
           variant="outlined"
-          sx={{ flex: 1, minWidth: 0 }}
+          sx={{ flex: 1, minWidth: 0, ...iconOnlyButtonSx }}
           startIcon={
             <img
               src="/static/facebook.svg"
@@ -59,9 +80,11 @@ export function AuthSocialButtons({
               height={18}
             />
           }
+          aria-label="Facebook"
+          title="Facebook"
           disabled
         >
-          Facebook
+          {iconOnlySocial ? null : "Facebook"}
         </Button>
         {showEmail && (
           <Button
@@ -91,16 +114,20 @@ export function AuthSocialButtons({
       )}
       <Button
         variant="outlined"
+        sx={iconOnlyButtonSx}
         startIcon={
           <img src="/static/google.svg" alt="Google" width={18} height={18} />
         }
         fullWidth
+        aria-label="Continue with Google"
+        title="Continue with Google"
         disabled
       >
-        Continue with Google (coming soon)
+        {isMobile ? "Google (coming soon)" : "Continue with Google (coming soon)"}
       </Button>
       <Button
         variant="outlined"
+        sx={iconOnlyButtonSx}
         startIcon={
           <img
             src="/static/microsoft.svg"
@@ -110,12 +137,17 @@ export function AuthSocialButtons({
           />
         }
         fullWidth
+        aria-label="Continue with Microsoft"
+        title="Continue with Microsoft"
         disabled
       >
-        Continue with Microsoft (coming soon)
+        {isMobile
+          ? "Microsoft (coming soon)"
+          : "Continue with Microsoft (coming soon)"}
       </Button>
       <Button
         variant="outlined"
+        sx={iconOnlyButtonSx}
         startIcon={
           <img
             src="/static/facebook.svg"
@@ -125,9 +157,13 @@ export function AuthSocialButtons({
           />
         }
         fullWidth
+        aria-label="Continue with Facebook"
+        title="Continue with Facebook"
         disabled
       >
-        Continue with Facebook (coming soon)
+        {isMobile
+          ? "Facebook (coming soon)"
+          : "Continue with Facebook (coming soon)"}
       </Button>
     </Stack>
   );

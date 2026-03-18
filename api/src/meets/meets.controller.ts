@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Headers,
+  Res,
   UnauthorizedException,
   UploadedFile,
   UseInterceptors,
@@ -36,6 +37,7 @@ import { User } from "../auth/decorators/user.decorator";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { EmailService } from "../email/email.service";
+import { renderEmailTemplate } from "../email/email.templates";
 import { DatabaseService } from "../database/database.service";
 import * as ExcelJS from "exceljs";
 
@@ -48,7 +50,7 @@ export class MeetsController {
     private readonly meetsService: MeetsService,
     private readonly emailService: EmailService,
     private readonly db: DatabaseService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
   ) {}
 
   @Get()
@@ -56,7 +58,7 @@ export class MeetsController {
     name: "view",
     required: false,
     type: String,
-    description: "Filter view: reports, plan, all",
+    description: "Filter view: upcoming, past, draft, all",
   })
   @ApiQuery({
     name: "page",
@@ -78,12 +80,33 @@ export class MeetsController {
     type: String,
     description: "Restrict to a specific organization",
   })
+  @ApiQuery({
+    name: "fromTime",
+    required: false,
+    type: String,
+    description: "Filter meets starting from this time (ISO format)",
+  })
+  @ApiQuery({
+    name: "toTime",
+    required: false,
+    type: String,
+    description: "Filter meets up to this time (ISO format)",
+  })
+  @ApiQuery({
+    name: "search",
+    required: false,
+    type: String,
+    description: "Search meets by name, location, or description",
+  })
   async findAll(
     @Query("view") view = "all",
     @Query("page") page = "1",
     @Query("limit") limit = "20",
     @Query("organizationId") organizationId?: string,
-    @User() user?: UserProfile
+    @Query("fromTime") fromTime?: string,
+    @Query("toTime") toTime?: string,
+    @Query("search") search?: string,
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
     if (!organizationId)
@@ -97,28 +120,32 @@ export class MeetsController {
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.max(
       1,
-      Math.min(100, parseInt(limit as string, 10) || 20)
+      Math.min(100, parseInt(limit as string, 10) || 20),
     );
     const isOrganizer = this.authService.hasRole(
       user,
       organizationId,
-      "organizer"
+      "organizer",
     );
 
-    return await this.meetsService.findAll(
+    const meets = await this.meetsService.findAll(
       normalizedView,
       pageNum,
       limitNum,
       [organizationId],
       isOrganizer,
-      user.id
+      user.id,
+      fromTime ? new Date(fromTime) : null,
+      toTime ? new Date(toTime) : null,
+      search?.trim() || null,
     );
+    return meets;
   }
 
   @Get(":id([0-9a-fA-F-]{36})")
   async findOne(
     @Param("id") id: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ): Promise<MeetDto> {
     if (!user) throw new UnauthorizedException();
 
@@ -144,11 +171,11 @@ export class MeetsController {
   @Get(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
   async findAttendeeStatus(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const attendee = await this.meetsService.findAttendeeStatus(
       code,
-      attendeeId
+      attendeeId,
     );
     if (!attendee) throw new NotFoundException("Meet attendee not found");
     return attendee;
@@ -158,11 +185,11 @@ export class MeetsController {
   @Get(":code/attendee/:attendeeId([0-9a-fA-F-]{36})")
   async findAttendeeForEdit(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const attendee = await this.meetsService.findAttendeeForEdit(
       code,
-      attendeeId
+      attendeeId,
     );
     if (!attendee) throw new NotFoundException("Meet attendee not found");
     return attendee;
@@ -172,7 +199,7 @@ export class MeetsController {
   @Patch(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
   async withdrawAttendee(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const meet = await this.meetsService.findOne(code);
     return this.meetsService.updateAttendee(meet.id, attendeeId, {
@@ -185,7 +212,7 @@ export class MeetsController {
   async updateAttendeeByCode(
     @Param("code") code: string,
     @Param("attendeeId") attendeeId: string,
-    @Body() dto: UpdateMeetAttendeeDto
+    @Body() dto: UpdateMeetAttendeeDto,
   ) {
     const meet = await this.meetsService.findOne(code);
     return this.meetsService.updateAttendee(meet.id, attendeeId, dto, {
@@ -200,19 +227,19 @@ export class MeetsController {
     // Set default organizationId if user belongs to only one organization
     const organizerOrgIds = this.authService.getUserOrganizationIds(
       user,
-      "organizer"
+      "organizer",
     );
     if (!dto.organizationId && organizerOrgIds.length === 1) {
       dto.organizationId = organizerOrgIds[0];
     }
     if (!dto.organizationId) {
       throw new BadRequestException(
-        "Must specify organizationId when belonging to multiple organizations"
+        "Must specify organizationId when belonging to multiple organizations",
       );
     }
     if (!this.authService.hasRole(user, dto.organizationId, "organizer")) {
       throw new ForbiddenException(
-        "Cannot create a meet for an organization you do not belong to as an organizer"
+        "Cannot create a meet for an organization you do not belong to as an organizer",
       );
     }
 
@@ -227,7 +254,7 @@ export class MeetsController {
   async update(
     @Param("id") id: string,
     @Body() dto: UpdateMeetDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -236,7 +263,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer"
+        "Cannot update a meet for an organization you do not belong to as an organizer",
       );
     }
 
@@ -253,11 +280,16 @@ export class MeetsController {
     @Param("id") id: string,
     @Body() dto: UpdateMeetStatusDto,
     @Headers("x-api-key") apiKey?: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     // Shortcut the entire process as worker API can do anything
     if (apiKey && apiKey === process.env.WORKER_API_KEY) {
-      return await this.meetsService.updateStatus(id, dto.statusId);
+      const updated = await this.meetsService.updateStatus(id, dto.statusId);
+      if (dto.notifyAttendees && dto.statusId === 4) {
+        const meet = await this.meetsService.findOne(id);
+        await this.notifyAttendeesOfStatus(meet);
+      }
+      return updated;
     }
 
     // Otherwise authorize normally
@@ -268,11 +300,81 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer"
+        "Cannot update a meet for an organization you do not belong to as an organizer",
       );
     }
 
-    return await this.meetsService.updateStatus(id, dto.statusId);
+    const updated = await this.meetsService.updateStatus(id, dto.statusId);
+    if (dto.notifyAttendees && dto.statusId === 4) {
+      await this.notifyAttendeesOfStatus(meet);
+    }
+    return updated;
+  }
+
+  private async notifyAttendeesOfStatus(meet: MeetDto) {
+    if (!process.env.MAIL_DOMAIN) {
+      throw new BadRequestException("Mail is not enabled");
+    }
+    const { attendees } = await this.meetsService.listAttendees(meet.id);
+    if (!attendees.length) return;
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const notifiedIds: string[] = [];
+    await Promise.all(
+      attendees.map(async (attendee: any) => {
+        if (!attendee.email) return;
+        const status = attendee.status;
+        let template: "meet-confirm" | "meet-reject" | "meet-waitlist" | null =
+          null;
+        if (status === "confirmed" || status === "checked-in" || status === "attended") {
+          template = "meet-confirm";
+        } else if (status === "waitlisted") {
+          template = "meet-waitlist";
+        } else if (status === "rejected" || status === "cancelled") {
+          template = "meet-reject";
+        }
+        if (!template) return;
+        const statusUrl = meet.shareCode
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
+          : "";
+        const organizerName = meet.organizerName || "the organizer";
+        const organizerEmail = meet.organizerEmail || "";
+        const attendeeName =
+          attendee.name || attendee.email || attendee.phone || "there";
+        const { subject, text, html } = renderEmailTemplate(template, {
+          meetName: meet.name,
+          attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
+          statusUrl,
+          organizerName,
+          organizerEmail,
+        });
+        await this.emailService.sendEmail({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        await this.emailService.saveMessage({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        notifiedIds.push(attendee.id);
+      }),
+    );
+    if (notifiedIds.length) {
+      await this.meetsService.updateAttendeesNotified(meet.id, notifiedIds);
+    }
   }
 
   @Post(":id/images")
@@ -281,7 +383,7 @@ export class MeetsController {
     @Param("id") id: string,
     @UploadedFile() file: any,
     @Body() dto: CreateMeetImageDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -290,7 +392,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot add an image to a meet for an organisation you do not belong to as an organizer"
+        "Cannot add an image to a meet for an organisation you do not belong to as an organizer",
       );
     }
 
@@ -312,7 +414,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot delete a meet for an organisation you do not belong to as an organizer"
+        "Cannot delete a meet for an organisation you do not belong to as an organizer",
       );
     }
     return this.meetsService.remove(id);
@@ -328,6 +430,8 @@ export class MeetsController {
         attendeeIds: { type: "array", items: { type: "string" } },
         text: { type: "string" },
         html: { type: "string" },
+        markNotified: { type: "boolean" },
+        includeStatusUrl: { type: "boolean" },
       },
       required: ["subject"],
     },
@@ -340,8 +444,10 @@ export class MeetsController {
       text?: string;
       html?: string;
       attendeeIds?: string[];
+      markNotified?: boolean;
+      includeStatusUrl?: boolean;
     },
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -350,7 +456,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You do not have permission to message attendees of this meet"
+        "You do not have permission to message attendees of this meet",
       );
     }
 
@@ -374,48 +480,94 @@ export class MeetsController {
         if (attendedContactInfo?.email) {
           recipients.set(attendeeId, attendedContactInfo.email);
         }
-      })
+      }),
     );
 
     if (!recipients.size) {
       throw new BadRequestException(
-        "No recipients email addresses found for attendees"
+        "No recipients email addresses found for attendees",
       );
     }
 
     if (recipients.size !== body.attendeeIds.length) {
       throw new BadRequestException(
-        "One or more attendees do not have email addresses"
+        "One or more attendees do not have email addresses",
       );
     }
 
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
     // Send all the emails (just skip any nulls it's fine)
+    const includeStatusUrl = body.includeStatusUrl !== false;
     await Promise.all(
-      Array.from(recipients.entries()).map(([, email]) => {
+      Array.from(recipients.entries()).map(async ([attendeeId, email]) => {
+        const attendee =
+          await this.meetsService.getAttendeeContactById(attendeeId);
+        const statusUrl = includeStatusUrl
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
+          : "";
+        const attendeeName =
+          attendee?.name || attendee?.email || attendee?.phone || "there";
+        const organizerName = meet.organizerName || "the organizer";
+        const organizerEmail = meet.organizerEmail || "";
+        const { text, html } = renderEmailTemplate("meet-message", {
+          meetName: meet.name,
+          attendeeName,
+          statusUrl,
+          includeStatusUrl,
+          organizerName,
+          organizerEmail,
+          messageBody: body.text ?? body.html ?? "",
+        });
         return this.emailService.sendEmail({
           to: email,
           subject: body.subject,
-          text: body.text ?? "",
-          html: body.html ?? "",
+          text,
+          html,
           meetId: meet.id,
+          attendeeId,
         });
-      })
+      }),
     );
 
     await Promise.all(
       Array.from(recipients.keys()).map(async (attendeeId) => {
+        const attendee =
+          await this.meetsService.getAttendeeContactById(attendeeId);
+        const statusUrl = includeStatusUrl
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
+          : "";
+        const attendeeName =
+          attendee?.name || attendee?.email || attendee?.phone || "there";
+        const organizerName = meet.organizerName || "the organizer";
+        const organizerEmail = meet.organizerEmail || "";
+        const { text } = renderEmailTemplate("meet-message", {
+          meetName: meet.name,
+          attendeeName,
+          statusUrl,
+          includeStatusUrl,
+          organizerName,
+          organizerEmail,
+          messageBody: body.text ?? body.html ?? "",
+        });
+        const textWithoutStatus = text
+          .split("View your application status:")[0]
+          .trim();
         await this.emailService.saveMessage({
           to: recipients.get(attendeeId)!,
           subject: body.subject,
-          text: body.text ?? "",
-          html: body.html ?? "",
+          text: textWithoutStatus,
+          html: "",
           meetId: meet.id,
           attendeeId,
         });
-      })
+      }),
     );
 
-    await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
+    if (body.markNotified !== false) {
+      await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
+    }
     return { status: "sent", count: recipients.size };
   }
 
@@ -424,7 +576,7 @@ export class MeetsController {
   async listAttendeeMessages(
     @Param("id") id: string,
     @Param("attendeeId") attendeeId: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -433,13 +585,13 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You do not have permission to view attendee messages for this meet"
+        "You do not have permission to view attendee messages for this meet",
       );
     }
 
     const messages = await this.meetsService.listAttendeeMessages(
       id,
-      attendeeId
+      attendeeId,
     );
     return { messages };
   }
@@ -449,7 +601,7 @@ export class MeetsController {
   async markMessageRead(
     @Param("id") id: string,
     @Param("messageId") messageId: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -458,7 +610,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You do not have permission to update attendee messages for this meet"
+        "You do not have permission to update attendee messages for this meet",
       );
     }
 
@@ -468,20 +620,36 @@ export class MeetsController {
 
   @Post(":id/report")
   @ApiOperation({ summary: "Create attendee report and email organizer" })
-  async createReport(@Param("id") id: string, @User() user?: UserProfile) {
+  async createReport(
+    @Param("id") id: string,
+    @User() user?: UserProfile,
+    @Body()
+    body?: {
+      sendEmail?: boolean;
+      downloadReport?: boolean;
+    },
+    @Res({ passthrough: true }) res?: any,
+  ) {
     if (!user) throw new UnauthorizedException();
+    const sendEmail = body?.sendEmail ?? true;
+    const downloadReport = body?.downloadReport ?? false;
+    if (!sendEmail && !downloadReport) {
+      throw new BadRequestException("Select at least one delivery method");
+    }
 
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot create a report for a meet you do not organize"
+        "Cannot create a report for a meet you do not organize",
       );
     }
 
-    const organizerEmail = await this.meetsService.getOrganizerEmail(meet.id);
-    if (!organizerEmail) {
+    const organizerEmail = sendEmail
+      ? await this.meetsService.getOrganizerEmail(meet.id)
+      : null;
+    if (sendEmail && !organizerEmail) {
       throw new BadRequestException("Organizer email not found");
     }
 
@@ -492,22 +660,18 @@ export class MeetsController {
     const worksheet = workbook.addWorksheet("Attendees");
 
     const baseColumns = [
-      { header: "Attendee ID", key: "id" },
-      { header: "Name", key: "name" },
-      { header: "Email", key: "email" },
-      { header: "Phone", key: "phone" },
-      { header: "Status", key: "status" },
-      { header: "Guests", key: "guests" },
-      { header: "Responded At", key: "respondedAt" },
-      { header: "Notified At", key: "notifiedAt" },
-      { header: "Paid Deposit At", key: "paidDepositAt" },
-      { header: "Paid Full At", key: "paidFullAt" },
-      { header: "Created At", key: "createdAt" },
-      { header: "Updated At", key: "updatedAt" },
+      { header: "Name", key: "name", width: 24 },
+      { header: "Email", key: "email", width: 30 },
+      { header: "Phone", key: "phone", width: 18 },
+      { header: "Status", key: "status", width: 14 },
+      { header: "Guests", key: "guests", width: 10 },
+      { header: "Paid Deposit At", key: "paidDepositAt", width: 20 },
+      { header: "Paid Full At", key: "paidFullAt", width: 20 },
     ];
     const metaColumns = metaDefinitions.map((definition) => ({
       header: definition.label,
       key: `meta_${definition.id}`,
+      width: 28,
     }));
     worksheet.columns = [...baseColumns, ...metaColumns];
 
@@ -517,14 +681,10 @@ export class MeetsController {
         name: attendee.name ?? "",
         email: attendee.email ?? "",
         phone: attendee.phone ?? "",
-        status: attendee.status ?? "",
+        status: attendee.status === "confirmed" ? "no-show" : attendee.status ?? "",
         guests: attendee.guests ?? "",
-        respondedAt: attendee.respondedAt ?? "",
-        notifiedAt: attendee.notifiedAt ?? "",
         paidDepositAt: attendee.paidDepositAt ?? "",
         paidFullAt: attendee.paidFullAt ?? "",
-        createdAt: attendee.createdAt ?? "",
-        updatedAt: attendee.updatedAt ?? "",
       };
       attendee.metaValues?.forEach((meta: any) => {
         row[`meta_${meta.definitionId}`] = meta.value ?? "";
@@ -544,14 +704,25 @@ export class MeetsController {
       contentDisposition: "attachment" as const,
     };
 
-    await this.emailService.sendEmail({
-      to: organizerEmail,
-      subject: `${meet.name} attendee report`,
-      text: `Attached is the attendee report for ${meet.name}.`,
-      attachments: [attachment],
-      meetId: meet.id,
-    });
+    if (sendEmail && organizerEmail) {
+      await this.emailService.sendEmail({
+        to: organizerEmail,
+        subject: `${meet.name} attendee report`,
+        text: `Attached is the attendee report for ${meet.name}.`,
+        attachments: [attachment],
+        meetId: meet.id,
+      });
+    }
 
-    return { status: "sent", to: organizerEmail };
+    if (downloadReport && res) {
+      res.set({
+        "Content-Type": attachment.contentType,
+        "Content-Disposition": `attachment; filename="${attachment.filename}"`,
+      });
+      res.send(content);
+      return;
+    }
+
+    return { status: "sent", to: organizerEmail ?? undefined };
   }
 }

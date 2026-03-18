@@ -6,7 +6,11 @@ export type AddAttendeePayload = {
   name: string;
   email: string;
   phone: string;
+  guestOf?: string;
+  isMinor?: boolean;
+  GuardianName?: string;
   guests?: number;
+  guestsList?: { name: string; isMinor: boolean }[];
   indemnityAccepted?: boolean;
   indemnityMinors?: string;
   metaValues?: { definitionId: string; value: string }[];

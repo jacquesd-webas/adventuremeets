@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { DatabaseService } from "../database/database.service";
 import {
   CreateMeetDto,
@@ -32,8 +32,11 @@ export class MeetsService {
     page = 1,
     limit = 20,
     organizationIds: string[] = [],
-    includeHidden = false,
+    isOrganizer = false,
     userId?: string,
+    fromTime: Date | null = null,
+    toTime: Date | null = null,
+    search: string | null = null,
   ) {
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
@@ -70,6 +73,7 @@ export class MeetsService {
       )
       .groupBy("meet_id")
       .as("ma");
+
     const query = this.db
       .getClient()("meets as m")
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
@@ -106,8 +110,13 @@ export class MeetsService {
           ? this.db.getClient().raw("ua.status as my_attendee_status")
           : this.db.getClient().raw("null as my_attendee_status"),
       );
-    if (view === "my") {
-      // either the user is attending or the meet is still open
+
+    const totalQuery = this.db
+      .getClient()("meets")
+      .count<{ count: string }[]>("* as count");
+
+    // If the user is not an organizer, only show meets they are attending or meets that are open
+    if (!isOrganizer) {
       query.where((qb) => {
         qb.whereExists(function () {
           this.select("*")
@@ -118,30 +127,53 @@ export class MeetsService {
         qb.orWhere("m.status_id", "3"); // Open
       });
     }
-    if (view === "reports") {
-      query.whereIn("m.status_id", [4, 5, 7]);
-    }
-    if (view === "plan") {
-      query.whereIn("m.status_id", [1, 2, 3, 6]);
-    }
-    query.orderBy("start_time", "asc");
 
-    const totalQuery = this.db
-      .getClient()("meets")
-      .count<{ count: string }[]>("* as count");
-    if (view === "reports") {
-      totalQuery.whereIn("status_id", [4, 5, 7]);
+    if (view === "upcoming") {
+      query.where("start_time", ">=", new Date().toISOString());
+      query.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+      query.orderBy("start_time", "asc");
+      totalQuery.where("start_time", ">=", new Date().toISOString());
+      totalQuery.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
     }
-    if (view === "plan") {
-      totalQuery.whereIn("status_id", [1, 2, 3, 6]);
+    if (view === "past") {
+      query.where("start_time", "<", new Date().toISOString());
+      query.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+      query.orderBy("start_time", "desc");
+      totalQuery.where("start_time", "<", new Date().toISOString());
+      totalQuery.whereNotIn("status_id", [1, 2]); // Not Draft or Cancelled
+    }
+    if (view === "draft") {
+      query.where("status_id", "1"); // Draft
+      totalQuery.where("status_id", "1"); // Draft
     }
     if (organizationIds.length > 0) {
       query.whereIn("m.organization_id", organizationIds);
       totalQuery.whereIn("organization_id", organizationIds);
     }
-    if (!includeHidden) {
+    if (!isOrganizer) {
       query.where("m.is_hidden", false);
       totalQuery.where("is_hidden", false);
+    }
+    if (fromTime) {
+      query.where("start_time", ">=", fromTime.toISOString());
+      totalQuery.where("start_time", ">=", fromTime.toISOString());
+    }
+    if (toTime) {
+      query.where("start_time", "<=", toTime.toISOString());
+      totalQuery.where("start_time", "<=", toTime.toISOString());
+    }
+    if (search) {
+      const like = `%${search.toLowerCase()}%`;
+      query.where((qb) => {
+        qb.whereRaw("lower(m.name) like ?", [like])
+          .orWhereRaw("lower(m.location) like ?", [like])
+          .orWhereRaw("lower(m.description) like ?", [like]);
+      });
+      totalQuery.where((qb) => {
+        qb.whereRaw("lower(name) like ?", [like])
+          .orWhereRaw("lower(location) like ?", [like])
+          .orWhereRaw("lower(description) like ?", [like]);
+      });
     }
     const [{ count }] = await totalQuery;
     const total = Number(count);
@@ -299,6 +331,7 @@ export class MeetsService {
             email: organizer?.email ?? null,
             phone: organizer?.phone ?? null,
             status: "confirmed",
+            responded_at: now,
             created_at: now,
             updated_at: now,
           },
@@ -418,6 +451,9 @@ export class MeetsService {
         "phone",
         "name",
         "guests",
+        "guest_of",
+        "is_minor",
+        "guardian_name",
         "indemnity_accepted",
         "indemnity_minors",
       )
@@ -470,7 +506,7 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position");
+      .select("id", "label", "field_type", "required", "position", "config");
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -492,6 +528,7 @@ export class MeetsService {
         fieldType: definition.field_type,
         required: definition.required,
         position: definition.position,
+        config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
       })),
     }));
@@ -511,7 +548,7 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position");
+      .select("id", "label", "field_type", "required", "position", "config");
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -533,6 +570,7 @@ export class MeetsService {
         fieldType: definition.field_type,
         required: definition.required,
         position: definition.position,
+        config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
       })),
     }));
@@ -605,8 +643,25 @@ export class MeetsService {
     }, {});
   }
 
-  async addAttendee(meetId: string, dto: CreateMeetAttendeeDto) {
+  async addAttendee(
+    meetId: string,
+    dto: CreateMeetAttendeeDto,
+    context?: { ip?: string; userAgent?: string; locale?: string },
+  ) {
     const created = await this.db.getClient().transaction(async (trx) => {
+      const guardianName =
+        dto.GuardianName ?? (dto as any).guardianName ?? null;
+      const acceptedByName =
+        dto.isMinor && guardianName ? guardianName : dto.name ?? null;
+      const sequenceRow = await trx("meet_attendees")
+        .where({ meet_id: meetId })
+        .max("sequence as max")
+        .first();
+      const maxSequence =
+        sequenceRow && (sequenceRow as any).max != null
+          ? Number((sequenceRow as any).max)
+          : 0;
+      const nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
       const [attendee] = await trx("meet_attendees").insert(
         {
           meet_id: meetId,
@@ -615,11 +670,37 @@ export class MeetsService {
           phone: dto.phone ?? null,
           email: dto.email ?? null,
           guests: dto.guests ?? null,
+          guest_of: dto.guestOf ?? null,
+          sequence: nextSequence,
+          is_minor: dto.isMinor ?? false,
+          guardian_name: guardianName,
           indemnity_accepted: dto.indemnityAccepted ?? null,
           indemnity_minors: dto.indemnityMinors ?? null,
         },
         ["*"],
       );
+      if (dto.indemnityAccepted) {
+        const meet = await trx("meets")
+          .where({ id: meetId })
+          .first("indemnity", "time_zone");
+        const indemnityText = meet?.indemnity ?? "";
+        const indemnityHash = indemnityText
+          ? createHash("sha256").update(indemnityText).digest("hex")
+          : null;
+        await trx("meet_attendee_indemnity_acceptances").insert({
+          attendee_id: attendee.id,
+          meet_id: meetId,
+          accepted_at: new Date().toISOString(),
+          indemnity_text_hash: indemnityHash,
+          acceptance_ip: context?.ip ?? null,
+          acceptance_user_agent: context?.userAgent ?? null,
+          accepted_by_name: acceptedByName,
+          accepted_by_email: dto.email ?? null,
+          accepted_by_phone: dto.phone ?? null,
+          locale: context?.locale ?? null,
+          time_zone: meet?.time_zone ?? null,
+        });
+      }
       if (dto.metaValues && dto.metaValues.length > 0) {
         const records = dto.metaValues
           .filter(
@@ -650,6 +731,8 @@ export class MeetsService {
     options?: { resetCancelledToPending?: boolean },
   ) {
     const updated = await this.db.getClient().transaction(async (trx) => {
+      const guardianName =
+        dto.GuardianName ?? (dto as any).guardianName ?? undefined;
       let statusOverride: string | undefined;
       if (options?.resetCancelledToPending) {
         const existing = await trx("meet_attendees")
@@ -667,6 +750,8 @@ export class MeetsService {
             phone: dto.phone,
             email: dto.email,
             guests: dto.guests,
+            is_minor: dto.isMinor,
+            guardian_name: guardianName,
             indemnity_accepted: dto.indemnityAccepted,
             indemnity_minors: dto.indemnityMinors,
             status: statusOverride ?? dto.status,
@@ -769,6 +854,7 @@ export class MeetsService {
         dto.useMap === false || dto.location === "" ? null : dto.locationLong,
       start_time: dto.startTime,
       end_time: dto.endTime,
+      time_zone: dto.timeZone,
       opening_date: dto.openingDate,
       closing_date: dto.closingDate,
       scheduled_date: dto.scheduledDate,
@@ -862,6 +948,7 @@ export class MeetsService {
       locationLong: meet.location_long ?? undefined,
       startTime: meet.start_time ?? undefined,
       endTime: meet.end_time ?? undefined,
+      timeZone: meet.time_zone ?? undefined,
       openingDate: meet.opening_date ?? undefined,
       closingDate: meet.closing_date ?? undefined,
       scheduledDate: meet.scheduled_date ?? undefined,
@@ -921,7 +1008,6 @@ export class MeetsService {
   ) {
     const cleaned = metaDefinitions
       .map((definition, index) => ({
-        id: definition.id,
         meet_id: meetId,
         field_key: definition.fieldKey || `field_${index + 1}`,
         label: definition.label,
@@ -985,6 +1071,9 @@ export class MeetsService {
       phone: attendee.phone ?? undefined,
       email: attendee.email ?? undefined,
       guests: attendee.guests ?? undefined,
+      guestOf: attendee.guest_of ?? undefined,
+      isMinor: attendee.is_minor ?? undefined,
+      guardianName: attendee.guardian_name ?? undefined,
       indemnityAccepted: attendee.indemnity_accepted ?? undefined,
       indemnityMinors: attendee.indemnity_minors ?? undefined,
       paidFullAt: attendee.paid_full_at ?? undefined,

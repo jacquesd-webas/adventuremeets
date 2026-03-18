@@ -1,14 +1,23 @@
-import { FormControlLabel, Stack, Switch, TextField } from "@mui/material";
+import { Alert, FormControlLabel, Stack, Switch, TextField } from "@mui/material";
 import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
 
-export const IndemnityStep = ({ state, setState }: StepProps) => (
+type IndemnityStepProps = StepProps & {
+  disableIndemnityText?: boolean;
+};
+
+export const IndemnityStep = ({
+  state,
+  setState,
+  disableIndemnityText = false,
+}: IndemnityStepProps) => (
   <Stack spacing={2}>
     <LabeledField
       label="Indemnity text"
       labelAction={
         <SelectTemplate
+          disabled={disableIndemnityText}
           onApplyTemplate={(template) =>
             setState((prev) => ({
               ...prev,
@@ -25,6 +34,7 @@ export const IndemnityStep = ({ state, setState }: StepProps) => (
         onChange={(e) =>
           setState((prev) => ({ ...prev, indemnityText: e.target.value }))
         }
+        disabled={disableIndemnityText}
         fullWidth
         multiline
         minRows={8}
@@ -44,17 +54,11 @@ export const IndemnityStep = ({ state, setState }: StepProps) => (
       }
       label="Require attendees to accept indemnity"
     />
-    <FormControlLabel
-      control={
-        <Switch
-          disabled
-          checked={state.allowMinorSign}
-          onChange={(e) =>
-            setState((prev) => ({ ...prev, allowMinorSign: e.target.checked }))
-          }
-        />
-      }
-      label="Allow attendees to sign on behalf of minors"
-    />
+    {disableIndemnityText ? (
+      <Alert severity="warning">
+        Once a meet has been opened the indemnity text may not be changed for
+        legal reasons.
+      </Alert>
+    ) : null}
   </Stack>
 );

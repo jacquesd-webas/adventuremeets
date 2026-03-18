@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useState } from "react";
+import { MouseEvent, useState } from "react";
 import {
   Box,
   Drawer,
@@ -13,6 +13,7 @@ import {
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import OpenInNewOutlinedIcon from "@mui/icons-material/OpenInNewOutlined";
+import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
@@ -33,6 +34,7 @@ type MeetActionsMenuProps = {
   setSelectedMeetId: (meetId: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   previewLinkCode?: string;
+  menuButtonRef?: React.Ref<HTMLButtonElement>;
 };
 
 // Helper to decide what to show in the menu
@@ -49,7 +51,10 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
         MeetStatusEnum.Cancelled
       );
     case "open":
-      return statusId === MeetStatusEnum.Published;
+      return (
+        statusId === MeetStatusEnum.Published ||
+        statusId === MeetStatusEnum.Closed
+      );
     case "close":
       return statusId === MeetStatusEnum.Open;
     case "edit":
@@ -84,6 +89,12 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
         statusId === MeetStatusEnum.Open ||
         statusId === MeetStatusEnum.Closed
       );
+    case "copy-link":
+      return (
+        statusId === MeetStatusEnum.Published ||
+        statusId === MeetStatusEnum.Open ||
+        statusId === MeetStatusEnum.Postponed
+      );
     case "details":
       return true;
     case "apply":
@@ -98,37 +109,37 @@ export function MeetActionsMenu({
   setSelectedMeetId,
   setPendingAction,
   previewLinkCode,
+  menuButtonRef,
 }: MeetActionsMenuProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const nav = useNavigate();
-
-  // If the viewport switches while a menu is open, convert to the appropriate UI.
-  useEffect(() => {
-    if (isMobile && open) {
-      setAnchorEl(null);
-      setDrawerOpen(true);
-    }
-    if (!isMobile && drawerOpen) {
-      setDrawerOpen(false);
-    }
-  }, [isMobile, open, drawerOpen]);
 
   const handleOpen = (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
-    if (isMobile) {
-      setDrawerOpen(true);
-    } else {
-      setAnchorEl(event.currentTarget);
-    }
+    setAnchorEl(event.currentTarget);
   };
 
   const handleClose = () => {
     setAnchorEl(null);
-    setDrawerOpen(false);
+  };
+
+  const handleCopyLink = async (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    if (!previewLinkCode || typeof navigator === "undefined") {
+      handleClose();
+      return;
+    }
+
+    const shareUrl =
+      typeof window === "undefined"
+        ? `/meets/${previewLinkCode}`
+        : `${window.location.origin}/meets/${previewLinkCode}`;
+
+    await navigator.clipboard.writeText(shareUrl);
+    handleClose();
   };
 
   const handleAction = (
@@ -227,7 +238,11 @@ export function MeetActionsMenu({
               <ListItemIcon>
                 <LockOpenOutlinedIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Open meet</ListItemText>
+              <ListItemText>
+                {statusId === MeetStatusEnum.Closed
+                  ? "Re-open meet"
+                  : "Open meet"}
+              </ListItemText>
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Preview, statusId) && (
@@ -252,6 +267,14 @@ export function MeetActionsMenu({
                 <OpenInNewOutlinedIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText>Preview</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow(MeetActionsEnum.CopyLink, statusId) && (
+            <MenuItem onClick={handleCopyLink}>
+              <ListItemIcon>
+                <ContentCopyOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Copy link</ListItemText>
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Edit, statusId) && (
@@ -352,6 +375,7 @@ export function MeetActionsMenu({
       <IconButton
         size="small"
         onClick={handleOpen}
+        ref={menuButtonRef}
         sx={{
           color:
             theme.palette.mode === "dark"
@@ -376,7 +400,7 @@ export function MeetActionsMenu({
       {isMobile && (
         <Drawer
           anchor="bottom"
-          open={drawerOpen}
+          open={open}
           onClose={handleClose}
           PaperProps={{
             sx: { borderTopLeftRadius: 12, borderTopRightRadius: 12, pb: 1 },
@@ -386,7 +410,7 @@ export function MeetActionsMenu({
             sx={{ width: "100%", maxWidth: 480, mx: "auto", pt: 1 }}
             onClick={(event) => event.stopPropagation()}
           >
-            {renderItems(handleAction)}
+            {renderItems()}
           </Box>
         </Drawer>
       )}

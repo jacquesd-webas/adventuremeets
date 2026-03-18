@@ -23,6 +23,7 @@ import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
+import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,18 +51,18 @@ function MeetCheckinPage() {
         phone: attendee.phone || "",
         status: attendee.status || "",
       })),
-    [attendees]
+    [attendees],
   );
 
   useEffect(() => {
     const initial = attendeeList.reduce<Record<string, boolean>>(
       (acc, attendee) => {
-        if (attendee.status === "checked-in") {
+        if (attendee.status === AttendeeStatusEnum.CheckedIn) {
           acc[attendee.id] = true;
         }
         return acc;
       },
-      {}
+      {},
     );
     setChecked(initial);
   }, [attendeeList]);
@@ -101,10 +102,12 @@ function MeetCheckinPage() {
       sx={{
         pt: isMobile ? 0 : 2,
         pb: isMobile ? 0 : 2,
-        height: isMobile ? "100vh" : "auto",
+        height: isMobile ? "100vh" : "calc(100vh - 64px)",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <Stack spacing={2}>
+      <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
         <Box sx={{ px: isMobile ? 2 : 0, pt: isMobile ? 2 : 0 }}>
           <Typography variant="h5" fontWeight={700}>
             Meet Check-in
@@ -121,6 +124,8 @@ function MeetCheckinPage() {
             p: 1,
             flex: isMobile ? 1 : "initial",
             borderRadius: isMobile ? 0 : 1,
+            overflowY: "auto",
+            minHeight: 0,
           }}
         >
           {isLoading ? (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -7,6 +7,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import { useOutletContext } from "react-router-dom";
 import { Heading } from "../components/Heading";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
@@ -14,10 +15,11 @@ import Meet from "../types/MeetModel";
 import MeetStatusEnum from "../types/MeetStatusEnum";
 import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
-import { MobileDashboardTitle } from "../components/dashboard/MobileDashboardTitle";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { CreatePrivateOrganizationDialog } from "../components/auth/CreatePrivateOrganizationDialog";
 import MeetActionsEnum from "../types/MeetActionsEnum";
+import AddIcon from "@mui/icons-material/Add";
+import { MainLayoutOutletContext } from "../layout/MainLayout";
 
 function DashboardPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
@@ -26,7 +28,8 @@ function DashboardPage() {
   );
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down(820));
+  const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
   const { data: meets, isLoading } = useFetchMeets({
@@ -41,13 +44,33 @@ function DashboardPage() {
     currentOrganizationRole === "organizer" ||
     currentOrganizationRole === "admin";
 
-  const handleNewMeet = () => {
+  const handleNewMeet = useCallback(() => {
     if (!isOrganizer) {
       setShowCreateOrgDialog(true);
       return;
     }
     setPendingAction(MeetActionsEnum.Create);
-  };
+  }, [isOrganizer, setPendingAction, setShowCreateOrgDialog]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileHeaderAction(null);
+      return;
+    }
+    setMobileHeaderAction(
+      <Button
+        variant="text"
+        color="inherit"
+        size="small"
+        startIcon={<AddIcon />}
+        onClick={handleNewMeet}
+        sx={{ textTransform: "none", whiteSpace: "nowrap", minWidth: 0, px: 1 }}
+      >
+        NEW MEET
+      </Button>,
+    );
+    return () => setMobileHeaderAction(null);
+  }, [handleNewMeet, isMobile, setMobileHeaderAction]);
 
   const { upcoming, past, draft, columns } = useMemo(() => {
     const now = new Date();
@@ -76,29 +99,29 @@ function DashboardPage() {
   return (
     <Container
       maxWidth="lg"
+      disableGutters={isMobile}
       sx={{
         pt: 1,
         pb: 4,
         height: "calc(100vh - 64px)",
         display: "flex",
         flexDirection: "column",
+        px: isMobile ? 1 : 0,
       }}
     >
-      {isMobile ? (
-        <MobileDashboardTitle onNewMeet={handleNewMeet} />
-      ) : (
-        <Heading
-          title="Dashboard"
-          subtitle="View upcoming and past meets that you are organising or attending."
-          actionComponent={
+      <Heading
+        title="Dashboard"
+        subtitle="View upcoming and past meets that you are organising or attending."
+        actionComponent={
+          !isMobile ? (
             <Button variant="contained" onClick={handleNewMeet}>
               New Meet
             </Button>
-          }
-        />
-      )}
+          ) : undefined
+        }
+      />
 
-      <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+      <Box sx={{ flex: 1, overflowY: "auto", pr: isMobile ? 0 : 1 }}>
         <Grid container spacing={3}>
           {draft && draft.length > 0 && (
             <Grid item xs={12} md={12 / columns}>

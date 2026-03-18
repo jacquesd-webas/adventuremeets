@@ -10,6 +10,7 @@ import {
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/authContext";
+import { GuestInput } from "../../types/GuestInput";
 
 type MeetSignupSubmittedProps = {
   firstName?: string;
@@ -21,6 +22,7 @@ type MeetSignupSubmittedProps = {
   meetId?: string;
   attendeeId?: string;
   shareCode?: string;
+  guests?: GuestInput[];
   isOrganizationPrivate?: boolean;
   isPreview?: boolean;
 };
@@ -35,6 +37,7 @@ export function MeetSignupSubmitted({
   meetId,
   attendeeId,
   shareCode,
+  guests = [],
   isOrganizationPrivate = false,
   isPreview = false,
 }: MeetSignupSubmittedProps) {
@@ -58,6 +61,24 @@ export function MeetSignupSubmitted({
   const handleShowStatus = () => {
     if (!shareCode || !attendeeId) return;
     nav(`/meets/${shareCode}/${attendeeId}`);
+  };
+  const shareLink =
+    shareCode && typeof window !== "undefined"
+      ? `${window.location.origin}/meets/${shareCode}`
+      : "";
+
+  const handleCopyLink = async () => {
+    if (!shareLink || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(shareLink);
+  };
+
+  const handleSendInvite = (guestName: string) => {
+    if (!shareLink) return;
+    const subject = encodeURIComponent("Meet invite");
+    const body = encodeURIComponent(
+      `Hi ${guestName || "there"},\n\nPlease use this link to sign up: ${shareLink}`,
+    );
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
   return (
@@ -132,6 +153,57 @@ export function MeetSignupSubmitted({
                 </Tooltip>
               </Stack>
             </>
+          )}
+          {guests.length > 0 && (
+            <Stack spacing={1} sx={{ width: "100%", pt: 1 }}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                Guests
+              </Typography>
+              {guests.map((guest, index) => (
+                <Stack
+                  key={`${guest.name || "guest"}-${index}`}
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  alignItems={{ xs: "flex-start", sm: "center" }}
+                  justifyContent="space-between"
+                  sx={{
+                    width: "100%",
+                    p: 1.5,
+                    borderRadius: 1,
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <Typography variant="body2" fontWeight={600}>
+                    {guest.name || `Guest ${index + 1}`}
+                  </Typography>
+                  {guest.isMinor ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Sign indemnity
+                    </Typography>
+                  ) : (
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => handleSendInvite(guest.name)}
+                        disabled={!shareLink}
+                      >
+                        Send invite
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={handleCopyLink}
+                        disabled={!shareLink}
+                      >
+                        Copy link
+                      </Button>
+                    </Stack>
+                  )}
+                </Stack>
+              ))}
+            </Stack>
           )}
         </Stack>
       </Paper>

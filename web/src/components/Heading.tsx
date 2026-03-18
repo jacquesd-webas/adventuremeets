@@ -27,11 +27,19 @@ export function Heading({
       spacing={2}
     >
       <Box>
-        <Typography variant="h4" fontWeight={700}>
+        <Typography
+          variant="h4"
+          fontWeight={700}
+          sx={{ fontSize: { xs: "1.6rem", sm: "2.125rem" } }}
+        >
           {title}
         </Typography>
         {subtitle && (
-          <Typography variant="body1" color="text.secondary">
+          <Typography
+            variant="body1"
+            color="text.secondary"
+            sx={{ display: { xs: "none", sm: "block" } }}
+          >
             {subtitle}
           </Typography>
         )}

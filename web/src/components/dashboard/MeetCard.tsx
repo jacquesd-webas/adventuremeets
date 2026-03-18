@@ -3,6 +3,8 @@ import {
   Paper,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import HistoryIcon from "@mui/icons-material/History";
@@ -18,6 +20,7 @@ import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../meet/MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useAuth } from "../../context/authContext";
+import { useRef } from "react";
 import { getCardRangeLabel } from "../../helpers/meetTime";
 
 type MeetCardProps = {
@@ -140,6 +143,9 @@ export function MeetCard({
   setPendingAction,
 }: MeetCardProps) {
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const isUpcoming = new Date(meet.endTime) >= new Date();
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
@@ -158,7 +164,11 @@ export function MeetCard({
       }}
       onClick={() => {
         if (typeof onClick === "function") {
-          onClick();
+          if (isMobile) {
+            menuButtonRef.current?.click();
+          } else {
+            onClick();
+          }
         }
       }}
     >
@@ -182,6 +192,7 @@ export function MeetCard({
             setSelectedMeetId={setSelectedMeetId}
             setPendingAction={setPendingAction}
             previewLinkCode={meet.shareCode}
+            menuButtonRef={menuButtonRef}
           />
         </Box>
       </Stack>

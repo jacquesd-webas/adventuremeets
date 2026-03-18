@@ -7,6 +7,7 @@ type UpdateMeetAttendeePayload = {
   status?: string;
   paidFullAt?: string | null;
   paidDepositAt?: string | null;
+  guests?: number;
 };
 
 export function useUpdateMeetAttendee() {
@@ -20,8 +21,9 @@ export function useUpdateMeetAttendee() {
       status,
       paidFullAt,
       paidDepositAt,
+      guests,
     }) => {
-      const payload = { status, paidFullAt, paidDepositAt };
+      const payload = { status, paidFullAt, paidDepositAt, guests };
       Object.keys(payload).forEach(
         (key) => payload[key] === undefined && delete payload[key]
       );
