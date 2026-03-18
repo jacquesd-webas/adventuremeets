@@ -7,6 +7,8 @@ export const getCardRangeLabel = (meet: Meet): string => {
   const startTime = new Date(meet.startTime);
   const endTime = meet.endTime ? new Date(meet.endTime) : startTime;
 
+  if (meet.startTimeTbc) return numericDate(startTime);
+
   // If we don't have an end time just return the date and start time
   if (!meet.endTime || endTime <= startTime)
     return `${numericDate(startTime)} • ${timeString(startTime)}`;
@@ -22,7 +24,7 @@ export const getCardRangeLabel = (meet: Meet): string => {
 
 export const getMeetDateLabel = (meet: Meet): string => {
   // If we don't have a start time we know nothing
-  if (!meet.startTime || meet.startTimeTbc) return "TBC";
+  if (!meet.startTime) return "TBC";
 
   const startDate = new Date(meet.startTime);
   const endDate = meet.endTime ? new Date(meet.endTime) : startDate;
