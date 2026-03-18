@@ -7,6 +7,7 @@ export type NotifyAttendeePayload = {
   subject: string;
   text: string;
   attendeeIds?: string[];
+  markNotified?: boolean;
 };
 
 export function useNotifyAttendee() {
