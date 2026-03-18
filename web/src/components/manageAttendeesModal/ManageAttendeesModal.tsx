@@ -1013,6 +1013,7 @@ export function ManageAttendeesModal({
           <IconButton
             onClick={handleRequestClose}
             aria-label="Close attendees modal"
+            data-testid="close-attendees-modal"
           >
             <CloseIcon fontSize="small" />
           </IconButton>

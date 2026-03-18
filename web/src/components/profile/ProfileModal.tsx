@@ -1037,7 +1037,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
       </DialogContent>
       <Divider />
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose} data-testid="close-profile-modal">
+          Close
+        </Button>
       </DialogActions>
     </Dialog>
   );

@@ -91,7 +91,7 @@ describe("Meet signup with Bob", () => {
     cy.contains("Attendees").click();
 
     attendees.forEach((attendee) => {
-      cy.contains(attendee.name).should("be.visible");
+      cy.contains(attendee.name).scrollIntoView().should("be.visible");
     });
 
     cy.contains("button", "Close").click();

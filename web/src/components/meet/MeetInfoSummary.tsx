@@ -175,7 +175,12 @@ export function MeetInfoSummary({
         {actionSlot ? (
           actionSlot
         ) : onClose ? (
-          <IconButton onClick={onClose} size="small" aria-label="Close">
+          <IconButton
+            onClick={onClose}
+            size="small"
+            aria-label="Close"
+            data-testid="close-meet-details-modal"
+          >
             <CloseIcon fontSize="small" />
           </IconButton>
         ) : showUserAction ? (

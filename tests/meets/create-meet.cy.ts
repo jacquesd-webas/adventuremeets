@@ -144,7 +144,7 @@ describe("Create meet flow", () => {
     cy.contains("Meet details").click();
     cy.contains(meetName).should("be.visible");
     cy.contains("Cypress User").should("be.visible");
-    cy.get('[aria-label="Close"]').click();
+    cy.get('button[aria-label="Close meet details"]').click();
 
     // Edit the meet
 
@@ -261,7 +261,7 @@ describe("Create meet flow", () => {
         );
       });
 
-    cy.contains("button", "Close").click();
+    cy.get('[data-testid="close-attendees-modal"]').click();
 
     cy.contains("Dashboard").should("be.visible");
     cy.contains(meetName).should("be.visible");
