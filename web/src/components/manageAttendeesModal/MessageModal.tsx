@@ -10,6 +10,10 @@ import {
   Typography,
   FormControlLabel,
   Switch,
+  Alert,
+  Checkbox,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useSnackbar } from "notistack";
@@ -30,8 +34,10 @@ type MessageModalProps = {
     name?: string | null;
     email?: string | null;
     phone?: string | null;
+    respondedAt?: string | null;
   }[];
   defaultSubject?: string;
+  defaultBody?: string;
 };
 
 export function MessageModal({
@@ -41,16 +47,20 @@ export function MessageModal({
   attendeeIds,
   attendees,
   defaultSubject = "",
+  defaultBody = "",
 }: MessageModalProps) {
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const { notifyAttendeeAsync, isLoading } = useNotifyAttendee();
   const [subject, setSubject] = useState(defaultSubject);
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(defaultBody);
   const [autoResponse, setAutoResponse] = useState(false);
   const [manualSubject, setManualSubject] = useState(defaultSubject);
-  const [manualBody, setManualBody] = useState("");
+  const [manualBody, setManualBody] = useState(defaultBody);
   const [error, setError] = useState<string | null>(null);
+  const [markAsNotified, setMarkAsNotified] = useState(false);
   const [includeConfirmed, setIncludeConfirmed] = useState(true);
   const [includeWaitlisted, setIncludeWaitlisted] = useState(false);
   const [includeRejected, setIncludeRejected] = useState(false);
@@ -131,6 +141,36 @@ export function MessageModal({
       waitlistedDefault,
       rejectedDefault,
     ]);
+  const selectedAttendees = useMemo(() => {
+    if (!attendees?.length) return [];
+    if (attendeeIds && attendeeIds.length) {
+      return attendees.filter((att) => attendeeIds.includes(att.id));
+    }
+    return attendees.filter((att) => {
+      const status = att.status as AttendeeStatusEnum;
+      if (
+        includeConfirmed &&
+        [
+          AttendeeStatusEnum.Confirmed,
+          AttendeeStatusEnum.CheckedIn,
+          AttendeeStatusEnum.Attended,
+        ].includes(status)
+      )
+        return true;
+      if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
+        return true;
+      if (
+        includeRejected &&
+        (status === AttendeeStatusEnum.Rejected ||
+          status === AttendeeStatusEnum.Cancelled)
+      )
+        return true;
+      return false;
+    });
+  }, [attendees, attendeeIds, includeConfirmed, includeWaitlisted, includeRejected]);
+  const hasUnnotified = selectedAttendees.some(
+    (attendee) => !attendee.respondedAt,
+  );
 
   useEffect(() => {
     if (autoResponse) {
@@ -141,11 +181,12 @@ export function MessageModal({
 
   const reset = () => {
     setSubject(defaultSubject);
-    setBody("");
+    setBody(defaultBody);
     setAutoResponse(false);
     setManualSubject(defaultSubject);
-    setManualBody("");
+    setManualBody(defaultBody);
     setError(null);
+    setMarkAsNotified(false);
     setIncludeConfirmed(true);
     setIncludeWaitlisted(false);
     setIncludeRejected(false);
@@ -202,6 +243,7 @@ export function MessageModal({
         subject: subject.trim(),
         text: body,
         attendeeIds: ids.length ? ids : undefined,
+        markNotified: autoResponse || markAsNotified,
       });
       await Promise.all(
         ids.map((attendeeId) =>
@@ -222,7 +264,13 @@ export function MessageModal({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="sm"
+      fullScreen={fullScreen}
+    >
       <DialogTitle>Send message</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
@@ -254,6 +302,7 @@ export function MessageModal({
                   onChange={(e) => {
                     const checked = e.target.checked;
                     setAutoResponse(checked);
+                    setMarkAsNotified(checked);
                     if (checked) {
                       setManualSubject(subject);
                       setManualBody(body);
@@ -312,6 +361,25 @@ export function MessageModal({
                   />
                 }
                 label="Send to rejected attendees"
+              />
+            </Stack>
+          )}
+          {hasUnnotified && !autoResponse && (
+            <Stack spacing={1}>
+              <Alert severity="info">
+                Manual messages do not notify attendees of their status. Use the
+                *Auto* switch to send a status notification, or mark them as
+                notified below.
+              </Alert>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={autoResponse || markAsNotified}
+                    onChange={(e) => setMarkAsNotified(e.target.checked)}
+                    disabled={autoResponse}
+                  />
+                }
+                label="Mark attendee as notified"
               />
             </Stack>
           )}
