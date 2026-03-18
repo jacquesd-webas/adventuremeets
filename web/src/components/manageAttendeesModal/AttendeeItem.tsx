@@ -1,12 +1,16 @@
 import {
   Avatar,
   Box,
+  Chip,
   ListItemButton,
   ListItemText,
+  Stack,
   useTheme,
 } from "@mui/material";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import CancelIcon from "@mui/icons-material/Cancel";
 import QuestionMarkOutlinedIcon from "@mui/icons-material/QuestionMarkOutlined";
 import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccountOutlined";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
@@ -46,6 +50,8 @@ export function AttendeeItem({
   const isPending = attendee.status === AttendeeStatusEnum.Pending;
   const isWaitlisted = attendee.status === AttendeeStatusEnum.Waitlisted;
   const isOrganizer = attendee && meet && attendee.userId === meet.organizerId;
+  const showGuestChip = Boolean(attendee?.guestOf);
+  const isNotified = Boolean(attendee?.respondedAt);
 
   return (
     <ListItemButton
@@ -70,20 +76,41 @@ export function AttendeeItem({
               style={{ color: theme.palette.primary.main }}
             />
           ) : isConfirmed ? (
-            <CheckCircleOutlineIcon
-              fontSize="large"
-              style={{ color: theme.palette.success.main }}
-            />
+            isNotified ? (
+              <CheckCircleIcon
+                fontSize="large"
+                style={{ color: theme.palette.success.main }}
+              />
+            ) : (
+              <CheckCircleOutlineIcon
+                fontSize="large"
+                style={{ color: theme.palette.success.main }}
+              />
+            )
           ) : isWaitlisted ? (
-            <CheckCircleOutlineIcon
-              fontSize="large"
-              style={{ color: theme.palette.warning.main }}
-            />
+            isNotified ? (
+              <CheckCircleIcon
+                fontSize="large"
+                style={{ color: theme.palette.warning.main }}
+              />
+            ) : (
+              <CheckCircleOutlineIcon
+                fontSize="large"
+                style={{ color: theme.palette.warning.main }}
+              />
+            )
           ) : isRejected ? (
-            <CancelOutlinedIcon
-              fontSize="large"
-              style={{ color: theme.palette.error.main }}
-            />
+            isNotified ? (
+              <CancelIcon
+                fontSize="large"
+                style={{ color: theme.palette.error.main }}
+              />
+            ) : (
+              <CancelOutlinedIcon
+                fontSize="large"
+                style={{ color: theme.palette.error.main }}
+              />
+            )
           ) : (
             <QuestionMarkOutlinedIcon
               fontSize="large"
@@ -114,12 +141,28 @@ export function AttendeeItem({
           ) : null}
         </Box>
       ) : (
-        <Avatar sx={{ width: 32, height: 32, mr: 1.5 }}>
-          {label.slice(0, 1).toUpperCase()}
-        </Avatar>
+        <Avatar sx={{ width: 32, height: 32, mr: 1.5 }}>?</Avatar>
       )}
       <ListItemText
-        primary={label}
+        primary={
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Box component="span">{label}</Box>
+            {showGuestChip ? (
+              <Chip
+                label="Guest"
+                color="info"
+                variant="outlined"
+                size="small"
+                sx={{
+                  height: 16,
+                  fontSize: 9,
+                  px: 0.5,
+                  "& .MuiChip-label": { px: 0.5, lineHeight: 1 },
+                }}
+              />
+            ) : null}
+          </Stack>
+        }
         secondary={subLabel}
         primaryTypographyProps={{ fontWeight: 600 }}
       />

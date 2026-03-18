@@ -10,6 +10,9 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
+  Alert,
+  Checkbox,
+  Tooltip,
   List,
   Paper,
   Stack,
@@ -27,6 +30,8 @@ import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
 import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import CloseIcon from "@mui/icons-material/Close";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import { AttendeeItem } from "./AttendeeItem";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
@@ -36,11 +41,14 @@ import { DetailSelector } from "./DetailSelector";
 import { AttendeeResponses } from "./AttendeeResponses";
 import { AttendeeMessages } from "./AttendeeMessages";
 import { OrganizerMetaEditDialog } from "./OrganizerMetaEditDialog";
+import { AttendeesIndemnityInfo } from "./AttendeesIndemnityInfo";
+import ConfirmActionDialog from "../ConfirmActionDialog";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useFetchAttendeeMessages } from "../../hooks/useFetchAttendeeMessages";
 import { useSnackbar } from "notistack";
 import { useQueryClient } from "@tanstack/react-query";
+import { Attendee } from "../../types/AttendeeModel";
 
 type ManageAttendeesModalProps = {
   open: boolean;
@@ -72,14 +80,25 @@ export function ManageAttendeesModal({
   );
   const [showEditMetaDialog, setShowEditMetaDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isGuestsUpdating, setIsGuestsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<AttendeeStatusEnum | null>(
     null,
   );
   const [confirmDialog, setConfirmDialog] = useState(false);
+  const [notifyBeforeCloseOpen, setNotifyBeforeCloseOpen] = useState(false);
+  const [notifyBeforeCloseAttendees, setNotifyBeforeCloseAttendees] = useState<
+    Attendee[]
+  >([]);
+  const [isNotifyingBeforeClose, setIsNotifyingBeforeClose] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageAttendeeIds, setMessageAttendeeIds] = useState<
     string[] | undefined
   >(undefined);
+  const [messageModalDefaults, setMessageModalDefaults] = useState({
+    subject: "",
+    body: "",
+  });
+  const [messageModalKey, setMessageModalKey] = useState(0);
   const [messageDrawerOpen, setMessageDrawerOpen] = useState(false);
   const [messageDrawerRecipientIds, setMessageDrawerRecipientIds] = useState<
     string[] | undefined
@@ -91,6 +110,8 @@ export function ManageAttendeesModal({
   const [messageDrawerManualSubject, setMessageDrawerManualSubject] =
     useState("");
   const [messageDrawerManualBody, setMessageDrawerManualBody] = useState("");
+  const [messageDrawerMarkAsNotified, setMessageDrawerMarkAsNotified] =
+    useState(false);
   const [messageDrawerError, setMessageDrawerError] = useState<string | null>(
     null,
   );
@@ -161,8 +182,13 @@ export function ManageAttendeesModal({
         : null,
     [attendees, messageDrawerRecipientIds],
   );
-  const attendeeLabel = (attendee: any) =>
+  const attendeeLabel = (attendee: Attendee) =>
     attendee?.name || attendee?.email || attendee?.phone || "Unnamed attendee";
+  const guestOfLabel = (attendee: Attendee) => {
+    if (!attendee?.guestOf) return null;
+    const host = attendees.find((person) => person.id === attendee.guestOf);
+    return host ? attendeeLabel(host) : "Unknown attendee";
+  };
   const mobileMessageDefault = useDefaultMessage(
     messageDrawerAttendee?.status as AttendeeStatusEnum | undefined,
     {
@@ -172,6 +198,84 @@ export function ManageAttendeesModal({
       rejectMessage: meet?.rejectMessage,
     },
   );
+  const messageDrawerSelectedAttendees = useMemo(() => {
+    if (!attendees?.length) return [];
+    if (messageDrawerRecipientIds && messageDrawerRecipientIds.length) {
+      return attendees.filter((att) =>
+        messageDrawerRecipientIds.includes(att.id),
+      );
+    }
+    return attendees.filter((att) => {
+      const status = att.status as AttendeeStatusEnum;
+      if (
+        messageDrawerIncludeConfirmed &&
+        [
+          AttendeeStatusEnum.Confirmed,
+          AttendeeStatusEnum.CheckedIn,
+          AttendeeStatusEnum.Attended,
+        ].includes(status)
+      )
+        return true;
+      if (messageDrawerIncludeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
+        return true;
+      if (
+        messageDrawerIncludeRejected &&
+        (status === AttendeeStatusEnum.Rejected ||
+          status === AttendeeStatusEnum.Cancelled)
+      )
+        return true;
+      return false;
+    });
+  }, [
+    attendees,
+    messageDrawerRecipientIds,
+    messageDrawerIncludeConfirmed,
+    messageDrawerIncludeWaitlisted,
+    messageDrawerIncludeRejected,
+  ]);
+  const messageDrawerHasUnnotified = messageDrawerSelectedAttendees.some(
+    (attendee) => !attendee.respondedAt,
+  );
+  const confirmedMessage = useDefaultMessage(AttendeeStatusEnum.Confirmed, {
+    meetName: meet?.name,
+    confirmMessage: meet?.confirmMessage,
+    waitlistMessage: meet?.waitlistMessage,
+    rejectMessage: meet?.rejectMessage,
+  });
+  const waitlistMessage = useDefaultMessage(AttendeeStatusEnum.Waitlisted, {
+    meetName: meet?.name,
+    confirmMessage: meet?.confirmMessage,
+    waitlistMessage: meet?.waitlistMessage,
+    rejectMessage: meet?.rejectMessage,
+  });
+  const rejectMessage = useDefaultMessage(AttendeeStatusEnum.Rejected, {
+    meetName: meet?.name,
+    confirmMessage: meet?.confirmMessage,
+    waitlistMessage: meet?.waitlistMessage,
+    rejectMessage: meet?.rejectMessage,
+  });
+  const getDefaultMessageForStatus = (status: AttendeeStatusEnum) => {
+    if (
+      status === AttendeeStatusEnum.CheckedIn ||
+      status === AttendeeStatusEnum.Attended
+    ) {
+      return confirmedMessage;
+    }
+    if (
+      status === AttendeeStatusEnum.Rejected ||
+      status === AttendeeStatusEnum.Cancelled ||
+      status === AttendeeStatusEnum.NoShow
+    ) {
+      return rejectMessage;
+    }
+    if (status === AttendeeStatusEnum.Waitlisted) {
+      return waitlistMessage;
+    }
+    if (status === AttendeeStatusEnum.Confirmed) {
+      return confirmedMessage;
+    }
+    return { subject: "", content: "" };
+  };
 
   useEffect(() => {
     if (messageDrawerAutoResponse) {
@@ -232,15 +336,120 @@ export function ManageAttendeesModal({
       setIsUpdating(false);
     }
   };
+  const handleGuestCountChange = async (delta: number) => {
+    if (!meetId || !selectedAttendee) return;
+    const current = selectedAttendee.guests ?? 0;
+    const next = Math.max(0, current + delta);
+    if (next === current) return;
+    setIsGuestsUpdating(true);
+    try {
+      await updateMeetAttendeeAsync({
+        meetId,
+        attendeeId: selectedAttendee.id,
+        guests: next,
+      });
+      await refetch();
+    } finally {
+      setIsGuestsUpdating(false);
+    }
+  };
 
   const handleUpdateStatus = (status: AttendeeStatusEnum) => {
+    if (!selectedAttendee) return;
     const isClosed = meetStatus === MeetStatusEnum.Closed;
-    if (isClosed) {
+    const isAlreadyNotified = Boolean(selectedAttendee.respondedAt);
+    if (isClosed || isAlreadyNotified) {
       setPendingStatus(status);
       setConfirmDialog(true);
       return;
     }
     applyStatus(status);
+  };
+
+  const getUnnotifiedAttendees = () =>
+    attendees.filter((attendee) => {
+      const status = attendee.status as AttendeeStatusEnum | undefined;
+      if (!status || status === AttendeeStatusEnum.Pending) return false;
+      return !attendee.respondedAt;
+    });
+
+  const handleRequestClose = () => {
+    const pending = getUnnotifiedAttendees();
+    if (pending.length) {
+      setNotifyBeforeCloseAttendees(pending);
+      setNotifyBeforeCloseOpen(true);
+      return;
+    }
+    onClose();
+  };
+
+  const handleNotifyBeforeCloseLater = () => {
+    setNotifyBeforeCloseOpen(false);
+    onClose();
+  };
+
+  const handleNotifyBeforeCloseNow = async () => {
+    if (!meetId || !meet) {
+      setNotifyBeforeCloseOpen(false);
+      onClose();
+      return;
+    }
+    const pending = notifyBeforeCloseAttendees.filter(
+      (attendee) => attendee.email,
+    );
+    if (!pending.length) {
+      setNotifyBeforeCloseOpen(false);
+      onClose();
+      return;
+    }
+    setIsNotifyingBeforeClose(true);
+    try {
+      const byStatus = pending.reduce<
+        Partial<Record<AttendeeStatusEnum, string[]>>
+      >((acc, attendee) => {
+        const rawStatus = attendee.status as AttendeeStatusEnum | undefined;
+        if (!rawStatus || rawStatus === AttendeeStatusEnum.Pending) return acc;
+        const status =
+          rawStatus === AttendeeStatusEnum.CheckedIn ||
+          rawStatus === AttendeeStatusEnum.Attended
+            ? AttendeeStatusEnum.Confirmed
+            : rawStatus === AttendeeStatusEnum.Cancelled ||
+                rawStatus === AttendeeStatusEnum.NoShow
+              ? AttendeeStatusEnum.Rejected
+              : rawStatus;
+        if (!acc[status]) acc[status] = [];
+        acc[status]?.push(attendee.id);
+        return acc;
+      }, {});
+
+      for (const [statusKey, attendeeIds] of Object.entries(byStatus)) {
+        const ids = attendeeIds || [];
+        if (!ids.length) continue;
+        const status = statusKey as AttendeeStatusEnum;
+        const { subject, content } = getDefaultMessageForStatus(status);
+        if (!subject && !content) continue;
+        await notifyAttendeeAsync({
+          meetId: meet.id,
+          subject,
+          text: content,
+          attendeeIds: ids,
+        });
+      }
+      await refetch();
+      enqueueSnackbar("Attendees notified", {
+        variant: "success",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+      setNotifyBeforeCloseOpen(false);
+      onClose();
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || "Failed to notify attendees", {
+        variant: "error",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+    } finally {
+      setIsNotifyingBeforeClose(false);
+    }
   };
   const statusCounts = useMemo(() => {
     return attendees.reduce(
@@ -258,11 +467,73 @@ export function ManageAttendeesModal({
       { accepted: 0, rejected: 0, waitlisted: 0 },
     );
   }, [attendees]);
+  const notifyBeforeCloseCount = notifyBeforeCloseAttendees.length;
 
   // TODO: Refactor this component into smaller components
   const isOrganizerSelected = Boolean(
     selectedAttendee && meet && selectedAttendee.userId === meet.organizerId,
   );
+  const baseInviteLink =
+    meet?.shareCode && typeof window !== "undefined"
+      ? `${window.location.origin}/meets/${meet.shareCode}`
+      : "";
+  const inviteLinkForAttendee = (attendeeId: string) =>
+    baseInviteLink
+      ? `${baseInviteLink}?guestOf=${encodeURIComponent(attendeeId)}`
+      : "";
+  const openMessageModal = ({
+    attendeeIds,
+    defaultSubject = "",
+    defaultBody = "",
+  }: {
+    attendeeIds?: string[];
+    defaultSubject?: string;
+    defaultBody?: string;
+  }) => {
+    setMessageAttendeeIds(attendeeIds);
+    setMessageModalDefaults({ subject: defaultSubject, body: defaultBody });
+    setMessageModalKey((prev) => prev + 1);
+    setMessageOpen(true);
+  };
+  const buildInviteSubject = (meetName?: string | null) =>
+    `${meetName || "Meet"} (guest invite)`;
+  const buildInviteMessage = (
+    name: string,
+    link: string,
+    hasIndemnity: boolean,
+  ) =>
+    `Hi ${name},\n\n` +
+    "You may invite your guest to fill in the form with the following link:\n\n" +
+    `${link}\n\n` +
+    (hasIndemnity
+      ? "The guest must fill in the form due to indemnity being required. If the guest is a minor you are responsible for you may fill in the form using your own email/phone and accept on their behalf."
+      : "The guest invite is optional since no indemnity is required for this meet.");
+  const handleInviteMessage = () => {
+    if (!selectedAttendee || !baseInviteLink) return;
+    const inviteLink = inviteLinkForAttendee(selectedAttendee.id);
+    const defaultSubject = buildInviteSubject(meet?.name);
+    const defaultBody = buildInviteMessage(
+      attendeeLabel(selectedAttendee),
+      inviteLink,
+      Boolean(meet?.hasIndemnity),
+    );
+    if (fullScreen) {
+      setMessageDrawerRecipientIds([selectedAttendee.id]);
+      resetMobileMessageDrawer();
+      setMessageDrawerSubject(defaultSubject);
+      setMessageDrawerBody(defaultBody);
+      setMessageDrawerManualSubject(defaultSubject);
+      setMessageDrawerManualBody(defaultBody);
+      setMessageDrawerAutoResponse(false);
+      setMessageDrawerOpen(true);
+      return;
+    }
+    openMessageModal({
+      attendeeIds: [selectedAttendee.id],
+      defaultSubject,
+      defaultBody,
+    });
+  };
   const mobileDrawerOpen = fullScreen && Boolean(selectedAttendee);
   const resetMobileMessageDrawer = () => {
     setMessageDrawerSubject("");
@@ -271,6 +542,7 @@ export function ManageAttendeesModal({
     setMessageDrawerManualSubject("");
     setMessageDrawerManualBody("");
     setMessageDrawerError(null);
+    setMessageDrawerMarkAsNotified(false);
     setMessageDrawerIncludeConfirmed(true);
     setMessageDrawerIncludeWaitlisted(false);
     setMessageDrawerIncludeRejected(false);
@@ -297,35 +569,7 @@ export function ManageAttendeesModal({
       setMessageDrawerError("Subject and message are required");
       return;
     }
-    const ids =
-      messageDrawerRecipientIds && messageDrawerRecipientIds.length
-        ? messageDrawerRecipientIds
-        : attendees
-            .filter((att) => {
-              const status = att.status as AttendeeStatusEnum;
-              if (
-                messageDrawerIncludeConfirmed &&
-                [
-                  AttendeeStatusEnum.Confirmed,
-                  AttendeeStatusEnum.CheckedIn,
-                  AttendeeStatusEnum.Attended,
-                ].includes(status)
-              )
-                return true;
-              if (
-                messageDrawerIncludeWaitlisted &&
-                status === AttendeeStatusEnum.Waitlisted
-              )
-                return true;
-              if (
-                messageDrawerIncludeRejected &&
-                (status === AttendeeStatusEnum.Rejected ||
-                  status === AttendeeStatusEnum.Cancelled)
-              )
-                return true;
-              return false;
-            })
-            .map((att) => att.id);
+    const ids = messageDrawerSelectedAttendees.map((attendee) => attendee.id);
     if (!messageDrawerRecipientIds && ids.length === 0) {
       setMessageDrawerError("Select at least one recipient group");
       return;
@@ -346,6 +590,7 @@ export function ManageAttendeesModal({
         subject: messageDrawerSubject.trim(),
         text: messageDrawerBody,
         attendeeIds: ids.length ? ids : undefined,
+        markNotified: messageDrawerAutoResponse || messageDrawerMarkAsNotified,
       });
       await Promise.all(
         ids.map((attendeeId) =>
@@ -494,12 +739,6 @@ export function ManageAttendeesModal({
               {selectedAttendee.phone ? (
                 <Chip size="small" label={selectedAttendee.phone} />
               ) : null}
-              {selectedAttendee.guests ? (
-                <Chip
-                  size="small"
-                  label={`Guests: ${selectedAttendee.guests}`}
-                />
-              ) : null}
             </Stack>
             <Box sx={{ ml: "auto" }}>
               <DetailSelector
@@ -513,6 +752,17 @@ export function ManageAttendeesModal({
               />
             </Box>
           </Box>
+          <AttendeesIndemnityInfo
+            hasIndemnity={meet?.hasIndemnity}
+            indemnityAccepted={selectedAttendee.indemnityAccepted}
+            guests={selectedAttendee.guests}
+            guestOfLabel={guestOfLabel(selectedAttendee)}
+            inviteDisabled={!baseInviteLink}
+            guestsUpdating={isGuestsUpdating}
+            onGuestIncrement={() => handleGuestCountChange(1)}
+            onGuestDecrement={() => handleGuestCountChange(-1)}
+            onInvite={handleInviteMessage}
+          />
         </Box>
         <Divider />
         {detailView === "messages" ? (
@@ -522,11 +772,7 @@ export function ManageAttendeesModal({
             attendeeEmail={selectedAttendee?.email}
           />
         ) : (
-          <AttendeeResponses
-            indemnityAccepted={selectedAttendee.indemnityAccepted}
-            indemnityMinors={selectedAttendee.indemnityMinors}
-            responses={selectedAttendee.metaValues}
-          />
+          <AttendeeResponses responses={selectedAttendee.metaValues} />
         )}
         <Divider />
         <Box sx={{ display: "flex", justifyContent: "center" }}>
@@ -534,12 +780,13 @@ export function ManageAttendeesModal({
             detailView === "messages" ? (
               <Button
                 variant="outlined"
-                onClick={() => {
-                  setMessageAttendeeIds(
-                    selectedAttendee ? [selectedAttendee.id] : undefined,
-                  );
-                  setMessageOpen(true);
-                }}
+                onClick={() =>
+                  openMessageModal({
+                    attendeeIds: selectedAttendee
+                      ? [selectedAttendee.id]
+                      : undefined,
+                  })
+                }
               >
                 Message {attendeeLabel(selectedAttendee)}
               </Button>
@@ -555,12 +802,13 @@ export function ManageAttendeesModal({
             <Button
               variant="outlined"
               disabled={!selectedAttendee}
-              onClick={() => {
-                setMessageAttendeeIds(
-                  selectedAttendee ? [selectedAttendee.id] : undefined,
-                );
-                setMessageOpen(true);
-              }}
+              onClick={() =>
+                openMessageModal({
+                  attendeeIds: selectedAttendee
+                    ? [selectedAttendee.id]
+                    : undefined,
+                })
+              }
             >
               Message {attendeeLabel(selectedAttendee)}
             </Button>
@@ -634,6 +882,20 @@ export function ManageAttendeesModal({
               onEditClick={undefined}
             />
           </Stack>
+          <Box sx={{ mt: 1.5 }}>
+            <AttendeesIndemnityInfo
+              hasIndemnity={meet?.hasIndemnity}
+              indemnityAccepted={selectedAttendee.indemnityAccepted}
+              guests={selectedAttendee.guests}
+              guestOfLabel={guestOfLabel(selectedAttendee)}
+              inviteDisabled={!baseInviteLink}
+              showDivider={false}
+              guestsUpdating={isGuestsUpdating}
+              onGuestIncrement={() => handleGuestCountChange(1)}
+              onGuestDecrement={() => handleGuestCountChange(-1)}
+              onInvite={handleInviteMessage}
+            />
+          </Box>
         </Box>
         <Box
           sx={{
@@ -656,6 +918,7 @@ export function ManageAttendeesModal({
                 indemnityAccepted={selectedAttendee.indemnityAccepted}
                 indemnityMinors={selectedAttendee.indemnityMinors}
                 responses={selectedAttendee.metaValues}
+                guestOfLabel={guestOfLabel(selectedAttendee)}
               />
             )}
           </Box>
@@ -699,7 +962,7 @@ export function ManageAttendeesModal({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleRequestClose}
       fullWidth
       maxWidth="md"
       fullScreen={fullScreen}
@@ -723,9 +986,24 @@ export function ManageAttendeesModal({
         }}
       >
         <span>Manage attendees</span>
-        <IconButton onClick={onClose} aria-label="Close attendees modal">
-          <CloseIcon fontSize="small" />
-        </IconButton>
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <Tooltip title="Download attendees">
+            <IconButton aria-label="Download attendees" size="small">
+              <FileDownloadOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Upload attendees">
+            <IconButton aria-label="Upload attendees" size="small">
+              <FileUploadOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <IconButton
+            onClick={handleRequestClose}
+            aria-label="Close attendees modal"
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Stack>
       </DialogTitle>
       <DialogContent
         sx={{
@@ -775,7 +1053,7 @@ export function ManageAttendeesModal({
               <Button
                 variant="contained"
                 sx={{ flexShrink: 0 }}
-                onClick={onClose}
+                onClick={handleRequestClose}
               >
                 Close
               </Button>
@@ -850,6 +1128,7 @@ export function ManageAttendeesModal({
                           onChange={(event) => {
                             const checked = event.target.checked;
                             setMessageDrawerAutoResponse(checked);
+                            setMessageDrawerMarkAsNotified(checked);
                             if (checked) {
                               setMessageDrawerManualSubject(
                                 messageDrawerSubject,
@@ -931,6 +1210,32 @@ export function ManageAttendeesModal({
                       />
                     </Stack>
                   )}
+                  {messageDrawerHasUnnotified && !messageDrawerAutoResponse && (
+                    <Stack spacing={1}>
+                      <Alert severity="info">
+                        Manual messages do not notify attendees of their
+                        status. Use the *Auto* switch to send a status
+                        notification, or mark them as notified below.
+                      </Alert>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={
+                              messageDrawerAutoResponse ||
+                              messageDrawerMarkAsNotified
+                            }
+                            onChange={(event) =>
+                              setMessageDrawerMarkAsNotified(
+                                event.target.checked,
+                              )
+                            }
+                            disabled={messageDrawerAutoResponse}
+                          />
+                        }
+                        label="Mark attendee as notified"
+                      />
+                    </Stack>
+                  )}
                   <Stack direction="row" justifyContent="flex-end" spacing={1}>
                     <Button onClick={closeMobileMessageDrawer}>Cancel</Button>
                     <Button
@@ -973,26 +1278,26 @@ export function ManageAttendeesModal({
           <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>
             <Button
               variant="outlined"
-              onClick={() => {
-                setMessageAttendeeIds(undefined);
-                setMessageOpen(true);
-              }}
+              onClick={() => openMessageModal({ attendeeIds: undefined })}
             >
               Send Message to All Attendees
             </Button>
           </Box>
-          <Button variant="contained" onClick={onClose}>
+          <Button variant="contained" onClick={handleRequestClose}>
             Close
           </Button>
         </DialogActions>
       )}
       {meet && (
         <MessageModal
+          key={messageModalKey}
           open={messageOpen}
           onClose={() => setMessageOpen(false)}
           meet={meet}
           attendeeIds={messageAttendeeIds}
           attendees={attendees}
+          defaultSubject={messageModalDefaults.subject}
+          defaultBody={messageModalDefaults.body}
         />
       )}
       {meet && (
@@ -1014,6 +1319,17 @@ export function ManageAttendeesModal({
           }}
         />
       )}
+      <ConfirmActionDialog
+        open={notifyBeforeCloseOpen}
+        title="Notify attendees?"
+        description={`${notifyBeforeCloseCount} attendee(s) have a status set but have not been notified. You can notify them now or later using the messaging feature.`}
+        confirmLabel={isNotifyingBeforeClose ? "Notifying..." : "Notify now"}
+        cancelLabel="Later"
+        onConfirm={handleNotifyBeforeCloseNow}
+        onClose={handleNotifyBeforeCloseLater}
+        isLoading={isNotifyingBeforeClose}
+        confirmDisabled={isNotifyingBeforeClose}
+      />
       {selectedAttendee && meet && meetId && (
         <OrganizerMetaEditDialog
           open={showEditMetaDialog}
@@ -1021,6 +1337,8 @@ export function ManageAttendeesModal({
           meetId={meetId}
           attendeeId={selectedAttendee.id}
           metaValues={selectedAttendee.metaValues || []}
+          hasIndemnity={Boolean(meet.hasIndemnity)}
+          indemnityAccepted={Boolean(selectedAttendee.indemnityAccepted)}
         />
       )}
     </Dialog>
