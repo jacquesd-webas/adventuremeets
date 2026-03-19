@@ -22,6 +22,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/api/node_modules ./node_modules
 COPY --from=builder /app/api/dist ./dist
 COPY api/package.json ./package.json
+COPY api/templates ./templates
 COPY api/start.sh /start.sh
 RUN chmod +x /start.sh
 ENTRYPOINT ["/start.sh"]

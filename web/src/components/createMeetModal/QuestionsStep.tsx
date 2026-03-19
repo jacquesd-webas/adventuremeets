@@ -35,7 +35,7 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
     setState((prev) => ({
       ...prev,
       questions: prev.questions.map((q) =>
-        q.id === id ? { ...q, ...updates } : q
+        q.id === id ? { ...q, ...updates } : q,
       ),
     }));
   };
@@ -66,6 +66,7 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} alignItems="center">
         <SelectTemplate
+          organizationId={state.organizationId || undefined}
           onApply={(questions) => setState((prev) => ({ ...prev, questions }))}
         />
         <Button variant="outlined" onClick={() => addField("text")}>

@@ -1,4 +1,10 @@
-import { Alert, FormControlLabel, Stack, Switch, TextField } from "@mui/material";
+import {
+  Alert,
+  FormControlLabel,
+  Stack,
+  Switch,
+  TextField,
+} from "@mui/material";
 import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
@@ -17,6 +23,7 @@ export const IndemnityStep = ({
       label="Indemnity text"
       labelAction={
         <SelectTemplate
+          organizationId={state.organizationId || undefined}
           disabled={disableIndemnityText}
           onApplyTemplate={(template) =>
             setState((prev) => ({

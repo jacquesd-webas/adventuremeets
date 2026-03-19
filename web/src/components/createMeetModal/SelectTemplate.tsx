@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, FormControl, MenuItem, Select, Typography } from "@mui/material";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import { useAuth } from "../../context/authContext";
+import { useCurrentOrganization } from "../../context/organizationContext";
 import { useFetchOrganizationTemplates } from "../../hooks/useFetchOrganizationTemplates";
 import { useFetchOrganizationTemplate } from "../../hooks/useFetchOrganizationTemplate";
 import { QuestionField } from "./CreateMeetState";
@@ -21,8 +22,10 @@ export function SelectTemplate({
   onApplyTemplate,
 }: SelectTemplateProps) {
   const { user } = useAuth();
+  const { currentOrganizationId } = useCurrentOrganization();
   const resolvedOrgId =
     organizationId ||
+    currentOrganizationId ||
     (user?.organizations ? Object.keys(user.organizations)[0] : undefined);
   const [selectedId, setSelectedId] = useState("");
 
@@ -47,7 +50,7 @@ export function SelectTemplate({
 
   const options = useMemo(
     () => templates.map((t) => ({ id: t.id, name: t.name })),
-    [templates]
+    [templates],
   );
 
   return (
@@ -103,11 +106,11 @@ export function SelectTemplate({
 }
 
 const mapDefinitionsToQuestions = (
-  definitions: TemplateMetaDefinition[]
+  definitions: TemplateMetaDefinition[],
 ): QuestionField[] =>
   definitions.map((definition) => {
     const fieldType = ["text", "select", "switch", "checkbox"].includes(
-      definition.fieldType
+      definition.fieldType,
     )
       ? (definition.fieldType as QuestionField["type"])
       : "text";
