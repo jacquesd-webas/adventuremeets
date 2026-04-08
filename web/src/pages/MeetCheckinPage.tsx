@@ -1,16 +1,10 @@
 import { useMemo, useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Box,
-  Chip,
-  CircularProgress,
   Container,
-  Divider,
   IconButton,
   List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   Paper,
   Stack,
   Typography,
@@ -19,11 +13,11 @@ import {
 } from "@mui/material";
 import { useFetchMeetAttendees } from "../hooks/useFetchMeetAttendees";
 import { useCheckinAttendees } from "../hooks/useCheckinAttendees";
-import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
+import CloseIcon from "@mui/icons-material/Close";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
+import { AttendeeCheckinItem } from "../components/attendeeCheckin/AttendeeCheckinItem";
+import { CheckinSearch } from "../components/attendeeCheckin/CheckinSearch";
 
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,8 +25,10 @@ function MeetCheckinPage() {
   const { checkinAttendeesAsync } = useCheckinAttendees();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const navigate = useNavigate();
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [checkingIn, setCheckingIn] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState("");
   const [undoTarget, setUndoTarget] = useState<{
     id: string;
     name: string;
@@ -54,6 +50,19 @@ function MeetCheckinPage() {
     [attendees],
   );
 
+  const filteredAttendees = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return attendeeList;
+    return attendeeList.filter((attendee) => {
+      const name = attendee.name.toLowerCase();
+      const email = attendee.email.toLowerCase();
+      const phone = attendee.phone.toLowerCase();
+      return (
+        name.includes(term) || email.includes(term) || phone.includes(term)
+      );
+    });
+  }, [attendeeList, searchTerm]);
+
   useEffect(() => {
     const initial = attendeeList.reduce<Record<string, boolean>>(
       (acc, attendee) => {
@@ -67,7 +76,7 @@ function MeetCheckinPage() {
     setChecked(initial);
   }, [attendeeList]);
 
-  const handleTapCheckin = async (attendeeId: string) => {
+  const handleCheckin = async (attendeeId: string) => {
     if (!id || checkingIn[attendeeId]) return;
     if (checked[attendeeId]) return;
     setCheckingIn((prev) => ({ ...prev, [attendeeId]: true }));
@@ -95,6 +104,14 @@ function MeetCheckinPage() {
     }
   };
 
+  const handleClose = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate("/dashboard");
+  };
+
   return (
     <Container
       maxWidth={isMobile ? false : "sm"}
@@ -108,15 +125,36 @@ function MeetCheckinPage() {
       }}
     >
       <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
-        <Box sx={{ px: isMobile ? 2 : 0, pt: isMobile ? 2 : 0 }}>
-          <Typography variant="h5" fontWeight={700}>
-            Meet Check-in
-          </Typography>
-          {!isMobile ? (
-            <Typography variant="body2" color="text.secondary">
-              Tap names to mark attendees as checked in.
+        <Box
+          sx={{
+            px: isMobile ? 2 : 0,
+            pt: isMobile ? 2 : 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="h5" fontWeight={700}>
+              Meet Check-in
             </Typography>
-          ) : null}
+            {!isMobile ? (
+              <Typography variant="body2" color="text.secondary">
+                Tap names to mark attendees as checked in.
+              </Typography>
+            ) : null}
+          </Box>
+          <IconButton aria-label="Close check-in" onClick={handleClose}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Box sx={{ px: isMobile ? 2 : 0 }}>
+          <CheckinSearch
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onClear={() => setSearchTerm("")}
+          />
         </Box>
         <Paper
           variant="outlined"
@@ -132,71 +170,18 @@ function MeetCheckinPage() {
             <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
               Loading attendees...
             </Typography>
-          ) : attendeeList.length ? (
+          ) : filteredAttendees.length ? (
             <List>
-              {attendeeList.map((attendee, index) => (
-                <Box key={attendee.id}>
-                  <ListItem
-                    disableGutters
-                    secondaryAction={null}
-                    onClick={() => handleTapCheckin(attendee.id)}
-                    sx={{ borderRadius: 1, px: 1 }}
-                  >
-                    <ListItemIcon>
-                      {checkingIn[attendee.id] ? (
-                        <CircularProgress size={28} />
-                      ) : checked[attendee.id] ? (
-                        <CheckBoxIcon color="success" sx={{ fontSize: 32 }} />
-                      ) : (
-                        <HelpOutlineIcon
-                          color="disabled"
-                          sx={{ fontSize: 32 }}
-                        />
-                      )}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={attendee.name}
-                      primaryTypographyProps={{
-                        variant: "subtitle1",
-                        fontWeight: 600,
-                      }}
-                      secondaryTypographyProps={{ component: "div" }}
-                      secondary={
-                        <Box sx={{ mt: 0.5 }}>
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            sx={{ flexWrap: "wrap" }}
-                          >
-                            {attendee.email ? (
-                              <Chip
-                                size="small"
-                                label={attendee.email}
-                                color="default"
-                              />
-                            ) : null}
-                            {attendee.phone ? (
-                              <Chip
-                                size="small"
-                                label={attendee.phone}
-                                color="default"
-                              />
-                            ) : null}
-                          </Stack>
-                        </Box>
-                      }
-                    />
-                    {checked[attendee.id] ? (
-                      <IconButton
-                        edge="end"
-                        onClick={() => setUndoTarget(attendee)}
-                      >
-                        <UndoOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    ) : null}
-                  </ListItem>
-                  {index < attendeeList.length - 1 ? <Divider /> : null}
-                </Box>
+              {filteredAttendees.map((attendee, index) => (
+                <AttendeeCheckinItem
+                  key={attendee.id}
+                  attendee={attendee}
+                  isCheckingIn={Boolean(checkingIn[attendee.id])}
+                  isChecked={Boolean(checked[attendee.id])}
+                  showDivider={index < filteredAttendees.length - 1}
+                  onCheckin={handleCheckin}
+                  onUndo={(target) => setUndoTarget(target)}
+                />
               ))}
             </List>
           ) : (
