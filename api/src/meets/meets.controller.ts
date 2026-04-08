@@ -40,6 +40,7 @@ import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { DatabaseService } from "../database/database.service";
 import * as ExcelJS from "exceljs";
+import { MEET_STATUS } from "./constants/meet-status.enum";
 
 @ApiTags("Meets")
 @Controller("meets")
@@ -285,7 +286,7 @@ export class MeetsController {
     // Shortcut the entire process as worker API can do anything
     if (apiKey && apiKey === process.env.WORKER_API_KEY) {
       const updated = await this.meetsService.updateStatus(id, dto.statusId);
-      if (dto.notifyAttendees && dto.statusId === 4) {
+      if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
         const meet = await this.meetsService.findOne(id);
         await this.notifyAttendeesOfStatus(meet);
       }
@@ -305,7 +306,7 @@ export class MeetsController {
     }
 
     const updated = await this.meetsService.updateStatus(id, dto.statusId);
-    if (dto.notifyAttendees && dto.statusId === 4) {
+    if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
       await this.notifyAttendeesOfStatus(meet);
     }
     return updated;
@@ -327,7 +328,11 @@ export class MeetsController {
         const status = attendee.status;
         let template: "meet-confirm" | "meet-reject" | "meet-waitlist" | null =
           null;
-        if (status === "confirmed" || status === "checked-in" || status === "attended") {
+        if (
+          status === "confirmed" ||
+          status === "checked-in" ||
+          status === "attended"
+        ) {
           template = "meet-confirm";
         } else if (status === "waitlisted") {
           template = "meet-waitlist";
@@ -417,7 +422,14 @@ export class MeetsController {
         "Cannot delete a meet for an organisation you do not belong to as an organizer",
       );
     }
-    return this.meetsService.remove(id);
+
+    if (meet.statusId === MEET_STATUS.Draft) {
+      return this.meetsService.remove(id);
+    } else {
+      throw new BadRequestException(
+        "Only meets in Draft status can be deleted",
+      );
+    }
   }
 
   @Post(":id/message")
@@ -618,6 +630,130 @@ export class MeetsController {
     return { status: "ok" };
   }
 
+  @Post(":id/attendees/upload")
+  @ApiOperation({ summary: "Upload attendees from an Excel sheet" })
+  @UseInterceptors(FileInterceptor("file"))
+  async uploadAttendees(
+    @Param("id") id: string,
+    @UploadedFile() file: any,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        "You do not have permission to upload attendees for this meet",
+      );
+    }
+
+    if (!file) {
+      throw new BadRequestException("File is required");
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      throw new BadRequestException("No worksheet found in the uploaded file");
+    }
+
+    const headerRow = worksheet.getRow(1);
+    const headerMap = new Map<string, number>();
+    headerRow.eachCell((cell, colNumber) => {
+      const key = String(cell.text || cell.value || "")
+        .trim()
+        .toLowerCase();
+      if (key) headerMap.set(key, colNumber);
+    });
+
+    const nameCol = headerMap.get("name");
+    const emailCol = headerMap.get("email");
+    const phoneCol = headerMap.get("phone");
+    if (!nameCol || !emailCol || !phoneCol) {
+      throw new BadRequestException(
+        "Sheet must include columns: name, email, phone",
+      );
+    }
+
+    const metaDefinitions = await this.db
+      .getClient()("meet_meta_definitions")
+      .where({ meet_id: id })
+      .orderBy("position", "asc")
+      .select("id", "field_key", "label", "position");
+
+    const questionColumns = new Map<number, string>();
+    headerMap.forEach((col, key) => {
+      const match = key.match(/^q(\\d+)$/);
+      if (!match) return;
+      const index = Number(match[1]) - 1;
+      const definition = metaDefinitions[index];
+      if (definition) {
+        questionColumns.set(col, definition.id);
+      }
+    });
+
+    const getCellText = (row: any, col: number) => {
+      const cell = row.getCell(col);
+      const value = cell?.text ?? cell?.value ?? "";
+      return String(value).trim();
+    };
+
+    const attendees: Array<{
+      name: string;
+      email: string;
+      phone: string;
+      metaValues?: Array<{ definitionId: string; value: string }>;
+    }> = [];
+    const errors: string[] = [];
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const name = getCellText(row, nameCol);
+      const email = getCellText(row, emailCol);
+      const phone = getCellText(row, phoneCol);
+      if (!name && !email && !phone) return;
+      if (!name || !email || !phone) {
+        errors.push(
+          `Row ${rowNumber}: name, email, and phone are required for each attendee.`,
+        );
+        return;
+      }
+      const metaValues: Array<{ definitionId: string; value: string }> = [];
+      questionColumns.forEach((definitionId, col) => {
+        const value = getCellText(row, col);
+        if (value) {
+          metaValues.push({ definitionId, value });
+        }
+      });
+      attendees.push({
+        name,
+        email,
+        phone,
+        metaValues: metaValues.length ? metaValues : undefined,
+      });
+    });
+
+    if (errors.length) {
+      const preview = errors.slice(0, 5).join(" ");
+      throw new BadRequestException(
+        `Upload failed with ${errors.length} invalid row(s). ${preview}`,
+      );
+    }
+
+    if (!attendees.length) {
+      throw new BadRequestException("No valid attendee rows found to upload.");
+    }
+
+    const { created } = await this.meetsService.addPreloadedAttendees(
+      id,
+      attendees,
+    );
+    return { created, skipped: 0 };
+  }
+
   @Post(":id/report")
   @ApiOperation({ summary: "Create attendee report and email organizer" })
   async createReport(
@@ -627,12 +763,14 @@ export class MeetsController {
     body?: {
       sendEmail?: boolean;
       downloadReport?: boolean;
+      isFinalReport?: boolean;
     },
     @Res({ passthrough: true }) res?: any,
   ) {
     if (!user) throw new UnauthorizedException();
     const sendEmail = body?.sendEmail ?? true;
     const downloadReport = body?.downloadReport ?? false;
+    const isFinalReport = body?.isFinalReport ?? true;
     if (!sendEmail && !downloadReport) {
       throw new BadRequestException("Select at least one delivery method");
     }
@@ -681,7 +819,10 @@ export class MeetsController {
         name: attendee.name ?? "",
         email: attendee.email ?? "",
         phone: attendee.phone ?? "",
-        status: attendee.status === "confirmed" ? "no-show" : attendee.status ?? "",
+        status:
+          isFinalReport && attendee.status === "confirmed"
+            ? "no-show"
+            : (attendee.status ?? ""),
         guests: attendee.guests ?? "",
         paidDepositAt: attendee.paidDepositAt ?? "",
         paidFullAt: attendee.paidFullAt ?? "",

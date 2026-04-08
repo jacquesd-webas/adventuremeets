@@ -16,6 +16,7 @@ import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
 import { MinioService } from "../storage/minio.service";
 import { v4 as uuid } from "uuid";
+import { MEET_STATUS } from "./constants/meet-status.enum";
 
 @Injectable()
 export class MeetsService {
@@ -38,16 +39,6 @@ export class MeetsService {
     toTime: Date | null = null,
     search: string | null = null,
   ) {
-    const STATUS = {
-      Draft: 1,
-      Published: 2,
-      Open: 3,
-      Closed: 4,
-      Cancelled: 5,
-      Postponed: 6,
-      Completed: 7,
-    } as const;
-
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
       .select("meet_id")
@@ -126,7 +117,17 @@ export class MeetsService {
       .count<{ count: string }[]>("* as count");
 
     // If the user is not an organizer, only show meets they are attending or meets that are open
-    if (!isOrganizer) {
+    if (view === "my") {
+      query.where((qb) => {
+        qb.where("m.organizer_id", userId!);
+        qb.orWhereExists(function () {
+          this.select("*")
+            .from("meet_attendees as ma2")
+            .whereRaw("ma2.meet_id = m.id")
+            .andWhere("ma2.user_id", userId!);
+        });
+      });
+    } else if (!isOrganizer) {
       query.where((qb) => {
         qb.whereExists(function () {
           this.select("*")
@@ -134,27 +135,33 @@ export class MeetsService {
             .whereRaw("ma2.meet_id = m.id")
             .andWhere("ma2.user_id", userId!);
         });
-        qb.orWhere("m.status_id", "3"); // Open
+        qb.orWhere("m.status_id", MEET_STATUS.Open);
       });
     }
 
     if (view === "upcoming") {
       query.where("start_time", ">=", new Date().toISOString());
-      query.whereNotIn("status_id", [STATUS.Draft, STATUS.Cancelled]); // Not Draft or Cancelled
+      query.whereNotIn("status_id", [MEET_STATUS.Draft, MEET_STATUS.Cancelled]);
       query.orderBy("start_time", "asc");
       totalQuery.where("start_time", ">=", new Date().toISOString());
-      totalQuery.whereNotIn("status_id", [STATUS.Draft, STATUS.Cancelled]); // Not Draft or Cancelled
+      totalQuery.whereNotIn("status_id", [
+        MEET_STATUS.Draft,
+        MEET_STATUS.Cancelled,
+      ]);
     }
     if (view === "past") {
       query.where("start_time", "<", new Date().toISOString());
-      query.whereNotIn("status_id", [STATUS.Draft, STATUS.Cancelled]); // Not Draft or Cancelled
+      query.whereNotIn("status_id", [MEET_STATUS.Draft, MEET_STATUS.Cancelled]);
       query.orderBy("start_time", "desc");
       totalQuery.where("start_time", "<", new Date().toISOString());
-      totalQuery.whereNotIn("status_id", [STATUS.Draft, STATUS.Cancelled]); // Not Draft or Cancelled
+      totalQuery.whereNotIn("status_id", [
+        MEET_STATUS.Draft,
+        MEET_STATUS.Cancelled,
+      ]);
     }
     if (view === "draft") {
-      query.where("status_id", STATUS.Draft); // Draft
-      totalQuery.where("status_id", STATUS.Draft); // Draft
+      query.where("status_id", MEET_STATUS.Draft);
+      totalQuery.where("status_id", MEET_STATUS.Draft);
     }
     if (organizationIds.length > 0) {
       query.whereIn("m.organization_id", organizationIds);
@@ -405,12 +412,18 @@ export class MeetsService {
   }
 
   async updateStatus(id: string, statusId: number) {
+    const updates: Record<string, any> = {
+      status_id: statusId,
+      updated_at: new Date().toISOString(),
+    };
+    if (statusId === MEET_STATUS.Open) {
+      updates.opening_date = null;
+      updates.closing_date = null;
+    }
     const updatedRows = (await this.db
       .getClient()("meets")
       .where({ id })
-      .update({ status_id: statusId, updated_at: new Date().toISOString() }, [
-        "*",
-      ])) as unknown;
+      .update(updates, ["*"])) as unknown;
     const updated = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
     if (!updated) {
       throw new NotFoundException("Meet not found");
@@ -597,13 +610,21 @@ export class MeetsService {
     return organizer?.email ?? null;
   }
 
-  async findAttendeeByContact(meetId: string, email?: string, phone?: string) {
+  async findAttendeeByContact(
+    meetId: string,
+    email?: string,
+    phone?: string,
+    options?: { includePreloaded?: boolean },
+  ) {
     if (!email && !phone) {
       throw new BadRequestException("Email or phone is required");
     }
     const query = this.db
       .getClient()("meet_attendees")
       .where({ meet_id: meetId });
+    if (options?.includePreloaded === false) {
+      query.andWhereNot("status", "preloaded");
+    }
     if (email && phone) {
       query.andWhere((builder) => {
         builder
@@ -662,7 +683,119 @@ export class MeetsService {
       const guardianName =
         dto.GuardianName ?? (dto as any).guardianName ?? null;
       const acceptedByName =
-        dto.isMinor && guardianName ? guardianName : dto.name ?? null;
+        dto.isMinor && guardianName ? guardianName : (dto.name ?? null);
+      const contactEmail = dto.email?.trim() || undefined;
+      const contactPhone = dto.phone?.trim() || undefined;
+
+      if (contactEmail || contactPhone) {
+        const preloadedQuery = trx("meet_attendees")
+          .where({ meet_id: meetId })
+          .andWhere("status", "preloaded");
+        if (contactEmail && contactPhone) {
+          preloadedQuery.andWhere((builder) => {
+            builder
+              .whereRaw("lower(email) = ?", [contactEmail.toLowerCase()])
+              .orWhere({ phone: contactPhone });
+          });
+        } else if (contactEmail) {
+          preloadedQuery.andWhereRaw("lower(email) = ?", [
+            contactEmail.toLowerCase(),
+          ]);
+        } else if (contactPhone) {
+          preloadedQuery.andWhere({ phone: contactPhone });
+        }
+        const candidates = await preloadedQuery.select(
+          "id",
+          "name",
+          "email",
+          "phone",
+          "user_id",
+        );
+        const normalizedName = (dto.name || "").trim().toLowerCase();
+        let preloaded = candidates.length === 1 ? candidates[0] : undefined;
+        if (!preloaded && dto.isMinor && normalizedName && candidates.length) {
+          const nameMatches = candidates.filter(
+            (row) =>
+              row.name && row.name.trim().toLowerCase() === normalizedName,
+          );
+          if (nameMatches.length === 1) {
+            preloaded = nameMatches[0];
+          }
+        }
+        if (!preloaded && contactPhone && candidates.length) {
+          const phoneMatches = candidates.filter(
+            (row) => row.phone && row.phone === contactPhone,
+          );
+          if (phoneMatches.length === 1) {
+            preloaded = phoneMatches[0];
+          }
+        }
+        if (preloaded) {
+          const [row] = await trx("meet_attendees")
+            .where({ meet_id: meetId, id: preloaded.id })
+            .update(
+              {
+                user_id: dto.userId ?? preloaded.user_id ?? null,
+                name: dto.name ?? preloaded.name,
+                phone: dto.phone ?? preloaded.phone,
+                email: dto.email ?? preloaded.email,
+                guests: dto.guests ?? preloaded.guests ?? null,
+                is_minor: dto.isMinor ?? preloaded.is_minor ?? false,
+                guardian_name: guardianName,
+                indemnity_accepted: dto.indemnityAccepted ?? null,
+                indemnity_minors: dto.indemnityMinors ?? null,
+                status: "confirmed",
+                updated_at: new Date().toISOString(),
+              },
+              ["*"],
+            );
+          if (dto.metaValues) {
+            await trx("meet_meta_values")
+              .where({ meet_id: meetId, attendee_id: preloaded.id })
+              .del();
+            const records = dto.metaValues
+              .filter(
+                (value) =>
+                  value.value !== undefined &&
+                  value.value !== null &&
+                  value.value !== "",
+              )
+              .map((value) => ({
+                meet_id: meetId,
+                attendee_id: preloaded.id,
+                meta_definition_id: value.definitionId,
+                value: value.value,
+              }));
+            if (records.length > 0) {
+              await trx("meet_meta_values").insert(records);
+            }
+          }
+          if (dto.indemnityAccepted) {
+            const meet = await trx("meets")
+              .where({ id: meetId })
+              .first("indemnity", "time_zone");
+            const indemnityText = meet?.indemnity ?? "";
+            const indemnityHash = indemnityText
+              ? createHash("sha256").update(indemnityText).digest("hex")
+              : null;
+            await trx("meet_attendee_indemnity_acceptances").insert({
+              attendee_id: preloaded.id,
+              meet_id: meetId,
+              accepted_at: new Date().toISOString(),
+              indemnity_text_hash: indemnityHash,
+              acceptance_ip: context?.ip ?? null,
+              acceptance_user_agent: context?.userAgent ?? null,
+              accepted_by_name: acceptedByName,
+              accepted_by_email: dto.email ?? null,
+              accepted_by_phone: dto.phone ?? null,
+              locale: context?.locale ?? null,
+              time_zone: meet?.time_zone ?? null,
+            });
+          }
+          return row;
+        }
+      }
+
       const sequenceRow = await trx("meet_attendees")
         .where({ meet_id: meetId })
         .max("sequence as max")
@@ -732,6 +865,73 @@ export class MeetsService {
       return attendee;
     });
     return { attendee: this.toAttendeeDto(created) };
+  }
+
+  async addPreloadedAttendees(
+    meetId: string,
+    attendees: Array<{
+      name: string;
+      email: string;
+      phone: string;
+      metaValues?: Array<{ definitionId: string; value: string }>;
+    }>,
+  ) {
+    if (!attendees.length) return { created: 0 };
+    const createdCount = await this.db.getClient().transaction(async (trx) => {
+      const sequenceRow = await trx("meet_attendees")
+        .where({ meet_id: meetId })
+        .max("sequence as max")
+        .first();
+      const maxSequence =
+        sequenceRow && (sequenceRow as any).max != null
+          ? Number((sequenceRow as any).max)
+          : 0;
+      let nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
+      const metaRecords: Array<{
+        meet_id: string;
+        attendee_id: string;
+        meta_definition_id: string;
+        value: string;
+      }> = [];
+      for (const attendee of attendees) {
+        const [row] = await trx("meet_attendees").insert(
+          {
+            meet_id: meetId,
+            user_id: null,
+            name: attendee.name,
+            phone: attendee.phone,
+            email: attendee.email,
+            status: "preloaded",
+            sequence: nextSequence,
+            is_minor: false,
+          },
+          ["id"],
+        );
+        nextSequence += 1;
+        if (attendee.metaValues?.length) {
+          attendee.metaValues
+            .filter(
+              (value) =>
+                value.value !== undefined &&
+                value.value !== null &&
+                String(value.value).trim() !== "",
+            )
+            .forEach((value) => {
+              metaRecords.push({
+                meet_id: meetId,
+                attendee_id: row.id,
+                meta_definition_id: value.definitionId,
+                value: String(value.value),
+              });
+            });
+        }
+      }
+      if (metaRecords.length) {
+        await trx("meet_meta_values").insert(metaRecords);
+      }
+      return attendees.length;
+    });
+    return { created: createdCount };
   }
 
   async updateAttendee(
