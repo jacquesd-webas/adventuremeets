@@ -18,9 +18,10 @@ export function useUpdateMeetStatus() {
         notifyAttendees,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["meets"] });
-    }
+      queryClient.invalidateQueries({ queryKey: ["meet", variables.meetId] });
+    },
   });
 
   return {
