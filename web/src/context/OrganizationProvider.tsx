@@ -9,6 +9,7 @@ import {
   OrganizationContext,
   OrganizationContextValue,
 } from "./organizationContext";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
 
 type OrganizationProviderProps = {
   children: ReactNode;
@@ -30,6 +31,10 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     if (!user?.organizations) return [];
     return Object.keys(user.organizations);
   }, [user]);
+
+  const { data: organization } = useFetchOrganization(
+    currentOrganizationId || undefined,
+  );
 
   // Set or clear current organization based on user's organizations
   useEffect(() => {
@@ -73,12 +78,14 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     () => ({
       organizationIds,
       currentOrganizationId,
+      currentOrganizationName: organization?.name || null,
       currentOrganizationRole,
       setCurrentOrganizationId,
     }),
     [
       organizationIds,
       currentOrganizationId,
+      organization?.name,
       currentOrganizationRole,
       setCurrentOrganizationId,
     ]

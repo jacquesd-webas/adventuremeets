@@ -73,8 +73,12 @@ function MainLayout() {
   });
 
   const { user } = useAuth();
-  const { currentOrganizationId, organizationIds, currentOrganizationRole } =
-    useCurrentOrganization();
+  const {
+    currentOrganizationId,
+    currentOrganizationName,
+    organizationIds,
+    currentOrganizationRole,
+  } = useCurrentOrganization();
   const { data: organization } = useFetchOrganization(
     currentOrganizationId || undefined,
   );
@@ -356,7 +360,7 @@ function MainLayout() {
               >
                 <Typography variant="body2" noWrap>
                   {currentOrganizationId
-                    ? organization?.name || "Organisation"
+                    ? currentOrganizationName || "Organisation"
                     : "No Organisation"}
                 </Typography>
               </Button>

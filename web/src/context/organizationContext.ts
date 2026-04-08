@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 export type OrganizationContextValue = {
   organizationIds: string[];
   currentOrganizationId: string | null;
+  currentOrganizationName: string | null;
   currentOrganizationRole: string | null;
   setCurrentOrganizationId: (orgId: string | null) => void;
 };
