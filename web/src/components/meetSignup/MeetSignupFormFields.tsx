@@ -149,6 +149,9 @@ export function MeetSignupFormFields({
           onBlur={onNameBlur}
           error={Boolean(nameError)}
           helperText={nameError || undefined}
+          placeholder={
+            isMinor ? "Name of person attending the meet" : "Your name"
+          }
           disabled={!isMinor && disableIdentityFields}
         />
 
