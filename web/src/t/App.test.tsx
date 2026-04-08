@@ -7,6 +7,7 @@ import { ThemeModeProvider } from "../context/ThemeModeContext";
 import { NotistackProvider } from "../components/NotistackProvider";
 import { AuthContext } from "../context/authContext";
 import { OrganizationContext } from "../context/organizationContext";
+import { FilterContext } from "../context/filterContext";
 
 vi.mock("../hooks/useFetchMeets", () => ({
   useFetchMeets: () => ({ data: [], isLoading: false, refetch: vi.fn() })
@@ -49,13 +50,23 @@ describe("App", () => {
                 value={{
                   organizationIds: [],
                   currentOrganizationId: null,
+                  currentOrganizationName: null,
                   currentOrganizationRole: null,
                   setCurrentOrganizationId: vi.fn(),
                 }}
               >
-                <MemoryRouter>
-                  <App />
-                </MemoryRouter>
+                <FilterContext.Provider
+                  value={{
+                    dashboardView: "all",
+                    listPageView: "upcoming",
+                    setDashboardView: vi.fn(),
+                    setListPageView: vi.fn(),
+                  }}
+                >
+                  <MemoryRouter>
+                    <App />
+                  </MemoryRouter>
+                </FilterContext.Provider>
               </OrganizationContext.Provider>
             </AuthContext.Provider>
           </NotistackProvider>

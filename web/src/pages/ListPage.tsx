@@ -22,6 +22,7 @@ import { useFetchMeets } from "../hooks/useFetchMeets";
 import { defaultPendingAction } from "../helpers/defaultPendingAction";
 import { MeetActionsEnum } from "../types/MeetActionsEnum";
 import { useCurrentOrganization } from "../context/organizationContext";
+import { useFilters } from "../context/filterContext";
 import { useAuth } from "../context/authContext";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PlaceIcon from "@mui/icons-material/Place";
@@ -43,17 +44,15 @@ function ListPage() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [view, setView] = useState<"all" | "draft" | "upcoming" | "past">(
-    "upcoming",
-  );
   const { currentOrganizationId } = useCurrentOrganization();
+  const { listPageView, setListPageView } = useFilters();
   const { user } = useAuth();
   const {
     data: meets,
     total,
     isLoading,
   } = useFetchMeets({
-    view,
+    view: listPageView,
     page: paginationModel.page + 1,
     limit: paginationModel.pageSize,
     organizationId: currentOrganizationId,
@@ -162,7 +161,7 @@ function ListPage() {
     setPaginationModel((prev) =>
       prev.page === 0 ? prev : { ...prev, page: 0 },
     );
-  }, [view]);
+  }, [listPageView]);
 
   const handleNewMeet = useCallback(() => {
     setPendingAction(MeetActionsEnum.Create);
@@ -207,9 +206,9 @@ function ListPage() {
             <ToggleButtonGroup
               exclusive
               size="small"
-              value={view}
+              value={listPageView}
               onChange={(_event, nextView) => {
-                if (nextView) setView(nextView);
+                if (nextView) setListPageView(nextView);
               }}
               sx={{
                 width: isMobile ? "100%" : "auto",

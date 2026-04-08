@@ -19,6 +19,7 @@ import MeetStatusEnum from "../types/MeetStatusEnum";
 import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
 import { useCurrentOrganization } from "../context/organizationContext";
+import { useFilters } from "../context/filterContext";
 import { CreatePrivateOrganizationDialog } from "../components/auth/CreatePrivateOrganizationDialog";
 import MeetActionsEnum from "../types/MeetActionsEnum";
 import AddIcon from "@mui/icons-material/Add";
@@ -35,11 +36,9 @@ function DashboardPage() {
   const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
-  const [view, setView] = useState<"my" | "all">(
-    currentOrganizationRole === "member" ? "my" : "all",
-  );
+  const { dashboardView, setDashboardView } = useFilters();
   const { data: meets, isLoading } = useFetchMeets({
-    view,
+    view: dashboardView,
     page: 1,
     limit: 50,
     organizationId: currentOrganizationId || undefined,
@@ -56,11 +55,6 @@ function DashboardPage() {
     }
     setPendingAction(MeetActionsEnum.Create);
   }, [isOrganizer, setPendingAction, setShowCreateOrgDialog]);
-
-  useEffect(() => {
-    if (!currentOrganizationRole) return;
-    setView(currentOrganizationRole === "member" ? "my" : "all");
-  }, [currentOrganizationId, currentOrganizationRole]);
 
   useEffect(() => {
     if (!isMobile) {
@@ -128,9 +122,9 @@ function DashboardPage() {
               <ToggleButtonGroup
                 exclusive
                 size="small"
-                value={view}
+                value={dashboardView}
                 onChange={(_event, nextView) => {
-                  if (nextView) setView(nextView);
+                  if (nextView) setDashboardView(nextView);
                 }}
               >
                 <ToggleButton value="my">My meets</ToggleButton>
@@ -140,29 +134,30 @@ function DashboardPage() {
                 New Meet
               </Button>
             </Stack>
-          ) : undefined
+          ) : (
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={dashboardView}
+              onChange={(_event, nextView) => {
+                if (nextView) setDashboardView(nextView);
+              }}
+              sx={{
+                "& .MuiToggleButton-root": {
+                  minWidth: 0,
+                  px: 1,
+                  py: 0.25,
+                  fontSize: "0.7rem",
+                  lineHeight: 1.2,
+                },
+              }}
+            >
+              <ToggleButton value="my">MY</ToggleButton>
+              <ToggleButton value="all">ALL</ToggleButton>
+            </ToggleButtonGroup>
+          )
         }
       />
-      {isMobile && (
-        <Box sx={{ px: 1 }}>
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            value={view}
-            onChange={(_event, nextView) => {
-              if (nextView) setView(nextView);
-            }}
-            sx={{
-              width: "100%",
-              display: "flex",
-              "& .MuiToggleButton-root": { flex: 1 },
-            }}
-          >
-            <ToggleButton value="my">My meets</ToggleButton>
-            <ToggleButton value="all">All meets</ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-      )}
 
       <Box sx={{ flex: 1, overflowY: "auto", pr: isMobile ? 0 : 1 }}>
         <Grid container spacing={3}>

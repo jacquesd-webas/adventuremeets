@@ -7,6 +7,7 @@ import { NotistackProvider } from "./components/NotistackProvider";
 import { ThemeModeProvider } from "./context/ThemeModeContext";
 import { AuthProvider } from "./context/AuthProvider";
 import { OrganizationProvider } from "./context/OrganizationProvider";
+import { FilterProvider } from "./context/FilterProvider";
 import { registerServiceWorker } from "./helpers/registerServiceWorker";
 import "./styles.css";
 
@@ -34,9 +35,11 @@ ReactDOM.createRoot(root).render(
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <OrganizationProvider>
-              <NotistackProvider>
-                <App />
-              </NotistackProvider>
+              <FilterProvider>
+                <NotistackProvider>
+                  <App />
+                </NotistackProvider>
+              </FilterProvider>
             </OrganizationProvider>
           </AuthProvider>
         </QueryClientProvider>
