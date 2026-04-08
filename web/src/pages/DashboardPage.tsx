@@ -4,6 +4,9 @@ import {
   Button,
   Container,
   Grid,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -32,14 +35,16 @@ function DashboardPage() {
   const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
+  const [view, setView] = useState<"my" | "all">(
+    currentOrganizationRole === "member" ? "my" : "all",
+  );
   const { data: meets, isLoading } = useFetchMeets({
-    view: currentOrganizationRole === "member" ? "my" : "all",
+    view,
     page: 1,
     limit: 50,
     organizationId: currentOrganizationId || undefined,
   });
   const { getName: getStatusName } = useMeetStatusLookup();
-
   const isOrganizer =
     currentOrganizationRole === "organizer" ||
     currentOrganizationRole === "admin";
@@ -51,6 +56,11 @@ function DashboardPage() {
     }
     setPendingAction(MeetActionsEnum.Create);
   }, [isOrganizer, setPendingAction, setShowCreateOrgDialog]);
+
+  useEffect(() => {
+    if (!currentOrganizationRole) return;
+    setView(currentOrganizationRole === "member" ? "my" : "all");
+  }, [currentOrganizationId, currentOrganizationRole]);
 
   useEffect(() => {
     if (!isMobile) {
@@ -114,12 +124,45 @@ function DashboardPage() {
         subtitle="View upcoming and past meets that you are organising or attending."
         actionComponent={
           !isMobile ? (
-            <Button variant="contained" onClick={handleNewMeet}>
-              New Meet
-            </Button>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={view}
+                onChange={(_event, nextView) => {
+                  if (nextView) setView(nextView);
+                }}
+              >
+                <ToggleButton value="my">My meets</ToggleButton>
+                <ToggleButton value="all">All meets</ToggleButton>
+              </ToggleButtonGroup>
+              <Button variant="contained" onClick={handleNewMeet}>
+                New Meet
+              </Button>
+            </Stack>
           ) : undefined
         }
       />
+      {isMobile && (
+        <Box sx={{ px: 1 }}>
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={view}
+            onChange={(_event, nextView) => {
+              if (nextView) setView(nextView);
+            }}
+            sx={{
+              width: "100%",
+              display: "flex",
+              "& .MuiToggleButton-root": { flex: 1 },
+            }}
+          >
+            <ToggleButton value="my">My meets</ToggleButton>
+            <ToggleButton value="all">All meets</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+      )}
 
       <Box sx={{ flex: 1, overflowY: "auto", pr: isMobile ? 0 : 1 }}>
         <Grid container spacing={3}>
