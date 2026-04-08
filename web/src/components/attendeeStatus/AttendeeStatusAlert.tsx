@@ -10,6 +10,7 @@ const statusMeta: Record<
   { label: string; severity: "success" | "info" | "warning" | "error" }
 > = {
   [AttendeeStatusEnum.Pending]: { label: "Pending", severity: "info" },
+  [AttendeeStatusEnum.Preloaded]: { label: "Preloaded", severity: "info" },
   [AttendeeStatusEnum.Confirmed]: { label: "Confirmed", severity: "success" },
   [AttendeeStatusEnum.Waitlisted]: { label: "Waitlisted", severity: "warning" },
   [AttendeeStatusEnum.Cancelled]: { label: "Cancelled", severity: "error" },

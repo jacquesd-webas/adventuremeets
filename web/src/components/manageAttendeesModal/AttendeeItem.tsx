@@ -47,7 +47,9 @@ export function AttendeeItem({
   const isRejected =
     attendee.status === AttendeeStatusEnum.Rejected ||
     attendee.status === AttendeeStatusEnum.Cancelled;
-  const isPending = attendee.status === AttendeeStatusEnum.Pending;
+  const isPending =
+    attendee.status === AttendeeStatusEnum.Pending ||
+    attendee.status === AttendeeStatusEnum.Preloaded;
   const isWaitlisted = attendee.status === AttendeeStatusEnum.Waitlisted;
   const isOrganizer = attendee && meet && attendee.userId === meet.organizerId;
   const showGuestChip = Boolean(attendee?.guestOf);

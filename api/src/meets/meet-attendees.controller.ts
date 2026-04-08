@@ -57,7 +57,9 @@ export class MeetAttendeesController {
     @Query("email") email?: string,
     @Query("phone") phone?: string,
   ) {
-    return this.meetsService.findAttendeeByContact(meetId, email, phone);
+    return this.meetsService.findAttendeeByContact(meetId, email, phone, {
+      includePreloaded: false,
+    });
   }
 
   @Public()

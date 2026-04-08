@@ -1,5 +1,6 @@
 export enum AttendeeStatusEnum {
   Pending = "pending",
+  Preloaded = "preloaded",
   Confirmed = "confirmed",
   Rejected = "rejected",
   Waitlisted = "waitlisted",
