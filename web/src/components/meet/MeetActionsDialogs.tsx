@@ -154,7 +154,7 @@ function MeetActionsDialogs({
     }
   }, [pendingAction, meetId, onActionConfirm, setSelectedMeetId]);
 
-  // For now this is just closing the dialog
+  // If we have a callback for confirming the action, call it now
   const handleConfirm = async () => {
     if (pendingAction && onActionConfirm) {
       await onActionConfirm(pendingAction, meetId);

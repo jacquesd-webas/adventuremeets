@@ -1,3 +1,4 @@
+import { useDeleteMeet } from "../../hooks/useDeleteMeet";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
 
 type ConfirmDeleteMeetDialogProps = {
@@ -10,13 +11,17 @@ type ConfirmDeleteMeetDialogProps = {
 
 export function ConfirmDeleteMeetDialog({
   open,
-  meetId: _meetId,
+  meetId,
   onClose,
   onConfirm,
-  isLoading = false
+  isLoading = false,
 }: ConfirmDeleteMeetDialogProps) {
+  const { deleteMeetAsync, isLoading: isSubmitting } = useDeleteMeet();
+
   const handleDelete = async () => {
-    // Defer to caller for actual deletion, but keep signature consistent
+    if (meetId) {
+      await deleteMeetAsync({ meetId });
+    }
     onConfirm();
   };
 
@@ -29,6 +34,7 @@ export function ConfirmDeleteMeetDialog({
       onClose={onClose}
       onConfirm={handleDelete}
       isLoading={isLoading}
+      isSubmitting={isSubmitting}
     />
   );
 }
