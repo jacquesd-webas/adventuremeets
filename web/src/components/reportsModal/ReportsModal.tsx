@@ -20,11 +20,12 @@ import {
 } from "@mui/material";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { useState, useMemo } from "react";
-import { useApi } from "../../hooks/useApi";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { useGenerateMeetReport } from "../../hooks/useGenerateMeetReport";
+import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 
 type ReportsModalProps = {
   open: boolean;
@@ -35,7 +36,8 @@ type ReportsModalProps = {
 export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const api = useApi();
+  const { generateReportAsync } = useGenerateMeetReport();
+  const { updateStatusAsync } = useUpdateMeetStatus();
   const [isGenerating, setIsGenerating] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [downloadReport, setDownloadReport] = useState(false);
@@ -78,31 +80,26 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
     if (!meetId || isGenerating || (!sendEmail && !downloadReport)) return;
     setIsGenerating(true);
     try {
-      if (downloadReport) {
-        const token = window.localStorage.getItem("accessToken");
-        const res = await fetch(`${api.baseUrl}/meets/${meetId}/report`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ sendEmail, downloadReport }),
-        });
-        if (!res.ok) {
-          const message = await res.text();
-          throw new Error(message || `Request failed with status ${res.status}`);
-        }
-        const blob = await res.blob();
+      const shouldMarkCompleted =
+        statusId !== null && statusId !== MeetStatusEnum.Completed;
+      const blob = await generateReportAsync({
+        meetId,
+        sendEmail,
+        downloadReport,
+        isFinalReport: true,
+      });
+      if (downloadReport && blob) {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
         link.download = `${meet?.name || "meet"}-report.xlsx`;
         link.click();
         window.URL.revokeObjectURL(url);
-      } else {
-        await api.post(`/meets/${meetId}/report`, {
-          sendEmail,
-          downloadReport,
+      }
+      if (shouldMarkCompleted) {
+        await updateStatusAsync({
+          meetId,
+          statusId: MeetStatusEnum.Completed,
         });
       }
       onClose();
