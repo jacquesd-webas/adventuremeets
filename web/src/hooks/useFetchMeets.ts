@@ -5,7 +5,7 @@ import Meet from "../types/MeetModel";
 type MeetsResponse = { meets: Meet[] } | Meet[];
 
 type UseFetchMeetsOptions = {
-  view?: "reports" | "plan" | "my" | "all";
+  view?: "all" | "my" | "upcoming" | "past" | "draft";
   page?: number;
   limit?: number;
   organizationId: string;
