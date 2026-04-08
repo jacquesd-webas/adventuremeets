@@ -455,7 +455,7 @@ function MeetSignupSheet() {
   const handlePhoneBlur = () => {
     const error = validatePhone(phoneLocal);
     setPhoneError(error);
-    if (!error) {
+    if (!error && !isMinor) {
       checkForDuplicate();
     }
   };
@@ -463,6 +463,7 @@ function MeetSignupSheet() {
   const checkForDuplicate = async () => {
     if (!meet) return;
     if (isEditing) return;
+    if (isMinor) return;
     const trimmedEmail = isMinor ? "" : email.trim();
     const trimmedPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!trimmedEmail && !trimmedPhone) return;
@@ -511,21 +512,24 @@ function MeetSignupSheet() {
     }
     const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!isEditing) {
-      const trimmedEmail = isMinor ? "" : email.trim();
-      const check = await checkAttendeeAsync({
-        meetId: meet.id,
-        email: trimmedEmail || undefined,
-        phone: fullPhone,
-      });
-      if (check.attendee) {
-        setExistingAttendee({ id: check.attendee.id });
-        setShowDuplicateModal(true);
-        return;
+      if (!isMinor) {
+        const trimmedEmail = email.trim();
+        const check = await checkAttendeeAsync({
+          meetId: meet.id,
+          email: trimmedEmail || undefined,
+          phone: fullPhone,
+        });
+        if (check.attendee) {
+          setExistingAttendee({ id: check.attendee.id });
+          setShowDuplicateModal(true);
+          return;
+        }
       }
     }
     const metaPayload = buildMetaPayload();
     const res = await addAttendeeAsync({
       meetId: meet.id,
+      userId: isAuthenticated ? user?.id : undefined,
       name: fullName,
       email,
       phone: fullPhone,
