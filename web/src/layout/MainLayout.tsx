@@ -26,6 +26,8 @@ import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
+import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import { useMemo, useState, MouseEvent, useEffect, ReactNode } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
@@ -240,6 +242,19 @@ function MainLayout() {
           <LogoutIcon fontSize="small" />
         </ListItemIcon>
         Logout
+      </MenuItem>
+      <Divider />
+      <MenuItem onClick={() => handleNavigate("/privacy")}>
+        <ListItemIcon>
+          <PrivacyTipOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        Privacy
+      </MenuItem>
+      <MenuItem onClick={() => handleNavigate("/tnc")}>
+        <ListItemIcon>
+          <GavelOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        T&C's
       </MenuItem>
     </Menu>
   );
@@ -537,6 +552,19 @@ function MainLayout() {
                     <LogoutIcon fontSize="small" />
                   </ListItemIcon>
                   <ListItemText primary="Logout" />
+                </ListItemButton>
+                <Divider sx={{ my: 1 }} />
+                <ListItemButton onClick={() => handleMobileNavigate("/privacy")}>
+                  <ListItemIcon>
+                    <PrivacyTipOutlinedIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Privacy" />
+                </ListItemButton>
+                <ListItemButton onClick={() => handleMobileNavigate("/tnc")}>
+                  <ListItemIcon>
+                    <GavelOutlinedIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="T&C's" />
                 </ListItemButton>
               </List>
             </Box>
