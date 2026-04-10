@@ -142,6 +142,20 @@ export function MeetActionsMenu({
     handleClose();
   };
 
+  const handleNavigateToSignup = (
+    event: MouseEvent<HTMLElement>,
+    isPreview = false,
+  ) => {
+    event.stopPropagation();
+    if (previewLinkCode) {
+      const path = isPreview
+        ? `/meets/${previewLinkCode}?preview=true`
+        : `/meets/${previewLinkCode}`;
+      nav(path);
+    }
+    handleClose();
+  };
+
   const handleAction = (
     event: MouseEvent<HTMLElement>,
     action: MeetActionsEnum,
@@ -180,21 +194,7 @@ export function MeetActionsMenu({
           )}
           {shouldShow(MeetActionsEnum.Apply, statusId) && (
             <MenuItem
-              onClick={(event) =>
-                (onItemClick || handleAction)(
-                  event,
-                  MeetActionsEnum.Apply,
-                  () => {
-                    if (previewLinkCode) {
-                      window.open(
-                        `/meets/${previewLinkCode}`,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }
-                  },
-                )
-              }
+              onClick={(event) => handleNavigateToSignup(event, false)}
             >
               <ListItemIcon>
                 <HowToRegOutlinedIcon fontSize="small" />
@@ -247,21 +247,7 @@ export function MeetActionsMenu({
           )}
           {shouldShow(MeetActionsEnum.Preview, statusId) && (
             <MenuItem
-              onClick={(event) =>
-                (onItemClick || handleAction)(
-                  event,
-                  MeetActionsEnum.Preview,
-                  () => {
-                    if (previewLinkCode) {
-                      window.open(
-                        `/meets/${previewLinkCode}?preview=true`,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }
-                  },
-                )
-              }
+              onClick={(event) => handleNavigateToSignup(event, true)}
             >
               <ListItemIcon>
                 <OpenInNewOutlinedIcon fontSize="small" />
