@@ -1,16 +1,31 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { randomBytes } from "crypto";
 import { DatabaseService } from "../database/database.service";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { OrganizationDto } from "./dto/organization.dto";
 import { OrganizationMinimalDto } from "./dto/organization-minimal.dto";
+import { CreateInviteLinkDto } from "./dto/create-invite-link.dto";
+import { InviteLinkDto } from "./dto/invite-link.dto";
+import { EmailService } from "../email/email.service";
+import { renderEmailTemplate } from "../email/email.templates";
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly database: DatabaseService) {}
+  private readonly logger = new Logger(OrganizationsService.name);
+
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly emailService: EmailService,
+  ) {}
+
+  private static readonly inviteCodeChars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
   private mapMember(row: any) {
     return {
@@ -23,6 +38,18 @@ export class OrganizationsService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  private generateInviteCode(length = 12) {
+    const bytes = randomBytes(length);
+    let value = "";
+    for (let i = 0; i < length; i += 1) {
+      value +=
+        OrganizationsService.inviteCodeChars[
+          bytes[i] % OrganizationsService.inviteCodeChars.length
+        ];
+    }
+    return value;
   }
 
   async findById(id: string) {
@@ -492,6 +519,306 @@ export class OrganizationsService {
     }
     const row = await this.findById(id);
     return this.toOrganizationDto(row);
+  }
+
+  async createInviteLink(
+    orgId: string,
+    payload: CreateInviteLinkDto,
+    createdBy: string,
+  ): Promise<InviteLinkDto> {
+    const client = this.database.getClient();
+    const organization = await client("organizations")
+      .where({ id: orgId })
+      .select("id", "name")
+      .first();
+    if (!organization) {
+      throw new NotFoundException("Organization not found");
+    }
+
+    const roleId = payload.roleId ?? 4;
+    const role = await client("roles")
+      .where({ id: roleId })
+      .select("id", "name")
+      .first();
+    if (!role) {
+      throw new BadRequestException("Invalid roleId");
+    }
+
+    const now = new Date();
+    const expiresAtDate = payload.expiresAt
+      ? new Date(payload.expiresAt)
+      : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (Number.isNaN(expiresAtDate.getTime())) {
+      throw new BadRequestException("Invalid expiresAt");
+    }
+    if (expiresAtDate.getTime() <= now.getTime()) {
+      throw new BadRequestException("Invite expiry must be in the future");
+    }
+
+    const email = payload.email.trim().toLowerCase();
+    const createdAt = now.toISOString();
+    const expiresAt = expiresAtDate.toISOString();
+    const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173")
+      .replace(/\/+$/, "");
+
+    const maxAttempts = 5;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const token = this.generateInviteCode(12);
+      try {
+        const inserted = await client("invite_links")
+          .insert({
+            org_id: orgId,
+            created_at: createdAt,
+            expires_at: expiresAt,
+            email,
+            token,
+            role_id: roleId,
+            created_by: createdBy,
+          })
+          .returning("*");
+        const row = inserted[0];
+        const registerUrl = `${frontendBase}/register?invite=${encodeURIComponent(
+          token,
+        )}`;
+        const emailTemplate = renderEmailTemplate("organization-invite", {
+          organizationName: organization.name || "your organization",
+          registerUrl,
+          expiresAt,
+        });
+        try {
+          await this.emailService.sendEmail({
+            to: email,
+            subject: emailTemplate.subject,
+            text: emailTemplate.text,
+            html: emailTemplate.html,
+          });
+        } catch (err: any) {
+          await client("invite_links").where({ id: row.id }).del();
+          this.logger.error(
+            `Failed to send organization invite email to ${email}: ${
+              err?.message || err
+            }`,
+          );
+          throw new InternalServerErrorException(
+            "Unable to send invite email",
+          );
+        }
+        return {
+          id: row.id,
+          organizationId: row.org_id ?? row.organizationId,
+          email: row.email,
+          token: row.token,
+          roleId: row.role_id ?? row.roleId,
+          roleName: role.name,
+          createdAt: row.created_at ?? row.createdAt,
+          expiresAt: row.expires_at ?? row.expiresAt,
+          acceptedAt: row.accepted_at ?? row.acceptedAt ?? null,
+          declinedAt: row.declined_at ?? row.declinedAt ?? null,
+          createdBy: row.created_by ?? row.createdBy,
+          inviteUrl: token,
+        };
+      } catch (error: any) {
+        if (error?.code === "23505") {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new BadRequestException("Unable to generate invite link");
+  }
+
+  async acceptInvite(
+    inviteId: string,
+    userId: string,
+    userEmail: string,
+  ): Promise<InviteLinkDto> {
+    const trx = await this.database.getClient().transaction();
+    try {
+      const normalizedEmail = userEmail.trim().toLowerCase();
+      const now = new Date().toISOString();
+
+      const invite = await trx("invite_links as il")
+        .leftJoin("roles as r", "r.id", "il.role_id")
+        .where("il.id", inviteId)
+        .select("il.*", "r.name as role_name")
+        .first();
+      if (!invite) {
+        throw new NotFoundException("Invite not found");
+      }
+
+      if ((invite.email || "").toLowerCase() !== normalizedEmail) {
+        throw new BadRequestException("Invite does not belong to this user");
+      }
+
+      if (invite.expires_at <= now) {
+        throw new BadRequestException("Invite has expired");
+      }
+      if (invite.declined_at) {
+        throw new BadRequestException("Invite has been declined");
+      }
+
+      const roleId = invite.role_id ?? 4;
+      const roleName = invite.role_name ?? "member";
+
+      const existingMembership = await trx("user_organization_memberships")
+        .where({
+          user_id: userId,
+          organization_id: invite.org_id,
+        })
+        .first();
+
+      if (!existingMembership) {
+        await trx("user_organization_memberships").insert({
+          user_id: userId,
+          organization_id: invite.org_id,
+          role: roleName,
+          role_id: roleId,
+          status: "active",
+          created_at: now,
+          updated_at: now,
+        });
+      } else if (existingMembership.status !== "active") {
+        await trx("user_organization_memberships")
+          .where({
+            user_id: userId,
+            organization_id: invite.org_id,
+          })
+          .update({
+            role: roleName,
+            role_id: roleId,
+            status: "active",
+            updated_at: now,
+          });
+      }
+
+      if (!invite.accepted_at) {
+        await trx("invite_links").where({ id: inviteId }).update({
+          accepted_at: now,
+        });
+      }
+
+      const updated = await trx("invite_links as il")
+        .leftJoin("roles as r", "r.id", "il.role_id")
+        .where("il.id", inviteId)
+        .select("il.*", "r.name as role_name")
+        .first();
+      if (!updated) {
+        throw new NotFoundException("Invite not found");
+      }
+
+      await trx.commit();
+      return {
+        id: updated.id,
+        organizationId: updated.org_id ?? updated.organizationId,
+        email: updated.email,
+        token: updated.token,
+        roleId: updated.role_id ?? updated.roleId,
+        roleName: updated.role_name ?? updated.roleName,
+        createdAt: updated.created_at ?? updated.createdAt,
+        expiresAt: updated.expires_at ?? updated.expiresAt,
+        acceptedAt: updated.accepted_at ?? updated.acceptedAt ?? null,
+        declinedAt: updated.declined_at ?? updated.declinedAt ?? null,
+        createdBy: updated.created_by ?? updated.createdBy,
+        inviteUrl: updated.token,
+      };
+    } catch (err) {
+      await trx.rollback();
+      throw err;
+    }
+  }
+
+  async listInviteLinks(orgId: string): Promise<InviteLinkDto[]> {
+    const client = this.database.getClient();
+    const organization = await client("organizations")
+      .where({ id: orgId })
+      .select("id")
+      .first();
+    if (!organization) {
+      throw new NotFoundException("Organization not found");
+    }
+
+    const now = new Date().toISOString();
+    const rows = await client("invite_links as il")
+      .leftJoin("roles as r", "r.id", "il.role_id")
+      .where("il.org_id", orgId)
+      .andWhere("il.expires_at", ">", now)
+      .orderBy("il.created_at", "desc")
+      .select("il.*", "r.name as role_name");
+
+    return rows.map((row) => ({
+      id: row.id,
+      organizationId: row.org_id ?? row.organizationId,
+      email: row.email,
+      token: row.token,
+      roleId: row.role_id ?? row.roleId,
+      roleName: row.role_name ?? row.roleName,
+      createdAt: row.created_at ?? row.createdAt,
+      expiresAt: row.expires_at ?? row.expiresAt,
+      acceptedAt: row.accepted_at ?? row.acceptedAt ?? null,
+      declinedAt: row.declined_at ?? row.declinedAt ?? null,
+      createdBy: row.created_by ?? row.createdBy,
+      inviteUrl: row.token,
+    }));
+  }
+
+  async declineInvite(inviteId: string, userEmail: string): Promise<InviteLinkDto> {
+    const trx = await this.database.getClient().transaction();
+    try {
+      const normalizedEmail = userEmail.trim().toLowerCase();
+      const now = new Date().toISOString();
+
+      const invite = await trx("invite_links as il")
+        .leftJoin("roles as r", "r.id", "il.role_id")
+        .where("il.id", inviteId)
+        .select("il.*", "r.name as role_name")
+        .first();
+      if (!invite) {
+        throw new NotFoundException("Invite not found");
+      }
+
+      if ((invite.email || "").toLowerCase() !== normalizedEmail) {
+        throw new BadRequestException("Invite does not belong to this user");
+      }
+
+      if (invite.accepted_at) {
+        throw new BadRequestException("Invite has already been accepted");
+      }
+
+      if (!invite.declined_at) {
+        await trx("invite_links").where({ id: inviteId }).update({
+          declined_at: now,
+        });
+      }
+
+      const updated = await trx("invite_links as il")
+        .leftJoin("roles as r", "r.id", "il.role_id")
+        .where("il.id", inviteId)
+        .select("il.*", "r.name as role_name")
+        .first();
+      if (!updated) {
+        throw new NotFoundException("Invite not found");
+      }
+
+      await trx.commit();
+      return {
+        id: updated.id,
+        organizationId: updated.org_id ?? updated.organizationId,
+        email: updated.email,
+        token: updated.token,
+        roleId: updated.role_id ?? updated.roleId,
+        roleName: updated.role_name ?? updated.roleName,
+        createdAt: updated.created_at ?? updated.createdAt,
+        expiresAt: updated.expires_at ?? updated.expiresAt,
+        acceptedAt: updated.accepted_at ?? updated.acceptedAt ?? null,
+        declinedAt: updated.declined_at ?? updated.declinedAt ?? null,
+        createdBy: updated.created_by ?? updated.createdBy,
+        inviteUrl: updated.token,
+      };
+    } catch (err) {
+      await trx.rollback();
+      throw err;
+    }
   }
 
   private toMinimalOrganizationDto(row: any): OrganizationMinimalDto {

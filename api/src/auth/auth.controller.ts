@@ -144,6 +144,10 @@ export class AuthController {
       throw new ForbiddenException("User not found");
     }
     const orgRoles = await this.usersService.findOrganizationRoles(user.id);
+    const pendingInvites = await this.usersService.listPendingInvitesByEmail(
+      user.id,
+      fullUser.email,
+    );
     const organizations = orgRoles.reduce<Record<string, string>>(
       (acc, org) => {
         const role =
@@ -157,6 +161,7 @@ export class AuthController {
     return {
       ...fullUser,
       organizations,
+      pendingInvites,
     } as UserProfile;
   }
 }

@@ -9,7 +9,8 @@ export type EmailTemplateName =
   | "meet-confirm"
   | "meet-reject"
   | "meet-waitlist"
-  | "meet-message";
+  | "meet-message"
+  | "organization-invite";
 
 export type PasswordResetTemplateVars = {
   resetUrl: string;
@@ -52,6 +53,12 @@ export type MeetMessageTemplateVars = {
   organizerName?: string;
   organizerEmail?: string;
   messageBody: string;
+};
+
+export type OrganizationInviteTemplateVars = {
+  organizationName: string;
+  registerUrl?: string;
+  expiresAt?: string;
 };
 
 const BRAND_NAME = "AdventureMeets";
@@ -180,13 +187,18 @@ export function renderEmailTemplate(
   vars: MeetMessageTemplateVars,
 ): { subject: string; text: string; html: string };
 export function renderEmailTemplate(
+  name: "organization-invite",
+  vars: OrganizationInviteTemplateVars,
+): { subject: string; text: string; html: string };
+export function renderEmailTemplate(
   name: EmailTemplateName,
   vars?:
     | PasswordResetTemplateVars
     | MeetSignupTemplateVars
     | VerifyEmailTemplateVars
     | MeetStatusTemplateVars
-    | MeetMessageTemplateVars,
+    | MeetMessageTemplateVars
+    | OrganizationInviteTemplateVars,
 ) {
   if (name === "password-reset") {
     const resetVars = vars as PasswordResetTemplateVars | undefined;
@@ -405,6 +417,34 @@ export function renderEmailTemplate(
     };
     const text = renderTemplate("verify-email", "txt", varsMap);
     const htmlBody = renderTemplate("verify-email", "html", varsMap);
+    return { subject, text, html: wrapHtml(htmlBody) };
+  }
+
+  if (name === "organization-invite") {
+    const inviteVars = vars as OrganizationInviteTemplateVars | undefined;
+    if (!inviteVars?.organizationName || !inviteVars?.registerUrl) {
+      throw new Error("Missing organizationName or registerUrl for organization-invite template");
+    }
+    const subject = `You're invited to join ${inviteVars.organizationName}`;
+    const varsMap = {
+      ...baseVarsMap,
+      organizationName: escapeHtml(inviteVars.organizationName),
+      registerUrl: inviteVars.registerUrl || "",
+      expiresAt: inviteVars.expiresAt
+        ? formatDateTime(inviteVars.expiresAt)
+        : "",
+    };
+    const flags = {
+      ifRegisterUrl: Boolean(inviteVars.registerUrl),
+      ifExpiresAt: Boolean(inviteVars.expiresAt),
+    };
+    const text = renderTemplate("organization-invite", "txt", varsMap, flags);
+    const htmlBody = renderTemplate(
+      "organization-invite",
+      "html",
+      varsMap,
+      flags,
+    );
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 }
