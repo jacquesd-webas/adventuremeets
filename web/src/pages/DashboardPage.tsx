@@ -152,8 +152,8 @@ function DashboardPage() {
                 },
               }}
             >
-              <ToggleButton value="my">MY</ToggleButton>
-              <ToggleButton value="all">ALL</ToggleButton>
+              <ToggleButton value="my">My Meets</ToggleButton>
+              <ToggleButton value="all">All Meets</ToggleButton>
             </ToggleButtonGroup>
           )
         }
