@@ -139,6 +139,7 @@ function ListPage() {
               isOrganizer={params.row.organizerId === user?.id}
               setSelectedMeetId={setSelectedMeetId}
               setPendingAction={setPendingAction}
+              previewLinkCode={params.row.shareCode}
             />
           </Box>
         ),
@@ -343,6 +344,7 @@ function ListPage() {
                       isOrganizer={meet.organizerId === user?.id}
                       setSelectedMeetId={setSelectedMeetId}
                       setPendingAction={setPendingAction}
+                      previewLinkCode={meet.shareCode || undefined}
                     />
                   </Box>
                 </Stack>
