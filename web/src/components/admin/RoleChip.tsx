@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { Chip, useTheme } from "@mui/material";
 import { useFetchRoles } from "../../hooks/useFetchRoles";
 
