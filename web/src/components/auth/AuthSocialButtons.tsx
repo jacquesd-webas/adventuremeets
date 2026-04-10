@@ -45,7 +45,7 @@ export function AuthSocialButtons({
           }
           aria-label="Google"
           title="Google"
-          onClick={() => handleSelect("google")}
+          disabled
         >
           {iconOnlySocial ? null : "Google"}
         </Button>
@@ -79,7 +79,7 @@ export function AuthSocialButtons({
           }
           aria-label="Facebook"
           title="Facebook"
-          onClick={() => handleSelect("facebook")}
+          disabled
         >
           {iconOnlySocial ? null : "Facebook"}
         </Button>
@@ -118,9 +118,9 @@ export function AuthSocialButtons({
         fullWidth
         aria-label="Continue with Google"
         title="Continue with Google"
-        onClick={() => handleSelect("google")}
+        disabled
       >
-        {isMobile ? "Google" : "Continue with Google"}
+        {isMobile ? "Google (coming soon)" : "Continue with Google (coming soon)"}
       </Button>
       <Button
         variant="outlined"
@@ -156,9 +156,11 @@ export function AuthSocialButtons({
         fullWidth
         aria-label="Continue with Facebook"
         title="Continue with Facebook"
-        onClick={() => handleSelect("facebook")}
+        disabled
       >
-        {isMobile ? "Facebook" : "Continue with Facebook"}
+        {isMobile
+          ? "Facebook (coming soon)"
+          : "Continue with Facebook (coming soon)"}
       </Button>
     </Stack>
   );
