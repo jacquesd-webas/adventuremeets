@@ -86,12 +86,7 @@ export function MeetInfoSummary({
           ? matchText
           : `https://${matchText}`;
         parts.push(
-          <Link
-            key={`${index}-${matchText}`}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <Link key={`${index}-${matchText}`} href={href}>
             {matchText}
           </Link>,
         );

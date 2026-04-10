@@ -4,13 +4,15 @@ import {
   Container,
   Dialog,
   DialogContent,
-  DialogTitle,
+  Drawer,
+  IconButton,
   Paper,
   Stack,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
@@ -34,7 +36,6 @@ import { LoginForm } from "../components/auth/LoginForm";
 import { MeetStatusAlert } from "../components/meet/MeetStatusAlert";
 import { useAuth } from "../context/authContext";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
-import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
@@ -46,6 +47,46 @@ import {
   validateRequired,
 } from "../helpers/validation";
 import { MeetSignupFormFields } from "../components/meetSignup/MeetSignupFormFields";
+
+const DEFAULT_OG_IMAGE = "/static/adventuremeets-logo.png";
+const DEFAULT_OG_DESCRIPTION = "Join this meet on AdventureMeets.";
+
+function toAbsoluteUrl(url?: string | null): string {
+  const fallbackBase =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const fallback = `${fallbackBase}${DEFAULT_OG_IMAGE}`;
+  if (!url?.trim()) {
+    return fallback;
+  }
+  try {
+    return new URL(url, fallbackBase).toString();
+  } catch {
+    return fallback;
+  }
+}
+
+function setMetaProperty(property: string, content: string): () => void {
+  const selector = `meta[property="${property}"]`;
+  const existing = document.head.querySelector<HTMLMetaElement>(selector);
+  if (existing) {
+    const previousContent = existing.getAttribute("content");
+    existing.setAttribute("content", content);
+    return () => {
+      if (previousContent === null) {
+        existing.removeAttribute("content");
+      } else {
+        existing.setAttribute("content", previousContent);
+      }
+    };
+  }
+  const created = document.createElement("meta");
+  created.setAttribute("property", property);
+  created.setAttribute("content", content);
+  document.head.appendChild(created);
+  return () => {
+    created.remove();
+  };
+}
 
 function MeetSignupSheet() {
   const { code, attendeeId: attendeeIdParam } = useParams<{
@@ -77,7 +118,7 @@ function MeetSignupSheet() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { mode } = useThemeMode();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const queryClient = useQueryClient();
   const mobilePreviewTopOffset = "var(--preview-banner-height, 0px)";
   const suppressAutofillRef = useRef(false);
@@ -348,6 +389,29 @@ function MeetSignupSheet() {
     fullName,
   ]);
 
+  useEffect(() => {
+    const title = meet?.name?.trim() || "AdventureMeets";
+    const description = meet?.description?.trim() || DEFAULT_OG_DESCRIPTION;
+    const image = toAbsoluteUrl(meet?.imageUrl);
+    const url = window.location.href;
+
+    const previousTitle = document.title;
+    document.title = title;
+
+    const restoreTitle = setMetaProperty("og:title", title);
+    const restoreDescription = setMetaProperty("og:description", description);
+    const restoreImage = setMetaProperty("og:image", image);
+    const restoreUrl = setMetaProperty("og:url", url);
+
+    return () => {
+      document.title = previousTitle;
+      restoreUrl();
+      restoreImage();
+      restoreDescription();
+      restoreTitle();
+    };
+  }, [meet?.description, meet?.imageUrl, meet?.name]);
+
   const handleLogout = () => {
     suppressAutofillRef.current = true;
     resetState();
@@ -362,6 +426,23 @@ function MeetSignupSheet() {
     setShowDuplicateModal(false);
     setSubmitted(false);
     setSubmittedAttendeeId(null);
+  };
+
+  const handleCloseSheet = () => {
+    if (window.opener) {
+      window.close();
+      return;
+    }
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.assign("/");
+  };
+
+  const handleSignOut = () => {
+    handleLogout();
+    logout();
   };
 
   const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
@@ -635,14 +716,19 @@ function MeetSignupSheet() {
                 meet={meet}
                 isPreview={isPreview}
                 actionSlot={
-                  guestOf ? (
-                    <Chip label="Guest" size="small" color="info" />
-                  ) : (
-                    <MeetSignupUserAction
-                      formEmail={undefined}
-                      onLogout={handleLogout}
-                    />
-                  )
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {guestOf ? (
+                      <Chip label="Guest" size="small" color="info" />
+                    ) : null}
+                    <IconButton
+                      onClick={handleCloseSheet}
+                      size="small"
+                      aria-label="Close"
+                      data-testid="close-meet-signup-sheet"
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
                 }
               />
               {!isPreview && (
@@ -673,8 +759,11 @@ function MeetSignupSheet() {
                   isSubmitDisabled={isSubmitDisabled}
                   isSubmitting={isSubmitting}
                   isEditing={isEditing}
+                  isAuthenticated={isAuthenticated}
                   onSubmit={handleSubmit}
                   onCancelEdit={handleCancelEdit}
+                  onSignInClick={() => setLoginOpen(true)}
+                  onSignOutClick={handleSignOut}
                   onCheckDuplicate={
                     isEditing ? () => undefined : checkForDuplicate
                   }
@@ -696,20 +785,59 @@ function MeetSignupSheet() {
           onRemove={handleRemove}
           onUpdate={handleUpdate}
         />
-        <Dialog
-          open={loginOpen}
-          onClose={() => setLoginOpen(false)}
-          fullWidth
-          maxWidth="sm"
-        >
-          <DialogTitle>Login</DialogTitle>
-          <DialogContent sx={{ pt: 2 }}>
-            <LoginForm
-              onSuccess={() => setLoginOpen(false)}
-              submitLabel="Login"
-            />
-          </DialogContent>
-        </Dialog>
+        {isMobile ? (
+          <Drawer
+            anchor="bottom"
+            open={loginOpen}
+            onClose={() => setLoginOpen(false)}
+            slotProps={{
+              backdrop: {
+                sx: { backgroundColor: "rgba(0,0,0,0.35)" },
+              },
+            }}
+            ModalProps={{
+              keepMounted: true,
+              disableAutoFocus: true,
+              disableEnforceFocus: true,
+              disableRestoreFocus: true,
+            }}
+            PaperProps={{
+              sx: {
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                maxHeight: "78vh",
+                overflowY: "auto",
+                pb: "calc(16px + env(safe-area-inset-bottom))",
+              },
+            }}
+          >
+            <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Login
+              </Typography>
+              <LoginForm
+                onSuccess={() => setLoginOpen(false)}
+                submitLabel="Login"
+                showSocialButtons
+              />
+            </Box>
+          </Drawer>
+        ) : (
+          <Dialog
+            open={loginOpen}
+            onClose={() => setLoginOpen(false)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogContent sx={{ pt: 2 }}>
+              <LoginForm
+                onSuccess={() => setLoginOpen(false)}
+                submitLabel="Login"
+                showSocialButtons
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </Container>
     </Box>
   );

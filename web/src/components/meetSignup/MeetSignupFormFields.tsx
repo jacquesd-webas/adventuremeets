@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   FormControlLabel,
+  Link,
   MenuItem,
   Stack,
   Switch,
@@ -60,8 +61,11 @@ export type MeetSignupFormFieldsProps = {
   isSubmitDisabled: boolean;
   isSubmitting: boolean;
   isEditing: boolean;
+  isAuthenticated: boolean;
   onSubmit: () => void;
   onCancelEdit?: () => void;
+  onSignInClick: () => void;
+  onSignOutClick: () => void;
   onCheckDuplicate: () => void;
   onNameBlur: () => void;
   onEmailBlur: () => void;
@@ -93,8 +97,11 @@ export function MeetSignupFormFields({
   isSubmitDisabled,
   isSubmitting,
   isEditing,
+  isAuthenticated,
   onSubmit,
   onCancelEdit,
+  onSignInClick,
+  onSignOutClick,
   onNameBlur,
   onEmailBlur,
   onPhoneBlur,
@@ -154,6 +161,36 @@ export function MeetSignupFormFields({
           }
           disabled={!isMinor && disableIdentityFields}
         />
+        <Typography variant="caption" color="text.secondary">
+          {isAuthenticated ? (
+            <>
+              Fields are automatically filled in because you are signed in. You
+              can{" "}
+              <Link
+                component="button"
+                type="button"
+                onClick={onSignOutClick}
+                underline="always"
+              >
+                sign out
+              </Link>{" "}
+              if this is not you.
+            </>
+          ) : (
+            <>
+              You can{" "}
+              <Link
+                component="button"
+                type="button"
+                onClick={onSignInClick}
+                underline="always"
+              >
+                sign in
+              </Link>{" "}
+              if you already have an account to automatically fill in fields.
+            </>
+          )}
+        </Typography>
 
         {isMinor ? (
           <>
