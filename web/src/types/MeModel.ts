@@ -9,4 +9,13 @@ export type Me = {
   idp_profile?: {
     name?: string;
   };
+  pendingInvites?: Array<{
+    id: string;
+    organizationId: string;
+    organizationName: string;
+    roleId: number;
+    roleName?: string;
+    createdAt: string;
+    expiresAt: string;
+  }>;
 };

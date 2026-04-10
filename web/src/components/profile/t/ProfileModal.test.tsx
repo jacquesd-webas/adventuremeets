@@ -12,7 +12,9 @@ let mockedOrganization: Record<string, any> = {
 };
 let mockedMetaDefinitions: Array<Record<string, any>> = [];
 let mockedUserMetaValues: Array<Record<string, any>> = [];
+let mockedInvites: Array<Record<string, any>> = [];
 const mockedUpdateMetaValuesAsync = vi.fn();
+const mockedCreateInviteAsync = vi.fn();
 
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
@@ -88,6 +90,33 @@ vi.mock("../../../hooks/useNotistack", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useCreateOrganizationInvite", () => ({
+  useCreateOrganizationInvite: () => ({
+    createInviteAsync: mockedCreateInviteAsync,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useOrganizationRoleOptions", () => ({
+  useOrganizationRoleOptions: () => ({
+    roleOptions: [
+      { id: 2, name: "admin", label: "Admin" },
+      { id: 3, name: "organizer", label: "Organizer" },
+      { id: 4, name: "member", label: "Member" },
+    ],
+    defaultRoleId: 4,
+  }),
+}));
+
+vi.mock("../../../hooks/useFetchOrganizationInvites", () => ({
+  useFetchOrganizationInvites: () => ({
+    data: mockedInvites,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 describe("ProfileModal", () => {
   const renderWithQueryClient = async (ui: React.ReactElement) => {
     const queryClient = new QueryClient();
@@ -102,6 +131,7 @@ describe("ProfileModal", () => {
 
   beforeEach(() => {
     mockedUpdateMetaValuesAsync.mockReset();
+    mockedCreateInviteAsync.mockReset();
     mockedOrganization = {
       id: "org-1",
       name: "Adventure Meets",
@@ -110,6 +140,7 @@ describe("ProfileModal", () => {
     };
     mockedMetaDefinitions = [];
     mockedUserMetaValues = [];
+    mockedInvites = [];
   });
 
   it("renders and allows section navigation", async () => {
@@ -120,10 +151,16 @@ describe("ProfileModal", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Organisation" }));
-    expect(screen.getByText("Save organization")).toBeInTheDocument();
     expect(
-      screen.getByText("Allow members to see all events in this organisation"),
+      screen.getByText("Allow regular users to join with invite link"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Save organization")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Invites" }));
+    expect(
+      screen.getByRole("button", { name: "Invite User" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Pending invites")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Security" }));
     expect(screen.getByText("Update password")).toBeInTheDocument();
@@ -137,7 +174,7 @@ describe("ProfileModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows invite toggle instead of invite link when organization is private", async () => {
+  it("hides organisation invite link textbox when organization is private", async () => {
     mockedOrganization = {
       id: "org-1",
       name: "Adventure Meets",
@@ -148,12 +185,34 @@ describe("ProfileModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Organisation" }));
 
     expect(
-      screen.getByText("Allow users to join with invite link"),
+      screen.getByText("Allow regular users to join with invite link"),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Invite link")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Copy invite link" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows a copy action per pending invite", async () => {
+    mockedInvites = [
+      {
+        id: "invite-1",
+        organizationId: "org-1",
+        email: "invitee@example.com",
+        token: "ABC123DEF456",
+        roleId: 4,
+        acceptedAt: null,
+      },
+    ];
+
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Invites" }));
+
+    expect(
+      screen.getByRole("button", {
+        name: "Copy invite link for invitee@example.com",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("sends empty values for omitted autofill fields", async () => {
