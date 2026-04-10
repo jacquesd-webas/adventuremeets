@@ -1,100 +1,21 @@
 import {
   Box,
-  Button,
   Container,
   Drawer,
-  Link,
   Paper,
-  Stack,
-  TextField,
   Typography,
-  Alert,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-import { useState } from "react";
-import { useLogin } from "../hooks/useLogin";
-import { useNavigate } from "react-router-dom";
-import { AuthSocialButtons } from "../components/auth/AuthSocialButtons";
 import { getLogoSrc } from "../helpers/logo";
-import { useAuth } from "../context/authContext";
-import { PasswordField } from "../components/formFields/PasswordField";
+import { LoginForm } from "../components/auth/LoginForm";
+import { useNavigate } from "react-router-dom";
 
 function LoginPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const { loginAsync, isLoading, error } = useLogin();
-  const { refreshSession } = useAuth();
-  const nav = useNavigate();
   const logoSrc = getLogoSrc();
-
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    loginAsync({ email, password })
-      .then(() => {
-        refreshSession();
-        nav("/");
-      })
-      .catch((err) => {
-        console.error("Login failed", err);
-      });
-  };
-
-  const loginContent = (
-    <>
-      <Typography variant="h5" mb={2}>
-        Login
-      </Typography>
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error.message}
-        </Alert>
-      )}
-      <Box component="form" onSubmit={handleSubmit} sx={{ mb: 2 }}>
-        <Stack spacing={2}>
-          <TextField
-            label="Email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <EmailOutlinedIcon
-                  fontSize="small"
-                  sx={{ mr: 1, color: "text.disabled" }}
-                />
-              ),
-            }}
-          />
-          <PasswordField
-            label="Password"
-            required
-            value={password}
-            onValueChange={setPassword}
-          />
-          <Button
-            type="submit"
-            variant="contained"
-            size="large"
-            sx={{ textTransform: "uppercase" }}
-          >
-            {isLoading ? "Logging in..." : "Login"}
-          </Button>
-        </Stack>
-      </Box>
-
-      <AuthSocialButtons compact />
-
-      <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
-        <Link href="/register">Create Account</Link>
-        <Link href="/forgot-password">Forgot password?</Link>
-      </Stack>
-    </>
-  );
+  const nav = useNavigate();
 
   return (
     <Box
@@ -121,7 +42,11 @@ function LoginPage() {
         </Box>
         {!isMobile && (
           <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
-            {loginContent}
+            <LoginForm
+              showSocialButtons
+              showFooterLinks
+              onSuccess={() => nav("/", { replace: true })}
+            />
           </Paper>
         )}
       </Container>
@@ -155,7 +80,13 @@ function LoginPage() {
             },
           }}
         >
-          <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>{loginContent}</Box>
+          <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>
+            <LoginForm
+              showSocialButtons
+              showFooterLinks
+              onSuccess={() => nav("/", { replace: true })}
+            />
+          </Box>
         </Drawer>
       )}
     </Box>

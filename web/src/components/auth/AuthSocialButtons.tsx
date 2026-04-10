@@ -31,10 +31,7 @@ export function AuthSocialButtons({
   const handleSelect = (
     provider: "google" | "microsoft" | "facebook" | "email"
   ) => {
-    // Social providers disabled for now
-    if (provider === "email") {
-      onSelect?.(provider);
-    }
+    onSelect?.(provider);
   };
 
   if (compact) {
@@ -48,7 +45,7 @@ export function AuthSocialButtons({
           }
           aria-label="Google"
           title="Google"
-          disabled
+          onClick={() => handleSelect("google")}
         >
           {iconOnlySocial ? null : "Google"}
         </Button>
@@ -121,9 +118,9 @@ export function AuthSocialButtons({
         fullWidth
         aria-label="Continue with Google"
         title="Continue with Google"
-        disabled
+        onClick={() => handleSelect("google")}
       >
-        {isMobile ? "Google (coming soon)" : "Continue with Google (coming soon)"}
+        {isMobile ? "Google" : "Continue with Google"}
       </Button>
       <Button
         variant="outlined"

@@ -14,6 +14,22 @@ vi.mock("../../../hooks/useLogin", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useGoogleAuthUrl", () => ({
+  useGoogleAuthUrl: () => ({
+    getGoogleAuthUrlAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useGoogleCodeLogin", () => ({
+  useGoogleCodeLogin: () => ({
+    googleCodeLoginAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
     refreshSession,

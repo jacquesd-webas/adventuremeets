@@ -7,6 +7,7 @@ import {
   forwardRef,
   InternalServerErrorException,
   Logger,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
@@ -440,7 +441,7 @@ export class AuthService {
     const fallbackRedirect = process.env.GOOGLE_REDIRECT_URI;
     const actualRedirect = redirectUri || fallbackRedirect;
     if (!clientId || !actualRedirect) {
-      throw new UnauthorizedException("Google OAuth is not configured");
+      throw new ServiceUnavailableException("Google OAuth is not configured");
     }
     const params = new URLSearchParams({
       client_id: clientId,
@@ -480,7 +481,7 @@ export class AuthService {
     const fallbackRedirect = process.env.GOOGLE_REDIRECT_URI;
     const actualRedirect = redirectUri || fallbackRedirect;
     if (!clientId || !clientSecret || !actualRedirect) {
-      throw new UnauthorizedException("Google OAuth is not configured");
+      throw new ServiceUnavailableException("Google OAuth is not configured");
     }
     const params = new URLSearchParams({
       code,
