@@ -1,6 +1,35 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsBoolean, IsDateString, IsString } from "class-validator";
 
+export class PendingInviteProfileDto {
+  @ApiProperty()
+  @IsString()
+  id!: string;
+
+  @ApiProperty()
+  @IsString()
+  organizationId!: string;
+
+  @ApiProperty()
+  @IsString()
+  organizationName!: string;
+
+  @ApiProperty()
+  roleId!: number;
+
+  @ApiPropertyOptional()
+  @IsString()
+  roleName?: string;
+
+  @ApiProperty()
+  @IsDateString()
+  createdAt!: string;
+
+  @ApiProperty()
+  @IsDateString()
+  expiresAt!: string;
+}
+
 export class UserProfile {
   @ApiProperty()
   id!: string;
@@ -55,8 +84,12 @@ export class UserProfile {
   })
   organizations?: Record<string, string>;
 
+  @ApiPropertyOptional({ type: [PendingInviteProfileDto] })
+  pendingInvites?: PendingInviteProfileDto[];
+
   constructor() {
     this.organizations = {};
+    this.pendingInvites = [];
   }
 
   // Internal use only; not exposed in /me response.

@@ -5,6 +5,16 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { v4 as uuid } from "uuid";
 import * as bcrypt from "bcryptjs";
 
+export type PendingInviteSummary = {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  roleId: number;
+  roleName?: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
 @Injectable()
 export class UsersService {
   constructor(private readonly database: DatabaseService) {}
@@ -254,6 +264,54 @@ export class UsersService {
       organizationId: row.organization_id,
       role: row.role,
     }));
+  }
+
+  async listPendingInvitesByEmail(
+    userId: string,
+    email: string,
+  ): Promise<PendingInviteSummary[]> {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return [];
+
+    const activeMemberships = await this.database
+      .getClient()("user_organization_memberships")
+      .where({ user_id: userId, status: "active" })
+      .select("organization_id");
+    const activeOrgIds = new Set(
+      activeMemberships.map((row) => row.organization_id),
+    );
+
+    const now = new Date().toISOString();
+    const rows = await this.database
+      .getClient()("invite_links as il")
+      .join("organizations as o", "o.id", "il.org_id")
+      .leftJoin("roles as r", "r.id", "il.role_id")
+      .whereRaw("LOWER(il.email) = ?", [normalizedEmail])
+      .whereNull("il.accepted_at")
+      .whereNull("il.declined_at")
+      .andWhere("il.expires_at", ">", now)
+      .orderBy("il.created_at", "desc")
+      .select(
+        "il.id",
+        "il.org_id",
+        "il.role_id",
+        "il.created_at",
+        "il.expires_at",
+        "o.name as organization_name",
+        "r.name as role_name",
+      );
+
+    return rows
+      .filter((row: any) => !activeOrgIds.has(row.org_id))
+      .map((row: any) => ({
+        id: row.id,
+        organizationId: row.org_id,
+        organizationName: row.organization_name,
+        roleId: row.role_id,
+        roleName: row.role_name ?? undefined,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+      }));
   }
 
   async update(id: string, dto: UpdateUserDto) {
