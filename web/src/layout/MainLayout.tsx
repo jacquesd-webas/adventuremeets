@@ -37,6 +37,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { ChooseOrganizationModal } from "../components/auth/ChooseOrganizationModal";
+import { PendingInvitePromptModal } from "../components/auth/PendingInvitePromptModal";
 import {
   getAllowedThemeModes,
   getOrganizationBackground,
@@ -89,6 +90,7 @@ function MainLayout() {
     user?.organizations && Object.values(user.organizations).includes("admin"),
   );
   const isCurrentOrgAdmin = currentOrganizationRole === "admin";
+  const pendingInvites = useMemo(() => user?.pendingInvites ?? [], [user]);
 
   const displayName = useMemo(() => {
     if (!user) return "";
@@ -596,6 +598,7 @@ function MainLayout() {
         onClose={() => setOrgModalOpen(false)}
         disableClose={!currentOrganizationId}
       />
+      <PendingInvitePromptModal pendingInvites={pendingInvites} />
     </Box>
   );
 }
