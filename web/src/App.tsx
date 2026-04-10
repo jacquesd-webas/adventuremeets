@@ -14,6 +14,9 @@ import UsersPage from "./pages/UsersPage";
 import TemplatesPage from "./pages/TemplatesPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import SplashPage from "./pages/SplashPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TncPage from "./pages/TncPage";
 
 function App() {
   return (
@@ -36,6 +39,14 @@ function App() {
       <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
       <Route path="/meets/:code/:attendeeId" element={<AttendeeStatusPage />} />
       <Route path="/meets/:code" element={<MeetSignupSheet />} />
+      <Route path="/splash" element={<SplashPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
+      <Route path="/tnc" element={<TncPage />} />
+      <Route
+        path="/terms-and-conditions"
+        element={<Navigate to="/tnc" replace />}
+      />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/oauth/callback/google" element={<LoginPage />} />
       <Route path="/oauth/callback/facebook" element={<LoginPage />} />
