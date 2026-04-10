@@ -80,9 +80,10 @@ describe("Meet signup with Bob", () => {
     cy.get('input[type="password"]').type("Password123!");
     cy.contains("button", "Login").click();
     cy.contains("Dashboard").should("be.visible");
-    cy.contains(meetName).should("be.visible");
+    cy.contains(meetName).scrollIntoView().as("createdMeetRow");
+    cy.get("@createdMeetRow").should("be.visible");
 
-    cy.contains(meetName)
+    cy.get("@createdMeetRow")
       .parents('[role="row"]')
       .first()
       .within(() => {

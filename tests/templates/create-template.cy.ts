@@ -19,7 +19,7 @@ describe("Create template", () => {
     cy.get('[role="menu"]').contains("Profile").click();
 
     cy.contains("Organisation").click();
-    cy.contains("Allow users to join with invite link")
+    cy.contains("Allow regular users to join with invite link")
       .parent()
       .find('input[type="checkbox"]')
       .check({ force: true });
@@ -76,9 +76,7 @@ describe("Create template", () => {
       .eq(3)
       .type("Agree to leave no trace?");
 
-    cy.get('[data-testid="create-template-submit"]')
-      .scrollIntoView()
-      .click();
+    cy.get('[data-testid="create-template-submit"]').scrollIntoView().click();
   });
 });
 
