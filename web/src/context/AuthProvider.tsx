@@ -8,6 +8,8 @@ import { useFetchMe } from "../hooks/useFetchMe";
 import { useApi } from "../hooks/useApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuthContext, AuthContextValue } from "./authContext";
+import { useLocation } from "react-router-dom";
+import { isPublicRoutePath } from "../helpers/publicRoutes";
 
 type Props = {
   children: ReactNode;
@@ -15,6 +17,8 @@ type Props = {
 
 export function AuthProvider({ children }: Props) {
   const api = useApi();
+  const location = useLocation();
+  const isPublicRoute = isPublicRoutePath(location.pathname);
   const refreshInFlight = useRef(false);
   const refetchRef = useRef<() => Promise<unknown>>(async () => undefined);
   const queryClient = useQueryClient();
@@ -44,6 +48,7 @@ export function AuthProvider({ children }: Props) {
     refetch,
   } = useFetchMe({
     onUnauthorized: handleUnauthorized,
+    enabled: !isPublicRoute,
   });
   refetchRef.current = refetch;
 
