@@ -21,6 +21,8 @@ import { RegisterDto } from "./dto/register.dto";
 import { GoogleAuthUrlDto } from "./dto/google-auth-url.dto";
 import { GoogleAuthCodeDto } from "./dto/google-auth-code.dto";
 import { GoogleIdTokenDto } from "./dto/google-id-token.dto";
+import { FacebookAuthUrlDto } from "./dto/facebook-auth-url.dto";
+import { FacebookAuthCodeDto } from "./dto/facebook-auth-code.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { VerifyEmailDto } from "./dto/verify-email.dto";
@@ -87,6 +89,22 @@ export class AuthController {
   @Post("google/verify")
   async googleVerify(@Body() dto: GoogleIdTokenDto): Promise<TokenPair> {
     return this.authService.googleLoginWithIdToken(dto.idToken);
+  }
+
+  @Public()
+  @Get("facebook/url")
+  async facebookUrl(@Query() query: FacebookAuthUrlDto) {
+    const url = await this.authService.getFacebookAuthUrl(
+      query.redirectUri,
+      query.state,
+    );
+    return { url };
+  }
+
+  @Public()
+  @Post("facebook/token")
+  async facebookToken(@Body() dto: FacebookAuthCodeDto): Promise<TokenPair> {
+    return this.authService.facebookLoginWithCode(dto.code, dto.redirectUri);
   }
 
   @Public()

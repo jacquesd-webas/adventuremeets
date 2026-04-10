@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   CircularProgress,
+  InputAdornment,
   Link,
   Stack,
   TextField,
@@ -16,9 +17,11 @@ import { useAuth } from "../../context/authContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useGoogleAuthUrl } from "../../hooks/useGoogleAuthUrl";
 import { useGoogleCodeLogin } from "../../hooks/useGoogleCodeLogin";
+import { useFacebookAuthUrl } from "../../hooks/useFacebookAuthUrl";
+import { useFacebookCodeLogin } from "../../hooks/useFacebookCodeLogin";
 import { AuthSocialButtons } from "./AuthSocialButtons";
 
-function parseGoogleState(stateValue: string | null) {
+function parseOauthState(stateValue: string | null) {
   const result: { invite: string | null; returnTo: string | null } = {
     invite: null,
     returnTo: null,
@@ -68,7 +71,7 @@ export function LoginForm({
 }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [googleErrorMessage, setGoogleErrorMessage] = useState<string | null>(
+  const [socialErrorMessage, setSocialErrorMessage] = useState<string | null>(
     null,
   );
   const { loginAsync, isLoading, error } = useLogin();
@@ -82,6 +85,16 @@ export function LoginForm({
     isLoading: isGoogleCodeLoading,
     error: googleCodeLoginError,
   } = useGoogleCodeLogin();
+  const {
+    getFacebookAuthUrlAsync,
+    isLoading: isFacebookRedirecting,
+    error: facebookAuthUrlError,
+  } = useFacebookAuthUrl();
+  const {
+    facebookCodeLoginAsync,
+    isLoading: isFacebookCodeLoading,
+    error: facebookCodeLoginError,
+  } = useFacebookCodeLogin();
   const { refreshSession } = useAuth();
   const location = useLocation();
   const nav = useNavigate();
@@ -90,16 +103,20 @@ export function LoginForm({
     typeof window !== "undefined"
       ? `${window.location.origin}/oauth/callback/google`
       : "";
+  const facebookRedirectUri =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/oauth/callback/facebook`
+      : "";
 
   const params = useMemo(
     () => new URLSearchParams(location.search),
     [location.search],
   );
-  const parsedGoogleState = useMemo(
-    () => parseGoogleState(params.get("state")),
+  const parsedOauthState = useMemo(
+    () => parseOauthState(params.get("state")),
     [params],
   );
-  const inviteCode = params.get("invite") ?? parsedGoogleState.invite;
+  const inviteCode = params.get("invite") ?? parsedOauthState.invite;
   const returnToFromQuery = params.get("returnTo");
   const returnTo = useMemo(() => {
     if (
@@ -108,27 +125,43 @@ export function LoginForm({
     ) {
       return returnToFromQuery;
     }
-    return parsedGoogleState.returnTo;
-  }, [parsedGoogleState.returnTo, returnToFromQuery]);
+    return parsedOauthState.returnTo;
+  }, [parsedOauthState.returnTo, returnToFromQuery]);
+
+  const oauthProvider = useMemo(() => {
+    if (!showSocialButtons) return null;
+    if (location.pathname.startsWith("/oauth/callback/google")) return "google";
+    if (location.pathname.startsWith("/oauth/callback/facebook"))
+      return "facebook";
+    return null;
+  }, [location.pathname, showSocialButtons]);
 
   useEffect(() => {
     if (!showSocialButtons) return;
-    if (!googleRedirectUri) return;
+    if (!oauthProvider) return;
 
     const oauthError = params.get("error");
     if (oauthError) {
-      setGoogleErrorMessage("Google login was cancelled or failed.");
+      setSocialErrorMessage(
+        `${oauthProvider === "google" ? "Google" : "Facebook"} login was cancelled or failed.`,
+      );
       return;
     }
 
     const code = params.get("code");
     if (!code) return;
-    if (handledCodeRef.current === code) return;
+    const handledKey = `${oauthProvider}:${code}`;
+    if (handledCodeRef.current === handledKey) return;
 
-    handledCodeRef.current = code;
-    setGoogleErrorMessage(null);
+    handledCodeRef.current = handledKey;
+    setSocialErrorMessage(null);
 
-    googleCodeLoginAsync({ code, redirectUri: googleRedirectUri })
+    const doLogin =
+      oauthProvider === "google"
+        ? googleCodeLoginAsync({ code, redirectUri: googleRedirectUri })
+        : facebookCodeLoginAsync({ code, redirectUri: facebookRedirectUri });
+
+    doLogin
       .then(async () => {
         await refreshSession();
         if (onSuccess) {
@@ -139,15 +172,20 @@ export function LoginForm({
       })
       .catch((err) => {
         handledCodeRef.current = null;
-        setGoogleErrorMessage(
-          err instanceof Error ? err.message : "Google login failed",
+        setSocialErrorMessage(
+          err instanceof Error
+            ? err.message
+            : `${oauthProvider === "facebook" ? "Facebook" : "Google"} login failed`,
         );
       });
   }, [
+    facebookCodeLoginAsync,
+    facebookRedirectUri,
     googleCodeLoginAsync,
     googleRedirectUri,
     nav,
     onSuccess,
+    oauthProvider,
     params,
     refreshSession,
     returnTo,
@@ -172,7 +210,7 @@ export function LoginForm({
 
   const handleGoogleLogin = async () => {
     if (!googleRedirectUri) return;
-    setGoogleErrorMessage(null);
+    setSocialErrorMessage(null);
     try {
       const fallbackReturnTo =
         typeof window !== "undefined"
@@ -190,11 +228,41 @@ export function LoginForm({
       });
       window.location.assign(response.url);
     } catch (err) {
-      setGoogleErrorMessage(
+      setSocialErrorMessage(
         err instanceof Error ? err.message : "Unable to start Google login",
       );
     }
   };
+
+  const handleFacebookLogin = async () => {
+    if (!facebookRedirectUri) return;
+    setSocialErrorMessage(null);
+    try {
+      const fallbackReturnTo =
+        typeof window !== "undefined"
+          ? window.location.pathname.startsWith("/oauth/callback/facebook")
+            ? "/"
+            : `${window.location.pathname}${window.location.search}`
+          : "/";
+      const state = JSON.stringify({
+        invite: inviteCode || undefined,
+        returnTo: returnTo || fallbackReturnTo,
+      });
+      const response = await getFacebookAuthUrlAsync({
+        redirectUri: facebookRedirectUri,
+        state,
+      });
+      window.location.assign(response.url);
+    } catch (err) {
+      setSocialErrorMessage(
+        err instanceof Error ? err.message : "Unable to start Facebook login",
+      );
+    }
+  };
+
+  const isSocialLoading = isGoogleCodeLoading || isFacebookCodeLoading;
+  const socialProviderLabel =
+    oauthProvider === "facebook" ? "Facebook" : "Google";
 
   return (
     <Box component="form" onSubmit={handleSubmit}>
@@ -205,15 +273,17 @@ export function LoginForm({
         <AuthErrorAlert
           message={
             error ||
-            googleErrorMessage ||
+            socialErrorMessage ||
             googleAuthUrlError ||
-            googleCodeLoginError
+            googleCodeLoginError ||
+            facebookAuthUrlError ||
+            facebookCodeLoginError
           }
         />
-        {showSocialButtons && isGoogleCodeLoading ? (
+        {showSocialButtons && isSocialLoading ? (
           <>
             <Typography variant="body2" sx={{ textAlign: "center" }}>
-              Signing in with {isGoogleCodeLoading ? "Google" : "Google"}...
+              Signing in with {socialProviderLabel}...
             </Typography>
             <Box sx={{ display: "flex", justifyContent: "center" }}>
               <CircularProgress
@@ -234,10 +304,12 @@ export function LoginForm({
               onChange={(e) => setEmail(e.target.value)}
               InputProps={{
                 startAdornment: (
-                  <EmailOutlinedIcon
-                    fontSize="small"
-                    sx={{ mr: 1, color: "text.disabled" }}
-                  />
+                  <InputAdornment position="start">
+                    <EmailOutlinedIcon
+                      fontSize="small"
+                      sx={{ color: "text.disabled" }}
+                    />
+                  </InputAdornment>
                 ),
               }}
             />
@@ -249,10 +321,12 @@ export function LoginForm({
               onChange={(e) => setPassword(e.target.value)}
               InputProps={{
                 startAdornment: (
-                  <LockOutlinedIcon
-                    fontSize="small"
-                    sx={{ mr: 1, color: "text.disabled" }}
-                  />
+                  <InputAdornment position="start">
+                    <LockOutlinedIcon
+                      fontSize="small"
+                      sx={{ color: "text.disabled" }}
+                    />
+                  </InputAdornment>
                 ),
               }}
             />
@@ -265,6 +339,8 @@ export function LoginForm({
                 isLoading ||
                 isGoogleRedirecting ||
                 isGoogleCodeLoading ||
+                isFacebookRedirecting ||
+                isFacebookCodeLoading ||
                 !email.trim() ||
                 !password.trim()
               }
@@ -286,6 +362,9 @@ export function LoginForm({
                   onSelect={(provider) => {
                     if (provider === "google") {
                       void handleGoogleLogin();
+                    }
+                    if (provider === "facebook") {
+                      void handleFacebookLogin();
                     }
                   }}
                 />

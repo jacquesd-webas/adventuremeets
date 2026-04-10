@@ -40,6 +40,20 @@ type GoogleIdTokenPayload = {
   picture?: string;
 };
 
+type FacebookTokenResponse = {
+  access_token: string;
+  token_type?: string;
+  expires_in?: number;
+};
+
+type FacebookProfileResponse = {
+  id: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  name?: string;
+};
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -564,6 +578,144 @@ export class AuthService {
       idpSubject: profile.sub,
       firstName: profile.given_name,
       lastName: profile.family_name,
+      idpProfile: profile,
+    });
+    const user = await this.usersService.findById(created.id);
+    return {
+      accessToken: this.signAccessToken(user as any),
+      refreshToken: this.signRefreshToken(user as any),
+    };
+  }
+
+  async getFacebookAuthUrl(redirectUri?: string, state?: string) {
+    const clientId = process.env.FACEBOOK_CLIENT_ID;
+    const fallbackRedirect = process.env.FACEBOOK_REDIRECT_URI;
+    const actualRedirect = redirectUri || fallbackRedirect;
+
+    if (!clientId || !actualRedirect) {
+      throw new ServiceUnavailableException("Facebook OAuth is not configured");
+    }
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: actualRedirect,
+      response_type: "code",
+      scope: "email,public_profile",
+    });
+    if (state) {
+      params.set("state", state);
+    }
+
+    // Use an explicit Graph API version so behavior doesn't change silently.
+    const version = process.env.FACEBOOK_GRAPH_VERSION || "v20.0";
+    return `https://www.facebook.com/${version}/dialog/oauth?${params.toString()}`;
+  }
+
+  async facebookLoginWithCode(
+    code: string,
+    redirectUri?: string,
+  ): Promise<TokenPair> {
+    const token = await this.exchangeFacebookCode(code, redirectUri);
+    const profile = await this.fetchFacebookProfile(token.access_token);
+    return this.upsertFacebookUser(profile);
+  }
+
+  private async exchangeFacebookCode(
+    code: string,
+    redirectUri?: string,
+  ): Promise<FacebookTokenResponse> {
+    const clientId = process.env.FACEBOOK_CLIENT_ID;
+    const clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
+    const fallbackRedirect = process.env.FACEBOOK_REDIRECT_URI;
+    const actualRedirect = redirectUri || fallbackRedirect;
+    if (!clientId || !clientSecret || !actualRedirect) {
+      throw new ServiceUnavailableException("Facebook OAuth is not configured");
+    }
+
+    const version = process.env.FACEBOOK_GRAPH_VERSION || "v20.0";
+    const params = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: actualRedirect,
+      code,
+    });
+
+    const url = `https://graph.facebook.com/${version}/oauth/access_token?${params.toString()}`;
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) {
+      const message = await res.text();
+      throw new UnauthorizedException(
+        message || "Facebook token exchange failed",
+      );
+    }
+    return (await res.json()) as FacebookTokenResponse;
+  }
+
+  private async fetchFacebookProfile(
+    accessToken: string,
+  ): Promise<FacebookProfileResponse> {
+    const version = process.env.FACEBOOK_GRAPH_VERSION || "v20.0";
+    const params = new URLSearchParams({
+      fields: "id,email,first_name,last_name,name",
+      access_token: accessToken,
+    });
+    const url = `https://graph.facebook.com/${version}/me?${params.toString()}`;
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) {
+      const message = await res.text();
+      throw new UnauthorizedException(
+        message || "Unable to fetch Facebook profile",
+      );
+    }
+    return (await res.json()) as FacebookProfileResponse;
+  }
+
+  private async upsertFacebookUser(
+    profile: FacebookProfileResponse,
+  ): Promise<TokenPair> {
+    if (!profile.id) {
+      throw new UnauthorizedException("Invalid Facebook profile");
+    }
+
+    const existingByIdp = await this.usersService.findByIdp(
+      "facebook",
+      profile.id,
+    );
+    if (existingByIdp) {
+      const user = await this.usersService.findById(existingByIdp.id);
+      return {
+        accessToken: this.signAccessToken(user as any),
+        refreshToken: this.signRefreshToken(user as any),
+      };
+    }
+
+    const email = profile.email || "";
+    if (!email) {
+      throw new UnauthorizedException("Facebook account email not available");
+    }
+
+    const existingByEmail = await this.usersService.findByEmail(email);
+    if (existingByEmail) {
+      await this.usersService.update(existingByEmail.id, {
+        idpProvider: "facebook",
+        idpSubject: profile.id,
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        idpProfile: profile,
+      });
+      const user = await this.usersService.findById(existingByEmail.id);
+      return {
+        accessToken: this.signAccessToken(user as any),
+        refreshToken: this.signRefreshToken(user as any),
+      };
+    }
+
+    const created = await this.usersService.create({
+      email,
+      idpProvider: "facebook",
+      idpSubject: profile.id,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
       idpProfile: profile,
     });
     const user = await this.usersService.findById(created.id);

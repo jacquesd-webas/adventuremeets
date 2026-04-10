@@ -30,6 +30,22 @@ vi.mock("../../../hooks/useGoogleCodeLogin", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useFacebookAuthUrl", () => ({
+  useFacebookAuthUrl: () => ({
+    getFacebookAuthUrlAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useFacebookCodeLogin", () => ({
+  useFacebookCodeLogin: () => ({
+    facebookCodeLoginAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
     refreshSession,

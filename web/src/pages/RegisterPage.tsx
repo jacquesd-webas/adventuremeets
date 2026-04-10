@@ -36,6 +36,7 @@ import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
 import { useNotistack } from "../hooks/useNotistack";
 import { useGoogleAuthUrl } from "../hooks/useGoogleAuthUrl";
+import { useFacebookAuthUrl } from "../hooks/useFacebookAuthUrl";
 import zxcvbn from "zxcvbn";
 
 const getPasswordStrength = (value: string) => {
@@ -81,6 +82,11 @@ function RegisterPage() {
     isLoading: isGoogleRedirecting,
     error: googleAuthUrlError,
   } = useGoogleAuthUrl();
+  const {
+    getFacebookAuthUrlAsync,
+    isLoading: isFacebookRedirecting,
+    error: facebookAuthUrlError,
+  } = useFacebookAuthUrl();
   const { checkEmailExistsAsync } = useCheckEmailExists();
   const api = useApi();
   const nav = useNavigate();
@@ -99,6 +105,10 @@ function RegisterPage() {
   const googleRedirectUri =
     typeof window !== "undefined"
       ? `${window.location.origin}/oauth/callback/google`
+      : "";
+  const facebookRedirectUri =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/oauth/callback/facebook`
       : "";
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
     | string
@@ -142,11 +152,29 @@ function RegisterPage() {
     }
   };
 
+  const handleFacebookSignup = async () => {
+    if (isFacebookRedirecting || !facebookRedirectUri) return;
+    try {
+      const state = JSON.stringify({ invite: inviteCode || undefined });
+      const response = await getFacebookAuthUrlAsync({
+        redirectUri: facebookRedirectUri,
+        state,
+      });
+      window.location.assign(response.url);
+    } catch {
+      // mutation state already exposes the error via facebookAuthUrlError.
+    }
+  };
+
   const chooseMethod = (
     method: null | "google" | "microsoft" | "facebook" | "email",
   ) => {
     if (method === "google") {
       void handleGoogleSignup();
+      return;
+    }
+    if (method === "facebook") {
+      void handleFacebookSignup();
       return;
     }
     setSelectedMethod(method);
@@ -322,9 +350,19 @@ function RegisterPage() {
           {googleAuthUrlError}
         </Alert>
       )}
+      {facebookAuthUrlError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {facebookAuthUrlError}
+        </Alert>
+      )}
       {isGoogleRedirecting && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Redirecting to Google...
+        </Alert>
+      )}
+      {isFacebookRedirecting && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Redirecting to Facebook...
         </Alert>
       )}
       {!selectedMethod && (
