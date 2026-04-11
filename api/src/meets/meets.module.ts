@@ -7,10 +7,16 @@ import { MinioService } from '../storage/minio.service';
 import { IncomingMailController } from './incoming-mail.controller';
 import { EmailModule } from '../email/email.module';
 import { AuthModule } from '../auth/auth.module';
+import { MeetShareController } from './meet-share.controller';
 
 @Module({
   imports: [DatabaseModule, EmailModule, AuthModule],
-  controllers: [MeetsController, MeetAttendeesController, IncomingMailController],
+  controllers: [
+    MeetsController,
+    MeetAttendeesController,
+    IncomingMailController,
+    MeetShareController,
+  ],
   providers: [MeetsService, MinioService],
   exports: [MeetsService],
 })
