@@ -150,6 +150,14 @@ export class MeetAttendeesController {
           attendeeId: attendee.id,
           meetId,
         });
+        await this.emailService.saveMessage({
+          to: dto.email,
+          subject,
+          text,
+          html,
+          attendeeId: attendee.id,
+          meetId,
+        });
         await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
       } else {
         const { subject, text, html } = renderEmailTemplate("meet-signup", {
@@ -164,6 +172,14 @@ export class MeetAttendeesController {
           organizerEmail: meet.organizerEmail,
         });
         await this.emailService.sendEmail({
+          to: dto.email,
+          subject,
+          text,
+          html,
+          attendeeId: attendee.id,
+          meetId,
+        });
+        await this.emailService.saveMessage({
           to: dto.email,
           subject,
           text,
