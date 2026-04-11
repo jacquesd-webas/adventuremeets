@@ -144,12 +144,12 @@ export function MeetSignupSubmitted({
           ) : (
             <>
               <Typography color="text.secondary">
-                {isOrganizationPrivate
+                {isOrganizationPrivate || isGuest
                   ? "Use the link below to check the status of your application."
                   : "If you wish you can create a profile to make future meet signups faster and manage your applications. Alternatively just use the link below to check the status of your application."}
               </Typography>
               <Stack direction="row" spacing={2}>
-                {!isOrganizationPrivate && (
+                {!isOrganizationPrivate && !isGuest && (
                   <Button variant="contained" onClick={handleCreateProfile}>
                     Create Profile
                   </Button>
