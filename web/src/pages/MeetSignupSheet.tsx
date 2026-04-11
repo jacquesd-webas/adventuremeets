@@ -431,7 +431,6 @@ function MeetSignupSheet() {
   // Switch name and guardian fields if the user is a minor and user is logged in
   useEffect(() => {
     if (disableIdentityFields && isMinor) {
-      console.log({ loggedInName, guardianName, fullName });
       if (loggedInName && loggedInName !== guardianName) {
         setField("guardianName", loggedInName);
         setField("fullName", "");
