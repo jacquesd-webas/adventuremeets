@@ -23,13 +23,14 @@ export function AttendeeActionButtons({
     attendee?.status === AttendeeStatusEnum.CheckedIn ||
     attendee?.status === AttendeeStatusEnum.Attended;
   const isWithdrawn = attendee?.status === AttendeeStatusEnum.Cancelled;
+  const isNotified = Boolean(attendee?.respondedAt);
   const hasPaidDeposit = Boolean(attendee?.paidDepositAt);
   const hasPaidFull = Boolean(attendee?.paidFullAt);
   const showPaidControl = Boolean(onPaid && (hasAmount || hasDeposit));
 
   return (
     <>
-      {(attendee?.responded_at || isCheckedIn || isWithdrawn) && (
+      {(isNotified || isCheckedIn || isWithdrawn) && (
         <LockIcon
           fontSize="small"
           color="disabled"
@@ -59,22 +60,20 @@ export function AttendeeActionButtons({
               Accept
             </Button>
           )}
-          {showPaidControl && attendee?.status === AttendeeStatusEnum.Confirmed && (
-            <Button
-              color="primary"
-              onClick={() => onPaid()}
-            >
-              {hasDeposit
-                ? hasPaidFull
-                  ? "NOT PAID"
-                  : hasPaidDeposit
-                    ? "PAID FULL"
-                    : "PAID DEP"
-                : hasPaidFull
-                  ? "NOT PAID"
-                  : "PAID"}
-            </Button>
-          )}
+          {showPaidControl &&
+            attendee?.status === AttendeeStatusEnum.Confirmed && (
+              <Button color="primary" onClick={() => onPaid()}>
+                {hasDeposit
+                  ? hasPaidFull
+                    ? "NOT PAID"
+                    : hasPaidDeposit
+                      ? "PAID FULL"
+                      : "PAID DEP"
+                  : hasPaidFull
+                    ? "NOT PAID"
+                    : "PAID"}
+              </Button>
+            )}
           {attendee?.status !== AttendeeStatusEnum.Rejected ? (
             <Button
               color="error"

@@ -4,6 +4,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -20,7 +21,10 @@ import { User } from "../auth/decorators/user.decorator";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
-import { renderEmailTemplate } from "../email/email.templates";
+import {
+  EmailTemplateName,
+  renderEmailTemplate,
+} from "../email/email.templates";
 import type { Request } from "express";
 
 @ApiTags("Meet Attendees")
@@ -73,22 +77,84 @@ export class MeetAttendeesController {
     const forwardedIp = Array.isArray(forwardedFor)
       ? forwardedFor[0]
       : forwardedFor?.split(",")[0]?.trim();
-    const { attendee } = await this.meetsService.addAttendee(meetId, dto, {
+
+    const meet = await this.meetsService.findOne(meetId);
+    if (!meet) {
+      throw new NotFoundException("Meet not found");
+    }
+
+    let { attendee } = await this.meetsService.addAttendee(meetId, dto, {
       ip: forwardedIp || req.ip,
       userAgent: req.headers["user-agent"] as string | undefined,
       locale: req.headers["accept-language"] as string | undefined,
     });
 
+    if (meet.autoPlacement && attendee.status === "pending") {
+      const result = await this.meetsService.autoPlaceAttendees(
+        meetId,
+        attendee.id,
+      );
+      attendee = result.attendee;
+    }
+
     if (dto.email) {
-      const meet = await this.meetsService.findOne(meetId);
-      if (meet?.shareCode) {
-        const frontendUrl = (
-          process.env.FRONTEND_URL || "http://localhost:5173"
-        ).replace(/\/+$/, "");
-        const statusUrl = `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`;
+      const frontendUrl = (
+        process.env.FRONTEND_URL || "http://localhost:5173"
+      ).replace(/\/+$/, "");
+
+      const statusUrl = meet?.shareCode
+        ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
+        : "";
+
+      const attendeeName = dto.name ?? undefined;
+      const status = attendee.status;
+
+      // Messages could be custom if they are empty they will be filled with default values
+      const messageBody =
+        status === "confirmed"
+          ? meet.confirmMessage
+          : status === "waitlisted"
+            ? meet.waitlistMessage
+            : status === "rejected"
+              ? meet.rejectMessage
+              : undefined;
+
+      const emailTemplate: EmailTemplateName =
+        status === "confirmed"
+          ? "meet-confirm"
+          : status === "waitlisted"
+            ? "meet-waitlist"
+            : status === "rejected"
+              ? "meet-reject"
+              : "meet-signup";
+
+      // The "meet-singup" template uses a different overload, the others all use the same
+      if (emailTemplate !== "meet-signup") {
+        const { subject, text, html } = renderEmailTemplate(emailTemplate, {
+          meetName: meet.name,
+          attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
+          statusUrl,
+          organizerName: meet.organizerName,
+          organizerEmail: meet.organizerEmail,
+          messageBody: messageBody,
+        });
+        await this.emailService.sendEmail({
+          to: dto.email,
+          subject,
+          text,
+          html,
+          attendeeId: attendee.id,
+          meetId,
+        });
+        await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
+      } else {
         const { subject, text, html } = renderEmailTemplate("meet-signup", {
           meetName: meet.name,
-          attendeeName: dto.name ?? undefined,
+          attendeeName,
           startTime: meet.startTime,
           endTime: meet.endTime,
           timeZone: meet.timeZone,
@@ -105,9 +171,9 @@ export class MeetAttendeesController {
           attendeeId: attendee.id,
           meetId,
         });
+        await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
       }
     }
-
     return { attendee };
   }
 

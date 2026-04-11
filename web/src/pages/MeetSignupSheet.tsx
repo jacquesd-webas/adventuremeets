@@ -28,6 +28,7 @@ import { getLocaleDefaults } from "../helpers/locale";
 import {
   buildInternationalPhone,
   getDefaultPhoneCountry,
+  isSupportedPhoneCountry,
   splitInternationalPhone,
 } from "../components/formFields/InternationalPhoneField";
 import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
@@ -88,6 +89,14 @@ function setMetaProperty(property: string, content: string): () => void {
   };
 }
 
+function parseBooleanQuery(value?: string | null): boolean | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n"].includes(normalized)) return false;
+  return null;
+}
+
 function MeetSignupSheet() {
   const { code, attendeeId: attendeeIdParam } = useParams<{
     code: string;
@@ -124,6 +133,7 @@ function MeetSignupSheet() {
   const suppressAutofillRef = useRef(false);
   const metaAutofillRef = useRef(false);
   const editPrefillRef = useRef(false);
+  const queryPrefillRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedAttendeeId, setSubmittedAttendeeId] = useState<string | null>(
     null,
@@ -245,6 +255,55 @@ function MeetSignupSheet() {
       metaAutofillRef.current = false;
     }
   }, [isAuthenticated]);
+
+  // Prefill identity from query params (used for guest links / minor sign-ups).
+  useEffect(() => {
+    if (queryPrefillRef.current) return;
+    if (isEditing) return;
+
+    const nameParam = searchParams.get("name")?.trim() || "";
+    const isMinorParam = parseBooleanQuery(searchParams.get("isMinor"));
+
+    if (nameParam) setField("fullName", nameParam);
+    if (isMinorParam !== null) setField("isMinor", isMinorParam);
+
+    // Only set the rest if not authenticated
+    if (isAuthenticated) return;
+
+    const emailParam = searchParams.get("email")?.trim() || "";
+    const phoneCountryParam = searchParams.get("phoneCountry")?.trim() || "";
+    const phoneLocalParam = searchParams.get("phoneLocal")?.trim() || "";
+
+    if (emailParam) setField("email", emailParam);
+
+    // Only prefill phone is it all checks out
+    if (
+      phoneCountryParam &&
+      phoneLocalParam &&
+      isSupportedPhoneCountry(phoneCountryParam)
+    ) {
+      setPhoneCountry(phoneCountryParam.toUpperCase());
+      setPhoneLocal(phoneLocalParam.trim());
+      setField(
+        "phone",
+        buildInternationalPhone(
+          phoneCountryParam.toUpperCase(),
+          phoneLocalParam,
+        ).trim(),
+      );
+    }
+
+    queryPrefillRef.current = true;
+  }, [
+    isAuthenticated,
+    isEditing,
+    phoneCountry,
+    phoneLocal,
+    searchParams,
+    setField,
+    setPhoneCountry,
+    setPhoneLocal,
+  ]);
 
   // Edit mode - pre-fill form with existing attendee data
   useEffect(() => {
@@ -491,9 +550,11 @@ function MeetSignupSheet() {
             meetId={meet?.id}
             attendeeId={submittedAttendeeId || undefined}
             shareCode={code}
+            hasIndemnity={meet?.hasIndemnity || false}
             guests={guests}
             isOrganizationPrivate={organization?.isPrivate}
             isPreview={isPreview}
+            isGuest={Boolean(guestOf)}
           />
         </Box>
       </Box>

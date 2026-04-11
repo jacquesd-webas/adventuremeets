@@ -1,6 +1,17 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min, ValidateIf, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import {
+  IsBoolean,
+  IsEmail,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateIf,
+  ValidateNested,
+} from "class-validator";
+import { Type } from "class-transformer";
 
 export class MeetMetaValueInputDto {
   @ApiPropertyOptional()
@@ -23,7 +34,7 @@ export class GuestInputDto {
 }
 
 export class CreateMeetAttendeeDto {
-  @ApiPropertyOptional({ description: 'Existing user id (UUID)' })
+  @ApiPropertyOptional({ description: "Existing user id (UUID)" })
   @IsOptional()
   @IsUUID()
   userId?: string;
@@ -56,7 +67,9 @@ export class CreateMeetAttendeeDto {
   @IsBoolean()
   isMinor?: boolean;
 
-  @ApiPropertyOptional({ description: 'Attendee id for guest-of relation (UUID)' })
+  @ApiPropertyOptional({
+    description: "Attendee id for guest-of relation (UUID)",
+  })
   @IsOptional()
   @IsUUID()
   guestOf?: string;
@@ -87,4 +100,9 @@ export class CreateMeetAttendeeDto {
   @ValidateNested({ each: true })
   @Type(() => MeetMetaValueInputDto)
   metaValues?: MeetMetaValueInputDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  autoPlacement?: boolean;
 }

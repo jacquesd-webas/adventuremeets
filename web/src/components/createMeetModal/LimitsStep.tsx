@@ -97,7 +97,6 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
       <FormControlLabel
         control={
           <Switch
-            disabled
             checked={state.autoApprove}
             onChange={(e) =>
               setState((prev) => ({ ...prev, autoApprove: e.target.checked }))
@@ -109,22 +108,6 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
       <FormControlLabel
         control={
           <Switch
-            disabled
-            checked={state.autoCloseWaitlist}
-            onChange={(e) =>
-              setState((prev) => ({
-                ...prev,
-                autoCloseWaitlist: e.target.checked,
-              }))
-            }
-          />
-        }
-        label="Automatically close when waitlist is full"
-      />
-      <FormControlLabel
-        control={
-          <Switch
-            disabled
             checked={state.allowGuests}
             onChange={(e) =>
               setState((prev) => ({ ...prev, allowGuests: e.target.checked }))

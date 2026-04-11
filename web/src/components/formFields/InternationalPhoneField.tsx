@@ -292,6 +292,13 @@ export function getDefaultPhoneCountry(localeCountry?: string) {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
+export function isSupportedPhoneCountry(value?: string | null) {
+  if (!value) return false;
+  const normalized = value.trim().toUpperCase();
+  return phoneCountryOptions.some((option) => option.code === normalized);
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
 export function splitInternationalPhone(value?: string) {
   if (!value) {
     return { country: "ZA", local: "" };

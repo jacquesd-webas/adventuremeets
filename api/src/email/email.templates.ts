@@ -43,6 +43,7 @@ export type MeetStatusTemplateVars = {
   statusUrl?: string;
   organizerName?: string;
   organizerEmail?: string;
+  messageBody?: string;
 };
 
 export type MeetMessageTemplateVars = {
@@ -149,47 +150,46 @@ function wrapHtml(content: string) {
 </html>`;
 }
 
+// Overloads for type safety on vars for each template
+
 export function renderEmailTemplate(
   name: "password-reset",
   vars: PasswordResetTemplateVars,
 ): { subject: string; text: string; html: string };
+
 export function renderEmailTemplate(name: "password-reset-confirmation"): {
   subject: string;
   text: string;
   html: string;
 };
+
 export function renderEmailTemplate(
   name: "meet-signup",
   vars: MeetSignupTemplateVars,
 ): { subject: string; text: string; html: string };
+
 export function renderEmailTemplate(
   name: "verify-email",
   vars: VerifyEmailTemplateVars,
 ): { subject: string; text: string; html: string };
-export function renderEmailTemplate(
-  name: "meet-confirm",
-  vars: MeetStatusTemplateVars,
-): { subject: string; text: string; html: string };
-export function renderEmailTemplate(
-  name: "meet-reject",
-  vars: MeetStatusTemplateVars,
-): { subject: string; text: string; html: string };
-export function renderEmailTemplate(
-  name: "meet-waitlist",
-  vars: MeetStatusTemplateVars,
-): { subject: string; text: string; html: string };
+
 export function renderEmailTemplate(
   name: "meet-confirm" | "meet-reject" | "meet-waitlist",
   vars: MeetStatusTemplateVars,
 ): { subject: string; text: string; html: string };
+
 export function renderEmailTemplate(
   name: "meet-message",
   vars: MeetMessageTemplateVars,
 ): { subject: string; text: string; html: string };
+
 export function renderEmailTemplate(
   name: "organization-invite",
   vars: OrganizationInviteTemplateVars,
 ): { subject: string; text: string; html: string };
+
+// Main function implementation
+
 export function renderEmailTemplate(
   name: EmailTemplateName,
   vars?:
@@ -230,7 +230,9 @@ export function renderEmailTemplate(
       signupVars.timeZone,
     );
     const endString = formatDateTime(signupVars.endTime, signupVars.timeZone);
-    const hasRange = Boolean(dateString && endString && dateString !== endString);
+    const hasRange = Boolean(
+      dateString && endString && dateString !== endString,
+    );
     const timeLine = hasRange
       ? `${dateString} to ${endString}`
       : dateString || "TBC";
@@ -267,12 +269,19 @@ export function renderEmailTemplate(
     const organizerEmail = meetVars.organizerEmail || "";
     const dateString = formatDateTime(meetVars.startTime, meetVars.timeZone);
     const endString = formatDateTime(meetVars.endTime, meetVars.timeZone);
-    const hasRange = Boolean(dateString && endString && dateString !== endString);
+    const hasRange = Boolean(
+      dateString && endString && dateString !== endString,
+    );
     const timeLine = hasRange
       ? `${dateString} to ${endString}`
       : dateString || "TBC";
     const locationLine = meetVars.location || "TBC";
     const subject = `You're confirmed for ${meetVars.meetName}`;
+    const messageBody =
+      meetVars.messageBody?.trim() ||
+      `You're confirmed for ${meetVars.meetName}. When: ${timeLine}. Where: ${locationLine}.`;
+    const messageBodyText = escapeHtml(messageBody);
+    const messageBodyHtml = formatMessageBodyHtml(messageBody);
     const varsMap = {
       ...baseVarsMap,
       attendeeName: escapeHtml(greetingName),
@@ -282,13 +291,19 @@ export function renderEmailTemplate(
       statusUrl,
       organizerName: escapeHtml(organizerName),
       organizerEmail,
+      messageBody: messageBodyText,
     };
     const flags = {
       ifStatusUrl: Boolean(statusUrl),
       ifOrganizerEmail: Boolean(organizerEmail),
     };
     const text = renderTemplate("meet-confirm", "txt", varsMap, flags);
-    const htmlBody = renderTemplate("meet-confirm", "html", varsMap, flags);
+    const htmlBody = renderTemplate(
+      "meet-confirm",
+      "html",
+      { ...varsMap, messageBody: messageBodyHtml },
+      flags,
+    );
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
@@ -302,6 +317,11 @@ export function renderEmailTemplate(
     const organizerName = meetVars.organizerName || "the organizer";
     const organizerEmail = meetVars.organizerEmail || "";
     const subject = `Update on your application for ${meetVars.meetName}`;
+    const messageBody =
+      meetVars.messageBody?.trim() ||
+      `Unfortunately your application for ${meetVars.meetName} was not successful. This is usually due to capacity limits being reached.`;
+    const messageBodyText = escapeHtml(messageBody);
+    const messageBodyHtml = formatMessageBodyHtml(messageBody);
     const varsMap = {
       ...baseVarsMap,
       attendeeName: escapeHtml(greetingName),
@@ -309,13 +329,19 @@ export function renderEmailTemplate(
       statusUrl,
       organizerName: escapeHtml(organizerName),
       organizerEmail,
+      messageBody: messageBodyText,
     };
     const flags = {
       ifStatusUrl: Boolean(statusUrl),
       ifOrganizerEmail: Boolean(organizerEmail),
     };
     const text = renderTemplate("meet-reject", "txt", varsMap, flags);
-    const htmlBody = renderTemplate("meet-reject", "html", varsMap, flags);
+    const htmlBody = renderTemplate(
+      "meet-reject",
+      "html",
+      { ...varsMap, messageBody: messageBodyHtml },
+      flags,
+    );
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
@@ -330,12 +356,19 @@ export function renderEmailTemplate(
     const organizerEmail = meetVars.organizerEmail || "";
     const dateString = formatDateTime(meetVars.startTime, meetVars.timeZone);
     const endString = formatDateTime(meetVars.endTime, meetVars.timeZone);
-    const hasRange = Boolean(dateString && endString && dateString !== endString);
+    const hasRange = Boolean(
+      dateString && endString && dateString !== endString,
+    );
     const timeLine = hasRange
       ? `${dateString} to ${endString}`
       : dateString || "TBC";
     const locationLine = meetVars.location || "TBC";
     const subject = `You're on the waitlist for ${meetVars.meetName}`;
+    const messageBody =
+      meetVars.messageBody?.trim() ||
+      `You're on the waitlist for ${meetVars.meetName}. If a spot opens up, the organiser will notify you. When: ${timeLine}. Where: ${locationLine}.`;
+    const messageBodyText = escapeHtml(messageBody);
+    const messageBodyHtml = formatMessageBodyHtml(messageBody);
     const varsMap = {
       ...baseVarsMap,
       attendeeName: escapeHtml(greetingName),
@@ -345,13 +378,19 @@ export function renderEmailTemplate(
       statusUrl,
       organizerName: escapeHtml(organizerName),
       organizerEmail,
+      messageBody: messageBodyText,
     };
     const flags = {
       ifStatusUrl: Boolean(statusUrl),
       ifOrganizerEmail: Boolean(organizerEmail),
     };
     const text = renderTemplate("meet-waitlist", "txt", varsMap, flags);
-    const htmlBody = renderTemplate("meet-waitlist", "html", varsMap, flags);
+    const htmlBody = renderTemplate(
+      "meet-waitlist",
+      "html",
+      { ...varsMap, messageBody: messageBodyHtml },
+      flags,
+    );
     return { subject, text, html: wrapHtml(htmlBody) };
   }
 
@@ -423,7 +462,9 @@ export function renderEmailTemplate(
   if (name === "organization-invite") {
     const inviteVars = vars as OrganizationInviteTemplateVars | undefined;
     if (!inviteVars?.organizationName || !inviteVars?.registerUrl) {
-      throw new Error("Missing organizationName or registerUrl for organization-invite template");
+      throw new Error(
+        "Missing organizationName or registerUrl for organization-invite template",
+      );
     }
     const subject = `You're invited to join ${inviteVars.organizationName}`;
     const varsMap = {

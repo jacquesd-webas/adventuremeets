@@ -25,6 +25,43 @@ export class MeetsService {
     private readonly minio: MinioService,
   ) {}
 
+  private async computeAutoPlacementStatus(
+    trx: any,
+    meetId: string,
+    meet: { capacity: any; waitlist_size: any },
+  ): Promise<"confirmed" | "waitlisted" | "rejected"> {
+    const capacity = meet.capacity == null ? null : Number(meet.capacity);
+    const waitlistSize =
+      meet.waitlist_size == null ? 0 : Number(meet.waitlist_size);
+
+    const capacityUnlimited = capacity == null || capacity <= 0;
+    if (capacityUnlimited) return "confirmed";
+
+    const counts = await trx("meet_attendees")
+      .where({ meet_id: meetId })
+      .first(
+        trx.raw(
+          `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as confirmed_count`,
+        ),
+        trx.raw(
+          `sum(case when status = 'waitlisted' then 1 + coalesce(guests, 0) else 0 end) as waitlist_count`,
+        ),
+      );
+
+    const confirmedCount =
+      counts && (counts as any).confirmed_count != null
+        ? Number((counts as any).confirmed_count)
+        : 0;
+    const waitlistedCount =
+      counts && (counts as any).waitlist_count != null
+        ? Number((counts as any).waitlist_count)
+        : 0;
+
+    if (confirmedCount < capacity) return "confirmed";
+    if (waitlistSize > 0 && waitlistedCount < waitlistSize) return "waitlisted";
+    return "rejected";
+  }
+
   private static readonly shareCodeChars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -42,34 +79,30 @@ export class MeetsService {
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
       .select("meet_id")
-      .count<
-        {
-          meet_id: string;
-          attendee_count: number;
-          waitlist_count: number;
-          checked_in_count: number;
-          confirmed_count: number;
-        }[]
-      >("* as attendee_count")
+      .select(
+        this.db
+          .getClient()
+          .raw(`sum(1 + coalesce(guests, 0)) as attendee_count`),
+      )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`,
+            `sum(case when status = 'waitlisted' then 1 + coalesce(guests, 0) else 0 end) as waitlist_count`,
           ),
       )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`,
+            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as confirmed_count`,
           ),
       )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`,
+            `sum(case when status in ('checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as checked_in_count`,
           ),
       )
       .groupBy("meet_id")
@@ -203,34 +236,30 @@ export class MeetsService {
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
       .select("meet_id")
-      .count<
-        {
-          meet_id: string;
-          attendee_count: number;
-          waitlist_count: number;
-          checked_in_count: number;
-          confirmed_count: number;
-        }[]
-      >("* as attendee_count")
+      .select(
+        this.db
+          .getClient()
+          .raw(`sum(1 + coalesce(guests, 0)) as attendee_count`),
+      )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`,
+            `sum(case when status = 'waitlisted' then 1 + coalesce(guests, 0) else 0 end) as waitlist_count`,
           ),
       )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`,
+            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as confirmed_count`,
           ),
       )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`,
+            `sum(case when status in ('checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as checked_in_count`,
           ),
       )
       .groupBy("meet_id")
@@ -796,6 +825,21 @@ export class MeetsService {
         }
       }
 
+      // Lock the meet row so capacity/waitlist decisions are race-safe.
+      const meet = await trx("meets")
+        .where({ id: meetId })
+        .forUpdate()
+        .first("capacity", "waitlist_size", "auto_placement");
+      if (!meet) {
+        throw new NotFoundException("Meet not found");
+      }
+
+      let status: "pending" | "confirmed" | "waitlisted" | "rejected" =
+        "pending";
+      if (meet.auto_placement !== false) {
+        status = await this.computeAutoPlacementStatus(trx, meetId, meet);
+      }
+
       const sequenceRow = await trx("meet_attendees")
         .where({ meet_id: meetId })
         .max("sequence as max")
@@ -819,6 +863,7 @@ export class MeetsService {
           guardian_name: guardianName,
           indemnity_accepted: dto.indemnityAccepted ?? null,
           indemnity_minors: dto.indemnityMinors ?? null,
+          status,
         },
         ["*"],
       );
@@ -865,6 +910,44 @@ export class MeetsService {
       return attendee;
     });
     return { attendee: this.toAttendeeDto(created) };
+  }
+
+  async autoPlaceAttendees(meetId: string, attendeeId: string) {
+    const updated = await this.db.getClient().transaction(async (trx) => {
+      // Lock the meet row so placements are consistent under concurrency.
+      const meet = await trx("meets")
+        .where({ id: meetId })
+        .forUpdate()
+        .first("capacity", "waitlist_size", "auto_placement");
+      if (!meet) {
+        throw new NotFoundException("Meet not found");
+      }
+
+      const existing = await trx("meet_attendees")
+        .where({ meet_id: meetId, id: attendeeId })
+        .first("*");
+      if (!existing) {
+        throw new NotFoundException("Attendee not found");
+      }
+
+      if (meet.auto_placement === false || existing.status !== "pending") {
+        return existing;
+      }
+
+      const status = await this.computeAutoPlacementStatus(trx, meetId, meet);
+      const [row] = await trx("meet_attendees")
+        .where({ meet_id: meetId, id: attendeeId })
+        .update(
+          {
+            status,
+            updated_at: new Date().toISOString(),
+          },
+          ["*"],
+        );
+      return row ?? existing;
+    });
+
+    return { attendee: this.toAttendeeDto(updated) };
   }
 
   async addPreloadedAttendees(
@@ -1276,7 +1359,6 @@ export class MeetsService {
       status: attendee.status ?? undefined,
       sequence: attendee.sequence ?? undefined,
       respondedAt: attendee.responded_at ?? undefined,
-      notifiedAt: attendee.notified_at ?? undefined,
       name: attendee.name ?? undefined,
       phone: attendee.phone ?? undefined,
       email: attendee.email ?? undefined,
