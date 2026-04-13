@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -24,6 +25,13 @@ export class MeetsService {
     private readonly db: DatabaseService,
     private readonly minio: MinioService,
   ) {}
+
+  private isAttendeeDuplicateError(error: any) {
+    return (
+      error?.code === "23505" &&
+      error?.constraint === "meet_attendees_meet_id_user_id_non_minor_unique"
+    );
+  }
 
   private async computeAutoPlacementStatus(
     trx: any,
@@ -708,208 +716,222 @@ export class MeetsService {
     dto: CreateMeetAttendeeDto,
     context?: { ip?: string; userAgent?: string; locale?: string },
   ) {
-    const created = await this.db.getClient().transaction(async (trx) => {
-      const guardianName =
-        dto.GuardianName ?? (dto as any).guardianName ?? null;
-      const acceptedByName =
-        dto.isMinor && guardianName ? guardianName : (dto.name ?? null);
-      const contactEmail = dto.email?.trim() || undefined;
-      const contactPhone = dto.phone?.trim() || undefined;
+    try {
+      const created = await this.db.getClient().transaction(async (trx) => {
+        const guardianName =
+          dto.GuardianName ?? (dto as any).guardianName ?? null;
+        const acceptedByName =
+          dto.isMinor && guardianName ? guardianName : (dto.name ?? null);
+        const contactEmail = dto.email?.trim() || undefined;
+        const contactPhone = dto.phone?.trim() || undefined;
 
-      if (contactEmail || contactPhone) {
-        const preloadedQuery = trx("meet_attendees")
-          .where({ meet_id: meetId })
-          .andWhere("status", "preloaded");
-        if (contactEmail && contactPhone) {
-          preloadedQuery.andWhere((builder) => {
-            builder
-              .whereRaw("lower(email) = ?", [contactEmail.toLowerCase()])
-              .orWhere({ phone: contactPhone });
-          });
-        } else if (contactEmail) {
-          preloadedQuery.andWhereRaw("lower(email) = ?", [
-            contactEmail.toLowerCase(),
-          ]);
-        } else if (contactPhone) {
-          preloadedQuery.andWhere({ phone: contactPhone });
-        }
-        const candidates = await preloadedQuery.select(
-          "id",
-          "name",
-          "email",
-          "phone",
-          "user_id",
-        );
-        const normalizedName = (dto.name || "").trim().toLowerCase();
-        let preloaded = candidates.length === 1 ? candidates[0] : undefined;
-        if (!preloaded && dto.isMinor && normalizedName && candidates.length) {
-          const nameMatches = candidates.filter(
-            (row) =>
-              row.name && row.name.trim().toLowerCase() === normalizedName,
-          );
-          if (nameMatches.length === 1) {
-            preloaded = nameMatches[0];
+        if (contactEmail || contactPhone) {
+          const preloadedQuery = trx("meet_attendees")
+            .where({ meet_id: meetId })
+            .andWhere("status", "preloaded");
+          if (contactEmail && contactPhone) {
+            preloadedQuery.andWhere((builder) => {
+              builder
+                .whereRaw("lower(email) = ?", [contactEmail.toLowerCase()])
+                .orWhere({ phone: contactPhone });
+            });
+          } else if (contactEmail) {
+            preloadedQuery.andWhereRaw("lower(email) = ?", [
+              contactEmail.toLowerCase(),
+            ]);
+          } else if (contactPhone) {
+            preloadedQuery.andWhere({ phone: contactPhone });
           }
-        }
-        if (!preloaded && contactPhone && candidates.length) {
-          const phoneMatches = candidates.filter(
-            (row) => row.phone && row.phone === contactPhone,
+          const candidates = await preloadedQuery.select(
+            "id",
+            "name",
+            "email",
+            "phone",
+            "user_id",
           );
-          if (phoneMatches.length === 1) {
-            preloaded = phoneMatches[0];
-          }
-        }
-        if (preloaded) {
-          const [row] = await trx("meet_attendees")
-            .where({ meet_id: meetId, id: preloaded.id })
-            .update(
-              {
-                user_id: dto.userId ?? preloaded.user_id ?? null,
-                name: dto.name ?? preloaded.name,
-                phone: dto.phone ?? preloaded.phone,
-                email: dto.email ?? preloaded.email,
-                guests: dto.guests ?? preloaded.guests ?? null,
-                is_minor: dto.isMinor ?? preloaded.is_minor ?? false,
-                guardian_name: guardianName,
-                indemnity_accepted: dto.indemnityAccepted ?? null,
-                indemnity_minors: dto.indemnityMinors ?? null,
-                status: "confirmed",
-                updated_at: new Date().toISOString(),
-              },
-              ["*"],
+          const normalizedName = (dto.name || "").trim().toLowerCase();
+          let preloaded = candidates.length === 1 ? candidates[0] : undefined;
+          if (
+            !preloaded &&
+            dto.isMinor &&
+            normalizedName &&
+            candidates.length
+          ) {
+            const nameMatches = candidates.filter(
+              (row) =>
+                row.name && row.name.trim().toLowerCase() === normalizedName,
             );
-          if (dto.metaValues) {
-            await trx("meet_meta_values")
-              .where({ meet_id: meetId, attendee_id: preloaded.id })
-              .del();
-            const records = dto.metaValues
-              .filter(
-                (value) =>
-                  value.value !== undefined &&
-                  value.value !== null &&
-                  value.value !== "",
-              )
-              .map((value) => ({
-                meet_id: meetId,
-                attendee_id: preloaded.id,
-                meta_definition_id: value.definitionId,
-                value: value.value,
-              }));
-            if (records.length > 0) {
-              await trx("meet_meta_values").insert(records);
+            if (nameMatches.length === 1) {
+              preloaded = nameMatches[0];
             }
           }
-          if (dto.indemnityAccepted) {
-            const meet = await trx("meets")
-              .where({ id: meetId })
-              .first("indemnity", "time_zone");
-            const indemnityText = meet?.indemnity ?? "";
-            const indemnityHash = indemnityText
-              ? createHash("sha256").update(indemnityText).digest("hex")
-              : null;
-            await trx("meet_attendee_indemnity_acceptances").insert({
-              attendee_id: preloaded.id,
-              meet_id: meetId,
-              accepted_at: new Date().toISOString(),
-              indemnity_text_hash: indemnityHash,
-              acceptance_ip: context?.ip ?? null,
-              acceptance_user_agent: context?.userAgent ?? null,
-              accepted_by_name: acceptedByName,
-              accepted_by_email: dto.email ?? null,
-              accepted_by_phone: dto.phone ?? null,
-              locale: context?.locale ?? null,
-              time_zone: meet?.time_zone ?? null,
-            });
+          if (!preloaded && contactPhone && candidates.length) {
+            const phoneMatches = candidates.filter(
+              (row) => row.phone && row.phone === contactPhone,
+            );
+            if (phoneMatches.length === 1) {
+              preloaded = phoneMatches[0];
+            }
           }
-          return row;
+          if (preloaded) {
+            const [row] = await trx("meet_attendees")
+              .where({ meet_id: meetId, id: preloaded.id })
+              .update(
+                {
+                  user_id: dto.userId ?? preloaded.user_id ?? null,
+                  name: dto.name ?? preloaded.name,
+                  phone: dto.phone ?? preloaded.phone,
+                  email: dto.email ?? preloaded.email,
+                  guests: dto.guests ?? preloaded.guests ?? null,
+                  is_minor: dto.isMinor ?? preloaded.is_minor ?? false,
+                  guardian_name: guardianName,
+                  indemnity_accepted: dto.indemnityAccepted ?? null,
+                  indemnity_minors: dto.indemnityMinors ?? null,
+                  status: "confirmed",
+                  updated_at: new Date().toISOString(),
+                },
+                ["*"],
+              );
+            if (dto.metaValues) {
+              await trx("meet_meta_values")
+                .where({ meet_id: meetId, attendee_id: preloaded.id })
+                .del();
+              const records = dto.metaValues
+                .filter(
+                  (value) =>
+                    value.value !== undefined &&
+                    value.value !== null &&
+                    value.value !== "",
+                )
+                .map((value) => ({
+                  meet_id: meetId,
+                  attendee_id: preloaded.id,
+                  meta_definition_id: value.definitionId,
+                  value: value.value,
+                }));
+              if (records.length > 0) {
+                await trx("meet_meta_values").insert(records);
+              }
+            }
+            if (dto.indemnityAccepted) {
+              const meet = await trx("meets")
+                .where({ id: meetId })
+                .first("indemnity", "time_zone");
+              const indemnityText = meet?.indemnity ?? "";
+              const indemnityHash = indemnityText
+                ? createHash("sha256").update(indemnityText).digest("hex")
+                : null;
+              await trx("meet_attendee_indemnity_acceptances").insert({
+                attendee_id: preloaded.id,
+                meet_id: meetId,
+                accepted_at: new Date().toISOString(),
+                indemnity_text_hash: indemnityHash,
+                acceptance_ip: context?.ip ?? null,
+                acceptance_user_agent: context?.userAgent ?? null,
+                accepted_by_name: acceptedByName,
+                accepted_by_email: dto.email ?? null,
+                accepted_by_phone: dto.phone ?? null,
+                locale: context?.locale ?? null,
+                time_zone: meet?.time_zone ?? null,
+              });
+            }
+            return row;
+          }
         }
-      }
 
-      // Lock the meet row so capacity/waitlist decisions are race-safe.
-      const meet = await trx("meets")
-        .where({ id: meetId })
-        .forUpdate()
-        .first("capacity", "waitlist_size", "auto_placement");
-      if (!meet) {
-        throw new NotFoundException("Meet not found");
-      }
-
-      let status: "pending" | "confirmed" | "waitlisted" | "rejected" =
-        "pending";
-      if (meet.auto_placement !== false) {
-        status = await this.computeAutoPlacementStatus(trx, meetId, meet);
-      }
-
-      const sequenceRow = await trx("meet_attendees")
-        .where({ meet_id: meetId })
-        .max("sequence as max")
-        .first();
-      const maxSequence =
-        sequenceRow && (sequenceRow as any).max != null
-          ? Number((sequenceRow as any).max)
-          : 0;
-      const nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
-      const [attendee] = await trx("meet_attendees").insert(
-        {
-          meet_id: meetId,
-          user_id: dto.userId ?? null,
-          name: dto.name ?? null,
-          phone: dto.phone ?? null,
-          email: dto.email ?? null,
-          guests: dto.guests ?? null,
-          guest_of: dto.guestOf ?? null,
-          sequence: nextSequence,
-          is_minor: dto.isMinor ?? false,
-          guardian_name: guardianName,
-          indemnity_accepted: dto.indemnityAccepted ?? null,
-          indemnity_minors: dto.indemnityMinors ?? null,
-          status,
-        },
-        ["*"],
-      );
-      if (dto.indemnityAccepted) {
+        // Lock the meet row so capacity/waitlist decisions are race-safe.
         const meet = await trx("meets")
           .where({ id: meetId })
-          .first("indemnity", "time_zone");
-        const indemnityText = meet?.indemnity ?? "";
-        const indemnityHash = indemnityText
-          ? createHash("sha256").update(indemnityText).digest("hex")
-          : null;
-        await trx("meet_attendee_indemnity_acceptances").insert({
-          attendee_id: attendee.id,
-          meet_id: meetId,
-          accepted_at: new Date().toISOString(),
-          indemnity_text_hash: indemnityHash,
-          acceptance_ip: context?.ip ?? null,
-          acceptance_user_agent: context?.userAgent ?? null,
-          accepted_by_name: acceptedByName,
-          accepted_by_email: dto.email ?? null,
-          accepted_by_phone: dto.phone ?? null,
-          locale: context?.locale ?? null,
-          time_zone: meet?.time_zone ?? null,
-        });
-      }
-      if (dto.metaValues && dto.metaValues.length > 0) {
-        const records = dto.metaValues
-          .filter(
-            (value) =>
-              value.value !== undefined &&
-              value.value !== null &&
-              value.value !== "",
-          )
-          .map((value) => ({
-            meet_id: meetId,
-            attendee_id: attendee.id,
-            meta_definition_id: value.definitionId,
-            value: value.value,
-          }));
-        if (records.length > 0) {
-          await trx("meet_meta_values").insert(records);
+          .forUpdate()
+          .first("capacity", "waitlist_size", "auto_placement");
+        if (!meet) {
+          throw new NotFoundException("Meet not found");
         }
+
+        let status: "pending" | "confirmed" | "waitlisted" | "rejected" =
+          "pending";
+        if (meet.auto_placement !== false) {
+          status = await this.computeAutoPlacementStatus(trx, meetId, meet);
+        }
+
+        const sequenceRow = await trx("meet_attendees")
+          .where({ meet_id: meetId })
+          .max("sequence as max")
+          .first();
+        const maxSequence =
+          sequenceRow && (sequenceRow as any).max != null
+            ? Number((sequenceRow as any).max)
+            : 0;
+        const nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
+        const [attendee] = await trx("meet_attendees").insert(
+          {
+            meet_id: meetId,
+            user_id: dto.userId ?? null,
+            name: dto.name ?? null,
+            phone: dto.phone ?? null,
+            email: dto.email ?? null,
+            guests: dto.guests ?? null,
+            guest_of: dto.guestOf ?? null,
+            sequence: nextSequence,
+            is_minor: dto.isMinor ?? false,
+            guardian_name: guardianName,
+            indemnity_accepted: dto.indemnityAccepted ?? null,
+            indemnity_minors: dto.indemnityMinors ?? null,
+            status,
+          },
+          ["*"],
+        );
+        if (dto.indemnityAccepted) {
+          const meet = await trx("meets")
+            .where({ id: meetId })
+            .first("indemnity", "time_zone");
+          const indemnityText = meet?.indemnity ?? "";
+          const indemnityHash = indemnityText
+            ? createHash("sha256").update(indemnityText).digest("hex")
+            : null;
+          await trx("meet_attendee_indemnity_acceptances").insert({
+            attendee_id: attendee.id,
+            meet_id: meetId,
+            accepted_at: new Date().toISOString(),
+            indemnity_text_hash: indemnityHash,
+            acceptance_ip: context?.ip ?? null,
+            acceptance_user_agent: context?.userAgent ?? null,
+            accepted_by_name: acceptedByName,
+            accepted_by_email: dto.email ?? null,
+            accepted_by_phone: dto.phone ?? null,
+            locale: context?.locale ?? null,
+            time_zone: meet?.time_zone ?? null,
+          });
+        }
+        if (dto.metaValues && dto.metaValues.length > 0) {
+          const records = dto.metaValues
+            .filter(
+              (value) =>
+                value.value !== undefined &&
+                value.value !== null &&
+                value.value !== "",
+            )
+            .map((value) => ({
+              meet_id: meetId,
+              attendee_id: attendee.id,
+              meta_definition_id: value.definitionId,
+              value: value.value,
+            }));
+          if (records.length > 0) {
+            await trx("meet_meta_values").insert(records);
+          }
+        }
+        return attendee;
+      });
+      return { attendee: this.toAttendeeDto(created) };
+    } catch (error: any) {
+      if (this.isAttendeeDuplicateError(error)) {
+        throw new ConflictException(
+          "This user is already signed up for this meet",
+        );
       }
-      return attendee;
-    });
-    return { attendee: this.toAttendeeDto(created) };
+      throw error;
+    }
   }
 
   async autoPlaceAttendees(meetId: string, attendeeId: string) {
@@ -1023,65 +1045,74 @@ export class MeetsService {
     dto: UpdateMeetAttendeeDto,
     options?: { resetCancelledToPending?: boolean },
   ) {
-    const updated = await this.db.getClient().transaction(async (trx) => {
-      const guardianName =
-        dto.GuardianName ?? (dto as any).guardianName ?? undefined;
-      let statusOverride: string | undefined;
-      if (options?.resetCancelledToPending) {
-        const existing = await trx("meet_attendees")
+    try {
+      const updated = await this.db.getClient().transaction(async (trx) => {
+        const guardianName =
+          dto.GuardianName ?? (dto as any).guardianName ?? undefined;
+        let statusOverride: string | undefined;
+        if (options?.resetCancelledToPending) {
+          const existing = await trx("meet_attendees")
+            .where({ meet_id: meetId, id: attendeeId })
+            .first("status");
+          if (existing?.status === "cancelled") {
+            statusOverride = "pending";
+          }
+        }
+        const [row] = await trx("meet_attendees")
           .where({ meet_id: meetId, id: attendeeId })
-          .first("status");
-        if (existing?.status === "cancelled") {
-          statusOverride = "pending";
+          .update(
+            {
+              name: dto.name,
+              phone: dto.phone,
+              email: dto.email,
+              guests: dto.guests,
+              is_minor: dto.isMinor,
+              guardian_name: guardianName,
+              indemnity_accepted: dto.indemnityAccepted,
+              indemnity_minors: dto.indemnityMinors,
+              status: statusOverride ?? dto.status,
+              user_id: dto.userId,
+              paid_full_at: dto.paidFullAt,
+              paid_deposit_at: dto.paidDepositAt,
+              updated_at: new Date().toISOString(),
+            },
+            ["*"],
+          );
+        if (!row) {
+          throw new NotFoundException("Attendee not found");
         }
-      }
-      const [row] = await trx("meet_attendees")
-        .where({ meet_id: meetId, id: attendeeId })
-        .update(
-          {
-            name: dto.name,
-            phone: dto.phone,
-            email: dto.email,
-            guests: dto.guests,
-            is_minor: dto.isMinor,
-            guardian_name: guardianName,
-            indemnity_accepted: dto.indemnityAccepted,
-            indemnity_minors: dto.indemnityMinors,
-            status: statusOverride ?? dto.status,
-            user_id: dto.userId,
-            paid_full_at: dto.paidFullAt,
-            paid_deposit_at: dto.paidDepositAt,
-            updated_at: new Date().toISOString(),
-          },
-          ["*"],
+        if (dto.metaValues) {
+          await trx("meet_meta_values")
+            .where({ meet_id: meetId, attendee_id: attendeeId })
+            .del();
+          const records = dto.metaValues
+            .filter(
+              (value) =>
+                value.value !== undefined &&
+                value.value !== null &&
+                value.value !== "",
+            )
+            .map((value) => ({
+              meet_id: meetId,
+              attendee_id: attendeeId,
+              meta_definition_id: value.definitionId,
+              value: value.value,
+            }));
+          if (records.length > 0) {
+            await trx("meet_meta_values").insert(records);
+          }
+        }
+        return row;
+      });
+      return { attendee: this.toAttendeeDto(updated) };
+    } catch (error: any) {
+      if (this.isAttendeeDuplicateError(error)) {
+        throw new ConflictException(
+          "This user is already signed up for this meet",
         );
-      if (!row) {
-        throw new NotFoundException("Attendee not found");
       }
-      if (dto.metaValues) {
-        await trx("meet_meta_values")
-          .where({ meet_id: meetId, attendee_id: attendeeId })
-          .del();
-        const records = dto.metaValues
-          .filter(
-            (value) =>
-              value.value !== undefined &&
-              value.value !== null &&
-              value.value !== "",
-          )
-          .map((value) => ({
-            meet_id: meetId,
-            attendee_id: attendeeId,
-            meta_definition_id: value.definitionId,
-            value: value.value,
-          }));
-        if (records.length > 0) {
-          await trx("meet_meta_values").insert(records);
-        }
-      }
-      return row;
-    });
-    return { attendee: this.toAttendeeDto(updated) };
+      throw error;
+    }
   }
 
   async updateAttendeesNotified(meetId: string, attendeeIds: string[]) {

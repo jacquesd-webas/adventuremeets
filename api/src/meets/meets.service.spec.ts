@@ -1,6 +1,7 @@
 import { MeetsService } from "./meets.service";
 import { DatabaseService } from "../database/database.service";
 import { MinioService } from "../storage/minio.service";
+import { ConflictException } from "@nestjs/common";
 
 const buildBuilder = () => {
   const builder: any = {};
@@ -10,15 +11,20 @@ const buildBuilder = () => {
   builder.as = jest.fn().mockReturnValue(builder);
   builder.leftJoin = jest.fn().mockReturnValue(builder);
   builder.where = jest.fn().mockReturnValue(builder);
+  builder.andWhere = jest.fn().mockReturnValue(builder);
+  builder.andWhereNot = jest.fn().mockReturnValue(builder);
   builder.whereIn = jest.fn().mockReturnValue(builder);
   builder.whereNotNull = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
   builder.orderBy = jest.fn().mockReturnValue(builder);
   builder.modify = jest.fn().mockReturnValue(builder);
+  builder.max = jest.fn().mockReturnValue(builder);
+  builder.forUpdate = jest.fn().mockReturnValue(builder);
   builder.first = jest.fn();
   builder.pluck = jest.fn();
   builder.update = jest.fn();
   builder.insert = jest.fn();
+  builder.del = jest.fn();
   return builder;
 };
 
@@ -134,5 +140,66 @@ describe("MeetsService", () => {
 
     const result = await service.findOne("meet-1");
     expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
+  });
+
+  it("rejects duplicate adult attendee inserts with a conflict error", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      capacity: null,
+      waitlist_size: 0,
+      auto_placement: false,
+    });
+
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({ max: 0 });
+    attendeeBuilder.insert.mockRejectedValue({
+      code: "23505",
+      constraint: "meet_attendees_meet_id_user_id_non_minor_unique",
+    });
+
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.addAttendee("meet-1", {
+        userId: "user-1",
+        isMinor: false,
+      }),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it("rejects duplicate adult attendee updates with a conflict error", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.update.mockRejectedValue({
+      code: "23505",
+      constraint: "meet_attendees_meet_id_user_id_non_minor_unique",
+    });
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.updateAttendee("meet-1", "attendee-1", {
+        userId: "user-1",
+        isMinor: false,
+      }),
+    ).rejects.toThrow(ConflictException);
   });
 });
