@@ -22,6 +22,8 @@ type AttendeeCheckinItemProps = {
   };
   isCheckingIn: boolean;
   isChecked: boolean;
+  syncState?: "queued" | "failed";
+  syncMessage?: string;
   showDivider: boolean;
   onCheckin: (attendeeId: string) => void;
   onUndo: (attendee: { id: string; name: string }) => void;
@@ -31,6 +33,8 @@ export function AttendeeCheckinItem({
   attendee,
   isCheckingIn,
   isChecked,
+  syncState,
+  syncMessage,
   showDivider,
   onCheckin,
   onUndo,
@@ -68,12 +72,34 @@ export function AttendeeCheckinItem({
                 {attendee.phone ? (
                   <Chip size="small" label={attendee.phone} color="default" />
                 ) : null}
+                {syncState === "queued" ? (
+                  <Chip
+                    size="small"
+                    label="Pending sync"
+                    color="warning"
+                    variant="outlined"
+                  />
+                ) : null}
+                {syncState === "failed" ? (
+                  <Chip
+                    size="small"
+                    label={syncMessage || "Sync failed"}
+                    color="error"
+                    variant="outlined"
+                  />
+                ) : null}
               </Stack>
             </Box>
           }
         />
         {isChecked ? (
-          <IconButton edge="end" onClick={() => onUndo(attendee)}>
+          <IconButton
+            edge="end"
+            onClick={(event) => {
+              event.stopPropagation();
+              onUndo(attendee);
+            }}
+          >
             <UndoOutlinedIcon fontSize="small" />
           </IconButton>
         ) : null}

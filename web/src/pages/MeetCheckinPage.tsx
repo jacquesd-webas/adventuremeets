@@ -1,6 +1,7 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  Alert,
   Box,
   Container,
   IconButton,
@@ -21,12 +22,23 @@ import { CheckinSearch } from "../components/attendeeCheckin/CheckinSearch";
 
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: attendees, isLoading } = useFetchMeetAttendees(id, "accepted");
-  const { checkinAttendeesAsync } = useCheckinAttendees();
+  const {
+    data: attendees,
+    isLoading,
+    isOfflineData,
+    error,
+  } = useFetchMeetAttendees(id, "accepted");
+  const {
+    checkinAttendeesAsync,
+    queuedStatusByAttendeeId,
+    failedStatusByAttendeeId,
+    isOffline,
+    pendingCount,
+    failedCount,
+  } = useCheckinAttendees(id);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [checkingIn, setCheckingIn] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [undoTarget, setUndoTarget] = useState<{
@@ -45,9 +57,15 @@ function MeetCheckinPage() {
           "Unnamed attendee",
         email: attendee.email || "",
         phone: attendee.phone || "",
-        status: attendee.status || "",
+        status: queuedStatusByAttendeeId[attendee.id] || attendee.status || "",
+        syncState: failedStatusByAttendeeId[attendee.id]
+          ? ("failed" as const)
+          : queuedStatusByAttendeeId[attendee.id]
+            ? ("queued" as const)
+            : undefined,
+        syncMessage: failedStatusByAttendeeId[attendee.id] || "",
       })),
-    [attendees],
+    [attendees, failedStatusByAttendeeId, queuedStatusByAttendeeId],
   );
 
   const filteredAttendees = useMemo(() => {
@@ -63,26 +81,13 @@ function MeetCheckinPage() {
     });
   }, [attendeeList, searchTerm]);
 
-  useEffect(() => {
-    const initial = attendeeList.reduce<Record<string, boolean>>(
-      (acc, attendee) => {
-        if (attendee.status === AttendeeStatusEnum.CheckedIn) {
-          acc[attendee.id] = true;
-        }
-        return acc;
-      },
-      {},
-    );
-    setChecked(initial);
-  }, [attendeeList]);
-
   const handleCheckin = async (attendeeId: string) => {
     if (!id || checkingIn[attendeeId]) return;
-    if (checked[attendeeId]) return;
+    const attendee = attendeeList.find((item) => item.id === attendeeId);
+    if (attendee?.status === AttendeeStatusEnum.CheckedIn) return;
     setCheckingIn((prev) => ({ ...prev, [attendeeId]: true }));
     try {
       await checkinAttendeesAsync({ meetId: id, attendeeIds: [attendeeId] });
-      setChecked((prev) => ({ ...prev, [attendeeId]: true }));
     } finally {
       setCheckingIn((prev) => ({ ...prev, [attendeeId]: false }));
     }
@@ -97,7 +102,6 @@ function MeetCheckinPage() {
         attendeeIds: [undoTarget.id],
         status: "confirmed",
       });
-      setChecked((prev) => ({ ...prev, [undoTarget.id]: false }));
     } finally {
       setCheckingIn((prev) => ({ ...prev, [undoTarget.id]: false }));
       setUndoTarget(null);
@@ -156,6 +160,21 @@ function MeetCheckinPage() {
             onClear={() => setSearchTerm("")}
           />
         </Box>
+        {isOffline || pendingCount > 0 || failedCount > 0 || isOfflineData ? (
+          <Box sx={{ px: isMobile ? 2 : 0 }}>
+            <Alert
+              severity={failedCount > 0 ? "warning" : isOffline ? "info" : "success"}
+            >
+              {failedCount > 0
+                ? `${failedCount} check-in change${failedCount === 1 ? "" : "s"} could not be synced yet.`
+                : pendingCount > 0
+                  ? `${pendingCount} check-in change${pendingCount === 1 ? "" : "s"} waiting to sync.`
+                  : isOfflineData
+                    ? "Showing the last saved attendee list while offline."
+                    : "Offline mode is active. New check-ins will queue on this device."}
+            </Alert>
+          </Box>
+        ) : null}
         <Paper
           variant="outlined"
           sx={{
@@ -170,6 +189,10 @@ function MeetCheckinPage() {
             <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
               Loading attendees...
             </Typography>
+          ) : error ? (
+            <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+              {error}
+            </Typography>
           ) : filteredAttendees.length ? (
             <List>
               {filteredAttendees.map((attendee, index) => (
@@ -177,7 +200,9 @@ function MeetCheckinPage() {
                   key={attendee.id}
                   attendee={attendee}
                   isCheckingIn={Boolean(checkingIn[attendee.id])}
-                  isChecked={Boolean(checked[attendee.id])}
+                  isChecked={attendee.status === AttendeeStatusEnum.CheckedIn}
+                  syncState={attendee.syncState}
+                  syncMessage={attendee.syncMessage}
                   showDivider={index < filteredAttendees.length - 1}
                   onCheckin={handleCheckin}
                   onUndo={(target) => setUndoTarget(target)}
@@ -186,7 +211,9 @@ function MeetCheckinPage() {
             </List>
           ) : (
             <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-              No attendees yet.
+              {isOffline
+                ? "No cached attendees available offline."
+                : "No attendees yet."}
             </Typography>
           )}
         </Paper>
