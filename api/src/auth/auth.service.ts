@@ -227,15 +227,6 @@ export class AuthService {
     const created = await this.usersService.create(dto);
     const user = await this.usersService.findById(created.id);
     await this.usersService.linkByEmail(user.email, user.id);
-    if (!dto.idpProvider) {
-      try {
-        await this.requestEmailVerification(user.id);
-      } catch (err: any) {
-        this.logger.error(
-          `Failed to send verification email to ${user.email}: ${err?.message || err}`,
-        );
-      }
-    }
     return {
       accessToken: this.signAccessToken(user as any),
       refreshToken: this.signRefreshToken(user as any),
