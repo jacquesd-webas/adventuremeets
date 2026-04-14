@@ -16,9 +16,19 @@ export function buildMeetSharePageHtml(options: {
   meetName?: string | null;
   meetDescription?: string | null;
   meetImageUrl?: string | null;
+  meetStartTime?: string | null;
+  meetTimeZone?: string | null;
 }) {
-  const { req, code, frontendUrl, meetName, meetDescription, meetImageUrl } =
-    options;
+  const {
+    req,
+    code,
+    frontendUrl,
+    meetName,
+    meetDescription,
+    meetImageUrl,
+    meetStartTime,
+    meetTimeZone,
+  } = options;
 
   const queryString = req.originalUrl.includes("?")
     ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
@@ -26,9 +36,14 @@ export function buildMeetSharePageHtml(options: {
   const redirectUrl = `${frontendUrl}/meets/${code}${queryString}`;
 
   const title = (meetName || "AdventureMeets").trim();
-  const description =
+  const baseDescription =
     (meetDescription || "Join this meet on AdventureMeets.").trim() ||
     "Join this meet on AdventureMeets.";
+  const description = buildOgDescription(
+    baseDescription,
+    meetStartTime,
+    meetTimeZone,
+  );
 
   const ogImage = (() => {
     const raw = meetImageUrl || "/static/adventuremeets-logo.png";
@@ -73,3 +88,29 @@ export function buildMeetSharePageHtml(options: {
   return { html, redirectUrl, pageUrl };
 }
 
+function buildOgDescription(
+  description: string,
+  startTime?: string | null,
+  timeZone?: string | null,
+) {
+  const dateLine = formatOgDateLine(startTime, timeZone);
+  if (!dateLine) {
+    return description;
+  }
+  return `${dateLine}\n${description}`;
+}
+
+function formatOgDateLine(startTime?: string | null, timeZone?: string | null) {
+  if (!startTime) return null;
+
+  const parsedDate = new Date(startTime);
+  if (Number.isNaN(parsedDate.getTime())) return null;
+
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    ...(timeZone ? { timeZone } : {}),
+  }).format(parsedDate);
+}

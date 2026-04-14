@@ -29,6 +29,8 @@ export class MeetShareController {
       meetName: meet.name,
       meetDescription: meet.description,
       meetImageUrl: meet.imageUrl,
+      meetStartTime: meet.startTime,
+      meetTimeZone: meet.timeZone,
     });
 
     res.setHeader("content-type", "text/html; charset=utf-8");
