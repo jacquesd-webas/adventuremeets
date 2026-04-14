@@ -773,7 +773,7 @@ export function ProfileContent({ open }: ProfileContentProps) {
             <Divider sx={{ width: "100%" }} />
             <Stack spacing={1.5} sx={{ width: "100%" }}>
               <Typography variant="subtitle1" fontWeight={600}>
-                Pending invites
+                Invites
               </Typography>
               {invitesLoading ? (
                 <Typography variant="body2" color="text.secondary">

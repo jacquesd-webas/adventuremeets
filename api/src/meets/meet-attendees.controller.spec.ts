@@ -1,0 +1,346 @@
+jest.mock("../email/email.templates", () => ({
+  renderEmailTemplate: jest.fn((name: string) => ({
+    subject: `subject:${name}`,
+    text: `text:${name}`,
+    html: `html:${name}`,
+  })),
+}));
+
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import type { Request } from "express";
+import { MeetAttendeesController } from "./meet-attendees.controller";
+import { MeetsService } from "./meets.service";
+import { AuthService } from "../auth/auth.service";
+import { EmailService } from "../email/email.service";
+import { renderEmailTemplate } from "../email/email.templates";
+import { UserProfile } from "../users/dto/user-profile.dto";
+
+describe("MeetAttendeesController", () => {
+  let controller: MeetAttendeesController;
+
+  const meetsService = {
+    findOne: jest.fn(),
+    listAttendees: jest.fn(),
+    findAttendeeByContact: jest.fn(),
+    addAttendee: jest.fn(),
+    autoPlaceAttendees: jest.fn(),
+    updateAttendeesNotified: jest.fn(),
+    findAttendeeForEdit: jest.fn(),
+    updateAttendee: jest.fn(),
+    removeAttendee: jest.fn(),
+  } as unknown as MeetsService;
+
+  const authService = {
+    hasRole: jest.fn(),
+  } as unknown as AuthService;
+
+  const emailService = {
+    sendEmail: jest.fn(),
+    saveMessage: jest.fn(),
+  } as unknown as EmailService;
+
+  const user: UserProfile = {
+    id: "user-1",
+    email: "organizer@example.com",
+    organizations: { "org-1": "organizer" },
+    pendingInvites: [],
+  };
+
+  const meet = {
+    id: "meet-1",
+    organizationId: "org-1",
+    name: "Sunrise Hike",
+    shareCode: "share-123",
+    autoPlacement: false,
+    confirmMessage: "You are in",
+    waitlistMessage: "Wait a bit",
+    rejectMessage: "Sorry",
+    startTime: "2026-04-14T08:00:00.000Z",
+    endTime: "2026-04-14T10:00:00.000Z",
+    timeZone: "Africa/Johannesburg",
+    location: "Trailhead",
+    organizerName: "Taylor",
+    organizerEmail: "taylor@example.com",
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    controller = new MeetAttendeesController(
+      meetsService,
+      authService,
+      emailService,
+    );
+  });
+
+  it("rejects unauthenticated attendee listing", async () => {
+    await expect(controller.list("meet-1", "accepted")).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it("rejects attendee listing for non-organizers", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.list("meet-1", "accepted", user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("checks duplicates without including preloaded attendees", async () => {
+    (meetsService.findAttendeeByContact as jest.Mock).mockResolvedValue({
+      attendee: null,
+    });
+
+    await expect(
+      controller.check("meet-1", "person@example.com", "+27123456789"),
+    ).resolves.toEqual({ attendee: null });
+
+    expect(meetsService.findAttendeeByContact).toHaveBeenCalledWith(
+      "meet-1",
+      "person@example.com",
+      "+27123456789",
+      { includePreloaded: false },
+    );
+  });
+
+  it("throws when adding an attendee to a missing meet", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      controller.add(
+        "missing-meet",
+        {},
+        { headers: {}, ip: "127.0.0.1" } as unknown as Request,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("auto-places pending attendees and sends the status email", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      autoPlacement: true,
+    });
+    (meetsService.addAttendee as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-1", status: "pending" },
+    });
+    (meetsService.autoPlaceAttendees as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-1", status: "confirmed" },
+    });
+    (meetsService.updateAttendeesNotified as jest.Mock).mockResolvedValue({
+      updated: 1,
+    });
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+    (emailService.saveMessage as jest.Mock).mockResolvedValue(undefined);
+
+    const dto = {
+      name: "Sam Trail",
+      email: "sam@example.com",
+      phone: "+27123456789",
+    };
+    const req = {
+      headers: {
+        "x-forwarded-for": "203.0.113.10, 10.0.0.1",
+        "user-agent": "Mobile Safari",
+        "accept-language": "en-ZA",
+      },
+      ip: "127.0.0.1",
+    } as unknown as Request;
+
+    await expect(controller.add("meet-1", dto, req)).resolves.toEqual({
+      attendee: { id: "attendee-1", status: "confirmed" },
+    });
+
+    expect(meetsService.addAttendee).toHaveBeenCalledWith("meet-1", dto, {
+      ip: "203.0.113.10",
+      userAgent: "Mobile Safari",
+      locale: "en-ZA",
+    });
+    expect(meetsService.autoPlaceAttendees).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+    );
+    expect(renderEmailTemplate).toHaveBeenCalledWith(
+      "meet-confirm",
+      expect.objectContaining({
+        meetName: meet.name,
+        attendeeName: dto.name,
+      }),
+    );
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: dto.email,
+        subject: "subject:meet-confirm",
+        attendeeId: "attendee-1",
+        meetId: "meet-1",
+      }),
+    );
+    expect(emailService.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: dto.email,
+        subject: "subject:meet-confirm",
+      }),
+    );
+    expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
+      "meet-1",
+      ["attendee-1"],
+    );
+  });
+
+  it("sends the signup email for pending attendees without auto-placement", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.addAttendee as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-2", status: "pending" },
+    });
+    (meetsService.updateAttendeesNotified as jest.Mock).mockResolvedValue({
+      updated: 1,
+    });
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+    (emailService.saveMessage as jest.Mock).mockResolvedValue(undefined);
+
+    const dto = {
+      name: "Riley Peaks",
+      email: "riley@example.com",
+      phone: "+27129876543",
+    };
+
+    await controller.add(
+      "meet-1",
+      dto,
+      { headers: {}, ip: "127.0.0.1" } as unknown as Request,
+    );
+
+    expect(meetsService.autoPlaceAttendees).not.toHaveBeenCalled();
+    expect(renderEmailTemplate).toHaveBeenCalledWith(
+      "meet-signup",
+      expect.objectContaining({
+        meetName: meet.name,
+        attendeeName: dto.name,
+      }),
+    );
+    expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
+      "meet-1",
+      ["attendee-2"],
+    );
+  });
+
+  it("skips email side effects when the attendee has no email address", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.addAttendee as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-3", status: "pending" },
+    });
+
+    await expect(
+      controller.add(
+        "meet-1",
+        { name: "Phone Only", phone: "+27123400000" },
+        { headers: {}, ip: "127.0.0.1" } as unknown as Request,
+      ),
+    ).resolves.toEqual({
+      attendee: { id: "attendee-3", status: "pending" },
+    });
+
+    expect(renderEmailTemplate).not.toHaveBeenCalled();
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
+    expect(emailService.saveMessage).not.toHaveBeenCalled();
+    expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
+  });
+
+  it("verifies attendee email with a case-insensitive match", async () => {
+    (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+      attendee: { email: "Sam@example.com" },
+    });
+
+    await expect(
+      controller.verifyEmail("meet-1", "attendee-1", {
+        email: "sam@example.com",
+      }),
+    ).resolves.toEqual({ valid: true });
+  });
+
+  it("returns false when attendee email verification does not match", async () => {
+    (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+      attendee: { email: "sam@example.com" },
+    });
+
+    await expect(
+      controller.verifyEmail("meet-1", "attendee-1", {
+        email: "other@example.com",
+      }),
+    ).resolves.toEqual({ valid: false });
+  });
+
+  it("rejects unauthenticated attendee updates", async () => {
+    await expect(
+      controller.update("meet-1", "attendee-1", {}),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it("rejects attendee updates for non-organizers", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.update("meet-1", "attendee-1", {}, user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("delegates attendee updates for organizers", async () => {
+    const dto = { status: "checked-in" };
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.updateAttendee as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-1", status: "checked-in" },
+    });
+
+    await expect(
+      controller.update("meet-1", "attendee-1", dto, user),
+    ).resolves.toEqual({
+      attendee: { id: "attendee-1", status: "checked-in" },
+    });
+
+    expect(meetsService.updateAttendee).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+      dto,
+    );
+  });
+
+  it("rejects unauthenticated attendee removal", async () => {
+    await expect(controller.remove("meet-1", "attendee-1")).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it("rejects attendee removal for non-organizers", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.remove("meet-1", "attendee-1", user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("delegates attendee removal for organizers", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.removeAttendee as jest.Mock).mockResolvedValue({
+      deleted: true,
+    });
+
+    await expect(
+      controller.remove("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      deleted: true,
+    });
+
+    expect(meetsService.removeAttendee).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+    );
+  });
+});

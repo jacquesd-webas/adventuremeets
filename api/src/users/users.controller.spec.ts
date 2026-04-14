@@ -1,0 +1,209 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { UsersController } from "./users.controller";
+import { UsersService } from "./users.service";
+import { AuthService } from "../auth/auth.service";
+import { UserProfile } from "./dto/user-profile.dto";
+
+describe("UsersController", () => {
+  let controller: UsersController;
+
+  const usersService = {
+    findAllByOrganizations: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    listUserMetaValues: jest.fn(),
+    saveUserMetaValues: jest.fn(),
+    remove: jest.fn(),
+  } as unknown as UsersService;
+
+  const authService = {
+    getUserOrganizationIds: jest.fn(),
+    hasAtLeastOneRole: jest.fn(),
+    hasRole: jest.fn(),
+  } as unknown as AuthService;
+
+  const adminUser: UserProfile = {
+    id: "admin-1",
+    email: "admin@example.com",
+    organizations: { "org-1": "admin" },
+    pendingInvites: [],
+  };
+
+  const memberUser: UserProfile = {
+    id: "member-1",
+    email: "member@example.com",
+    organizations: { "org-1": "member" },
+    pendingInvites: [],
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    controller = new UsersController(usersService, authService);
+  });
+
+  it("rejects unauthenticated user listing", async () => {
+    await expect(controller.findAll()).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it("lists users for admin organizations", async () => {
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
+      "org-1",
+      "org-2",
+    ]);
+    (usersService.findAllByOrganizations as jest.Mock).mockResolvedValue([
+      { id: "user-1" },
+    ]);
+
+    await expect(controller.findAll(adminUser)).resolves.toEqual({
+      users: [{ id: "user-1" }],
+    });
+    expect(authService.getUserOrganizationIds).toHaveBeenCalledWith(
+      adminUser,
+      "admin",
+    );
+    expect(usersService.findAllByOrganizations).toHaveBeenCalledWith([
+      "org-1",
+      "org-2",
+    ]);
+  });
+
+  it("rejects user listing when the caller is not admin anywhere", async () => {
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([]);
+
+    await expect(controller.findAll(memberUser)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it("returns a single user for an admin", async () => {
+    (usersService.findById as jest.Mock).mockResolvedValue({ id: "user-2" });
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
+      "org-1",
+    ]);
+    (authService.hasAtLeastOneRole as jest.Mock).mockReturnValue(true);
+
+    await expect(controller.findOne("user-2", adminUser)).resolves.toEqual({
+      user: { id: "user-2" },
+    });
+  });
+
+  it("rejects create when organizationId is missing", async () => {
+    await expect(
+      controller.create({ email: "new@example.com" }, adminUser),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("creates a user when the caller is admin for the target organization", async () => {
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (usersService.create as jest.Mock).mockResolvedValue({ id: "user-3" });
+
+    await expect(
+      controller.create(
+        { email: "new@example.com", organizationId: "org-1" },
+        adminUser,
+      ),
+    ).resolves.toEqual({
+      user: { id: "user-3" },
+    });
+    expect(usersService.create).toHaveBeenCalledWith({
+      email: "new@example.com",
+      organizationId: "org-1",
+    });
+  });
+
+  it("allows users to update their own profile without organizationId", async () => {
+    (usersService.findById as jest.Mock).mockResolvedValue({ id: "member-1" });
+    (usersService.update as jest.Mock).mockResolvedValue({
+      id: "member-1",
+      firstName: "Updated",
+    });
+
+    await expect(
+      controller.update("member-1", { firstName: "Updated" }, memberUser),
+    ).resolves.toEqual({
+      user: { id: "member-1", firstName: "Updated" },
+    });
+
+    expect(authService.getUserOrganizationIds).not.toHaveBeenCalled();
+    expect(authService.hasRole).not.toHaveBeenCalled();
+  });
+
+  it("rejects updating another user without organizationId", async () => {
+    (usersService.findById as jest.Mock).mockResolvedValue({ id: "user-2" });
+
+    await expect(
+      controller.update("user-2", { firstName: "Updated" }, adminUser),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("lists meta values for organization members", async () => {
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (usersService.listUserMetaValues as jest.Mock).mockResolvedValue([
+      { key: "pace", value: "Moderate" },
+    ]);
+
+    await expect(
+      controller.listMetaValues("user-1", "org-1", memberUser),
+    ).resolves.toEqual({
+      metaValues: [{ key: "pace", value: "Moderate" }],
+    });
+  });
+
+  it("rejects meta value reads without organization membership", async () => {
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.listMetaValues("user-1", "org-1", memberUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("saves meta values for organization members", async () => {
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (usersService.saveUserMetaValues as jest.Mock).mockResolvedValue([
+      { key: "gear", value: "Helmet" },
+    ]);
+
+    await expect(
+      controller.saveMetaValues(
+        "user-1",
+        {
+          organizationId: "org-1",
+          values: [{ key: "gear", value: "Helmet" }],
+        },
+        memberUser,
+      ),
+    ).resolves.toEqual({
+      metaValues: [{ key: "gear", value: "Helmet" }],
+    });
+  });
+
+  it("rejects delete when the target user does not exist", async () => {
+    (usersService.findById as jest.Mock).mockResolvedValue(null);
+
+    await expect(controller.remove("missing-user", adminUser)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it("deletes a user when the caller is admin for one of the target organizations", async () => {
+    (usersService.findById as jest.Mock).mockResolvedValue({ id: "user-2" });
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
+      "org-1",
+    ]);
+    (authService.hasAtLeastOneRole as jest.Mock).mockReturnValue(true);
+    (usersService.remove as jest.Mock).mockResolvedValue({ deleted: true });
+
+    await expect(controller.remove("user-2", adminUser)).resolves.toEqual({
+      deleted: true,
+    });
+    expect(usersService.remove).toHaveBeenCalledWith("user-2");
+  });
+});

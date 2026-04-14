@@ -160,7 +160,9 @@ describe("ProfileModal", () => {
     expect(
       screen.getByRole("button", { name: "Invite User" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Pending invites")).toBeInTheDocument();
+    expect(
+      screen.getByText("Invite users to join your organisation."),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Security" }));
     expect(screen.getByText("Update password")).toBeInTheDocument();
