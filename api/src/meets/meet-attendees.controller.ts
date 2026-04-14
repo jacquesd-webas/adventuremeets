@@ -128,67 +128,55 @@ export class MeetAttendeesController {
               ? "meet-reject"
               : "meet-signup";
 
-      // The "meet-singup" template uses a different overload, the others all use the same
-      if (emailTemplate !== "meet-signup") {
-        const { subject, text, html } = renderEmailTemplate(emailTemplate, {
-          meetName: meet.name,
-          attendeeName,
-          startTime: meet.startTime,
-          endTime: meet.endTime,
-          timeZone: meet.timeZone,
-          location: meet.location,
-          statusUrl,
-          organizerName: meet.organizerName,
-          organizerEmail: meet.organizerEmail,
-          messageBody: messageBody,
-        });
-        await this.emailService.sendEmail({
-          to: dto.email,
-          subject,
-          text,
-          html,
-          attendeeId: attendee.id,
-          meetId,
-        });
-        await this.emailService.saveMessage({
-          to: dto.email,
-          subject,
-          text,
-          html,
-          attendeeId: attendee.id,
-          meetId,
-        });
-        await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
-      } else {
-        const { subject, text, html } = renderEmailTemplate("meet-signup", {
-          meetName: meet.name,
-          attendeeName,
-          startTime: meet.startTime,
-          endTime: meet.endTime,
-          timeZone: meet.timeZone,
-          location: meet.location,
-          statusUrl,
-          organizerName: meet.organizerName,
-          organizerEmail: meet.organizerEmail,
-        });
-        await this.emailService.sendEmail({
-          to: dto.email,
-          subject,
-          text,
-          html,
-          attendeeId: attendee.id,
-          meetId,
-        });
-        await this.emailService.saveMessage({
-          to: dto.email,
-          subject,
-          text,
-          html,
-          attendeeId: attendee.id,
-          meetId,
-        });
-        await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
-      }
+      // Prepare the email content (meet-signup uses a different overload)
+      const { subject, text, html } =
+        emailTemplate !== "meet-signup"
+          ? renderEmailTemplate(emailTemplate, {
+              meetName: meet.name,
+              attendeeName,
+              startTime: meet.startTime,
+              endTime: meet.endTime,
+              timeZone: meet.timeZone,
+              location: meet.location,
+              statusUrl,
+              organizerName: meet.organizerName,
+              organizerEmail: meet.organizerEmail,
+              messageBody: messageBody,
+            })
+          : renderEmailTemplate("meet-signup", {
+              meetName: meet.name,
+              attendeeName,
+              startTime: meet.startTime,
+              endTime: meet.endTime,
+              timeZone: meet.timeZone,
+              location: meet.location,
+              statusUrl,
+              organizerName: meet.organizerName,
+              organizerEmail: meet.organizerEmail,
+            });
+
+      // Send the e-mail
+      await this.emailService.sendEmail({
+        to: dto.email,
+        subject,
+        text,
+        html,
+        attendeeId: attendee.id,
+        meetId,
+      });
+
+      // Save the message in the DB for the organiser to confirm that it's sent
+      await this.emailService.saveMessage({
+        to: dto.email,
+        subject,
+        text,
+        html,
+        attendeeId: attendee.id,
+        meetId,
+      });
+
+      // Mark the attendee as notified unless it's meet-signup (this does not count as notification)
+      await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
     }
     return { attendee };
   }
