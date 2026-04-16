@@ -1,6 +1,11 @@
+import AndroidIcon from "@mui/icons-material/Android";
+import IosShareIcon from "@mui/icons-material/IosShare";
 import { Box, Link } from "@mui/material";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { IosInstallInstructionsDialog } from "../components/splash/IosInstallInstructionsDialog";
 import { SplashActivityCarousel } from "../components/splash/SplashActivityCarousel";
+import { useAndroidInstallPrompt } from "../hooks/useAndroidInstallPrompt";
+import { useIosInstallInstructions } from "../hooks/useIosInstallInstructions";
 
 function ensureHeadLink(id: string, attrs: Record<string, string>) {
   const existing = document.getElementById(id);
@@ -43,6 +48,10 @@ function useManropeFont() {
 
 function SplashPage() {
   useManropeFont();
+  const { canInstall, promptInstall } = useAndroidInstallPrompt();
+  const { canShowInstructions: canShowIosInstall } =
+    useIosInstallInstructions();
+  const [iosInstructionsOpen, setIosInstructionsOpen] = useState(false);
 
   return (
     <Box
@@ -199,6 +208,82 @@ function SplashPage() {
               >
                 Try AdventureMeets for Free
               </Box>
+              {canInstall ? (
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => {
+                    void promptInstall();
+                  }}
+                  sx={{
+                    appearance: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    justifySelf: { xs: "stretch", sm: "start" },
+                    width: { xs: "100%", sm: "fit-content" },
+                    fontWeight: 700,
+                    fontSize: "0.92rem",
+                    px: "18px",
+                    py: "12px",
+                    mb: 2,
+                    borderRadius: "999px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 1,
+                    minWidth: { xs: "100%", sm: 0 },
+                    color: "#fff",
+                    backgroundColor: "#111111",
+                    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.2)",
+                    transition:
+                      "transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease",
+                    "&:hover": {
+                      transform: "translateY(-1px)",
+                      backgroundColor: "#000000",
+                    },
+                  }}
+                >
+                  <AndroidIcon sx={{ fontSize: 18 }} />
+                  Install App
+                </Box>
+              ) : null}
+              {canShowIosInstall !== true ? (
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => setIosInstructionsOpen(true)}
+                  sx={{
+                    appearance: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    justifySelf: { xs: "stretch", sm: "start" },
+                    width: { xs: "100%", sm: "fit-content" },
+                    fontWeight: 700,
+                    fontSize: "0.92rem",
+                    px: "18px",
+                    py: "12px",
+                    mb: 2,
+                    borderRadius: "999px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 1,
+                    minWidth: { xs: "100%", sm: 0 },
+                    color: "#fff",
+                    backgroundColor: "#111111",
+                    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.2)",
+                    transition:
+                      "transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease",
+                    "&:hover": {
+                      transform: "translateY(-1px)",
+                      backgroundColor: "#000000",
+                    },
+                  }}
+                >
+                  <IosShareIcon sx={{ fontSize: 18 }} />
+                  Install App
+                </Box>
+              ) : null}
               <Box
                 sx={{
                   display: "grid",
@@ -247,6 +332,10 @@ function SplashPage() {
           </Box>
         </Box>
       </Box>
+      <IosInstallInstructionsDialog
+        open={iosInstructionsOpen}
+        onClose={() => setIosInstructionsOpen(false)}
+      />
     </Box>
   );
 }

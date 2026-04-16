@@ -31,5 +31,18 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/screenshots/adventuremeets.screenshot.1.png",
+      "sizes": "610x1320",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/screenshots/adventuremeets.screenshot.2.png",
+      "sizes": "2964x1498",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
   ]
 }
