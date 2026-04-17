@@ -8,7 +8,7 @@ type UseFetchMeetsOptions = {
   view?: "all" | "my" | "upcoming" | "past" | "draft";
   page?: number;
   limit?: number;
-  organizationId: string;
+  organizationId?: string | null;
   search?: string;
 };
 
