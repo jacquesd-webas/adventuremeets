@@ -1,6 +1,7 @@
 export enum MeetActionsEnum {
   Create = "create",
   Edit = "edit",
+  Clone = "clone",
   Preview = "preview",
   CopyLink = "copy-link",
   Open = "open",
