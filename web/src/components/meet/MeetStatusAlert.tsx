@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 type MeetStatusAlertProps = {
   statusId?: number;
-  openingDate?: string;
+  openingDate?: string | Date;
   enableApply?: boolean;
   shareCode?: string;
   size?: "default" | "small";

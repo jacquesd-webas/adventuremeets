@@ -20,6 +20,7 @@ import {
 import { GuestSwitchField } from "../meet/GuestSwitchField";
 import { Spacer } from "../common/Spacer";
 import { GuestInput } from "../../types/GuestInput";
+import type { MeetSignupSheetState } from "../../pages/MeetSignupSheetState";
 
 function LabeledField({
   label,
@@ -70,8 +71,14 @@ export type MeetSignupFormFieldsProps = {
   onNameBlur: () => void;
   onEmailBlur: () => void;
   onPhoneBlur: () => void;
-  setField: (key: string, value: any) => void;
-  setMetaValue: (key: string, value: any) => void;
+  setField: <K extends keyof MeetSignupSheetState>(
+    key: K,
+    value: MeetSignupSheetState[K],
+  ) => void;
+  setMetaValue: (
+    key: string,
+    value: string | number | boolean,
+  ) => void;
   setPhoneCountry: (value: string) => void;
   setPhoneLocal: (value: string) => void;
 };
