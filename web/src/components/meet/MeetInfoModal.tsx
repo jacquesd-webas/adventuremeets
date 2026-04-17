@@ -47,8 +47,8 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
                 <IconButton
                   onClick={onClose}
                   size="small"
-                  aria-label="Close"
-                  data-testid="close-meet-signup-sheet"
+                  aria-label="Close meet details"
+                  data-testid="close-meet-details"
                 >
                   <CloseIcon fontSize="small" />
                 </IconButton>
