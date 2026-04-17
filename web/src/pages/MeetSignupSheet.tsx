@@ -579,7 +579,7 @@ function MeetSignupSheet() {
     Boolean(emailError) ||
     Boolean(phoneError) ||
     requiredMetaMissing ||
-    (meet?.hasIndemnity && !indemnityAccepted);
+    Boolean(meet?.hasIndemnity && !indemnityAccepted);
 
   const handleNameBlur = () => {
     setNameError(validateRequired(fullName, "Name"));
@@ -768,7 +768,7 @@ function MeetSignupSheet() {
             boxShadow: isMobile ? "none" : undefined,
           }}
         >
-          {isLoading ? (
+          {isLoading || !meet ? (
             <Typography color="text.secondary">Loading meet...</Typography>
           ) : (
             <Stack spacing={1.5}>
@@ -791,7 +791,7 @@ function MeetSignupSheet() {
                   </Stack>
                 }
               />
-              {!isPreview && (
+              {!isPreview && meet && (
                 <MeetStatusAlert
                   statusId={meet.statusId}
                   openingDate={meet.openingDate}
