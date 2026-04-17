@@ -31,9 +31,18 @@ type ReportsModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
+  isOrganizer?: boolean;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
 };
 
-export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
+export function ReportsModal({
+  open,
+  onClose,
+  meetId,
+  isOrganizer: _isOrganizer,
+  canManageMeet,
+}: ReportsModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const { generateReportAsync } = useGenerateMeetReport();
@@ -73,20 +82,47 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
     return !Number.isNaN(statusNum || NaN) ? statusNum : null;
   }, [meet]);
 
-  const showCompletionWarning =
-    statusId !== null && statusId !== MeetStatusEnum.Completed;
+  const hasMeetEnded = useMemo(() => {
+    if (!meet?.endTime) {
+      return false;
+    }
+    const endDate = new Date(meet.endTime);
+    if (Number.isNaN(endDate.getTime())) {
+      return false;
+    }
+    return endDate.getTime() <= Date.now();
+  }, [meet?.endTime]);
+
+  const hasCheckedInAttendees = useMemo(
+    () =>
+      attendees.some(
+        (attendee) =>
+          attendee.status === AttendeeStatusEnum.CheckedIn ||
+          attendee.status === AttendeeStatusEnum.Attended,
+      ),
+    [attendees],
+  );
+
+  const shouldCompleteMeet =
+    hasMeetEnded && hasCheckedInAttendees && statusId === MeetStatusEnum.Closed;
+
+  const isAlreadyCompleted = statusId === MeetStatusEnum.Completed;
+
+  const isGenerateDisabled =
+    !canManageMeet ||
+    !meetId ||
+    isGenerating ||
+    (!sendEmail && !downloadReport);
 
   const handleGenerateReport = async () => {
     if (!meetId || isGenerating || (!sendEmail && !downloadReport)) return;
     setIsGenerating(true);
     try {
-      const shouldMarkCompleted =
-        statusId !== null && statusId !== MeetStatusEnum.Completed;
       const blob = await generateReportAsync({
         meetId,
         sendEmail,
         downloadReport,
-        isFinalReport: true,
+        isFinalReport: shouldCompleteMeet,
       });
       if (downloadReport && blob) {
         const url = window.URL.createObjectURL(blob);
@@ -96,7 +132,7 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
         link.click();
         window.URL.revokeObjectURL(url);
       }
-      if (shouldMarkCompleted) {
+      if (shouldCompleteMeet) {
         await updateStatusAsync({
           meetId,
           statusId: MeetStatusEnum.Completed,
@@ -238,24 +274,28 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
               justifyContent: "space-between",
             }}
           >
-            {showCompletionWarning ? (
-              <Stack direction="row" spacing={1} alignItems="center">
+            <Stack direction="row" spacing={1} alignItems="center">
+              {!isAlreadyCompleted && (
                 <WarningAmberOutlinedIcon fontSize="small" color="warning" />
-                <Typography variant="body2" color="text.secondary">
-                  Generating a report will set this meet to completed.
-                </Typography>
-              </Stack>
-            ) : (
-              <span />
-            )}
+              )}
+              <Typography variant="body2" color="text.secondary">
+                {isAlreadyCompleted
+                  ? ""
+                  : shouldCompleteMeet
+                    ? "Generating the report will mark the meet as completed and prevent further check-ins."
+                    : !hasMeetEnded
+                      ? "Meet has not ended yet. Report will be treated as interim."
+                      : !hasCheckedInAttendees
+                        ? "No attendees have checked in yet. Report will be treated as interim."
+                        : ""}
+              </Typography>
+            </Stack>
             <Stack direction="row" spacing={1}>
               <Button onClick={onClose}>Cancel</Button>
               <Button
                 variant="contained"
                 onClick={handleGenerateReport}
-                disabled={
-                  !meetId || isGenerating || (!sendEmail && !downloadReport)
-                }
+                disabled={isGenerateDisabled}
               >
                 Generate report
               </Button>
