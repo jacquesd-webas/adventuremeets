@@ -9,6 +9,7 @@ const buildBuilder = () => {
   builder.count = jest.fn().mockReturnValue(builder);
   builder.groupBy = jest.fn().mockReturnValue(builder);
   builder.as = jest.fn().mockReturnValue(builder);
+  builder.join = jest.fn().mockReturnValue(builder);
   builder.leftJoin = jest.fn().mockReturnValue(builder);
   builder.where = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
@@ -140,6 +141,135 @@ describe("MeetsService", () => {
 
     const result = await service.findOne("meet-1");
     expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
+  });
+
+  it("clones a meet as a draft without carrying over dates", async () => {
+    const sourceMeet = {
+      id: "meet-1",
+      name: "Original meet",
+      organizer_id: "organizer-1",
+      organization_id: "org-1",
+      description: "Desc",
+      location: "Cape Town",
+      location_lat: -33.9,
+      location_long: 18.4,
+      start_time: "2026-04-20T08:00:00Z",
+      end_time: "2026-04-20T10:00:00Z",
+      opening_date: "2026-04-01T00:00:00Z",
+      closing_date: "2026-04-18T00:00:00Z",
+      scheduled_date: "2026-04-20T08:00:00Z",
+      confirm_date: "2026-04-19T00:00:00Z",
+      status_id: 3,
+      share_code: "original-share",
+      currency_id: 1,
+      cost_cents: 2500,
+      deposit_cents: 1000,
+      allow_guests: true,
+      max_guests: 2,
+      created_at: "2026-04-01T00:00:00Z",
+      updated_at: "2026-04-02T00:00:00Z",
+    };
+
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue(sourceMeet);
+    meetsBuilder.insert.mockImplementation(async (record: any) => [
+      { ...record, id: "meet-2" },
+    ]);
+
+    const metaDefinitionsBuilder = buildBuilder();
+    metaDefinitionsBuilder.select
+      .mockResolvedValueOnce([
+        {
+          field_key: "fitness",
+          label: "Fitness",
+          field_type: "text",
+          required: true,
+          config: { includeInReports: true },
+        },
+      ])
+      .mockResolvedValueOnce([{ field_key: "fitness" }])
+      .mockResolvedValueOnce([{ id: "meta-2", field_key: "fitness" }]);
+
+    const imagesBuilder = buildBuilder();
+    imagesBuilder.select.mockResolvedValue([
+      {
+        object_key: "meets/meet-1/image.jpg",
+        url: "https://cdn.example.com/meet.jpg",
+        content_type: "image/jpeg",
+        size_bytes: 12345,
+        is_primary: true,
+      },
+    ]);
+
+    const organizerBuilder = buildBuilder();
+    organizerBuilder.first.mockResolvedValue({
+      first_name: "Jane",
+      last_name: "Doe",
+      email: "jane@example.com",
+      phone: "123",
+    });
+
+    const attendeesBuilder = buildBuilder();
+    attendeesBuilder.insert.mockResolvedValue([{ id: "attendee-1" }]);
+
+    const metaValuesBuilder = buildBuilder();
+    metaValuesBuilder.select.mockResolvedValue([]);
+
+    const client: any = (table: string) => {
+      if (table === "meets") return meetsBuilder;
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      if (table === "meet_images") return imagesBuilder;
+      if (table === "users") return organizerBuilder;
+      if (table === "meet_attendees") return attendeesBuilder;
+      if (table === "meet_meta_values as mv") return metaValuesBuilder;
+      if (table === "meet_meta_values") return buildBuilder();
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const cloned = await service.clone("meet-1", {
+      name: "Original meet Copy",
+      organizerId: "organizer-2",
+    });
+
+    const clonedInsertArg = meetsBuilder.insert.mock.calls[0][0];
+    expect(clonedInsertArg.name).toBe("Original meet Copy");
+    expect(clonedInsertArg.organizer_id).toBe("organizer-2");
+    expect(clonedInsertArg.status_id).toBe(1);
+    expect(clonedInsertArg.start_time).toBeNull();
+    expect(clonedInsertArg.end_time).toBeNull();
+    expect(clonedInsertArg.opening_date).toBeNull();
+    expect(clonedInsertArg.closing_date).toBeNull();
+    expect(clonedInsertArg.scheduled_date).toBeNull();
+    expect(clonedInsertArg.confirm_date).toBeNull();
+    expect(clonedInsertArg.share_code).not.toBe(sourceMeet.share_code);
+
+    const clonedMetaInsertArg = metaDefinitionsBuilder.insert.mock.calls[0][0];
+    expect(clonedMetaInsertArg).toEqual([
+      expect.objectContaining({
+        meet_id: "meet-2",
+        field_key: "fitness",
+        label: "Fitness",
+        field_type: "text",
+      }),
+    ]);
+
+    const clonedImageInsertArg = imagesBuilder.insert.mock.calls[0][0];
+    expect(clonedImageInsertArg).toEqual([
+      expect.objectContaining({
+        meet_id: "meet-2",
+        object_key: "meets/meet-1/image.jpg",
+        url: "https://cdn.example.com/meet.jpg",
+        is_primary: true,
+      }),
+    ]);
+
+    expect(cloned.id).toBe("meet-2");
   });
 
   it("rejects duplicate adult attendee inserts with a conflict error", async () => {

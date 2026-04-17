@@ -371,60 +371,101 @@ export class MeetsService {
         await this.syncMetaDefinitions(trx, meet.id, dto.metaDefinitions);
       }
       if (dto.organizerId) {
-        const organizer = await trx("users")
-          .where({ id: dto.organizerId })
-          .first("first_name", "last_name", "email", "phone");
-        const organizerName = organizer
-          ? `${organizer.first_name ?? ""} ${organizer.last_name ?? ""}`.trim()
-          : "";
-        const [attendee] = await trx("meet_attendees").insert(
-          {
-            meet_id: meet.id,
-            user_id: dto.organizerId,
-            name: organizerName || null,
-            email: organizer?.email ?? null,
-            phone: organizer?.phone ?? null,
-            status: "confirmed",
-            responded_at: now,
-            created_at: now,
-            updated_at: now,
-          },
-          ["*"],
-        );
-        const previousAnswers = await this.findPreviousAnswers(
-          dto.organizerId,
-          meet.id,
-          trx,
-        );
-        const metaDefinitions = await trx("meet_meta_definitions")
-          .where({ meet_id: meet.id })
-          .select("id", "field_key");
-        const metaRecords = metaDefinitions
-          .map((definition) => {
-            const value = previousAnswers[definition.field_key];
-            if (value === undefined || value === null || value === "") {
-              return null;
-            }
-            return {
-              meet_id: meet.id,
-              attendee_id: attendee.id,
-              meta_definition_id: definition.id,
-              value,
-            };
-          })
-          .filter(Boolean) as Array<{
-          meet_id: string;
-          attendee_id: string;
-          meta_definition_id: string;
-          value: string;
-        }>;
-        if (metaRecords.length > 0) {
-          await trx("meet_meta_values").insert(metaRecords);
-        }
+        await this.addOrganizerAsAttendee(trx, meet.id, dto.organizerId, now);
       }
       return meet;
     });
     return created;
+  }
+
+  async clone(id: string, dto?: { name?: string; organizerId?: string }) {
+    const now = new Date().toISOString();
+    const shareCode = this.generateShareCode(12);
+
+    return this.db.getClient().transaction(async (trx) => {
+      const sourceMeet = await trx("meets").where({ id }).first("*");
+      if (!sourceMeet) {
+        throw new NotFoundException("Meet not found");
+      }
+
+      const sourceMetaDefinitions = await trx("meet_meta_definitions")
+        .where({ meet_id: id })
+        .orderBy("position", "asc")
+        .select("field_key", "label", "field_type", "required", "config");
+
+      const sourceImages = await trx("meet_images")
+        .where({ meet_id: id })
+        .orderBy([
+          { column: "created_at", order: "asc" },
+          { column: "id", order: "asc" },
+        ])
+        .select(
+          "object_key",
+          "url",
+          "content_type",
+          "size_bytes",
+          "is_primary",
+        );
+
+      const clonedRecord = {
+        ...sourceMeet,
+        id: undefined,
+        name: dto?.name?.trim() || sourceMeet.name,
+        organizer_id: dto?.organizerId || sourceMeet.organizer_id,
+        share_code: shareCode,
+        status_id: MEET_STATUS.Draft,
+        start_time: null,
+        end_time: null,
+        opening_date: null,
+        closing_date: null,
+        scheduled_date: null,
+        confirm_date: null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const [clonedMeet] = await trx("meets").insert(clonedRecord, ["*"]);
+
+      if (sourceMetaDefinitions.length > 0) {
+        await this.syncMetaDefinitions(
+          trx,
+          clonedMeet.id,
+          sourceMetaDefinitions.map((definition) => ({
+            fieldKey: definition.field_key,
+            label: definition.label,
+            fieldType: definition.field_type,
+            required: definition.required,
+            config: definition.config ?? {},
+          })),
+        );
+      }
+
+      if (sourceImages.length > 0) {
+        await trx("meet_images").insert(
+          sourceImages.map((image) => ({
+            meet_id: clonedMeet.id,
+            object_key: image.object_key,
+            url: image.url,
+            content_type: image.content_type,
+            size_bytes: image.size_bytes,
+            is_primary: image.is_primary,
+            created_at: now,
+          })),
+        );
+      }
+
+      const organizerId = dto?.organizerId || sourceMeet.organizer_id;
+      if (organizerId) {
+        await this.addOrganizerAsAttendee(
+          trx,
+          clonedMeet.id,
+          organizerId,
+          now,
+        );
+      }
+
+      return clonedMeet;
+    });
   }
 
   async update(id: string, dto: UpdateMeetDto) {
@@ -1345,6 +1386,64 @@ export class MeetsService {
     await trx("meet_meta_definitions").where({ meet_id: meetId }).del();
     if (cleaned.length > 0) {
       await trx("meet_meta_definitions").insert(cleaned);
+    }
+  }
+
+  private async addOrganizerAsAttendee(
+    trx: any,
+    meetId: string,
+    organizerId: string,
+    now: string,
+  ) {
+    const organizer = await trx("users")
+      .where({ id: organizerId })
+      .first("first_name", "last_name", "email", "phone");
+    const organizerName = organizer
+      ? `${organizer.first_name ?? ""} ${organizer.last_name ?? ""}`.trim()
+      : "";
+    const [attendee] = await trx("meet_attendees").insert(
+      {
+        meet_id: meetId,
+        user_id: organizerId,
+        name: organizerName || null,
+        email: organizer?.email ?? null,
+        phone: organizer?.phone ?? null,
+        status: "confirmed",
+        responded_at: now,
+        created_at: now,
+        updated_at: now,
+      },
+      ["*"],
+    );
+    const previousAnswers = await this.findPreviousAnswers(
+      organizerId,
+      meetId,
+      trx,
+    );
+    const metaDefinitions = await trx("meet_meta_definitions")
+      .where({ meet_id: meetId })
+      .select("id", "field_key");
+    const metaRecords = metaDefinitions
+      .map((definition: { id: string; field_key: string }) => {
+        const value = previousAnswers[definition.field_key];
+        if (value === undefined || value === null || value === "") {
+          return null;
+        }
+        return {
+          meet_id: meetId,
+          attendee_id: attendee.id,
+          meta_definition_id: definition.id,
+          value,
+        };
+      })
+      .filter(Boolean) as Array<{
+      meet_id: string;
+      attendee_id: string;
+      meta_definition_id: string;
+      value: string;
+    }>;
+    if (metaRecords.length > 0) {
+      await trx("meet_meta_values").insert(metaRecords);
     }
   }
 

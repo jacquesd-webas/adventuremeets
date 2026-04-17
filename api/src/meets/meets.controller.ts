@@ -31,6 +31,7 @@ import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetStatusDto } from "./dto/update-meet-status.dto";
 import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
+import { CloneMeetDto } from "./dto/clone-meet.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Public } from "../auth/decorators/public.decorator";
 import { User } from "../auth/decorators/user.decorator";
@@ -248,6 +249,29 @@ export class MeetsController {
       ...dto,
       organizerId: dto.organizerId || user.id,
       organizationId: dto.organizationId,
+    });
+  }
+
+  @Post(":id/clone")
+  async clone(
+    @Param("id") id: string,
+    @Body() dto: CloneMeetDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        "Cannot clone a meet for an organization you do not belong to as an organizer",
+      );
+    }
+
+    return this.meetsService.clone(id, {
+      ...dto,
+      organizerId: user.id,
     });
   }
 
