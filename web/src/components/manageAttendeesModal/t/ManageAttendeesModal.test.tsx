@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ManageAttendeesModal } from "../ManageAttendeesModal";
 import AttendeeStatusEnum from "../../../types/AttendeeStatusEnum";
@@ -94,7 +100,7 @@ describe("ManageAttendeesModal", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ManageAttendeesModal open onClose={vi.fn()} meetId="m1" />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     const list = await screen.findByRole("list");
@@ -115,8 +121,14 @@ describe("ManageAttendeesModal", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <ManageAttendeesModal open onClose={vi.fn()} meetId="m1" />
-      </QueryClientProvider>
+        <ManageAttendeesModal
+          open
+          onClose={vi.fn()}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByText("Send Message to All Attendees"));

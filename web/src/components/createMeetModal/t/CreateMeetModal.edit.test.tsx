@@ -77,25 +77,30 @@ describe("CreateMeetModal edit mode", () => {
     const user = userEvent.setup();
 
     render(
-      <CreateMeetModal open onClose={vi.fn()} onCreated={vi.fn()} meetId="meet-1" />
+      <CreateMeetModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        meetId="meet-1"
+        isOrganizer
+        canManageMeet
+      />,
     );
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Give your meet a name")).toHaveValue(
-        expected.name
+        expected.name,
       );
     });
 
     expect(
-      screen.getByPlaceholderText("Describe your meet in detail here")
+      screen.getByPlaceholderText("Describe your meet in detail here"),
     ).toHaveValue(expected.description);
 
     await user.click(screen.getByRole("button", { name: "Save & Continue" }));
 
     expect(
-      screen.getByPlaceholderText(
-        /Where is the meeting place\?/i
-      )
+      screen.getByPlaceholderText(/Where is the meeting place\?/i),
     ).toHaveValue(expected.location);
 
     expect(screen.getByDisplayValue(expected.startTime)).toBeInTheDocument();
@@ -105,9 +110,11 @@ describe("CreateMeetModal edit mode", () => {
 
     expect(screen.getByDisplayValue(expected.openingDate)).toBeInTheDocument();
     expect(screen.getByDisplayValue(expected.closingDate)).toBeInTheDocument();
-    expect(screen.getByDisplayValue(String(expected.capacity))).toBeInTheDocument();
     expect(
-      screen.getByDisplayValue(String(expected.waitlistSize))
+      screen.getByDisplayValue(String(expected.capacity)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(String(expected.waitlistSize)),
     ).toBeInTheDocument();
   });
 });
