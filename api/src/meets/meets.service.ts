@@ -176,7 +176,10 @@ export class MeetsService {
             .whereRaw("ma2.meet_id = m.id")
             .andWhere("ma2.user_id", userId!);
         });
-        qb.orWhere("m.status_id", MEET_STATUS.Open);
+        qb.orWhere((statusBuilder) => {
+          statusBuilder.where("m.status_id", MEET_STATUS.Published);
+          statusBuilder.orWhere("m.status_id", MEET_STATUS.Open);
+        });
       });
     }
 
