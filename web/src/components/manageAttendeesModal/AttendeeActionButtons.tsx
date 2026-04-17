@@ -1,6 +1,7 @@
 import { Button, ButtonGroup } from "@mui/material";
 import LockIcon from "@mui/icons-material/Lock";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
 
 type AttendeeActionButtonsProps = {
   attendee?: any | null;
@@ -9,6 +10,7 @@ type AttendeeActionButtonsProps = {
   onPaid?: () => void;
   hasAmount?: boolean;
   hasDeposit?: boolean;
+  canManageMeet?: boolean;
 };
 
 export function AttendeeActionButtons({
@@ -17,8 +19,9 @@ export function AttendeeActionButtons({
   onPaid,
   hasAmount = false,
   hasDeposit = false,
+  canManageMeet = true,
 }: AttendeeActionButtonsProps) {
-  const disabled = attendee == null;
+  const disabled = attendee == null || !canManageMeet;
   const isCheckedIn =
     attendee?.status === AttendeeStatusEnum.CheckedIn ||
     attendee?.status === AttendeeStatusEnum.Attended;
@@ -46,51 +49,53 @@ export function AttendeeActionButtons({
           Withdrawn
         </Button>
       ) : (
-        <ButtonGroup
-          variant="outlined"
-          size="small"
-          disabled={disabled}
-          aria-label="Update attendee status"
-        >
-          {attendee?.status !== AttendeeStatusEnum.Confirmed && (
-            <Button
-              color="success"
-              onClick={() => onUpdateStatus(AttendeeStatusEnum.Confirmed)}
-            >
-              Accept
-            </Button>
-          )}
-          {showPaidControl &&
-            attendee?.status === AttendeeStatusEnum.Confirmed && (
-              <Button color="primary" onClick={() => onPaid()}>
-                {hasDeposit
-                  ? hasPaidFull
-                    ? "NOT PAID"
-                    : hasPaidDeposit
-                      ? "PAID FULL"
-                      : "PAID DEP"
-                  : hasPaidFull
-                    ? "NOT PAID"
-                    : "PAID"}
+        <LockedTooltipWrapper isReadOnly={!canManageMeet}>
+          <ButtonGroup
+            variant="outlined"
+            size="small"
+            disabled={disabled}
+            aria-label="Update attendee status"
+          >
+            {attendee?.status !== AttendeeStatusEnum.Confirmed && (
+              <Button
+                color="success"
+                onClick={() => onUpdateStatus(AttendeeStatusEnum.Confirmed)}
+              >
+                Accept
               </Button>
             )}
-          {attendee?.status !== AttendeeStatusEnum.Rejected ? (
-            <Button
-              color="error"
-              onClick={() => onUpdateStatus(AttendeeStatusEnum.Rejected)}
-            >
-              Reject
-            </Button>
-          ) : null}
-          {attendee?.status !== AttendeeStatusEnum.Waitlisted ? (
-            <Button
-              color="warning"
-              onClick={() => onUpdateStatus(AttendeeStatusEnum.Waitlisted)}
-            >
-              Waitlist
-            </Button>
-          ) : null}
-        </ButtonGroup>
+            {showPaidControl &&
+              attendee?.status === AttendeeStatusEnum.Confirmed && (
+                <Button color="primary" onClick={() => onPaid()}>
+                  {hasDeposit
+                    ? hasPaidFull
+                      ? "NOT PAID"
+                      : hasPaidDeposit
+                        ? "PAID FULL"
+                        : "PAID DEP"
+                    : hasPaidFull
+                      ? "NOT PAID"
+                      : "PAID"}
+                </Button>
+              )}
+            {attendee?.status !== AttendeeStatusEnum.Rejected ? (
+              <Button
+                color="error"
+                onClick={() => onUpdateStatus(AttendeeStatusEnum.Rejected)}
+              >
+                Reject
+              </Button>
+            ) : null}
+            {attendee?.status !== AttendeeStatusEnum.Waitlisted ? (
+              <Button
+                color="warning"
+                onClick={() => onUpdateStatus(AttendeeStatusEnum.Waitlisted)}
+              >
+                Waitlist
+              </Button>
+            ) : null}
+          </ButtonGroup>
+        </LockedTooltipWrapper>
       )}
     </>
   );

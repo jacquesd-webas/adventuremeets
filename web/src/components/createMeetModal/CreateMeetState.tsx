@@ -101,6 +101,7 @@ export type StepProps = {
   state: CreateMeetState;
   setState: (fn: (prev: CreateMeetState) => CreateMeetState) => void;
   errors?: FieldError[];
+  disabled?: boolean;
 };
 
 export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {

@@ -1,14 +1,16 @@
 import { Paper, Stack, Typography } from "@mui/material";
 import Meet from "../../types/MeetModel";
 import { MeetCard } from "./MeetCard";
-import { useAuth } from "../../context/authContext";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
 import { defaultPendingAction } from "../../helpers/defaultPendingAction";
+import { getMeetPermissions } from "../../helpers/meetPermissions";
 
 type MeetColumnProps = {
   title: string;
   meets: Meet[];
   statusFallback: string;
+  currentUserId?: string | null;
+  currentOrganizationRole?: string | null;
   setSelectedMeetId: (id: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   isLoading?: boolean;
@@ -19,12 +21,13 @@ export function MeetColumn({
   title,
   meets,
   statusFallback,
+  currentUserId,
+  currentOrganizationRole,
   setSelectedMeetId,
   setPendingAction,
   isLoading = false,
   getStatusLabel,
 }: MeetColumnProps) {
-  const { user } = useAuth();
   return (
     <>
       <Paper
@@ -50,20 +53,29 @@ export function MeetColumn({
             Loading meets...
           </Typography>
         ) : meets.length ? (
-          meets.map((meet) => (
-            <MeetCard
-              key={meet.id}
-              meet={meet}
-              isOrganizer={meet.organizerId === user?.id}
-              statusLabel={getStatusLabel(meet.statusId, statusFallback)}
-              onClick={() => {
-                setSelectedMeetId(meet.id);
-                setPendingAction(defaultPendingAction(meet.statusId));
-              }}
-              setSelectedMeetId={setSelectedMeetId}
-              setPendingAction={setPendingAction}
-            />
-          ))
+          meets.map((meet) => {
+            const { canManageMeet, canViewMeet } = getMeetPermissions({
+              currentUserId,
+              currentOrganizationRole,
+              organizerId: meet.organizerId,
+            });
+
+            return (
+              <MeetCard
+                key={meet.id}
+                meet={meet}
+                canManageMeet={canManageMeet}
+                canViewMeet={canViewMeet}
+                statusLabel={getStatusLabel(meet.statusId, statusFallback)}
+                onClick={() => {
+                  setSelectedMeetId(meet.id);
+                  setPendingAction(defaultPendingAction(meet.statusId));
+                }}
+                setSelectedMeetId={setSelectedMeetId}
+                setPendingAction={setPendingAction}
+              />
+            );
+          })
         ) : (
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Typography variant="body2" color="text.secondary">

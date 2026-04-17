@@ -10,13 +10,18 @@ const currencyOptions = [
 export type CurrencySelectProps = {
   value: string;
   onChange?: (value: string) => void;
+  disabled?: boolean;
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const getCurrencySymbol = (code: string) =>
   currencyOptions.find((option) => option.code === code)?.symbol || code;
 
-export const CurrencySelect = ({ value, onChange }: CurrencySelectProps) => {
+export const CurrencySelect = ({
+  value,
+  onChange,
+  disabled = false,
+}: CurrencySelectProps) => {
   return (
   <TextField
     select
@@ -24,6 +29,7 @@ export const CurrencySelect = ({ value, onChange }: CurrencySelectProps) => {
     onChange={(e) => onChange?.(e.target.value)}
     SelectProps={{ MenuProps: { sx: { zIndex: 1501 } } }}
     fullWidth
+    disabled={disabled}
   >
     {currencyOptions.map((option) => (
       <MenuItem key={option.code} value={option.code}>

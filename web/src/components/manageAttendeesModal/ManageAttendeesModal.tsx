@@ -50,18 +50,25 @@ import { useSnackbar } from "notistack";
 import { useQueryClient } from "@tanstack/react-query";
 import { Attendee } from "../../types/AttendeeModel";
 import { useApi } from "../../hooks/useApi";
+import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
+import { LockedMeet } from "../createMeetModal/LockedMeet";
 
 type ManageAttendeesModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
   meet?: Meet | null;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
+  isOrganizer?: boolean;
 };
 
 export function ManageAttendeesModal({
   open,
   onClose,
   meetId,
+  isOrganizer,
+  canManageMeet,
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -791,6 +798,7 @@ export function ManageAttendeesModal({
                   onPaid={handleAttendeePaid}
                   hasAmount={Boolean(meet?.costCents)}
                   hasDeposit={Boolean(meet?.depositCents)}
+                  canManageMeet={isOrganizer}
                 />
               )}
             </Stack>
@@ -833,6 +841,7 @@ export function ManageAttendeesModal({
             onGuestIncrement={() => handleGuestCountChange(1)}
             onGuestDecrement={() => handleGuestCountChange(-1)}
             onInvite={handleInviteMessage}
+            canManageMeet={isOrganizer}
           />
         </Box>
         <Divider />
@@ -847,10 +856,35 @@ export function ManageAttendeesModal({
         )}
         <Divider />
         <Box sx={{ display: "flex", justifyContent: "center" }}>
-          {isOrganizerSelected ? (
-            detailView === "messages" ? (
+          <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+            {isOrganizerSelected ? (
+              detailView === "messages" ? (
+                <Button
+                  variant="outlined"
+                  disabled={!isOrganizer}
+                  onClick={() =>
+                    openMessageModal({
+                      attendeeIds: selectedAttendee
+                        ? [selectedAttendee.id]
+                        : undefined,
+                    })
+                  }
+                >
+                  Message {attendeeLabel(selectedAttendee)}
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowEditMetaDialog(true)}
+                  disabled={!isOrganizer}
+                >
+                  Edit responses
+                </Button>
+              )
+            ) : (
               <Button
                 variant="outlined"
+                disabled={!selectedAttendee || !isOrganizer}
                 onClick={() =>
                   openMessageModal({
                     attendeeIds: selectedAttendee
@@ -861,29 +895,8 @@ export function ManageAttendeesModal({
               >
                 Message {attendeeLabel(selectedAttendee)}
               </Button>
-            ) : (
-              <Button
-                variant="outlined"
-                onClick={() => setShowEditMetaDialog(true)}
-              >
-                Edit responses
-              </Button>
-            )
-          ) : (
-            <Button
-              variant="outlined"
-              disabled={!selectedAttendee}
-              onClick={() =>
-                openMessageModal({
-                  attendeeIds: selectedAttendee
-                    ? [selectedAttendee.id]
-                    : undefined,
-                })
-              }
-            >
-              Message {attendeeLabel(selectedAttendee)}
-            </Button>
-          )}
+            )}
+          </LockedTooltipWrapper>
         </Box>
       </Stack>
     );
@@ -940,6 +953,7 @@ export function ManageAttendeesModal({
                   onPaid={handleAttendeePaid}
                   hasAmount={Boolean(meet?.costCents)}
                   hasDeposit={Boolean(meet?.depositCents)}
+                  canManageMeet={isOrganizer}
                 />
               )}
             </Stack>
@@ -965,6 +979,7 @@ export function ManageAttendeesModal({
               onGuestIncrement={() => handleGuestCountChange(1)}
               onGuestDecrement={() => handleGuestCountChange(-1)}
               onInvite={handleInviteMessage}
+              canManageMeet={isOrganizer}
             />
           </Box>
         </Box>
@@ -997,14 +1012,17 @@ export function ManageAttendeesModal({
           <Box sx={{ display: "flex", justifyContent: "center", pt: 2 }}>
             {isOrganizerSelected ? (
               detailView === "messages" ? (
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    openMobileMessageDrawerForSelectedAttendee();
-                  }}
-                >
-                  Message {attendeeLabel(selectedAttendee)}
-                </Button>
+                <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+                  <Button
+                    variant="outlined"
+                    disabled={!isOrganizer}
+                    onClick={() => {
+                      openMobileMessageDrawerForSelectedAttendee();
+                    }}
+                  >
+                    Message {attendeeLabel(selectedAttendee)}
+                  </Button>
+                </LockedTooltipWrapper>
               ) : (
                 <Button
                   variant="outlined"
@@ -1014,15 +1032,17 @@ export function ManageAttendeesModal({
                 </Button>
               )
             ) : (
-              <Button
-                variant="outlined"
-                disabled={!selectedAttendee}
-                onClick={() => {
-                  openMobileMessageDrawerForSelectedAttendee();
-                }}
-              >
-                Message {attendeeLabel(selectedAttendee)}
-              </Button>
+              <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+                <Button
+                  variant="outlined"
+                  disabled={!selectedAttendee || !isOrganizer}
+                  onClick={() => {
+                    openMobileMessageDrawerForSelectedAttendee();
+                  }}
+                >
+                  Message {attendeeLabel(selectedAttendee)}
+                </Button>
+              </LockedTooltipWrapper>
             )}
           </Box>
         </Box>
@@ -1058,6 +1078,7 @@ export function ManageAttendeesModal({
       >
         <span>Manage attendees</span>
         <Stack direction="row" spacing={0.5} alignItems="center">
+          {!isOrganizer ? <LockedMeet canUnlock={canManageMeet} /> : null}
           <Tooltip title="Download attendees">
             <IconButton
               aria-label="Download attendees"
@@ -1114,15 +1135,18 @@ export function ManageAttendeesModal({
                 borderColor: "divider",
               }}
             >
-              <Button
-                variant="outlined"
-                sx={{ flex: 1 }}
-                onClick={() => {
-                  openMobileMessageDrawerForAllAttendees();
-                }}
-              >
-                Send Message to All Attendees
-              </Button>
+              <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+                <Button
+                  variant="outlined"
+                  sx={{ flex: 1 }}
+                  disabled={!isOrganizer}
+                  onClick={() => {
+                    openMobileMessageDrawerForAllAttendees();
+                  }}
+                >
+                  Send Message to All Attendees
+                </Button>
+              </LockedTooltipWrapper>
               <Button
                 variant="contained"
                 sx={{ flexShrink: 0 }}
@@ -1349,12 +1373,15 @@ export function ManageAttendeesModal({
       {!fullScreen && (
         <DialogActions>
           <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>
-            <Button
-              variant="outlined"
-              onClick={() => openMessageModal({ attendeeIds: undefined })}
-            >
-              Send Message to All Attendees
-            </Button>
+            <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+              <Button
+                variant="outlined"
+                disabled={!isOrganizer}
+                onClick={() => openMessageModal({ attendeeIds: undefined })}
+              >
+                Send Message to All Attendees
+              </Button>
+            </LockedTooltipWrapper>
           </Box>
           <Button variant="contained" onClick={handleRequestClose}>
             Close

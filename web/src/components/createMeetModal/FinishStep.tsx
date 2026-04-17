@@ -6,7 +6,11 @@ type FinishStepProps = StepProps & {
   shareCode?: string | null;
 };
 
-export function FinishStep({ errors, shareCode }: FinishStepProps) {
+export function FinishStep({
+  errors,
+  shareCode,
+  disabled = false,
+}: FinishStepProps) {
   const [copied, setCopied] = useState(false);
   const shareUrl = useMemo(() => {
     if (!shareCode) return "";
@@ -53,6 +57,7 @@ export function FinishStep({ errors, shareCode }: FinishStepProps) {
           <TextField
             value={shareUrl}
             fullWidth
+            disabled={disabled}
             InputProps={{ readOnly: true }}
             inputProps={{ "data-testid": "share-link-input" }}
           />

@@ -31,6 +31,8 @@ type MeetActionsMenuProps = {
   meetId: string;
   statusId?: number;
   isOrganizer?: boolean;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
   setSelectedMeetId: (meetId: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   previewLinkCode?: string;
@@ -42,6 +44,8 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
   switch (action) {
     case "create":
       return false;
+    case "clone":
+      return true;
     case "attendees":
       return (
         statusId === MeetStatusEnum.Open ||
@@ -105,7 +109,9 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
 export function MeetActionsMenu({
   meetId,
   statusId,
-  isOrganizer,
+  isOrganizer: _isOrganizer,
+  canViewMeet,
+  canManageMeet,
   setSelectedMeetId,
   setPendingAction,
   previewLinkCode,
@@ -178,7 +184,7 @@ export function MeetActionsMenu({
     ) => void,
   ) => (
     <>
-      {!isOrganizer ? (
+      {!canViewMeet && !canManageMeet ? (
         <>
           {shouldShow(MeetActionsEnum.Details, statusId) && (
             <MenuItem
@@ -193,9 +199,7 @@ export function MeetActionsMenu({
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Apply, statusId) && (
-            <MenuItem
-              onClick={(event) => handleNavigateToSignup(event, false)}
-            >
+            <MenuItem onClick={(event) => handleNavigateToSignup(event, false)}>
               <ListItemIcon>
                 <HowToRegOutlinedIcon fontSize="small" />
               </ListItemIcon>
@@ -234,6 +238,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Open)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <LockOpenOutlinedIcon fontSize="small" />
@@ -246,9 +251,7 @@ export function MeetActionsMenu({
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Preview, statusId) && (
-            <MenuItem
-              onClick={(event) => handleNavigateToSignup(event, true)}
-            >
+            <MenuItem onClick={(event) => handleNavigateToSignup(event, true)}>
               <ListItemIcon>
                 <OpenInNewOutlinedIcon fontSize="small" />
               </ListItemIcon>
@@ -261,6 +264,19 @@ export function MeetActionsMenu({
                 <ContentCopyOutlinedIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText>Copy link</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow(MeetActionsEnum.Clone, statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, MeetActionsEnum.Clone)
+              }
+              disabled={!canManageMeet}
+            >
+              <ListItemIcon>
+                <ContentCopyOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Create a copy</ListItemText>
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Edit, statusId) && (
@@ -284,6 +300,7 @@ export function MeetActionsMenu({
                 }
                 handleClose();
               }}
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <FactCheckOutlinedIcon fontSize="small" />
@@ -296,6 +313,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Close)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <FactCheckOutlinedIcon fontSize="small" />
@@ -308,6 +326,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Postpone)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <PauseCircleOutlineIcon fontSize="small" />
@@ -320,6 +339,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Cancel)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <BlockOutlinedIcon fontSize="small" />
@@ -344,6 +364,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Delete)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <DeleteOutlineIcon fontSize="small" />

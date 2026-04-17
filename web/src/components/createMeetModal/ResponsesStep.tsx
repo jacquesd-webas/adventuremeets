@@ -3,13 +3,18 @@ import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
 
-export const ResponsesStep = ({ state, setState }: StepProps) => (
+export const ResponsesStep = ({
+  state,
+  setState,
+  disabled = false,
+}: StepProps) => (
   <Stack spacing={2}>
     <LabeledField
       label="Approved response"
       labelAction={
         <SelectTemplate
           organizationId={state.organizationId || undefined}
+          disabled={disabled}
           onApplyTemplate={(template) =>
             setState((prev) => ({
               ...prev,
@@ -37,6 +42,7 @@ export const ResponsesStep = ({ state, setState }: StepProps) => (
         fullWidth
         multiline
         minRows={3}
+        disabled={disabled}
       />
     </LabeledField>
     <LabeledField label="Reject response">
@@ -49,6 +55,7 @@ export const ResponsesStep = ({ state, setState }: StepProps) => (
         fullWidth
         multiline
         minRows={3}
+        disabled={disabled}
       />
     </LabeledField>
     <LabeledField label="Waitlist response">
@@ -61,6 +68,7 @@ export const ResponsesStep = ({ state, setState }: StepProps) => (
         fullWidth
         multiline
         minRows={3}
+        disabled={disabled}
       />
     </LabeledField>
   </Stack>

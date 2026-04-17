@@ -24,6 +24,8 @@ import { CreatePrivateOrganizationDialog } from "../components/auth/CreatePrivat
 import MeetActionsEnum from "../types/MeetActionsEnum";
 import AddIcon from "@mui/icons-material/Add";
 import { MainLayoutOutletContext } from "../layout/MainLayout";
+import { useAuth } from "../context/authContext";
+import { getMeetPermissions } from "../helpers/meetPermissions";
 
 function DashboardPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
@@ -36,25 +38,26 @@ function DashboardPage() {
   const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
+  const { user } = useAuth();
   const { dashboardView, setDashboardView } = useFilters();
   const { data: meets, isLoading } = useFetchMeets({
     view: dashboardView,
     page: 1,
     limit: 50,
-    organizationId: currentOrganizationId || undefined,
+    organizationId: currentOrganizationId,
   });
   const { getName: getStatusName } = useMeetStatusLookup();
-  const isOrganizer =
+  const canManageMeets =
     currentOrganizationRole === "organizer" ||
     currentOrganizationRole === "admin";
 
   const handleNewMeet = useCallback(() => {
-    if (!isOrganizer) {
+    if (!canManageMeets) {
       setShowCreateOrgDialog(true);
       return;
     }
     setPendingAction(MeetActionsEnum.Create);
-  }, [isOrganizer, setPendingAction, setShowCreateOrgDialog]);
+  }, [canManageMeets, setPendingAction, setShowCreateOrgDialog]);
 
   useEffect(() => {
     if (!isMobile) {
@@ -83,11 +86,15 @@ function DashboardPage() {
     );
     const upcomingMeets: Meet[] = meets.filter(
       (m: Meet) =>
-        m.statusId !== MeetStatusEnum.Draft && new Date(m.endTime) >= now,
+        m.statusId !== MeetStatusEnum.Draft &&
+        m.endTime &&
+        new Date(m.endTime) >= now,
     );
     const pastMeets: Meet[] = meets.filter(
       (m: Meet) =>
-        m.statusId !== MeetStatusEnum.Draft && new Date(m.endTime) < now,
+        m.statusId !== MeetStatusEnum.Draft &&
+        m.endTime &&
+        new Date(m.endTime) < now,
     );
     let numColumns = 1; // We always show upcoming
     if (draftMeets.length > 0) numColumns++;
@@ -99,6 +106,31 @@ function DashboardPage() {
       columns: numColumns,
     };
   }, [meets]);
+
+  const selectedMeetPermissions = useMemo(() => {
+    if (pendingAction === MeetActionsEnum.Create) {
+      return {
+        isOrganizerForMeet: true,
+        canManageMeet: true,
+        canViewMeet: false,
+      };
+    }
+
+    const selectedMeet = meets.find((meet) => meet.id === selectedMeetId);
+    if (!selectedMeet) {
+      return {
+        isOrganizerForMeet: false,
+        canManageMeet: false,
+        canViewMeet: false,
+      };
+    }
+
+    return getMeetPermissions({
+      currentUserId: user?.id,
+      currentOrganizationRole,
+      organizerId: selectedMeet.organizerId,
+    });
+  }, [currentOrganizationRole, meets, pendingAction, selectedMeetId, user?.id]);
 
   return (
     <Container
@@ -167,6 +199,8 @@ function DashboardPage() {
                 title="Draft Meets"
                 meets={draft}
                 statusFallback="Draft"
+                currentUserId={user?.id}
+                currentOrganizationRole={currentOrganizationRole}
                 getStatusLabel={getStatusName}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}
@@ -180,6 +214,8 @@ function DashboardPage() {
               title="Upcoming Meets"
               meets={upcoming as Meet[]}
               statusFallback="Scheduled"
+              currentUserId={user?.id}
+              currentOrganizationRole={currentOrganizationRole}
               getStatusLabel={getStatusName}
               setSelectedMeetId={setSelectedMeetId}
               setPendingAction={setPendingAction}
@@ -192,6 +228,8 @@ function DashboardPage() {
                 title="Past Meets"
                 meets={past as Meet[]}
                 statusFallback="Closed"
+                currentUserId={user?.id}
+                currentOrganizationRole={currentOrganizationRole}
                 getStatusLabel={getStatusName}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}
@@ -201,9 +239,12 @@ function DashboardPage() {
           )}
         </Grid>
       </Box>
-      {isOrganizer ? (
+      {canManageMeets ? (
         <MeetActionsDialogs
           meetId={selectedMeetId || null}
+          canViewMeet={selectedMeetPermissions.canViewMeet}
+          canManageMeet={selectedMeetPermissions.canManageMeet}
+          isOrganizer={selectedMeetPermissions.isOrganizerForMeet}
           pendingAction={pendingAction || undefined}
           setPendingAction={setPendingAction}
           setSelectedMeetId={setSelectedMeetId}

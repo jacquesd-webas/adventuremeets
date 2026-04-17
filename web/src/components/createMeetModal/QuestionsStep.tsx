@@ -14,7 +14,11 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { QuestionField, StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
 
-export const QuestionsStep = ({ state, setState }: StepProps) => {
+export const QuestionsStep = ({
+  state,
+  setState,
+  disabled = false,
+}: StepProps) => {
   const addField = (type: QuestionField["type"]) => {
     const newField: QuestionField = {
       id: crypto.randomUUID
@@ -67,18 +71,19 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
       <Stack direction="row" spacing={1} alignItems="center">
         <SelectTemplate
           organizationId={state.organizationId || undefined}
+          disabled={disabled}
           onApply={(questions) => setState((prev) => ({ ...prev, questions }))}
         />
-        <Button variant="outlined" onClick={() => addField("text")}>
+        <Button variant="outlined" onClick={() => addField("text")} disabled={disabled}>
           Textfield
         </Button>
-        <Button variant="outlined" onClick={() => addField("select")}>
+        <Button variant="outlined" onClick={() => addField("select")} disabled={disabled}>
           Select
         </Button>
-        <Button variant="outlined" onClick={() => addField("switch")}>
+        <Button variant="outlined" onClick={() => addField("switch")} disabled={disabled}>
           Switch
         </Button>
-        <Button variant="outlined" onClick={() => addField("checkbox")}>
+        <Button variant="outlined" onClick={() => addField("checkbox")} disabled={disabled}>
           Checkbox
         </Button>
       </Stack>
@@ -105,7 +110,7 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
                 <IconButton
                   onClick={() => moveField(field.id, "up")}
                   size="small"
-                  disabled={state.questions[0]?.id === field.id}
+                  disabled={disabled || state.questions[0]?.id === field.id}
                 >
                   <ArrowUpwardIcon fontSize="small" />
                 </IconButton>
@@ -113,12 +118,17 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
                   onClick={() => moveField(field.id, "down")}
                   size="small"
                   disabled={
+                    disabled ||
                     state.questions[state.questions.length - 1]?.id === field.id
                   }
                 >
                   <ArrowDownwardIcon fontSize="small" />
                 </IconButton>
-                <IconButton onClick={() => removeField(field.id)} size="small">
+                <IconButton
+                  onClick={() => removeField(field.id)}
+                  size="small"
+                  disabled={disabled}
+                >
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
               </Stack>
@@ -132,6 +142,7 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
                   updateField(field.id, { label: e.target.value })
                 }
                 fullWidth
+                disabled={disabled}
               />
               {field.type === "select" && (
                 <TextField
@@ -150,6 +161,7 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
                     })
                   }
                   fullWidth
+                  disabled={disabled}
                 />
               )}
               <Stack direction="row" spacing={2} alignItems="center">
@@ -157,6 +169,7 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
                   control={
                     <Switch
                       checked={Boolean(field.required)}
+                      disabled={disabled}
                       onChange={(e) =>
                         updateField(field.id, { required: e.target.checked })
                       }
@@ -168,6 +181,7 @@ export const QuestionsStep = ({ state, setState }: StepProps) => {
                   control={
                     <Switch
                       checked={Boolean(field.includeInReports)}
+                      disabled={disabled}
                       onChange={(e) =>
                         updateField(field.id, {
                           includeInReports: e.target.checked,

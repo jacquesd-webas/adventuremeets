@@ -3,10 +3,13 @@ import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
 import { Checkbox, FormControlLabel, Stack } from "@mui/material";
 import { useState } from "react";
+import { OrganizerOverrideWarning } from "../OrganizerOverrideWarning";
 
 export type ConfirmCloseMeetDialogProps = {
   open: boolean;
   meetId: string | null;
+  canManageMeet?: boolean;
+  isOrganizer?: boolean;
   onClose: () => void;
   onConfirm: () => void;
   isLoading?: boolean;
@@ -17,6 +20,7 @@ export function ConfirmCloseMeetDialog({
   meetId,
   onClose,
   onConfirm,
+  isOrganizer,
   isLoading = false,
 }: ConfirmCloseMeetDialogProps) {
   const { updateStatusAsync, isLoading: isSubmitting } = useUpdateMeetStatus();
@@ -54,6 +58,7 @@ export function ConfirmCloseMeetDialog({
           label="Notify attendees of their status"
         />
       </Stack>
+      {!isOrganizer && <OrganizerOverrideWarning />}
     </ConfirmActionDialog>
   );
 }

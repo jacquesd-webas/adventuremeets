@@ -19,9 +19,9 @@ import { MeetActionsEnum } from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../meet/MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
-import { useAuth } from "../../context/authContext";
 import { useRef } from "react";
 import { getCardRangeLabel } from "../../helpers/meetTime";
+import { useAuth } from "../../context/authContext";
 
 type MeetCardProps = {
   meet: Meet;
@@ -29,7 +29,8 @@ type MeetCardProps = {
   onClick?: () => void;
   setSelectedMeetId: (id: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
-  isOrganizer: boolean;
+  canViewMeet: boolean;
+  canManageMeet: boolean;
 };
 
 type CountProps = { count1?: number; count2?: number };
@@ -141,6 +142,8 @@ export function MeetCard({
   onClick,
   setSelectedMeetId,
   setPendingAction,
+  canViewMeet,
+  canManageMeet,
 }: MeetCardProps) {
   const { user } = useAuth();
   const theme = useTheme();
@@ -150,7 +153,7 @@ export function MeetCard({
   const isUpcoming = new Date(meet.endTime) >= new Date();
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
   const rangeLabel = getCardRangeLabel(meet);
-  const isOrganizerForMeet = user && meet && user.id === meet.organizerId;
+  const isOrganizerForMeet = user?.id === meet.organizerId;
 
   return (
     <Paper
@@ -187,7 +190,8 @@ export function MeetCard({
         <Box sx={{ ml: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <MeetActionsMenu
             meetId={meet.id}
-            isOrganizer={isOrganizerForMeet}
+            canViewMeet={canViewMeet}
+            canManageMeet={canManageMeet}
             statusId={meet.statusId}
             setSelectedMeetId={setSelectedMeetId}
             setPendingAction={setPendingAction}

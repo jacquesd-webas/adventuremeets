@@ -6,10 +6,13 @@ import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
+import { OrganizerOverrideWarning } from "../OrganizerOverrideWarning";
 
 type ConfirmPostponeMeetDialogProps = {
   open: boolean;
   meetId?: string | null;
+  canManageMeet?: boolean;
+  isOrganizer?: boolean;
   onClose: () => void;
   onConfirm: () => void;
   isLoading?: boolean;
@@ -20,12 +23,14 @@ export function ConfirmPostponeMeetDialog({
   meetId,
   onClose,
   onConfirm,
+  isOrganizer,
   isLoading = false,
 }: ConfirmPostponeMeetDialogProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const trimmedMessage = message.trim();
-  const { updateStatusAsync, isLoading: isUpdatingStatus } = useUpdateMeetStatus();
+  const { updateStatusAsync, isLoading: isUpdatingStatus } =
+    useUpdateMeetStatus();
   const { notifyAttendeeAsync, isLoading: isSendingNotification } =
     useNotifyAttendee();
   const { data: meet } = useFetchMeet(meetId, open && Boolean(trimmedMessage));
@@ -115,6 +120,7 @@ export function ConfirmPostponeMeetDialog({
         minRows={3}
         sx={{ mt: 2 }}
       />
+      {!isOrganizer && <OrganizerOverrideWarning />}
     </ConfirmActionDialog>
   );
 }
