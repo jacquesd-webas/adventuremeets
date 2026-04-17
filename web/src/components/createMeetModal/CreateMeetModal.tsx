@@ -101,12 +101,22 @@ export function CreateMeetModal({
   const isIndemnityLocked =
     isEditing &&
     (statusId === MeetStatusEnum.Open || statusId === MeetStatusEnum.Closed);
-  const isMeetLocked = isEditing && !isOrganizer;
 
   const { data: fetchedMeet, isLoading: isFetchingMeet } = useFetchMeet(
     meetIdProp,
     Boolean(open && meetIdProp),
   );
+  const isOrganizerForEditingMeet = useMemo(() => {
+    if (!isEditing) {
+      return Boolean(isOrganizer);
+    }
+
+    return Boolean(
+      isOrganizer ||
+        (user?.id && fetchedMeet?.organizerId && fetchedMeet.organizerId === user.id),
+    );
+  }, [fetchedMeet?.organizerId, isEditing, isOrganizer, user?.id]);
+  const isMeetLocked = isEditing && !isOrganizerForEditingMeet;
 
   // Reset to first step when opened/closed
   useEffect(() => {
