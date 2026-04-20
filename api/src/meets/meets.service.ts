@@ -208,11 +208,8 @@ export class MeetsService {
       totalQuery.where("status_id", MEET_STATUS.Draft);
     }
     if (view === "calendar") {
-      query.whereNotIn("status_id", [MEET_STATUS.Draft, MEET_STATUS.Cancelled]);
-      totalQuery.whereNotIn("status_id", [
-        MEET_STATUS.Draft,
-        MEET_STATUS.Cancelled,
-      ]);
+      query.whereNotIn("status_id", [MEET_STATUS.Draft]);
+      totalQuery.whereNotIn("status_id", [MEET_STATUS.Draft]);
       query.orderBy("start_time", "asc");
     }
     if (organizationIds.length > 0) {

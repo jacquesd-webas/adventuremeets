@@ -276,7 +276,7 @@ describe("MeetsService", () => {
     expect(cloned.id).toBe("meet-2");
   });
 
-  it("uses overlap filtering for calendar view and excludes draft/cancelled", async () => {
+  it("uses overlap filtering for calendar view and excludes drafts", async () => {
     const meetsBuilder = buildBuilder();
     meetsBuilder.limit.mockReturnValue(meetsBuilder);
     meetsBuilder.offset.mockResolvedValue([]);
@@ -312,8 +312,8 @@ describe("MeetsService", () => {
       null,
     );
 
-    expect(meetsBuilder.whereNotIn).toHaveBeenCalledWith("status_id", [1, 5]);
-    expect(totalBuilder.whereNotIn).toHaveBeenCalledWith("status_id", [1, 5]);
+    expect(meetsBuilder.whereNotIn).toHaveBeenCalledWith("status_id", [1]);
+    expect(totalBuilder.whereNotIn).toHaveBeenCalledWith("status_id", [1]);
     expect(meetsBuilder.whereRaw).toHaveBeenCalledWith(
       "coalesce(m.end_time, m.start_time) >= ?",
       [startDate.toISOString()],

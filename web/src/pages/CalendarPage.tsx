@@ -1,6 +1,5 @@
 import {
   Box,
-  Chip,
   Container,
   Divider,
   Drawer,
@@ -22,6 +21,9 @@ import { useCurrentOrganization } from "../context/organizationContext";
 import Meet from "../types/MeetModel";
 import { MeetInfoModal } from "../components/meet/MeetInfoModal";
 import { Heading } from "../components/Heading";
+import { MeetStatus } from "../components/meet/MeetStatus";
+import { CalendarStatusFilter } from "../components/meet/CalendarStatusFilter";
+import MeetStatusEnum from "../types/MeetStatusEnum";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const pad2 = (v: number) => `${v}`.padStart(2, "0");
@@ -102,6 +104,25 @@ const chunkWeeks = (cells: Date[]) => {
   return weeks;
 };
 
+const getStatusColor = (statusId?: number) => {
+  switch (statusId) {
+    case MeetStatusEnum.Postponed:
+      return "#ed6c02";
+    case MeetStatusEnum.Cancelled:
+      return "#d32f2f";
+    case MeetStatusEnum.Closed:
+      return "#7e57c2";
+    case MeetStatusEnum.Completed:
+      return "#757575";
+    case MeetStatusEnum.Published:
+      return "#2e7d32";
+    case MeetStatusEnum.Open:
+      return "#1976d2";
+    default:
+      return "#1976d2";
+  }
+};
+
 export default function CalendarPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -111,6 +132,14 @@ export default function CalendarPage() {
   const [mobileView, setMobileView] = useState<MobileCalView>("agenda");
   const [dayDrawerOpen, setDayDrawerOpen] = useState(false);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
+  const [visibleStatusIds, setVisibleStatusIds] = useState<number[]>([
+    MeetStatusEnum.Published,
+    MeetStatusEnum.Open,
+    MeetStatusEnum.Closed,
+    MeetStatusEnum.Cancelled,
+    MeetStatusEnum.Postponed,
+    MeetStatusEnum.Completed,
+  ]);
   const calendarStartDate = useMemo(
     () => addDays(startOfMonth(currentMonth), -7).toISOString(),
     [currentMonth],
@@ -128,13 +157,22 @@ export default function CalendarPage() {
     startDate: calendarStartDate,
     endDate: calendarEndDate,
   });
+  const filteredMeets = useMemo(
+    () =>
+      meets.filter(
+        (meet) =>
+          typeof meet.statusId !== "number" ||
+          visibleStatusIds.includes(meet.statusId),
+      ),
+    [meets, visibleStatusIds],
+  );
 
   const multiDayMeetsByDay = useMemo(() => {
     const map = new Map<
       string,
       Array<{ meet: Meet; renderId: string; weekKey: string }>
     >();
-    meets.forEach((meet) => {
+    filteredMeets.forEach((meet) => {
       const start = meet.startTime ? new Date(meet.startTime) : null;
       if (!start || Number.isNaN(start.getTime())) return;
 
@@ -163,11 +201,11 @@ export default function CalendarPage() {
       }
     });
     return map;
-  }, [meets]);
+  }, [filteredMeets]);
 
   const singleDayMeetsByDay = useMemo(() => {
     const map = new Map<string, Meet[]>();
-    meets.forEach((meet) => {
+    filteredMeets.forEach((meet) => {
       const start = meet.startTime ? new Date(meet.startTime) : null;
       if (!start || Number.isNaN(start.getTime())) return;
 
@@ -190,7 +228,7 @@ export default function CalendarPage() {
       }
     });
     return map;
-  }, [meets]);
+  }, [filteredMeets]);
   const monthCells = useMemo(() => getMonthGrid(currentMonth), [currentMonth]);
   const weeks = useMemo(() => chunkWeeks(monthCells), [monthCells]);
   const monthIndex = currentMonth.getMonth();
@@ -210,7 +248,7 @@ export default function CalendarPage() {
 
   const occurrencesByDayKey = useMemo(() => {
     const map = new Map<string, MobileOccurrence[]>();
-    meets.forEach((meet) => {
+    filteredMeets.forEach((meet) => {
       const start = meet.startTime ? new Date(meet.startTime) : null;
       if (!start || Number.isNaN(start.getTime())) return;
 
@@ -264,7 +302,7 @@ export default function CalendarPage() {
       });
     });
     return map;
-  }, [meets]);
+  }, [filteredMeets]);
 
   const selectedDayDate = useMemo(
     () => (selectedDayKey ? parseDayKey(selectedDayKey) : null),
@@ -354,14 +392,12 @@ export default function CalendarPage() {
             {occurrence.meet.location}
           </Typography>
         ) : null}
-        {occurrence.meet.status ? (
-          <Chip
-            size="small"
-            label={occurrence.meet.status}
-            variant="outlined"
-            sx={{ width: "fit-content", height: 22 }}
+        <Box sx={{ width: "fit-content" }}>
+          <MeetStatus
+            statusId={occurrence.meet.statusId}
+            fallbackLabel={occurrence.meet.status || "Scheduled"}
           />
-        ) : null}
+        </Box>
         {options?.showRange && occurrence.totalDays > 1 ? (
           <Typography variant="caption" color="text.secondary">
             {`${formatDateShort(occurrence.startDay)} \u2192 ${formatDateShort(
@@ -390,7 +426,19 @@ export default function CalendarPage() {
           <Stack direction="row" alignItems="center" spacing={2}>
             <Heading title="Calendar" />
             <Box sx={{ flexGrow: 1 }} />
-            <Stack direction="row" spacing={1} alignItems="center">
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              flexWrap="wrap"
+              justifyContent="flex-end"
+            >
+              {!isMobile ? (
+                <CalendarStatusFilter
+                  value={visibleStatusIds}
+                  onChange={setVisibleStatusIds}
+                />
+              ) : null}
               <IconButton
                 onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
               >
@@ -564,7 +612,10 @@ export default function CalendarPage() {
                                               width: 5,
                                               height: 5,
                                               borderRadius: "50%",
-                                              backgroundColor: "primary.main",
+                                              backgroundColor: getStatusColor(
+                                                dayOccurrences[index]?.meet
+                                                  .statusId,
+                                              ),
                                             }}
                                           />
                                         ),
@@ -573,7 +624,9 @@ export default function CalendarPage() {
                                   ) : (
                                     <Typography
                                       variant="caption"
-                                      color="primary.main"
+                                      color={getStatusColor(
+                                        dayOccurrences[0]?.meet.statusId,
+                                      )}
                                       fontWeight={700}
                                     >
                                       +{count}
@@ -785,7 +838,9 @@ export default function CalendarPage() {
                                                   alignItems: "center",
                                                   borderRadius: 1,
                                                   backgroundColor:
-                                                    theme.palette.primary.main,
+                                                    getStatusColor(
+                                                      meet.statusId,
+                                                    ),
                                                   color:
                                                     theme.palette.mode ===
                                                     "dark"
@@ -856,7 +911,7 @@ export default function CalendarPage() {
                                       px: 0.75,
                                       borderRadius: 1,
                                       backgroundColor:
-                                        theme.palette.primary.main,
+                                        getStatusColor(group.meet.statusId),
                                       color:
                                         theme.palette.mode === "dark"
                                           ? "#222222"
