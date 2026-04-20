@@ -93,6 +93,8 @@ function MainLayout() {
   );
   const isCurrentOrgAdmin = currentOrganizationRole === "admin";
   const pendingInvites = useMemo(() => user?.pendingInvites ?? [], [user]);
+  const desktopNavItems = navItems;
+  const mobileNavItems = navItems.filter((item) => item.path !== "/plan");
 
   const displayName = useMemo(() => {
     if (!user) return "";
@@ -311,7 +313,7 @@ function MainLayout() {
               sx={{ height: 36, mr: 3 }}
             />
             <Stack direction="row" spacing={2} alignItems="center">
-              {navItems.map((item) => (
+              {desktopNavItems.map((item) => (
                 <Box
                   key={item.path}
                   component="button"
@@ -472,7 +474,7 @@ function MainLayout() {
                 />
               </Box>
               <List>
-                {navItems.map((item) => (
+                {mobileNavItems.map((item) => (
                   <ListItemButton
                     key={item.path}
                     onClick={() => handleMobileNavigate(item.path)}

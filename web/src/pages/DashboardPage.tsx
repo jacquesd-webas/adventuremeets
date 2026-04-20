@@ -25,6 +25,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { MainLayoutOutletContext } from "../layout/MainLayout";
 import { useAuth } from "../context/authContext";
 import { getMeetPermissions } from "../helpers/meetPermissions";
+import { MeetSearchField } from "../components/meet/MeetSearchField";
 
 const DASHBOARD_PAGE_SIZE = 5;
 
@@ -41,6 +42,9 @@ function DashboardPage() {
     useCurrentOrganization();
   const { user } = useAuth();
   const { dashboardView, setDashboardView } = useFilters();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const draftQuery = useInfiniteFetchMeets({
@@ -48,18 +52,21 @@ function DashboardPage() {
     scope: dashboardView,
     limit: DASHBOARD_PAGE_SIZE,
     organizationId: currentOrganizationId,
+    search: debouncedSearch.trim() || undefined,
   });
   const upcomingQuery = useInfiniteFetchMeets({
     view: "upcoming",
     scope: dashboardView,
     limit: DASHBOARD_PAGE_SIZE,
     organizationId: currentOrganizationId,
+    search: debouncedSearch.trim() || undefined,
   });
   const pastQuery = useInfiniteFetchMeets({
     view: "past",
     scope: dashboardView,
     limit: DASHBOARD_PAGE_SIZE,
     organizationId: currentOrganizationId,
+    search: debouncedSearch.trim() || undefined,
   });
   const { getName: getStatusName } = useMeetStatusLookup();
   const canManageMeets =
@@ -112,6 +119,19 @@ function DashboardPage() {
     );
     return () => setMobileHeaderAction(null);
   }, [handleNewMeet, isMobile, setMobileHeaderAction]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsMobileSearchExpanded(false);
+    }
+  }, [isMobile]);
 
   const columns = useMemo(() => {
     let numColumns = 1; // We always show upcoming
@@ -218,27 +238,39 @@ function DashboardPage() {
       }}
     >
       <Heading
-        title="Dashboard"
-        subtitle="View upcoming and past meets that you are organising or attending."
-        actionComponent={
+        title={isMobile && isMobileSearchExpanded ? "" : "Dashboard"}
+        subtitle={
+          isMobile && isMobileSearchExpanded
+            ? undefined
+            : "View upcoming and past meets that you are organising or attending."
+        }
+        secondaryActionComponent={
           !isMobile ? (
-            <Stack direction="row" spacing={1} alignItems="center">
-              <ToggleButtonGroup
-                exclusive
-                size="small"
-                value={dashboardView}
-                onChange={(_event, nextView) => {
-                  if (nextView) setDashboardView(nextView);
-                }}
-              >
-                <ToggleButton value="my">My meets</ToggleButton>
-                <ToggleButton value="all">All meets</ToggleButton>
-              </ToggleButtonGroup>
-              <Button variant="contained" onClick={handleNewMeet}>
-                New Meet
-              </Button>
-            </Stack>
-          ) : (
+            <Button variant="contained" onClick={handleNewMeet}>
+              New Meet
+            </Button>
+          ) : null
+        }
+        actionComponent={
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="nowrap"
+            sx={{ width: isMobileSearchExpanded ? "100%" : "auto" }}
+          >
+            <Box sx={{ flex: isMobileSearchExpanded ? 1 : "0 0 auto" }}>
+              <MeetSearchField
+                value={searchQuery}
+                onChange={setSearchQuery}
+                fullWidth={isMobileSearchExpanded}
+                compact={!isMobileSearchExpanded}
+                expanded={isMobile ? isMobileSearchExpanded : undefined}
+                onExpandedChange={
+                  isMobile ? setIsMobileSearchExpanded : undefined
+                }
+              />
+            </Box>
             <ToggleButtonGroup
               exclusive
               size="small"
@@ -247,19 +279,28 @@ function DashboardPage() {
                 if (nextView) setDashboardView(nextView);
               }}
               sx={{
-                "& .MuiToggleButton-root": {
-                  minWidth: 0,
-                  px: 1,
-                  py: 0.25,
-                  fontSize: "0.7rem",
-                  lineHeight: 1.2,
-                },
+                order: 1,
+                ...(isMobile
+                  ? {
+                      "& .MuiToggleButton-root": {
+                        minWidth: 0,
+                        px: 1,
+                        py: 0.25,
+                        fontSize: "0.7rem",
+                        lineHeight: 1.2,
+                      },
+                    }
+                  : {}),
               }}
             >
-              <ToggleButton value="my">My Meets</ToggleButton>
-              <ToggleButton value="all">All Meets</ToggleButton>
+              <ToggleButton value="my">
+                {isMobile ? "MY" : "My meets"}
+              </ToggleButton>
+              <ToggleButton value="all">
+                {isMobile ? "ALL" : "All meets"}
+              </ToggleButton>
             </ToggleButtonGroup>
-          )
+          </Stack>
         }
       />
 

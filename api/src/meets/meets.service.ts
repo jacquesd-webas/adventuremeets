@@ -253,13 +253,13 @@ export class MeetsService {
       const like = `%${search.toLowerCase()}%`;
       query.where((qb) => {
         qb.whereRaw("lower(m.name) like ?", [like])
-          .orWhereRaw("lower(m.location) like ?", [like])
-          .orWhereRaw("lower(m.description) like ?", [like]);
+          .orWhereRaw("lower(m.description) like ?", [like])
+          .orWhereRaw("lower(m.location) like ?", [like]);
       });
       totalQuery.where((qb) => {
         qb.whereRaw("lower(name) like ?", [like])
-          .orWhereRaw("lower(location) like ?", [like])
-          .orWhereRaw("lower(description) like ?", [like]);
+          .orWhereRaw("lower(description) like ?", [like])
+          .orWhereRaw("lower(location) like ?", [like]);
       });
     }
     const [{ count }] = await totalQuery;

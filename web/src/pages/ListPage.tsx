@@ -4,8 +4,6 @@ import {
   Stack,
   Button,
   Box,
-  TextField,
-  InputAdornment,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -24,11 +22,11 @@ import { useCurrentOrganization } from "../context/organizationContext";
 import { useFilters } from "../context/filterContext";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PlaceIcon from "@mui/icons-material/Place";
-import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import { MainLayoutOutletContext } from "../layout/MainLayout";
 import { useAuth } from "../context/authContext";
 import { getMeetPermissions } from "../helpers/meetPermissions";
+import { MeetSearchField } from "../components/meet/MeetSearchField";
 
 function ListPage() {
   const theme = useTheme();
@@ -44,6 +42,7 @@ function ListPage() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
   const { user } = useAuth();
@@ -179,6 +178,12 @@ function ListPage() {
     );
   }, [listPageView]);
 
+  useEffect(() => {
+    if (!isMobile) {
+      setIsMobileSearchExpanded(false);
+    }
+  }, [isMobile]);
+
   const handleNewMeet = useCallback(() => {
     if (!canManageMeets) return;
     setPendingAction(MeetActionsEnum.Create);
@@ -244,10 +249,27 @@ function ListPage() {
           <Stack
             direction="row"
             spacing={1}
-            alignItems={isMobile ? "stretch" : "center"}
+            alignItems="center"
             flexWrap="wrap"
             sx={{ width: isMobile ? "100%" : "auto" }}
           >
+            <Box
+              sx={{
+                order: isMobileSearchExpanded ? 2 : 0,
+                width: isMobileSearchExpanded ? "100%" : "auto",
+              }}
+            >
+              <MeetSearchField
+                value={searchQuery}
+                onChange={setSearchQuery}
+                fullWidth={isMobile ? isMobileSearchExpanded : false}
+                compact={!isMobile}
+                expanded={isMobile ? isMobileSearchExpanded : undefined}
+                onExpandedChange={
+                  isMobile ? setIsMobileSearchExpanded : undefined
+                }
+              />
+            </Box>
             <MeetFilterButtonGroup
               isMobile={isMobile}
               value={listPageView}
@@ -265,23 +287,6 @@ function ListPage() {
           </Stack>
         }
       />
-      {isMobile && (
-        <TextField
-          size="small"
-          variant="standard"
-          placeholder="Search meets"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          sx={{ width: "100%" }}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <SearchIcon fontSize="small" color="disabled" />
-              </InputAdornment>
-            ),
-          }}
-        />
-      )}
       {!isMobile ? (
         <Paper
           variant="outlined"
