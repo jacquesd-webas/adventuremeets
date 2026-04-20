@@ -63,6 +63,12 @@ export class MeetsController {
     description: "Filter view: upcoming, past, draft, all, calendar",
   })
   @ApiQuery({
+    name: "scope",
+    required: false,
+    type: String,
+    description: "Optional membership scope: my or all",
+  })
+  @ApiQuery({
     name: "page",
     required: false,
     type: Number,
@@ -102,6 +108,7 @@ export class MeetsController {
   })
   async findAll(
     @Query("view") view = "all",
+    @Query("scope") scope?: "all" | "my",
     @Query("page") page = "1",
     @Query("limit") limit = "20",
     @Query("organizationId") organizationId?: string,
@@ -140,6 +147,7 @@ export class MeetsController {
       startDate ? new Date(startDate) : null,
       endDate ? new Date(endDate) : null,
       search?.trim() || null,
+      scope ?? null,
     );
     return meets;
   }

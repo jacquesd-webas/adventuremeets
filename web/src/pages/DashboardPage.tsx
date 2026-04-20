@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -12,10 +12,9 @@ import {
 } from "@mui/material";
 import { useOutletContext } from "react-router-dom";
 import { Heading } from "../components/Heading";
-import { useFetchMeets } from "../hooks/useFetchMeets";
+import { useInfiniteFetchMeets } from "../hooks/useInfiniteFetchMeets";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
 import Meet from "../types/MeetModel";
-import MeetStatusEnum from "../types/MeetStatusEnum";
 import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
 import { useCurrentOrganization } from "../context/organizationContext";
@@ -26,6 +25,8 @@ import AddIcon from "@mui/icons-material/Add";
 import { MainLayoutOutletContext } from "../layout/MainLayout";
 import { useAuth } from "../context/authContext";
 import { getMeetPermissions } from "../helpers/meetPermissions";
+
+const DASHBOARD_PAGE_SIZE = 5;
 
 function DashboardPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
@@ -40,16 +41,49 @@ function DashboardPage() {
     useCurrentOrganization();
   const { user } = useAuth();
   const { dashboardView, setDashboardView } = useFilters();
-  const { data: meets, isLoading } = useFetchMeets({
-    view: dashboardView,
-    page: 1,
-    limit: 50,
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const draftQuery = useInfiniteFetchMeets({
+    view: "draft",
+    scope: dashboardView,
+    limit: DASHBOARD_PAGE_SIZE,
+    organizationId: currentOrganizationId,
+  });
+  const upcomingQuery = useInfiniteFetchMeets({
+    view: "upcoming",
+    scope: dashboardView,
+    limit: DASHBOARD_PAGE_SIZE,
+    organizationId: currentOrganizationId,
+  });
+  const pastQuery = useInfiniteFetchMeets({
+    view: "past",
+    scope: dashboardView,
+    limit: DASHBOARD_PAGE_SIZE,
     organizationId: currentOrganizationId,
   });
   const { getName: getStatusName } = useMeetStatusLookup();
   const canManageMeets =
     currentOrganizationRole === "organizer" ||
     currentOrganizationRole === "admin";
+  const draft = draftQuery.data;
+  const upcoming = upcomingQuery.data;
+  const past = pastQuery.data;
+  const draftHasNextPage = Boolean(draftQuery.hasNextPage);
+  const upcomingHasNextPage = Boolean(upcomingQuery.hasNextPage);
+  const pastHasNextPage = Boolean(pastQuery.hasNextPage);
+  const fetchNextDraftPage = draftQuery.fetchNextPage;
+  const fetchNextUpcomingPage = upcomingQuery.fetchNextPage;
+  const fetchNextPastPage = pastQuery.fetchNextPage;
+  const allMeets = useMemo(
+    () => [...draft, ...upcoming, ...past],
+    [draft, past, upcoming],
+  );
+  const isAnyFetchingNextPage =
+    draftQuery.isFetchingNextPage ||
+    upcomingQuery.isFetchingNextPage ||
+    pastQuery.isFetchingNextPage;
+  const hasAnyNextPage =
+    draftHasNextPage || upcomingHasNextPage || pastHasNextPage;
 
   const handleNewMeet = useCallback(() => {
     if (!canManageMeets) {
@@ -79,33 +113,65 @@ function DashboardPage() {
     return () => setMobileHeaderAction(null);
   }, [handleNewMeet, isMobile, setMobileHeaderAction]);
 
-  const { upcoming, past, draft, columns } = useMemo(() => {
-    const now = new Date();
-    const draftMeets: Meet[] = meets.filter(
-      (m: Meet) => m.statusId === MeetStatusEnum.Draft,
-    );
-    const upcomingMeets: Meet[] = meets.filter(
-      (m: Meet) =>
-        m.statusId !== MeetStatusEnum.Draft &&
-        m.endTime &&
-        new Date(m.endTime) >= now,
-    );
-    const pastMeets: Meet[] = meets.filter(
-      (m: Meet) =>
-        m.statusId !== MeetStatusEnum.Draft &&
-        m.endTime &&
-        new Date(m.endTime) < now,
-    );
+  const columns = useMemo(() => {
     let numColumns = 1; // We always show upcoming
-    if (draftMeets.length > 0) numColumns++;
-    if (pastMeets.length > 0) numColumns++;
-    return {
-      upcoming: upcomingMeets,
-      past: pastMeets,
-      draft: draftMeets,
-      columns: numColumns,
-    };
-  }, [meets]);
+    if (draft.length > 0 || draftQuery.isLoading) numColumns++;
+    if (past.length > 0 || pastQuery.isLoading) numColumns++;
+    return numColumns;
+  }, [draft.length, draftQuery.isLoading, past.length, pastQuery.isLoading]);
+
+  const fetchMoreColumns = useCallback(async () => {
+    const requests: Array<Promise<unknown>> = [];
+
+    if (draftHasNextPage) {
+      requests.push(fetchNextDraftPage());
+    }
+    if (upcomingHasNextPage) {
+      requests.push(fetchNextUpcomingPage());
+    }
+    if (pastHasNextPage) {
+      requests.push(fetchNextPastPage());
+    }
+
+    if (!requests.length) {
+      return;
+    }
+
+    await Promise.all(requests);
+  }, [
+    draftHasNextPage,
+    fetchNextDraftPage,
+    fetchNextPastPage,
+    fetchNextUpcomingPage,
+    pastHasNextPage,
+    upcomingHasNextPage,
+  ]);
+
+  useEffect(() => {
+    const root = scrollContainerRef.current;
+    const target = loadMoreRef.current;
+
+    if (!root || !target || !hasAnyNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting || isAnyFetchingNextPage) {
+          return;
+        }
+        void fetchMoreColumns();
+      },
+      {
+        root,
+        rootMargin: "200px 0px",
+        threshold: 0.1,
+      },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [fetchMoreColumns, hasAnyNextPage, isAnyFetchingNextPage]);
 
   const selectedMeetPermissions = useMemo(() => {
     if (pendingAction === MeetActionsEnum.Create) {
@@ -116,7 +182,7 @@ function DashboardPage() {
       };
     }
 
-    const selectedMeet = meets.find((meet) => meet.id === selectedMeetId);
+    const selectedMeet = allMeets.find((meet) => meet.id === selectedMeetId);
     if (!selectedMeet) {
       return {
         isOrganizerForMeet: false,
@@ -130,7 +196,13 @@ function DashboardPage() {
       currentOrganizationRole,
       organizerId: selectedMeet.organizerId,
     });
-  }, [currentOrganizationRole, meets, pendingAction, selectedMeetId, user?.id]);
+  }, [
+    allMeets,
+    currentOrganizationRole,
+    pendingAction,
+    selectedMeetId,
+    user?.id,
+  ]);
 
   return (
     <Container
@@ -191,9 +263,12 @@ function DashboardPage() {
         }
       />
 
-      <Box sx={{ flex: 1, overflowY: "auto", pr: isMobile ? 0 : 1 }}>
+      <Box
+        ref={scrollContainerRef}
+        sx={{ flex: 1, overflowY: "auto", pr: isMobile ? 0 : 1 }}
+      >
         <Grid container spacing={3}>
-          {draft && draft.length > 0 && (
+          {(draft.length > 0 || draftQuery.isLoading) && (
             <Grid item xs={12} md={12 / columns}>
               <MeetColumn
                 title="Draft Meets"
@@ -204,7 +279,8 @@ function DashboardPage() {
                 getStatusLabel={getStatusName}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}
-                isLoading={isLoading}
+                isLoading={draftQuery.isLoading}
+                isFetchingMore={draftQuery.isFetchingNextPage}
               />
             </Grid>
           )}
@@ -219,10 +295,11 @@ function DashboardPage() {
               getStatusLabel={getStatusName}
               setSelectedMeetId={setSelectedMeetId}
               setPendingAction={setPendingAction}
-              isLoading={isLoading}
+              isLoading={upcomingQuery.isLoading}
+              isFetchingMore={upcomingQuery.isFetchingNextPage}
             />
           </Grid>
-          {past && past.length > 0 && (
+          {(past.length > 0 || pastQuery.isLoading) && (
             <Grid item xs={12} md={12 / columns}>
               <MeetColumn
                 title="Past Meets"
@@ -233,11 +310,21 @@ function DashboardPage() {
                 getStatusLabel={getStatusName}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}
-                isLoading={isLoading}
+                isLoading={pastQuery.isLoading}
+                isFetchingMore={pastQuery.isFetchingNextPage}
               />
             </Grid>
           )}
         </Grid>
+        <Box ref={loadMoreRef} sx={{ height: 1 }}>
+          {isAnyFetchingNextPage ? (
+            <Box sx={{ pt: 2 }}>
+              <Button disabled variant="text" size="small">
+                Loading more...
+              </Button>
+            </Box>
+          ) : null}
+        </Box>
       </Box>
       {canManageMeets ? (
         <MeetActionsDialogs

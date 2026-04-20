@@ -83,6 +83,7 @@ export class MeetsService {
     startDate: Date | null = null,
     endDate: Date | null = null,
     search: string | null = null,
+    scope: "all" | "my" | null = null,
   ) {
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
@@ -157,8 +158,12 @@ export class MeetsService {
       .getClient()("meets")
       .count<{ count: string }[]>("* as count");
 
+    const effectiveScope =
+      scope ?? (view === "my" || view === "all" ? view : "all");
+    const effectiveView = view === "my" ? "all" : view;
+
     // If the user is not an organizer, only show meets they are attending or meets that are open
-    if (view === "my") {
+    if (effectiveScope === "my") {
       query.where((qb) => {
         qb.where("m.organizer_id", userId!);
         qb.orWhereExists(function () {
@@ -183,7 +188,7 @@ export class MeetsService {
       });
     }
 
-    if (view === "upcoming") {
+    if (effectiveView === "upcoming") {
       query.where("start_time", ">=", new Date().toISOString());
       query.whereNotIn("status_id", [MEET_STATUS.Draft, MEET_STATUS.Cancelled]);
       query.orderBy("start_time", "asc");
@@ -193,7 +198,7 @@ export class MeetsService {
         MEET_STATUS.Cancelled,
       ]);
     }
-    if (view === "past") {
+    if (effectiveView === "past") {
       query.where("start_time", "<", new Date().toISOString());
       query.whereNotIn("status_id", [MEET_STATUS.Draft, MEET_STATUS.Cancelled]);
       query.orderBy("start_time", "desc");
@@ -203,11 +208,12 @@ export class MeetsService {
         MEET_STATUS.Cancelled,
       ]);
     }
-    if (view === "draft") {
+    if (effectiveView === "draft") {
       query.where("status_id", MEET_STATUS.Draft);
       totalQuery.where("status_id", MEET_STATUS.Draft);
+      query.orderBy("updated_at", "desc");
     }
-    if (view === "calendar") {
+    if (effectiveView === "calendar") {
       query.whereNotIn("status_id", [MEET_STATUS.Draft]);
       totalQuery.whereNotIn("status_id", [MEET_STATUS.Draft]);
       query.orderBy("start_time", "asc");
@@ -220,7 +226,7 @@ export class MeetsService {
       query.where("m.is_hidden", false);
       totalQuery.where("is_hidden", false);
     }
-    if (view === "calendar") {
+    if (effectiveView === "calendar") {
       if (startDate) {
         query.whereRaw("coalesce(m.end_time, m.start_time) >= ?", [
           startDate.toISOString(),

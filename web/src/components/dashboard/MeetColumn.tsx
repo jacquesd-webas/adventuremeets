@@ -1,4 +1,4 @@
-import { Paper, Stack, Typography } from "@mui/material";
+import { Box, CircularProgress, Paper, Stack, Typography } from "@mui/material";
 import Meet from "../../types/MeetModel";
 import { MeetCard } from "./MeetCard";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
@@ -14,6 +14,7 @@ type MeetColumnProps = {
   setSelectedMeetId: (id: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   isLoading?: boolean;
+  isFetchingMore?: boolean;
   getStatusLabel: (statusId?: number, fallback?: string) => string;
 };
 
@@ -26,6 +27,7 @@ export function MeetColumn({
   setSelectedMeetId,
   setPendingAction,
   isLoading = false,
+  isFetchingMore = false,
   getStatusLabel,
 }: MeetColumnProps) {
   return (
@@ -83,6 +85,11 @@ export function MeetColumn({
             </Typography>
           </Paper>
         )}
+        {isFetchingMore ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : null}
       </Stack>
     </>
   );
