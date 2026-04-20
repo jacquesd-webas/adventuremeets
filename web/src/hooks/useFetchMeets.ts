@@ -5,11 +5,13 @@ import Meet from "../types/MeetModel";
 type MeetsResponse = { meets: Meet[] } | Meet[];
 
 type UseFetchMeetsOptions = {
-  view?: "all" | "my" | "upcoming" | "past" | "draft";
+  view?: "all" | "my" | "upcoming" | "past" | "draft" | "calendar";
   page?: number;
   limit?: number;
   organizationId?: string | null;
   search?: string;
+  startDate?: string;
+  endDate?: string;
 };
 
 type MeetsApiResponse = {
@@ -28,10 +30,15 @@ export function useFetchMeets(options: UseFetchMeetsOptions) {
     limit = 20,
     organizationId,
     search,
+    startDate,
+    endDate,
   } = options;
 
   const query = useQuery({
-    queryKey: ["meets", { view, page, limit, organizationId, search }],
+    queryKey: [
+      "meets",
+      { view, page, limit, organizationId, search, startDate, endDate },
+    ],
     enabled: !!organizationId,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -40,6 +47,8 @@ export function useFetchMeets(options: UseFetchMeetsOptions) {
       params.set("limit", String(limit));
       if (organizationId) params.set("organizationId", organizationId);
       if (search) params.set("search", search);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
       const res = await api.get<MeetsResponse | MeetsApiResponse>(
         `/meets?${params.toString()}`,
       );

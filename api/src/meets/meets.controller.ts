@@ -60,7 +60,7 @@ export class MeetsController {
     name: "view",
     required: false,
     type: String,
-    description: "Filter view: upcoming, past, draft, all",
+    description: "Filter view: upcoming, past, draft, all, calendar",
   })
   @ApiQuery({
     name: "page",
@@ -73,7 +73,7 @@ export class MeetsController {
     name: "limit",
     required: false,
     type: Number,
-    description: "Page size (max 100)",
+    description: "Page size (max 200)",
     example: 20,
   })
   @ApiQuery({
@@ -83,16 +83,16 @@ export class MeetsController {
     description: "Restrict to a specific organization",
   })
   @ApiQuery({
-    name: "fromTime",
+    name: "startDate",
     required: false,
     type: String,
-    description: "Filter meets starting from this time (ISO format)",
+    description: "Filter meets from this date/time (ISO format)",
   })
   @ApiQuery({
-    name: "toTime",
+    name: "endDate",
     required: false,
     type: String,
-    description: "Filter meets up to this time (ISO format)",
+    description: "Filter meets up to this date/time (ISO format)",
   })
   @ApiQuery({
     name: "search",
@@ -105,8 +105,8 @@ export class MeetsController {
     @Query("page") page = "1",
     @Query("limit") limit = "20",
     @Query("organizationId") organizationId?: string,
-    @Query("fromTime") fromTime?: string,
-    @Query("toTime") toTime?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
     @Query("search") search?: string,
     @User() user?: UserProfile,
   ) {
@@ -122,7 +122,7 @@ export class MeetsController {
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.max(
       1,
-      Math.min(100, parseInt(limit as string, 10) || 20),
+      Math.min(200, parseInt(limit as string, 10) || 20),
     );
     const isOrganizer = this.authService.hasRole(
       user,
@@ -137,8 +137,8 @@ export class MeetsController {
       [organizationId],
       isOrganizer,
       user.id,
-      fromTime ? new Date(fromTime) : null,
-      toTime ? new Date(toTime) : null,
+      startDate ? new Date(startDate) : null,
+      endDate ? new Date(endDate) : null,
       search?.trim() || null,
     );
     return meets;

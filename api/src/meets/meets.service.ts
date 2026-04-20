@@ -80,8 +80,8 @@ export class MeetsService {
     organizationIds: string[] = [],
     isOrganizer = false,
     userId?: string,
-    fromTime: Date | null = null,
-    toTime: Date | null = null,
+    startDate: Date | null = null,
+    endDate: Date | null = null,
     search: string | null = null,
   ) {
     const attendeeCounts = this.db
@@ -207,6 +207,14 @@ export class MeetsService {
       query.where("status_id", MEET_STATUS.Draft);
       totalQuery.where("status_id", MEET_STATUS.Draft);
     }
+    if (view === "calendar") {
+      query.whereNotIn("status_id", [MEET_STATUS.Draft, MEET_STATUS.Cancelled]);
+      totalQuery.whereNotIn("status_id", [
+        MEET_STATUS.Draft,
+        MEET_STATUS.Cancelled,
+      ]);
+      query.orderBy("start_time", "asc");
+    }
     if (organizationIds.length > 0) {
       query.whereIn("m.organization_id", organizationIds);
       totalQuery.whereIn("organization_id", organizationIds);
@@ -215,13 +223,28 @@ export class MeetsService {
       query.where("m.is_hidden", false);
       totalQuery.where("is_hidden", false);
     }
-    if (fromTime) {
-      query.where("start_time", ">=", fromTime.toISOString());
-      totalQuery.where("start_time", ">=", fromTime.toISOString());
-    }
-    if (toTime) {
-      query.where("start_time", "<=", toTime.toISOString());
-      totalQuery.where("start_time", "<=", toTime.toISOString());
+    if (view === "calendar") {
+      if (startDate) {
+        query.whereRaw("coalesce(m.end_time, m.start_time) >= ?", [
+          startDate.toISOString(),
+        ]);
+        totalQuery.whereRaw("coalesce(end_time, start_time) >= ?", [
+          startDate.toISOString(),
+        ]);
+      }
+      if (endDate) {
+        query.where("m.start_time", "<=", endDate.toISOString());
+        totalQuery.where("start_time", "<=", endDate.toISOString());
+      }
+    } else {
+      if (startDate) {
+        query.where("start_time", ">=", startDate.toISOString());
+        totalQuery.where("start_time", ">=", startDate.toISOString());
+      }
+      if (endDate) {
+        query.where("start_time", "<=", endDate.toISOString());
+        totalQuery.where("start_time", "<=", endDate.toISOString());
+      }
     }
     if (search) {
       const like = `%${search.toLowerCase()}%`;

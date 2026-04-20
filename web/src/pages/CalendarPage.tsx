@@ -111,12 +111,22 @@ export default function CalendarPage() {
   const [mobileView, setMobileView] = useState<MobileCalView>("agenda");
   const [dayDrawerOpen, setDayDrawerOpen] = useState(false);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
+  const calendarStartDate = useMemo(
+    () => addDays(startOfMonth(currentMonth), -7).toISOString(),
+    [currentMonth],
+  );
+  const calendarEndDate = useMemo(
+    () => addDays(endOfMonth(currentMonth), 7).toISOString(),
+    [currentMonth],
+  );
 
   const { data: meets, isLoading } = useFetchMeets({
-    view: "all",
+    view: "calendar",
     page: 1,
     limit: 200,
     organizationId: currentOrganizationId || "",
+    startDate: calendarStartDate,
+    endDate: calendarEndDate,
   });
 
   const multiDayMeetsByDay = useMemo(() => {

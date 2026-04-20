@@ -12,15 +12,19 @@ const buildBuilder = () => {
   builder.join = jest.fn().mockReturnValue(builder);
   builder.leftJoin = jest.fn().mockReturnValue(builder);
   builder.where = jest.fn().mockReturnValue(builder);
+  builder.orWhere = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
   builder.andWhereNot = jest.fn().mockReturnValue(builder);
   builder.whereIn = jest.fn().mockReturnValue(builder);
+  builder.whereNotIn = jest.fn().mockReturnValue(builder);
   builder.whereNotNull = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
   builder.orderBy = jest.fn().mockReturnValue(builder);
   builder.modify = jest.fn().mockReturnValue(builder);
   builder.max = jest.fn().mockReturnValue(builder);
   builder.forUpdate = jest.fn().mockReturnValue(builder);
+  builder.limit = jest.fn().mockReturnValue(builder);
+  builder.offset = jest.fn().mockReturnValue(builder);
   builder.first = jest.fn();
   builder.pluck = jest.fn();
   builder.update = jest.fn();
@@ -270,6 +274,64 @@ describe("MeetsService", () => {
     ]);
 
     expect(cloned.id).toBe("meet-2");
+  });
+
+  it("uses overlap filtering for calendar view and excludes draft/cancelled", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.limit.mockReturnValue(meetsBuilder);
+    meetsBuilder.offset.mockResolvedValue([]);
+
+    const totalBuilder = buildBuilder();
+    totalBuilder.count.mockReturnValue(totalBuilder);
+    totalBuilder.then = (resolve: (value: { count: string }[]) => void) =>
+      resolve([{ count: "0" }]);
+
+    const client: any = (table: string) => {
+      if (table === "meets as m") return meetsBuilder;
+      if (table === "meets") return totalBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const startDate = new Date("2026-04-24T00:00:00Z");
+    const endDate = new Date("2026-06-07T23:59:59Z");
+
+    await service.findAll(
+      "calendar",
+      1,
+      200,
+      ["org-1"],
+      true,
+      "user-1",
+      startDate,
+      endDate,
+      null,
+    );
+
+    expect(meetsBuilder.whereNotIn).toHaveBeenCalledWith("status_id", [1, 5]);
+    expect(totalBuilder.whereNotIn).toHaveBeenCalledWith("status_id", [1, 5]);
+    expect(meetsBuilder.whereRaw).toHaveBeenCalledWith(
+      "coalesce(m.end_time, m.start_time) >= ?",
+      [startDate.toISOString()],
+    );
+    expect(totalBuilder.whereRaw).toHaveBeenCalledWith(
+      "coalesce(end_time, start_time) >= ?",
+      [startDate.toISOString()],
+    );
+    expect(meetsBuilder.where).toHaveBeenCalledWith(
+      "m.start_time",
+      "<=",
+      endDate.toISOString(),
+    );
+    expect(totalBuilder.where).toHaveBeenCalledWith(
+      "start_time",
+      "<=",
+      endDate.toISOString(),
+    );
   });
 
   it("rejects duplicate adult attendee inserts with a conflict error", async () => {
