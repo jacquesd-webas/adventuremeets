@@ -71,7 +71,12 @@ export function MeetColumn({
                 statusLabel={getStatusLabel(meet.statusId, statusFallback)}
                 onClick={() => {
                   setSelectedMeetId(meet.id);
-                  setPendingAction(defaultPendingAction(meet.statusId));
+                  setPendingAction(
+                    defaultPendingAction(
+                      meet.statusId,
+                      meet.organizerId === currentUserId,
+                    ),
+                  );
                 }}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}

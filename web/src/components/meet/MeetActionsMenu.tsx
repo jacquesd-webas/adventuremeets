@@ -109,7 +109,6 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
 export function MeetActionsMenu({
   meetId,
   statusId,
-  isOrganizer: _isOrganizer,
   canViewMeet,
   canManageMeet,
   setSelectedMeetId,
@@ -122,6 +121,9 @@ export function MeetActionsMenu({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const nav = useNavigate();
+
+  // Undefined or status should not happen, if it does just render nothing
+  if (!statusId) return null;
 
   const handleOpen = (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();

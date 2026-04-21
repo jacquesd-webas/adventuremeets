@@ -150,7 +150,9 @@ export function MeetCard({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const isUpcoming = new Date(meet.endTime) >= new Date();
+  const isUpcoming =
+    meet.statusId !== MeetStatusEnum.Draft &&
+    new Date(meet.endTime!) >= new Date();
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
   const rangeLabel = getCardRangeLabel(meet);
   const isOrganizerForMeet = user?.id === meet.organizerId;
