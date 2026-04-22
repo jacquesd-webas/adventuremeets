@@ -21,10 +21,8 @@ import { User } from "../auth/decorators/user.decorator";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
-import {
-  EmailTemplateName,
-  renderEmailTemplate,
-} from "../email/email.templates";
+import { renderEmailTemplate } from "../email/email.templates";
+import { EmailTemplateName } from "../email/email.types";
 import type { Request } from "express";
 
 @ApiTags("Meet Attendees")

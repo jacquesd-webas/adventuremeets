@@ -225,9 +225,22 @@ export class MeetsController {
     @Body() dto: UpdateMeetAttendeeDto,
   ) {
     const meet = await this.meetsService.findOne(code);
-    return this.meetsService.updateAttendee(meet.id, attendeeId, dto, {
-      resetCancelledToPending: true,
-    });
+    const updated = await this.meetsService.updateAttendee(
+      meet.id,
+      attendeeId,
+      dto,
+      {
+        resetCancelledToPending: true,
+      },
+    );
+    if (dto.status === "confirmed") {
+      const hasMissingFields = await this.meetsService.attendeeHasMissingFields(
+        meet.id,
+        attendeeId,
+      );
+      return { ...updated, hasMissingFields };
+    }
+    return updated;
   }
 
   @Post()
@@ -317,10 +330,27 @@ export class MeetsController {
   ) {
     // Shortcut the entire process as worker API can do anything
     if (apiKey && apiKey === process.env.WORKER_API_KEY) {
+      const meet =
+        dto.notifyAttendees || dto.reconfirmAttendees
+          ? await this.meetsService.findOne(id)
+          : null;
+      if ((dto.notifyAttendees || dto.reconfirmAttendees) && !meet) {
+        throw new NotFoundException("Meet not found");
+      }
+      const attendeesToReconfirm = dto.reconfirmAttendees
+        ? await this.getAttendeesToReconfirm(meet!)
+        : [];
+
       const updated = await this.meetsService.updateStatus(id, dto.statusId);
+      if (dto.reconfirmAttendees) {
+        await this.meetsService.resetConfirmedAttendeesToPreloaded(
+          id,
+          meet?.organizerId,
+        );
+        await this.notifyAttendeesToReconfirm(meet!, attendeesToReconfirm);
+      }
       if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
-        const meet = await this.meetsService.findOne(id);
-        await this.notifyAttendeesOfStatus(meet);
+        await this.notifyAttendeesOfStatus(meet!);
       }
       return updated;
     }
@@ -336,12 +366,90 @@ export class MeetsController {
         "Cannot update a meet for an organization you do not belong to as an organizer",
       );
     }
+    const attendeesToReconfirm = dto.reconfirmAttendees
+      ? await this.getAttendeesToReconfirm(meet)
+      : [];
 
     const updated = await this.meetsService.updateStatus(id, dto.statusId);
+    if (dto.reconfirmAttendees) {
+      await this.meetsService.resetConfirmedAttendeesToPreloaded(
+        id,
+        meet.organizerId,
+      );
+      await this.notifyAttendeesToReconfirm(meet, attendeesToReconfirm);
+    }
     if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
       await this.notifyAttendeesOfStatus(meet);
     }
     return updated;
+  }
+
+  private async getAttendeesToReconfirm(meet: MeetDto) {
+    const { attendees } = await this.meetsService.listAttendees(meet.id);
+    return attendees.filter(
+      (attendee: any) =>
+        attendee.status === "confirmed" && attendee.userId !== meet.organizerId,
+    );
+  }
+
+  private async notifyAttendeesToReconfirm(meet: MeetDto, attendees: any[]) {
+    if (!attendees.length) return;
+    if (!process.env.MAIL_DOMAIN) {
+      throw new BadRequestException("Mail is not enabled");
+    }
+
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const notifiedIds: string[] = [];
+
+    await Promise.all(
+      attendees.map(async (attendee: any) => {
+        if (!attendee.email) return;
+
+        const statusUrl = meet.shareCode
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
+          : "";
+        const organizerName = meet.organizerName || "the organizer";
+        const organizerEmail = meet.organizerEmail || "";
+        const attendeeName =
+          attendee.name || attendee.email || attendee.phone || "there";
+
+        const { subject, text, html } = renderEmailTemplate("meet-reconfirm", {
+          meetName: meet.name,
+          attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
+          statusUrl,
+          organizerName,
+          organizerEmail,
+        });
+
+        await this.emailService.sendEmail({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        await this.emailService.saveMessage({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        notifiedIds.push(attendee.id);
+      }),
+    );
+
+    if (notifiedIds.length) {
+      await this.meetsService.updateAttendeesNotified(meet.id, notifiedIds);
+    }
   }
 
   private async notifyAttendeesOfStatus(meet: MeetDto) {

@@ -57,6 +57,7 @@ export type CreateMeetState = {
   imageFile: File | null;
   imagePreview: string;
   statusId: number | null;
+  attendeeReconfirm: boolean;
 };
 
 export const initialState: CreateMeetState = {
@@ -95,6 +96,7 @@ export const initialState: CreateMeetState = {
   imageFile: null,
   imagePreview: "",
   statusId: null,
+  attendeeReconfirm: true,
 };
 
 export type StepProps = {

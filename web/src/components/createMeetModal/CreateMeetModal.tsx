@@ -113,7 +113,9 @@ export function CreateMeetModal({
 
     return Boolean(
       isOrganizer ||
-        (user?.id && fetchedMeet?.organizerId && fetchedMeet.organizerId === user.id),
+      (user?.id &&
+        fetchedMeet?.organizerId &&
+        fetchedMeet.organizerId === user.id),
     );
   }, [fetchedMeet?.organizerId, isEditing, isOrganizer, user?.id]);
   const isMeetLocked = isEditing && !isOrganizerForEditingMeet;
@@ -476,7 +478,14 @@ export function CreateMeetModal({
       }
 
       // Publish the meet
-      await updateStatusAsync({ meetId, statusId: MeetStatusEnum.Published });
+      await updateStatusAsync({
+        meetId,
+        statusId: MeetStatusEnum.Published,
+        reconfirmAttendees:
+          state.statusId === MeetStatusEnum.Postponed
+            ? state.attendeeReconfirm
+            : undefined,
+      });
 
       // Clear everything
       onCreated?.();
@@ -500,7 +509,11 @@ export function CreateMeetModal({
     try {
       await handleSaveStep(activeStep);
       if (meetId && state.statusId === MeetStatusEnum.Postponed) {
-        await updateStatusAsync({ meetId, statusId: MeetStatusEnum.Published });
+        await updateStatusAsync({
+          meetId,
+          statusId: MeetStatusEnum.Published,
+          reconfirmAttendees: state.attendeeReconfirm,
+        });
       }
       setBaselineState(state);
       onCreated?.();
@@ -709,6 +722,7 @@ export function CreateMeetModal({
             errors={finalErrors}
             shareCode={shareCode}
             disabled={isMeetLocked}
+            isEditing={isEditing}
           />
         );
       default:

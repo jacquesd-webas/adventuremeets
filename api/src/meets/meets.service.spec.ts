@@ -394,4 +394,102 @@ describe("MeetsService", () => {
       }),
     ).rejects.toThrow(ConflictException);
   });
+
+  it("resets confirmed attendees to preloaded while excluding the organizer attendee", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.update.mockResolvedValue(3);
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const result = await service.resetConfirmedAttendeesToPreloaded(
+      "meet-1",
+      "organizer-1",
+    );
+
+    expect(attendeeBuilder.where).toHaveBeenCalledWith({
+      meet_id: "meet-1",
+      status: "confirmed",
+    });
+    expect(attendeeBuilder.andWhere).toHaveBeenCalledWith(expect.any(Function));
+
+    const filterBuilder = {
+      whereNull: jest.fn().mockReturnThis(),
+      orWhereNot: jest.fn().mockReturnThis(),
+    };
+    const filterCallback = (attendeeBuilder.andWhere as jest.Mock).mock
+      .calls[0][0];
+    filterCallback(filterBuilder);
+
+    expect(filterBuilder.whereNull).toHaveBeenCalledWith("user_id");
+    expect(filterBuilder.orWhereNot).toHaveBeenCalledWith(
+      "user_id",
+      "organizer-1",
+    );
+    expect(attendeeBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "preloaded",
+        updated_at: expect.any(String),
+      }),
+    );
+    expect(result).toEqual({ updated: 3 });
+  });
+
+  it("detects missing attendee fields for required reconfirmation details", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      id: "meet-1",
+      name: "Meet",
+      has_indemnity: true,
+    });
+
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      id: "attendee-1",
+      meet_id: "meet-1",
+      name: "Sam",
+      email: "sam@example.com",
+      phone: "",
+      indemnity_accepted: false,
+    });
+
+    const metaValuesBuilder = buildBuilder();
+    metaValuesBuilder.select.mockResolvedValue([]);
+
+    const metaDefinitionsBuilder = buildBuilder();
+    metaDefinitionsBuilder.select.mockResolvedValue([
+      {
+        id: "meta-1",
+        field_key: "fitness",
+        label: "Fitness",
+        field_type: "text",
+        required: true,
+        position: 1,
+        config: null,
+      },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "meets as m") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_meta_values as mv") return metaValuesBuilder;
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.attendeeHasMissingFields("meet-1", "attendee-1"),
+    ).resolves.toBe(true);
+  });
 });

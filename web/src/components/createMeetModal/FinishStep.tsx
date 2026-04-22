@@ -1,17 +1,32 @@
-import { Button, Stack, TextField, Typography } from "@mui/material";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  FormControlLabel,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { useMemo, useState } from "react";
 import { StepProps } from "./CreateMeetState";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
 
 type FinishStepProps = StepProps & {
   shareCode?: string | null;
+  isEditing?: boolean;
 };
 
 export function FinishStep({
-  errors,
+  state,
+  setState,
+  errors = [],
   shareCode,
   disabled = false,
+  isEditing = false,
 }: FinishStepProps) {
   const [copied, setCopied] = useState(false);
+  const showPostponedWarning =
+    isEditing && state.statusId === MeetStatusEnum.Postponed;
   const shareUrl = useMemo(() => {
     if (!shareCode) return "";
     if (typeof window === "undefined") return `/meets/${shareCode}`;
@@ -66,6 +81,29 @@ export function FinishStep({
           </Button>
         </>
       )}
+      {showPostponedWarning ? (
+        <>
+          <Alert severity="warning">
+            The meet was postponed. All attendees should re-confirm, unless you
+            choose to keep their current status as is.
+          </Alert>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={state.attendeeReconfirm}
+                onChange={(_event, checked) =>
+                  setState((prev) => ({
+                    ...prev,
+                    attendeeReconfirm: checked,
+                  }))
+                }
+                disabled={disabled}
+              />
+            }
+            label="Require attendees to re-confirm their attendance"
+          />
+        </>
+      ) : null}
     </Stack>
   );
 }

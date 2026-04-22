@@ -485,12 +485,7 @@ export class MeetsService {
 
       const organizerId = dto?.organizerId || sourceMeet.organizer_id;
       if (organizerId) {
-        await this.addOrganizerAsAttendee(
-          trx,
-          clonedMeet.id,
-          organizerId,
-          now,
-        );
+        await this.addOrganizerAsAttendee(trx, clonedMeet.id, organizerId, now);
       }
 
       return clonedMeet;
@@ -536,6 +531,29 @@ export class MeetsService {
       throw new NotFoundException("Meet not found");
     }
     return updated as any;
+  }
+
+  async resetConfirmedAttendeesToPreloaded(
+    meetId: string,
+    organizerId?: string | null,
+  ) {
+    const query = this.db.getClient()("meet_attendees").where({
+      meet_id: meetId,
+      status: "confirmed",
+    });
+
+    if (organizerId) {
+      query.andWhere((builder) => {
+        builder.whereNull("user_id").orWhereNot("user_id", organizerId);
+      });
+    }
+
+    const updated = await query.update({
+      status: "preloaded",
+      updated_at: new Date().toISOString(),
+    });
+
+    return { updated };
   }
 
   async remove(id: string) {
@@ -606,6 +624,48 @@ export class MeetsService {
         })),
       },
     };
+  }
+
+  async attendeeHasMissingFields(meetId: string, attendeeId: string) {
+    const meet = await this.findOne(meetId);
+    if (!meet) {
+      throw new NotFoundException("Meet not found");
+    }
+
+    const { attendee } = await this.findAttendeeForEdit(meetId, attendeeId);
+    if (!attendee) {
+      throw new NotFoundException("Attendee not found");
+    }
+
+    if (
+      !attendee.name?.trim() ||
+      !attendee.email?.trim() ||
+      !attendee.phone?.trim()
+    ) {
+      return true;
+    }
+
+    if (meet.hasIndemnity && !attendee.indemnityAccepted) {
+      return true;
+    }
+
+    const metaValuesByKey = new Map(
+      (attendee.metaValues || []).map((item) => [item.fieldKey, item.value]),
+    );
+
+    return (meet.metaDefinitions || []).some((definition) => {
+      if (!definition.required) return false;
+
+      const value = metaValuesByKey.get(definition.fieldKey);
+      if (
+        definition.fieldType === "checkbox" ||
+        definition.fieldType === "switch"
+      ) {
+        return value !== "true";
+      }
+
+      return value === undefined || value === null || value === "";
+    });
   }
 
   async getAttendeeContactById(attendeeId: string) {

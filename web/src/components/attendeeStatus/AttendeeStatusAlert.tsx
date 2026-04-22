@@ -25,6 +25,8 @@ export function AttendeeStatusAlert({ status }: AttendeeStatusAlertProps) {
     severity: "info",
   };
 
+  if (!status) return null;
+
   return (
     <Alert
       severity={meta.severity}

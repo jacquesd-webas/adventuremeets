@@ -2,8 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CreateMeetModal } from "../CreateMeetModal";
 import { mapMeetToState } from "../CreateMeetState";
+import MeetStatusEnum from "../../../types/MeetStatusEnum";
 
 const mockSave = vi.fn(async () => ({}));
+const mockUpdateStatusAsync = vi.fn(async () => ({}));
 
 const meetFixture = {
   id: "meet-1",
@@ -27,6 +29,8 @@ const meetFixture = {
   metaDefinitions: [],
 };
 
+let currentMeetFixture = meetFixture;
+
 vi.mock("../../../hooks/useApi", () => ({
   useApi: () => ({ baseUrl: "http://localhost:3000" }),
 }));
@@ -37,14 +41,14 @@ vi.mock("../../../hooks/useSaveMeet", () => ({
 
 vi.mock("../../../hooks/useUpdateMeetStatus", () => ({
   useUpdateMeetStatus: () => ({
-    updateStatusAsync: vi.fn(),
+    updateStatusAsync: mockUpdateStatusAsync,
     isLoading: false,
   }),
 }));
 
 vi.mock("../../../hooks/useFetchMeet", () => ({
   useFetchMeet: () => ({
-    data: meetFixture,
+    data: currentMeetFixture,
     isLoading: false,
   }),
 }));
@@ -70,6 +74,8 @@ vi.mock("../../../context/organizationContext", () => ({
 describe("CreateMeetModal edit mode", () => {
   beforeEach(() => {
     mockSave.mockClear();
+    mockUpdateStatusAsync.mockClear();
+    currentMeetFixture = meetFixture;
   });
 
   it("prefills fields from fetched meet across steps", async () => {
@@ -116,5 +122,44 @@ describe("CreateMeetModal edit mode", () => {
     expect(
       screen.getByDisplayValue(String(expected.waitlistSize)),
     ).toBeInTheDocument();
+  });
+
+  it("passes reconfirmAttendees when saving a postponed meet", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      statusId: MeetStatusEnum.Postponed,
+    };
+
+    render(
+      <CreateMeetModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        meetId="meet-1"
+        isOrganizer
+        canManageMeet
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Finish"));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /require attendees to re-confirm their attendance/i,
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: /publish/i }));
+
+    expect(mockUpdateStatusAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      statusId: MeetStatusEnum.Published,
+      reconfirmAttendees: false,
+    });
   });
 });
