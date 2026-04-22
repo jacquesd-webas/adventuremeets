@@ -16,6 +16,7 @@ describe("MeetsController", () => {
   const meetsService = {
     findOne: jest.fn(),
     updateStatus: jest.fn(),
+    remove: jest.fn(),
     resetConfirmedAttendeesToPreloaded: jest.fn(),
     listAttendees: jest.fn(),
     updateAttendeesNotified: jest.fn(),
@@ -58,6 +59,22 @@ describe("MeetsController", () => {
     organizerEmail: "taylor@example.com",
   };
 
+  const setRoles = ({
+    organizer = false,
+    admin = false,
+  }: {
+    organizer?: boolean;
+    admin?: boolean;
+  }) => {
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_currentUser, _organizationId, role) => {
+        if (role === "organizer") return organizer;
+        if (role === "admin") return admin;
+        return false;
+      },
+    );
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     controller = new MeetsController(
@@ -76,11 +93,42 @@ describe("MeetsController", () => {
 
   it("rejects status updates for non-organizers", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
-    (authService.hasRole as jest.Mock).mockReturnValue(false);
+    setRoles({});
 
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("rejects status updates from another organizer who is not an admin", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "organizer-2",
+    });
+    setRoles({ organizer: true, admin: false });
+
+    await expect(
+      controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
+    ).rejects.toThrow("Cannot update a meet you are not the organizer of");
+  });
+
+  it("allows status updates from an admin who is not the organizer", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "organizer-2",
+    });
+    setRoles({ organizer: true, admin: true });
+    (meetsService.updateStatus as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      status_id: 2,
+    });
+
+    await expect(
+      controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
+    ).resolves.toEqual({
+      id: "meet-1",
+      status_id: 2,
+    });
   });
 
   it("throws when updating a missing meet", async () => {
@@ -94,7 +142,7 @@ describe("MeetsController", () => {
   it("resets confirmed attendees to preloaded when reconfirmAttendees is true", async () => {
     process.env.MAIL_DOMAIN = "example.com";
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
-    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    setRoles({ organizer: true });
     (meetsService.listAttendees as jest.Mock).mockResolvedValue({
       attendees: [
         {
@@ -153,6 +201,19 @@ describe("MeetsController", () => {
     expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
       "meet-1",
       ["attendee-1"],
+    );
+  });
+
+  it("rejects deleting a draft meet owned by another organizer", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "organizer-2",
+      statusId: 1,
+    });
+    setRoles({ organizer: true, admin: false });
+
+    await expect(controller.remove("meet-1", user)).rejects.toThrow(
+      "Cannot delete a meet you are not the organizer of",
     );
   });
 

@@ -307,11 +307,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     return this.meetsService.update(id, dto);
   }
@@ -361,11 +357,8 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
     const attendeesToReconfirm = dto.reconfirmAttendees
       ? await this.getAttendeesToReconfirm(meet)
       : [];
@@ -535,11 +528,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot add an image to a meet for an organisation you do not belong to as an organizer",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     if (!file) {
       throw new BadRequestException("Image file is required");
@@ -557,11 +546,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot delete a meet for an organisation you do not belong to as an organizer",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "delete");
 
     if (meet.statusId === MEET_STATUS.Draft) {
       return this.meetsService.remove(id);
@@ -606,11 +591,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You do not have permission to message attendees of this meet",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     // Sanity check
     if (!body.text && !body.html) {
@@ -760,11 +741,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You do not have permission to update attendee messages for this meet",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     await this.meetsService.markAttendeeMessageRead(id, messageId);
     return { status: "ok" };
@@ -783,11 +760,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You do not have permission to upload attendees for this meet",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     if (!file) {
       throw new BadRequestException("File is required");
@@ -1005,5 +978,26 @@ export class MeetsController {
     }
 
     return { status: "sent", to: organizerEmail ?? undefined };
+  }
+
+  private assertCanModifyExistingMeet(
+    user: UserProfile,
+    meet: MeetDto,
+    action: "update" | "delete",
+  ) {
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        `Cannot ${action} a meet for an organization you do not belong to as an organizer`,
+      );
+    }
+
+    if (
+      !this.authService.hasRole(user, meet.organizationId!, "admin") &&
+      user.id !== meet.organizerId
+    ) {
+      throw new ForbiddenException(
+        `Cannot ${action} a meet you are not the organizer of`,
+      );
+    }
   }
 }

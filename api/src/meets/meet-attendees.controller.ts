@@ -211,6 +211,13 @@ export class MeetAttendeesController {
         "You are not an organizer in this organization",
       );
     }
+
+    if (dto.status === "checked-in" && user.id !== meet.organizerId) {
+      throw new ForbiddenException(
+        "You cannot check in attendees for a meet you do not organize",
+      );
+    }
+
     return this.meetsService.updateAttendee(meetId, attendeeId, dto);
   }
 

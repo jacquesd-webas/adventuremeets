@@ -53,6 +53,7 @@ describe("MeetAttendeesController", () => {
   const meet = {
     id: "meet-1",
     organizationId: "org-1",
+    organizerId: "user-1",
     name: "Sunrise Hike",
     shareCode: "share-123",
     autoPlacement: false,
@@ -301,6 +302,45 @@ describe("MeetAttendeesController", () => {
       controller.update("meet-1", "attendee-1", dto, user),
     ).resolves.toEqual({
       attendee: { id: "attendee-1", status: "checked-in" },
+    });
+
+    expect(meetsService.updateAttendee).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+      dto,
+    );
+  });
+
+  it("rejects check-in updates from another organizer in the same organization", async () => {
+    const dto = { status: "checked-in" };
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+
+    await expect(
+      controller.update("meet-1", "attendee-1", dto, user),
+    ).rejects.toThrow(
+      "You cannot check in attendees for a meet you do not organize",
+    );
+  });
+
+  it("still allows non-check-in attendee updates from another organizer", async () => {
+    const dto = { status: "confirmed" };
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.updateAttendee as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-1", status: "confirmed" },
+    });
+
+    await expect(
+      controller.update("meet-1", "attendee-1", dto, user),
+    ).resolves.toEqual({
+      attendee: { id: "attendee-1", status: "confirmed" },
     });
 
     expect(meetsService.updateAttendee).toHaveBeenCalledWith(
