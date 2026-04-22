@@ -45,6 +45,7 @@ export function AuthProvider({ children }: Props) {
   const {
     data: user,
     isLoading,
+    updatedAt,
     refetch,
   } = useFetchMe({
     onUnauthorized: handleUnauthorized,
@@ -70,10 +71,11 @@ export function AuthProvider({ children }: Props) {
       user,
       isLoading,
       isAuthenticated: Boolean(user),
+      meUpdatedAt: updatedAt,
       refreshSession,
       logout,
     }),
-    [user, isLoading, refreshSession, logout]
+    [user, isLoading, updatedAt, refreshSession, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

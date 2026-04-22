@@ -77,7 +77,7 @@ function MainLayout() {
     return "light";
   });
 
-  const { user } = useAuth();
+  const { user, meUpdatedAt } = useAuth();
   const {
     currentOrganizationId,
     currentOrganizationName,
@@ -352,6 +352,7 @@ function MainLayout() {
             <Box sx={{ flexGrow: 1 }} />
             {organizationIds.length > 1 && (
               <Button
+                key={`organization-switcher-${meUpdatedAt}`}
                 onClick={() => setOrgModalOpen(true)}
                 variant="outlined"
                 color="primary"

@@ -29,6 +29,7 @@ describe("MeetSignupSubmitted", () => {
             user: undefined,
             isLoading: false,
             isAuthenticated: false,
+            meUpdatedAt: 0,
             refreshSession: vi.fn(),
             logout: vi.fn(),
           }}
@@ -71,6 +72,7 @@ describe("MeetSignupSubmitted", () => {
             user: { id: "u1" } as any,
             isLoading: false,
             isAuthenticated: true,
+            meUpdatedAt: 0,
             refreshSession: vi.fn(),
             logout: vi.fn(),
           }}
