@@ -15,8 +15,10 @@ describe("Create template", () => {
     cy.contains("button", "Create account").click();
     cy.url().should("match", /\/$/);
 
-    cy.get(".MuiAvatar-root").first().click();
-    cy.get('[role="menu"]').contains("Profile").click();
+    cy.get('[data-testid="account-menu-button"]').click();
+    cy.get('[role="menu"]').should("be.visible");
+    cy.get('[data-testid="account-profile-menu-item"]').click();
+    cy.get('[data-testid="profile-modal"]').should("be.visible");
 
     cy.contains("Organisation").click();
     cy.contains("Allow regular users to join with invite link")

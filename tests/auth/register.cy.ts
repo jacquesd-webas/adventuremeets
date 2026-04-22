@@ -70,8 +70,10 @@ describe("Register", () => {
     cy.url().should("match", /\/$/);
     cy.contains("Dashboard").should("be.visible");
 
-    cy.get(".MuiAvatar-root").first().click();
-    cy.contains("Profile").click();
+    cy.get('[data-testid="account-menu-button"]').click();
+    cy.get('[role="menu"]').should("be.visible");
+    cy.get('[data-testid="account-profile-menu-item"]').click();
+    cy.get('[data-testid="profile-modal"]').should("be.visible");
 
     cy.contains("label", "First name")
       .parent()

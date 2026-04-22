@@ -1327,6 +1327,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
       onClose={onClose}
       fullWidth
       maxWidth="md"
+      data-testid="profile-modal"
       PaperProps={{ sx: { minHeight: "80vh" } }}
     >
       <DialogTitle>Profile</DialogTitle>

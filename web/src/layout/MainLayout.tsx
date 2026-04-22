@@ -31,7 +31,10 @@ import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import { useMemo, useState, MouseEvent, useEffect, ReactNode } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { ProfileContent, ProfileModal } from "../components/profile/ProfileModal";
+import {
+  ProfileContent,
+  ProfileModal,
+} from "../components/profile/ProfileModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
@@ -63,9 +66,8 @@ function MainLayout() {
   const [adminAnchorEl, setAdminAnchorEl] = useState<null | HTMLElement>(null);
   const [orgModalOpen, setOrgModalOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mobileHeaderAction, setMobileHeaderAction] = useState<ReactNode | null>(
-    null,
-  );
+  const [mobileHeaderAction, setMobileHeaderAction] =
+    useState<ReactNode | null>(null);
   const [baseMode, setBaseMode] = useState<"light" | "dark">(() => {
     const stored =
       typeof window !== "undefined"
@@ -233,7 +235,7 @@ function MainLayout() {
           {mode === "glass" ? "Disable glass mode" : "Enable glass mode"}
         </MenuItem>
       )}
-      <MenuItem onClick={handleProfile}>
+      <MenuItem onClick={handleProfile} data-testid="account-profile-menu-item">
         <ListItemIcon>
           <PersonOutlineIcon fontSize="small" />
         </ListItemIcon>
@@ -440,7 +442,9 @@ function MainLayout() {
             >
               <MenuIcon />
             </IconButton>
-            <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
+            <Box
+              sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}
+            >
               <Box
                 component="img"
                 src={logoSrc}
@@ -543,7 +547,10 @@ function MainLayout() {
                     />
                   </ListItemButton>
                 )}
-                <ListItemButton onClick={handleMobileProfile}>
+                <ListItemButton
+                  onClick={handleMobileProfile}
+                  data-testid="mobile-profile-menu-item"
+                >
                   <ListItemIcon>
                     <PersonOutlineIcon fontSize="small" />
                   </ListItemIcon>
@@ -556,7 +563,9 @@ function MainLayout() {
                   <ListItemText primary="Logout" />
                 </ListItemButton>
                 <Divider sx={{ my: 1 }} />
-                <ListItemButton onClick={() => handleMobileNavigate("/privacy")}>
+                <ListItemButton
+                  onClick={() => handleMobileNavigate("/privacy")}
+                >
                   <ListItemIcon>
                     <PrivacyTipOutlinedIcon fontSize="small" />
                   </ListItemIcon>
@@ -592,6 +601,7 @@ function MainLayout() {
           anchor="bottom"
           open={profileOpen}
           onClose={() => setProfileOpen(false)}
+          data-testid="profile-drawer"
           PaperProps={{
             sx: {
               borderTopLeftRadius: 16,
@@ -621,7 +631,10 @@ function MainLayout() {
           </Box>
         </Drawer>
       ) : (
-        <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+        <ProfileModal
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+        />
       )}
       <ChooseOrganizationModal
         open={orgModalOpen || !currentOrganizationId}
