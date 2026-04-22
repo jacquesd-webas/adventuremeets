@@ -38,7 +38,7 @@ const workerApiKey = process.env.WORKER_API_KEY || "";
 async function updateStatusViaApi(ids: string[], statusId: number) {
   if (!apiBase || !workerApiKey) {
     console.error(
-      "API_BASE_URL or WORKER_API_KEY is not set; skipping status updates"
+      "API_BASE_URL or WORKER_API_KEY is not set; skipping status updates",
     );
     return 0;
   }
@@ -56,7 +56,7 @@ async function updateStatusViaApi(ids: string[], statusId: number) {
       if (!res.ok) {
         const text = await res.text();
         console.error(
-          `Failed to update meet ${id} status: ${res.status} ${text}`
+          `Failed to update meet ${id} status: ${res.status} ${text}`,
         );
       } else {
         updated += 1;
@@ -122,7 +122,7 @@ export async function runMeetScheduler() {
     const waitlistClosed = await closeWhenWaitlistFull(db);
     const archived = await archiveEndedMeets(db);
 
-    console.log(
+    console.info(
       JSON.stringify(
         {
           opened,
@@ -132,8 +132,8 @@ export async function runMeetScheduler() {
           timestamp: new Date().toISOString(),
         },
         null,
-        2
-      )
+        2,
+      ),
     );
   } finally {
     await db.destroy();
