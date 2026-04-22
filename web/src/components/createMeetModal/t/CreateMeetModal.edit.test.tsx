@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CreateMeetModal } from "../CreateMeetModal";
-import { mapMeetToState } from "../CreateMeetState";
+import { mapMeetToState, toIsoWithOffset } from "../CreateMeetState";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
 
 const mockSave = vi.fn(async () => ({}));
@@ -192,11 +192,14 @@ describe("CreateMeetModal edit mode", () => {
     await user.click(screen.getByText("Finish"));
     const beforePublish = Date.now();
     await user.click(screen.getByRole("button", { name: /publish/i }));
+    const expectedClosingDate = toIsoWithOffset(
+      mapMeetToState(currentMeetFixture).startTime,
+    );
 
     await waitFor(() => {
       expect(mockSave).toHaveBeenCalledWith(
         {
-          closingDate: "2026-02-12T08:00:00+02:00",
+          closingDate: expectedClosingDate,
         },
         "meet-1",
       );

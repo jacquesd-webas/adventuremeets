@@ -10,15 +10,15 @@ import { OrganizationContext } from "../context/organizationContext";
 import { FilterContext } from "../context/filterContext";
 
 vi.mock("../hooks/useFetchMeets", () => ({
-  useFetchMeets: () => ({ data: [], isLoading: false, refetch: vi.fn() })
+  useFetchMeets: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
 }));
 
 vi.mock("../hooks/useFetchMeetStatuses", () => ({
-  useMeetStatusLookup: () => ({ getName: () => "Status" })
+  useMeetStatusLookup: () => ({ getName: () => "Status" }),
 }));
 
 vi.mock("../hooks/useUpdateMeetStatus", () => ({
-  useUpdateMeetStatus: () => ({ updateStatusAsync: vi.fn(), isLoading: false })
+  useUpdateMeetStatus: () => ({ updateStatusAsync: vi.fn(), isLoading: false }),
 }));
 
 vi.mock("../hooks/useApi", () => ({
@@ -26,8 +26,8 @@ vi.mock("../hooks/useApi", () => ({
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
-    del: vi.fn()
-  })
+    del: vi.fn(),
+  }),
 }));
 
 describe("App", () => {
@@ -64,7 +64,12 @@ describe("App", () => {
                     setListPageView: vi.fn(),
                   }}
                 >
-                  <MemoryRouter>
+                  <MemoryRouter
+                    future={{
+                      v7_startTransition: true,
+                      v7_relativeSplatPath: true,
+                    }}
+                  >
                     <App />
                   </MemoryRouter>
                 </FilterContext.Provider>
@@ -72,7 +77,7 @@ describe("App", () => {
             </AuthContext.Provider>
           </NotistackProvider>
         </QueryClientProvider>
-      </ThemeModeProvider>
+      </ThemeModeProvider>,
     );
     expect(screen.getAllByText(/Dashboard/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Upcoming Meets/i).length).toBeGreaterThan(0);

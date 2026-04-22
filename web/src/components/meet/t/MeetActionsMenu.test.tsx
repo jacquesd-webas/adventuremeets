@@ -11,7 +11,9 @@ describe("MeetActionsMenu", () => {
     canManageMeet?: boolean;
   }) => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <MeetActionsMenu
           meetId="meet-1"
           statusId={props?.statusId ?? MeetStatusEnum.Draft}
@@ -55,7 +57,9 @@ describe("MeetActionsMenu", () => {
 
   it("shows the menu button even when the user cannot view or manage the meet", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <MeetActionsMenu
           meetId="meet-1"
           statusId={MeetStatusEnum.Open}

@@ -72,7 +72,9 @@ describe("LoginForm", () => {
   it("submits credentials and calls onSuccess", async () => {
     const onSuccess = vi.fn();
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <LoginForm onSuccess={onSuccess} />
       </MemoryRouter>
     );
@@ -98,7 +100,9 @@ describe("LoginForm", () => {
 
   it("navigates to home when onSuccess is not provided", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <LoginForm />
       </MemoryRouter>
     );

@@ -6,7 +6,9 @@ import { MeetSignupSubmitted } from "../MeetSignupSubmitted";
 describe("MeetSignupSubmitted", () => {
   it("renders confirmation content and CTA", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <AuthContext.Provider
           value={{
             user: undefined,
@@ -17,7 +19,7 @@ describe("MeetSignupSubmitted", () => {
             logout: vi.fn(),
           }}
         >
-          <MeetSignupSubmitted />
+          <MeetSignupSubmitted hasIndemnity={false} />
         </AuthContext.Provider>
       </MemoryRouter>,
     );

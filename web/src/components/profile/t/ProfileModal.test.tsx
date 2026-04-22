@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import { ProfileModal } from "../ProfileModal";
@@ -237,13 +237,21 @@ describe("ProfileModal", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save AutoFill" }));
 
-    expect(mockedUpdateMetaValuesAsync).toHaveBeenCalledWith({
-      userId: "user-1",
-      organizationId: "org-1",
-      values: [
-        { key: "name", value: "Alice Updated" },
-        { key: "dietary", value: null },
-      ],
+    await waitFor(() =>
+      expect(mockedUpdateMetaValuesAsync).toHaveBeenCalledWith({
+        userId: "user-1",
+        organizationId: "org-1",
+        values: [
+          { key: "name", value: "Alice Updated" },
+          { key: "dietary", value: null },
+        ],
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Saved" }),
+      ).toBeInTheDocument();
     });
   });
 });

@@ -31,7 +31,9 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <ThemeModeProvider>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <OrganizationProvider>
