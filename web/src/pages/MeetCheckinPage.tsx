@@ -14,14 +14,19 @@ import {
 } from "@mui/material";
 import { useFetchMeetAttendees } from "../hooks/useFetchMeetAttendees";
 import { useCheckinAttendees } from "../hooks/useCheckinAttendees";
+import { useFetchMeet } from "../hooks/useFetchMeet";
+import { useAuth } from "../context/authContext";
 import CloseIcon from "@mui/icons-material/Close";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 import { AttendeeCheckinItem } from "../components/attendeeCheckin/AttendeeCheckinItem";
 import { CheckinSearch } from "../components/attendeeCheckin/CheckinSearch";
+import { LockedMeet } from "../components/createMeetModal/LockedMeet";
 
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const { data: meet } = useFetchMeet(id, Boolean(id));
   const {
     data: attendees,
     isLoading,
@@ -45,6 +50,7 @@ function MeetCheckinPage() {
     id: string;
     name: string;
   } | null>(null);
+  const isReadOnly = Boolean(user?.id && meet?.organizerId && user.id !== meet.organizerId);
 
   const attendeeList = useMemo(
     () =>
@@ -82,6 +88,7 @@ function MeetCheckinPage() {
   }, [attendeeList, searchTerm]);
 
   const handleCheckin = async (attendeeId: string) => {
+    if (isReadOnly) return;
     if (!id || checkingIn[attendeeId]) return;
     const attendee = attendeeList.find((item) => item.id === attendeeId);
     if (attendee?.status === AttendeeStatusEnum.CheckedIn) return;
@@ -94,6 +101,7 @@ function MeetCheckinPage() {
   };
 
   const handleUndoConfirm = async () => {
+    if (isReadOnly) return;
     if (!id || !undoTarget) return;
     setCheckingIn((prev) => ({ ...prev, [undoTarget.id]: true }));
     try {
@@ -149,9 +157,12 @@ function MeetCheckinPage() {
               </Typography>
             ) : null}
           </Box>
-          <IconButton aria-label="Close check-in" onClick={handleClose}>
-            <CloseIcon />
-          </IconButton>
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            {isReadOnly ? <LockedMeet /> : null}
+            <IconButton aria-label="Close check-in" onClick={handleClose}>
+              <CloseIcon />
+            </IconButton>
+          </Stack>
         </Box>
         <Box sx={{ px: isMobile ? 2 : 0 }}>
           <CheckinSearch
@@ -204,6 +215,7 @@ function MeetCheckinPage() {
                   syncState={attendee.syncState}
                   syncMessage={attendee.syncMessage}
                   showDivider={index < filteredAttendees.length - 1}
+                  disabled={isReadOnly}
                   onCheckin={handleCheckin}
                   onUndo={(target) => setUndoTarget(target)}
                 />

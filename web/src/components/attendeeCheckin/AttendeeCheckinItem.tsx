@@ -25,6 +25,7 @@ type AttendeeCheckinItemProps = {
   syncState?: "queued" | "failed";
   syncMessage?: string;
   showDivider: boolean;
+  disabled?: boolean;
   onCheckin: (attendeeId: string) => void;
   onUndo: (attendee: { id: string; name: string }) => void;
 };
@@ -36,6 +37,7 @@ export function AttendeeCheckinItem({
   syncState,
   syncMessage,
   showDivider,
+  disabled = false,
   onCheckin,
   onUndo,
 }: AttendeeCheckinItemProps) {
@@ -44,8 +46,13 @@ export function AttendeeCheckinItem({
       <ListItem
         disableGutters
         secondaryAction={null}
-        onClick={() => onCheckin(attendee.id)}
-        sx={{ borderRadius: 1, px: 1 }}
+        onClick={disabled ? undefined : () => onCheckin(attendee.id)}
+        sx={{
+          borderRadius: 1,
+          px: 1,
+          opacity: disabled ? 0.6 : 1,
+          cursor: disabled ? "default" : "pointer",
+        }}
       >
         <ListItemIcon>
           {isCheckingIn ? (
@@ -95,6 +102,7 @@ export function AttendeeCheckinItem({
         {isChecked ? (
           <IconButton
             edge="end"
+            disabled={disabled}
             onClick={(event) => {
               event.stopPropagation();
               onUndo(attendee);
