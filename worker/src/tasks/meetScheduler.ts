@@ -35,6 +35,12 @@ const apiBase = (
 ).replace(/\/$/, "");
 const workerApiKey = process.env.WORKER_API_KEY || "";
 
+function buildApiPath(path: string) {
+  if (!apiBase) return path;
+  const normalizedBase = apiBase.replace(/\/api\/v1$/i, "");
+  return `${normalizedBase}/api/v1${path}`;
+}
+
 async function updateStatusViaApi(ids: string[], statusId: number) {
   if (!apiBase || !workerApiKey) {
     console.error(
@@ -45,7 +51,7 @@ async function updateStatusViaApi(ids: string[], statusId: number) {
   let updated = 0;
   for (const id of ids) {
     try {
-      const res = await fetch(`${apiBase}/api/v1/meets/${id}/status`, {
+      const res = await fetch(buildApiPath(`/meets/${id}/status`), {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
@@ -105,7 +111,7 @@ async function closeWhenWaitlistFull(db: Knex) {
 
 async function archiveEndedMeets(db: Knex) {
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 7);
+  cutoff.setDate(cutoff.getDate() - 14);
   const ids = await db("meets")
     .whereNotNull("end_time")
     .where("end_time", "<=", cutoff.toISOString())
