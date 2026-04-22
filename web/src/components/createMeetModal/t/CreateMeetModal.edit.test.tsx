@@ -162,4 +162,60 @@ describe("CreateMeetModal edit mode", () => {
       reconfirmAttendees: false,
     });
   });
+
+  it("resets past opening and closing dates when publishing", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      statusId: MeetStatusEnum.Postponed,
+      openingDate: "2026-02-05T10:00:00.000Z",
+      closingDate: "2026-02-11T18:00:00.000Z",
+    };
+
+    render(
+      <CreateMeetModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        meetId="meet-1"
+        isOrganizer
+        canManageMeet
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Finish"));
+    const beforePublish = Date.now();
+    await user.click(screen.getByRole("button", { name: /publish/i }));
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        {
+          closingDate: "2026-02-12T08:00:00+02:00",
+        },
+        "meet-1",
+      );
+    });
+
+    const openingDateCall = mockSave.mock.calls.find(
+      ([payload]) => payload?.openingDate,
+    );
+    expect(openingDateCall).toBeTruthy();
+    const openingDate = openingDateCall?.[0]?.openingDate;
+    expect(typeof openingDate).toBe("string");
+    expect(new Date(openingDate).getTime()).toBeGreaterThanOrEqual(
+      beforePublish,
+    );
+
+    expect(mockUpdateStatusAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      statusId: MeetStatusEnum.Published,
+      reconfirmAttendees: true,
+    });
+  });
 });

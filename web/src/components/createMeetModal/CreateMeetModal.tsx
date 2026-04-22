@@ -461,16 +461,30 @@ export function CreateMeetModal({
       // Really should have a meet ID by now (if not something went horribly wrong)
       if (!meetId) throw new Error("Meet not created yet");
 
-      // If there is no opening date, set it to now to allow opening
-      if (!state.openingDate) {
+      const now = new Date();
+      const openingDateValue = state.openingDate
+        ? toIsoWithOffset(state.openingDate || undefined)
+        : null;
+      const closingDateValue = state.closingDate
+        ? toIsoWithOffset(state.closingDate || undefined)
+        : null;
+      const openingDateInPast = Boolean(
+        openingDateValue && new Date(openingDateValue) < now,
+      );
+      const closingDateInPast = Boolean(
+        closingDateValue && new Date(closingDateValue) < now,
+      );
+
+      // If there is no opening date, or it is already in the past, set it to now.
+      if (!state.openingDate || openingDateInPast) {
         const payload: SaveMeetPayload = {
-          openingDate: toIsoWithOffset(new Date().toISOString()),
+          openingDate: toIsoWithOffset(now.toISOString()),
         };
         await saveMeet(payload, meetId);
       }
 
-      // If there is no closing date, use the meet start date
-      if (!state.closingDate) {
+      // If there is no closing date, or it is already in the past, use the meet start date.
+      if (!state.closingDate || closingDateInPast) {
         const payload: SaveMeetPayload = {
           closingDate: toIsoWithOffset(state.startTime || undefined),
         };
