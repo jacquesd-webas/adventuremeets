@@ -395,6 +395,10 @@ export function ManageAttendeesModal({
     });
 
   const handleRequestClose = () => {
+    if (!isOrganizer || meetStatus === MeetStatusEnum.Completed) {
+      onClose();
+      return;
+    }
     const pending = getUnnotifiedAttendees();
     if (pending.length) {
       setNotifyBeforeCloseAttendees(pending);
