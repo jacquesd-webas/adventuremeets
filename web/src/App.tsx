@@ -17,6 +17,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SplashPage from "./pages/SplashPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TncPage from "./pages/TncPage";
+import RequestAccountDeletionPage from "./pages/RequestAccountDeletionPage";
 
 function App() {
   return (
@@ -42,6 +43,10 @@ function App() {
       <Route path="/splash" element={<SplashPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
+      <Route
+        path="/request-account-deletion"
+        element={<RequestAccountDeletionPage />}
+      />
       <Route path="/tnc" element={<TncPage />} />
       <Route
         path="/terms-and-conditions"

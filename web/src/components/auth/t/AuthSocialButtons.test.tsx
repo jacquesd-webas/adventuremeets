@@ -12,11 +12,25 @@ describe("AuthSocialButtons", () => {
     expect(onSelect).toHaveBeenCalledWith("google");
   });
 
-  it("keeps Facebook disabled", () => {
-    render(<AuthSocialButtons />);
+  it("calls onSelect when Facebook is clicked", () => {
+    const onSelect = vi.fn();
 
-    expect(
+    render(<AuthSocialButtons onSelect={onSelect} />);
+
+    fireEvent.click(
       screen.getByRole("button", { name: "Continue with Facebook" }),
-    ).toBeDisabled();
+    );
+
+    expect(onSelect).toHaveBeenCalledWith("facebook");
+  });
+
+  it("calls onSelect when compact Facebook is clicked", () => {
+    const onSelect = vi.fn();
+
+    render(<AuthSocialButtons compact onSelect={onSelect} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Facebook" }));
+
+    expect(onSelect).toHaveBeenCalledWith("facebook");
   });
 });

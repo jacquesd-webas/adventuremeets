@@ -79,7 +79,7 @@ export function AuthSocialButtons({
           }
           aria-label="Facebook"
           title="Facebook"
-          disabled
+          onClick={() => handleSelect("facebook")}
         >
           {iconOnlySocial ? null : "Facebook"}
         </Button>
@@ -156,11 +156,9 @@ export function AuthSocialButtons({
         fullWidth
         aria-label="Continue with Facebook"
         title="Continue with Facebook"
-        disabled
+        onClick={() => handleSelect("facebook")}
       >
-        {isMobile
-          ? "Facebook (coming soon)"
-          : "Continue with Facebook (coming soon)"}
+        {isMobile ? "Facebook" : "Continue with Facebook"}
       </Button>
     </Stack>
   );

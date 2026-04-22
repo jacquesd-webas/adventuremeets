@@ -5,6 +5,7 @@ import {
   Container,
   Divider,
   IconButton,
+  Link,
   Paper,
   Typography,
 } from "@mui/material";
@@ -143,6 +144,18 @@ function PrivacyPage() {
             for legitimate business purposes (for example account management,
             security, and record-keeping). You can request deletion of your
             account, subject to any legal requirements.
+          </Typography>
+
+          <Typography variant="h6" sx={{ fontWeight: 800, mt: 3, mb: 1 }}>
+            Request Account Deletion
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            If you would like us to delete your AdventureMeets account or data,
+            use our{" "}
+            <Link href="/request-account-deletion" underline="hover">
+              account deletion request page
+            </Link>{" "}
+            for instructions.
           </Typography>
 
           <Typography variant="h6" sx={{ fontWeight: 800, mt: 3, mb: 1 }}>
