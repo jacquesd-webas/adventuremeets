@@ -139,6 +139,10 @@ function MainLayout() {
     }
     handleAdminClose();
   };
+  const handleAdminUsers = () => {
+    nav("/admin/users");
+    handleAdminClose();
+  };
 
   const handleProfile = () => {
     setProfileOpen(true);
@@ -417,8 +421,8 @@ function MainLayout() {
                   Templates
                 </MenuItem>
                 <MenuItem
-                  onClick={() => handleAdminNavigate("/admin/users")}
-                  disabled={!isCurrentOrgAdmin}
+                  onClick={handleAdminUsers}
+                  disabled={!currentOrganizationId || !isCurrentOrgAdmin}
                 >
                   Users
                 </MenuItem>

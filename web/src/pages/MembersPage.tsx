@@ -9,6 +9,7 @@ import {
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganizationMembers } from "../hooks/useFetchOrganizationMembers";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { shortTimestamp } from "../helpers/formatFriendlyTimestamp";
@@ -19,6 +20,8 @@ import { AdminActionsMenu } from "../components/actions/AdminActionsMenu";
 
 function MembersPage() {
   const { id } = useParams();
+  const { currentOrganizationId } = useCurrentOrganization();
+  const organizationId = id || currentOrganizationId || undefined;
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 25,
@@ -29,8 +32,9 @@ function MembersPage() {
   const [sortModel, setSortModel] = useState<
     Array<{ field: string; sort: "asc" | "desc" }>
   >([{ field: "firstName", sort: "asc" }]);
-  const { data: members, isLoading, error } = useFetchOrganizationMembers(id);
-  const { data: organization } = useFetchOrganization(id);
+  const { data: members, isLoading, error } =
+    useFetchOrganizationMembers(organizationId);
+  const { data: organization } = useFetchOrganization(organizationId);
   const columns = useMemo<GridColDef[]>(
     () => [
       {
@@ -142,6 +146,12 @@ function MembersPage() {
           <Box sx={{ p: 3 }}>
             <Typography color="error">{error}</Typography>
           </Box>
+        ) : !organizationId ? (
+          <Box sx={{ p: 3 }}>
+            <Typography color="text.secondary">
+              Select an organization to view its members.
+            </Typography>
+          </Box>
         ) : (
           <DataGrid
             autoHeight
@@ -200,7 +210,7 @@ function MembersPage() {
           setSelectedMember(null);
         }}
         member={selectedMember}
-        organizationId={id}
+        organizationId={organizationId}
       />
     </Stack>
   );

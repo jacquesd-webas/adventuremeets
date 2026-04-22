@@ -10,7 +10,6 @@ import MeetCheckinPage from "./pages/MeetCheckinPage";
 import AttendeeStatusPage from "./pages/AttendeeStatusPage";
 import OrganisationsPage from "./pages/OrganisationsPage";
 import MembersPage from "./pages/MembersPage";
-import UsersPage from "./pages/UsersPage";
 import TemplatesPage from "./pages/TemplatesPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -31,7 +30,7 @@ function App() {
           path="/admin/organizations/:id/members"
           element={<MembersPage />}
         />
-        <Route path="/admin/users" element={<UsersPage />} />
+        <Route path="/admin/users" element={<MembersPage />} />
         <Route
           path="/admin/organizations/:id/templates"
           element={<TemplatesPage />}
