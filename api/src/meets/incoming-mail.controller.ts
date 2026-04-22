@@ -24,7 +24,7 @@ import { EmailService } from "../email/email.service";
 export class IncomingMailController {
   constructor(
     private readonly db: DatabaseService,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
   ) {}
 
   @Public()
@@ -60,7 +60,7 @@ export class IncomingMailController {
     @Headers("x-client-ip") clientIp: string | string[],
     @Body() body: any,
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response
+    @Res({ passthrough: true }) res: Response,
   ) {
     const rcpt = Array.isArray(rcptTo) ? rcptTo[0] : rcptTo;
     const sender = Array.isArray(mailFrom) ? mailFrom[0] : mailFrom;
@@ -69,7 +69,7 @@ export class IncomingMailController {
     const mailDomain =
       process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";
     const match = rcpt?.match(
-      new RegExp(`<?([^@<>]+)@${mailDomain.replace(".", "\\.")}>?`, "i")
+      new RegExp(`<?([^@<>]+)@${mailDomain.replace(".", "\\.")}>?`, "i"),
     );
     const rcptLocal = match?.[1];
     const meetId = rcptLocal?.startsWith("meet+")
@@ -82,22 +82,8 @@ export class IncomingMailController {
       (typeof body === "string"
         ? body
         : typeof body === "object"
-        ? JSON.stringify(body)
-        : "");
-
-    console.log(
-      JSON.stringify(
-        {
-          rcpt,
-          sender,
-          clientIp: ip,
-          meetId,
-          bodyLength: rawBody.length,
-        },
-        null,
-        2
-      )
-    );
+          ? JSON.stringify(body)
+          : "");
 
     if (!meetId || !sender || !rawBody) {
       res.status(HttpStatus.OK);
