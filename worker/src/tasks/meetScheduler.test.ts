@@ -41,7 +41,7 @@ describe("runMeetScheduler", () => {
 
   it("runs all scheduler steps and calls status updates", async () => {
     vi.resetModules();
-    const pluckResults = [["m1"], ["m2"], ["m3"], ["m4"]];
+    const pluckResults = [["m1"], ["m2"], ["m3"]];
     const { db } = buildMockDb(pluckResults);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
@@ -52,7 +52,7 @@ describe("runMeetScheduler", () => {
     const { runMeetScheduler } = await import("./meetScheduler");
     await runMeetScheduler();
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "http://api.test/api/v1/meets/m1/status",
@@ -66,7 +66,7 @@ describe("runMeetScheduler", () => {
   it("does not duplicate the api version prefix when API_BASE_URL already includes /api/v1", async () => {
     vi.resetModules();
     process.env.API_BASE_URL = "http://api.test/api/v1";
-    const { db } = buildMockDb([["m1"], [], [], []]);
+    const { db } = buildMockDb([["m1"], [], []]);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
 
@@ -89,7 +89,7 @@ describe("runMeetScheduler", () => {
     vi.resetModules();
     process.env.API_BASE_URL = "";
     process.env.WORKER_API_KEY = "";
-    const { db } = buildMockDb([["m1"], ["m2"], ["m3"], ["m4"]]);
+    const { db } = buildMockDb([["m1"], ["m2"], ["m3"]]);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
 

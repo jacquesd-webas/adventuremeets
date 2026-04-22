@@ -109,24 +109,12 @@ async function closeWhenWaitlistFull(db: Knex) {
   return updateStatusViaApi(ids, STATUS.Closed);
 }
 
-async function archiveEndedMeets(db: Knex) {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 14);
-  const ids = await db("meets")
-    .whereNotNull("end_time")
-    .where("end_time", "<=", cutoff.toISOString())
-    .whereIn("status_id", [STATUS.Open, STATUS.Closed, STATUS.Published])
-    .pluck<string>("id");
-  return updateStatusViaApi(ids, STATUS.Completed);
-}
-
 export async function runMeetScheduler() {
   const db = createDb();
   try {
     const opened = await openScheduledMeets(db);
     const closed = await closeOpenMeets(db);
     const waitlistClosed = await closeWhenWaitlistFull(db);
-    const archived = await archiveEndedMeets(db);
 
     console.info(
       JSON.stringify(
@@ -134,7 +122,6 @@ export async function runMeetScheduler() {
           opened,
           closed,
           waitlistClosed,
-          archived,
           timestamp: new Date().toISOString(),
         },
         null,
