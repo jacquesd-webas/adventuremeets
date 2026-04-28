@@ -40,12 +40,12 @@ describe("MessageModal", () => {
           meet={{ id: "m1", name: "Meet" } as any}
           attendeeIds={["a1"]}
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByText("Send"));
     expect(
-      screen.getByText("Subject and message are required")
+      screen.getByText("Subject, message and meet ID are required"),
     ).toBeInTheDocument();
   });
 
@@ -61,7 +61,7 @@ describe("MessageModal", () => {
           attendeeIds={["a1"]}
           attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.change(screen.getByLabelText("Subject"), {
@@ -99,7 +99,7 @@ describe("MessageModal", () => {
           attendeeIds={["a1"]}
           attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.change(screen.getByLabelText("Subject"), {
@@ -135,7 +135,7 @@ describe("MessageModal", () => {
           attendeeIds={["a1"]}
           attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));

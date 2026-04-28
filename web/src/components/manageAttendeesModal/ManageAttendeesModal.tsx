@@ -602,9 +602,12 @@ export function ManageAttendeesModal({
     setMessageDrawerError(null);
   };
   const handleSendMobileMessage = async () => {
-    if (!meet?.id) return;
-    if (!messageDrawerSubject.trim() || !messageDrawerBody.trim()) {
-      setMessageDrawerError("Subject and message are required");
+    if (
+      !meet?.id ||
+      !messageDrawerSubject.trim() ||
+      !messageDrawerBody.trim()
+    ) {
+      setMessageDrawerError("Subject, message and meet ID are required");
       return;
     }
     const ids = messageDrawerSelectedAttendees.map((attendee) => attendee.id);
