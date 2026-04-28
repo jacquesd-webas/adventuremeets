@@ -247,7 +247,7 @@ function SplashPage() {
                   Install App
                 </Box>
               ) : null}
-              {canShowIosInstall !== true ? (
+              {canShowIosInstall ? (
                 <Box
                   component="button"
                   type="button"
