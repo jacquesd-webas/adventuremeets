@@ -533,7 +533,7 @@ export class MeetsService {
     return updated as any;
   }
 
-  async resetConfirmedAttendeesToPreloaded(
+  async resetConfirmedAttendeesToInvited(
     meetId: string,
     organizerId?: string | null,
   ) {
@@ -549,7 +549,7 @@ export class MeetsService {
     }
 
     const updated = await query.update({
-      status: "preloaded",
+      status: "invited",
       updated_at: new Date().toISOString(),
     });
 
@@ -781,7 +781,7 @@ export class MeetsService {
     meetId: string,
     email?: string,
     phone?: string,
-    options?: { includePreloaded?: boolean },
+    options?: { includeInvited?: boolean },
   ) {
     if (!email && !phone) {
       throw new BadRequestException("Email or phone is required");
@@ -789,8 +789,8 @@ export class MeetsService {
     const query = this.db
       .getClient()("meet_attendees")
       .where({ meet_id: meetId });
-    if (options?.includePreloaded === false) {
-      query.andWhereNot("status", "preloaded");
+    if (options?.includeInvited === false) {
+      query.andWhereNot("status", "invited");
     }
     if (email && phone) {
       query.andWhere((builder) => {
@@ -856,23 +856,23 @@ export class MeetsService {
         const contactPhone = dto.phone?.trim() || undefined;
 
         if (contactEmail || contactPhone) {
-          const preloadedQuery = trx("meet_attendees")
+          const invitedQuery = trx("meet_attendees")
             .where({ meet_id: meetId })
-            .andWhere("status", "preloaded");
+            .andWhere("status", "invited");
           if (contactEmail && contactPhone) {
-            preloadedQuery.andWhere((builder) => {
+            invitedQuery.andWhere((builder) => {
               builder
                 .whereRaw("lower(email) = ?", [contactEmail.toLowerCase()])
                 .orWhere({ phone: contactPhone });
             });
           } else if (contactEmail) {
-            preloadedQuery.andWhereRaw("lower(email) = ?", [
+            invitedQuery.andWhereRaw("lower(email) = ?", [
               contactEmail.toLowerCase(),
             ]);
           } else if (contactPhone) {
-            preloadedQuery.andWhere({ phone: contactPhone });
+            invitedQuery.andWhere({ phone: contactPhone });
           }
-          const candidates = await preloadedQuery.select(
+          const candidates = await invitedQuery.select(
             "id",
             "name",
             "email",
@@ -880,9 +880,9 @@ export class MeetsService {
             "user_id",
           );
           const normalizedName = (dto.name || "").trim().toLowerCase();
-          let preloaded = candidates.length === 1 ? candidates[0] : undefined;
+          let invited = candidates.length === 1 ? candidates[0] : undefined;
           if (
-            !preloaded &&
+            !invited &&
             dto.isMinor &&
             normalizedName &&
             candidates.length
@@ -892,28 +892,28 @@ export class MeetsService {
                 row.name && row.name.trim().toLowerCase() === normalizedName,
             );
             if (nameMatches.length === 1) {
-              preloaded = nameMatches[0];
+              invited = nameMatches[0];
             }
           }
-          if (!preloaded && contactPhone && candidates.length) {
+          if (!invited && contactPhone && candidates.length) {
             const phoneMatches = candidates.filter(
               (row) => row.phone && row.phone === contactPhone,
             );
             if (phoneMatches.length === 1) {
-              preloaded = phoneMatches[0];
+              invited = phoneMatches[0];
             }
           }
-          if (preloaded) {
+          if (invited) {
             const [row] = await trx("meet_attendees")
-              .where({ meet_id: meetId, id: preloaded.id })
+              .where({ meet_id: meetId, id: invited.id })
               .update(
                 {
-                  user_id: dto.userId ?? preloaded.user_id ?? null,
-                  name: dto.name ?? preloaded.name,
-                  phone: dto.phone ?? preloaded.phone,
-                  email: dto.email ?? preloaded.email,
-                  guests: dto.guests ?? preloaded.guests ?? null,
-                  is_minor: dto.isMinor ?? preloaded.is_minor ?? false,
+                  user_id: dto.userId ?? invited.user_id ?? null,
+                  name: dto.name ?? invited.name,
+                  phone: dto.phone ?? invited.phone,
+                  email: dto.email ?? invited.email,
+                  guests: dto.guests ?? invited.guests ?? null,
+                  is_minor: dto.isMinor ?? invited.is_minor ?? false,
                   guardian_name: guardianName,
                   indemnity_accepted: dto.indemnityAccepted ?? null,
                   indemnity_minors: dto.indemnityMinors ?? null,
@@ -924,7 +924,7 @@ export class MeetsService {
               );
             if (dto.metaValues) {
               await trx("meet_meta_values")
-                .where({ meet_id: meetId, attendee_id: preloaded.id })
+                .where({ meet_id: meetId, attendee_id: invited.id })
                 .del();
               const records = dto.metaValues
                 .filter(
@@ -935,7 +935,7 @@ export class MeetsService {
                 )
                 .map((value) => ({
                   meet_id: meetId,
-                  attendee_id: preloaded.id,
+                  attendee_id: invited.id,
                   meta_definition_id: value.definitionId,
                   value: value.value,
                 }));
@@ -952,7 +952,7 @@ export class MeetsService {
                 ? createHash("sha256").update(indemnityText).digest("hex")
                 : null;
               await trx("meet_attendee_indemnity_acceptances").insert({
-                attendee_id: preloaded.id,
+                attendee_id: invited.id,
                 meet_id: meetId,
                 accepted_at: new Date().toISOString(),
                 indemnity_text_hash: indemnityHash,
@@ -1102,7 +1102,7 @@ export class MeetsService {
     return { attendee: this.toAttendeeDto(updated) };
   }
 
-  async addPreloadedAttendees(
+  async addInvitedAttendees(
     meetId: string,
     attendees: Array<{
       name: string;
@@ -1136,7 +1136,7 @@ export class MeetsService {
             name: attendee.name,
             phone: attendee.phone,
             email: attendee.email,
-            status: "preloaded",
+            status: "invited",
             sequence: nextSequence,
             is_minor: false,
           },

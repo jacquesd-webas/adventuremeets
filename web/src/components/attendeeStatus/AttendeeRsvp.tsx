@@ -24,7 +24,7 @@ export function AttendeeRsvp({
   const canRespond =
     Boolean(meetCode) &&
     Boolean(attendeeId) &&
-    resolvedStatus === AttendeeStatusEnum.Preloaded;
+    resolvedStatus === AttendeeStatusEnum.Invited;
 
   const handleConfirm = async () => {
     if (!meetCode || !attendeeId) return;

@@ -395,7 +395,7 @@ describe("MeetsService", () => {
     ).rejects.toThrow(ConflictException);
   });
 
-  it("resets confirmed attendees to preloaded while excluding the organizer attendee", async () => {
+  it("resets confirmed attendees to invited while excluding the organizer attendee", async () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.update.mockResolvedValue(3);
 
@@ -408,7 +408,7 @@ describe("MeetsService", () => {
     const minio = {} as MinioService;
     const service = new MeetsService(db, minio);
 
-    const result = await service.resetConfirmedAttendeesToPreloaded(
+    const result = await service.resetConfirmedAttendeesToInvited(
       "meet-1",
       "organizer-1",
     );
@@ -434,7 +434,7 @@ describe("MeetsService", () => {
     );
     expect(attendeeBuilder.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "preloaded",
+        status: "invited",
         updated_at: expect.any(String),
       }),
     );

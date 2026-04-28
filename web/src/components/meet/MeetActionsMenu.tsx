@@ -25,7 +25,7 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type MeetActionsMenuProps = {
   meetId: string;
@@ -121,6 +121,7 @@ export function MeetActionsMenu({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const nav = useNavigate();
+  const location = useLocation();
 
   // Undefined or status should not happen, if it does just render nothing
   if (!statusId) return null;
@@ -298,7 +299,11 @@ export function MeetActionsMenu({
               onClick={(event) => {
                 event.stopPropagation();
                 if (meetId) {
-                  nav(`/meet/${meetId}/checkin`);
+                  nav(`/meet/${meetId}/checkin`, {
+                    state: {
+                      returnTo: `${location.pathname}${location.search}`,
+                    },
+                  });
                 }
                 handleClose();
               }}

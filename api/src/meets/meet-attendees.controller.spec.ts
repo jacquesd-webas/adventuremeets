@@ -92,7 +92,7 @@ describe("MeetAttendeesController", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it("checks duplicates without including preloaded attendees", async () => {
+  it("checks duplicates without including invited attendees", async () => {
     (meetsService.findAttendeeByContact as jest.Mock).mockResolvedValue({
       attendee: null,
     });
@@ -105,7 +105,7 @@ describe("MeetAttendeesController", () => {
       "meet-1",
       "person@example.com",
       "+27123456789",
-      { includePreloaded: false },
+      { includeInvited: false },
     );
   });
 

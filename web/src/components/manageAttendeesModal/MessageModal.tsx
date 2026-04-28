@@ -84,23 +84,23 @@ export function MessageModal({
       meet?.confirmMessage,
       meet?.waitlistMessage,
       meet?.rejectMessage,
-    ]
+    ],
   );
   const singleAttendeeDefault = useDefaultMessage(
     attendeeStatus,
-    defaultMessageOptions
+    defaultMessageOptions,
   );
   const confirmedDefault = useDefaultMessage(
     AttendeeStatusEnum.Confirmed,
-    defaultMessageOptions
+    defaultMessageOptions,
   );
   const waitlistedDefault = useDefaultMessage(
     AttendeeStatusEnum.Waitlisted,
-    defaultMessageOptions
+    defaultMessageOptions,
   );
   const rejectedDefault = useDefaultMessage(
     AttendeeStatusEnum.Rejected,
-    defaultMessageOptions
+    defaultMessageOptions,
   );
   const { subject: defaultAutoSubject, content: defaultAutoContent } =
     useMemo(() => {
@@ -169,7 +169,13 @@ export function MessageModal({
         return true;
       return false;
     });
-  }, [attendees, attendeeIds, includeConfirmed, includeWaitlisted, includeRejected]);
+  }, [
+    attendees,
+    attendeeIds,
+    includeConfirmed,
+    includeWaitlisted,
+    includeRejected,
+  ]);
   const hasUnnotified = selectedAttendees.some(
     (attendee) => !attendee.respondedAt,
   );
@@ -195,8 +201,8 @@ export function MessageModal({
   };
 
   const handleSend = async () => {
-    if (!subject.trim() || !body.trim()) {
-      setError("Subject and message are required");
+    if (!subject.trim() || !body.trim() || !meet?.id) {
+      setError("Subject, message and meet ID are required");
       return;
     }
     const ids =
@@ -248,12 +254,15 @@ export function MessageModal({
         markNotified: autoResponse || markAsNotified,
         includeStatusUrl,
       });
+      await queryClient.invalidateQueries({
+        queryKey: ["meet-attendees", meet.id],
+      });
       await Promise.all(
         ids.map((attendeeId) =>
           queryClient.invalidateQueries({
             queryKey: ["attendee-messages", meet.id, attendeeId],
-          })
-        )
+          }),
+        ),
       );
       enqueueSnackbar("Message sent", {
         variant: "success",

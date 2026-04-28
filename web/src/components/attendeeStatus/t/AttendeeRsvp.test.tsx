@@ -39,12 +39,12 @@ describe("AttendeeRsvp", () => {
     declineAttendeeAsync.mockResolvedValue({});
   });
 
-  it("allows a preloaded attendee to confirm attendance", async () => {
+  it("allows an invited attendee to confirm attendance", async () => {
     render(
       <AttendeeRsvp
         meetCode="share-123"
         attendeeId="attendee-1"
-        status={AttendeeStatusEnum.Preloaded}
+        status={AttendeeStatusEnum.Invited}
       />,
     );
 
@@ -68,7 +68,7 @@ describe("AttendeeRsvp", () => {
       <AttendeeRsvp
         meetCode="share-123"
         attendeeId="attendee-1"
-        status={AttendeeStatusEnum.Preloaded}
+        status={AttendeeStatusEnum.Invited}
       />,
     );
 
@@ -86,7 +86,7 @@ describe("AttendeeRsvp", () => {
       <AttendeeRsvp
         meetCode="share-123"
         attendeeId="attendee-1"
-        status={AttendeeStatusEnum.Preloaded}
+        status={AttendeeStatusEnum.Invited}
       />,
     );
 

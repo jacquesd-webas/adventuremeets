@@ -388,7 +388,7 @@ export function ManageAttendeesModal({
       if (
         !status ||
         status === AttendeeStatusEnum.Pending ||
-        status === AttendeeStatusEnum.Preloaded
+        status === AttendeeStatusEnum.Invited
       )
         return false;
       return !attendee.respondedAt;

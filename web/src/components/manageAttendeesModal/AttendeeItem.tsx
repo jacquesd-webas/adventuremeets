@@ -47,9 +47,8 @@ export function AttendeeItem({
   const isRejected =
     attendee.status === AttendeeStatusEnum.Rejected ||
     attendee.status === AttendeeStatusEnum.Cancelled;
-  const isPending =
-    attendee.status === AttendeeStatusEnum.Pending ||
-    attendee.status === AttendeeStatusEnum.Preloaded;
+  const isPending = attendee.status === AttendeeStatusEnum.Pending;
+  const isInvited = attendee.status === AttendeeStatusEnum.Invited;
   const isWaitlisted = attendee.status === AttendeeStatusEnum.Waitlisted;
   const isOrganizer = attendee && meet && attendee.userId === meet.organizerId;
   const showGuestChip = Boolean(attendee?.guestOf);
@@ -60,7 +59,7 @@ export function AttendeeItem({
       selected={attendee.id === selectedAttendeeId}
       onClick={() => onSelect(attendee.id)}
     >
-      {!isPending ? (
+      {!isPending && !isInvited ? (
         <Box
           sx={{
             width: 32,
@@ -143,7 +142,9 @@ export function AttendeeItem({
           ) : null}
         </Box>
       ) : (
-        <Avatar sx={{ width: 32, height: 32, mr: 1.5 }}>?</Avatar>
+        <Avatar sx={{ width: 32, height: 32, mr: 1.5, bgcolor: "action.hover" }}>
+          ?
+        </Avatar>
       )}
       <ListItemText
         primary={

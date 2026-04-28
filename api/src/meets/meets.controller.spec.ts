@@ -17,7 +17,7 @@ describe("MeetsController", () => {
     findOne: jest.fn(),
     updateStatus: jest.fn(),
     remove: jest.fn(),
-    resetConfirmedAttendeesToPreloaded: jest.fn(),
+    resetConfirmedAttendeesToInvited: jest.fn(),
     listAttendees: jest.fn(),
     updateAttendeesNotified: jest.fn(),
     updateAttendee: jest.fn(),
@@ -139,7 +139,7 @@ describe("MeetsController", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it("resets confirmed attendees to preloaded when reconfirmAttendees is true", async () => {
+  it("resets confirmed attendees to invited when reconfirmAttendees is true", async () => {
     process.env.MAIL_DOMAIN = "example.com";
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     setRoles({ organizer: true });
@@ -182,7 +182,7 @@ describe("MeetsController", () => {
 
     expect(meetsService.updateStatus).toHaveBeenCalledWith("meet-1", 2);
     expect(
-      meetsService.resetConfirmedAttendeesToPreloaded,
+      meetsService.resetConfirmedAttendeesToInvited,
     ).toHaveBeenCalledWith("meet-1", "organizer-1");
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({

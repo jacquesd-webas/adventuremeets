@@ -339,7 +339,7 @@ export class MeetsController {
 
       const updated = await this.meetsService.updateStatus(id, dto.statusId);
       if (dto.reconfirmAttendees) {
-        await this.meetsService.resetConfirmedAttendeesToPreloaded(
+        await this.meetsService.resetConfirmedAttendeesToInvited(
           id,
           meet?.organizerId,
         );
@@ -365,7 +365,7 @@ export class MeetsController {
 
     const updated = await this.meetsService.updateStatus(id, dto.statusId);
     if (dto.reconfirmAttendees) {
-      await this.meetsService.resetConfirmedAttendeesToPreloaded(
+      await this.meetsService.resetConfirmedAttendeesToInvited(
         id,
         meet.organizerId,
       );
@@ -860,7 +860,7 @@ export class MeetsController {
       throw new BadRequestException("No valid attendee rows found to upload.");
     }
 
-    const { created } = await this.meetsService.addPreloadedAttendees(
+    const { created } = await this.meetsService.addInvitedAttendees(
       id,
       attendees,
     );

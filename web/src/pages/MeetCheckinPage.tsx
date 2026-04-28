@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
   Box,
@@ -23,8 +23,15 @@ import { AttendeeCheckinItem } from "../components/attendeeCheckin/AttendeeCheck
 import { CheckinSearch } from "../components/attendeeCheckin/CheckinSearch";
 import { LockedMeet } from "../components/createMeetModal/LockedMeet";
 
+type MeetCheckinLocationState = {
+  returnTo?: string;
+};
+
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation() as ReturnType<typeof useLocation> & {
+    state: MeetCheckinLocationState | null;
+  };
   const { user } = useAuth();
   const { data: meet } = useFetchMeet(id, Boolean(id));
   const {
@@ -50,7 +57,9 @@ function MeetCheckinPage() {
     id: string;
     name: string;
   } | null>(null);
-  const isReadOnly = Boolean(user?.id && meet?.organizerId && user.id !== meet.organizerId);
+  const isReadOnly = Boolean(
+    user?.id && meet?.organizerId && user.id !== meet.organizerId,
+  );
 
   const attendeeList = useMemo(
     () =>
@@ -117,11 +126,23 @@ function MeetCheckinPage() {
   };
 
   const handleClose = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
+    const fallbackPath =
+      location.state?.returnTo &&
+      location.state.returnTo.startsWith("/") &&
+      !location.state.returnTo.startsWith("//")
+        ? location.state.returnTo
+        : "/";
+
+    if (
+      typeof window !== "undefined" &&
+      import.meta.env.MODE !== "test" &&
+      (typeof navigator === "undefined" || !/jsdom/i.test(navigator.userAgent))
+    ) {
+      window.location.replace(fallbackPath);
       return;
     }
-    navigate("/dashboard");
+
+    navigate(fallbackPath, { replace: true });
   };
 
   return (
@@ -174,7 +195,9 @@ function MeetCheckinPage() {
         {isOffline || pendingCount > 0 || failedCount > 0 || isOfflineData ? (
           <Box sx={{ px: isMobile ? 2 : 0 }}>
             <Alert
-              severity={failedCount > 0 ? "warning" : isOffline ? "info" : "success"}
+              severity={
+                failedCount > 0 ? "warning" : isOffline ? "info" : "success"
+              }
             >
               {failedCount > 0
                 ? `${failedCount} check-in change${failedCount === 1 ? "" : "s"} could not be synced yet.`

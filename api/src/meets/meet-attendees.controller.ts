@@ -60,7 +60,7 @@ export class MeetAttendeesController {
     @Query("phone") phone?: string,
   ) {
     return this.meetsService.findAttendeeByContact(meetId, email, phone, {
-      includePreloaded: false,
+      includeInvited: false,
     });
   }
 

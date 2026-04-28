@@ -13,7 +13,12 @@ import {
   useTheme,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { useParams, useSearchParams } from "react-router-dom";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { MeetStatusEnum } from "../types/MeetStatusEnum";
@@ -103,6 +108,8 @@ function MeetSignupSheet() {
     attendeeId?: string;
   }>();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const isPreview = searchParams.get("preview") === "true";
   const guestOf = searchParams.get("guestOf");
   const action = searchParams.get("action");
@@ -491,11 +498,11 @@ function MeetSignupSheet() {
       window.close();
       return;
     }
-    if (window.history.length > 1) {
-      window.history.back();
+    if (location.key !== "default") {
+      navigate(-1);
       return;
     }
-    window.location.assign("/");
+    navigate("/", { replace: true });
   };
 
   const handleSignOut = () => {

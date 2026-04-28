@@ -138,7 +138,7 @@ export default function AttendeeStatusPage() {
               showUserAction={false}
               actionSlot={
                 <IconButton
-                  onClick={() => navigate("/dashboard")}
+                  onClick={() => navigate("/")}
                   size="small"
                   aria-label="Back to dashboard"
                 >
@@ -148,7 +148,7 @@ export default function AttendeeStatusPage() {
             />
             {attendeeStatusData?.attendee.status &&
             attendeeStatusData.attendee.status ===
-              AttendeeStatusEnum.Preloaded ? (
+              AttendeeStatusEnum.Invited ? (
               <AttendeeRsvp
                 meetCode={code}
                 attendeeId={attendeeId}
