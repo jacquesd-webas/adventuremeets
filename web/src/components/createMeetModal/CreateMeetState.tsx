@@ -56,6 +56,7 @@ export type CreateMeetState = {
   questions: QuestionField[];
   imageFile: File | null;
   imagePreview: string;
+  imageCount: number;
   statusId: number | null;
   attendeeReconfirm: boolean;
 };
@@ -95,6 +96,7 @@ export const initialState: CreateMeetState = {
   questions: [],
   imageFile: null,
   imagePreview: "",
+  imageCount: 0,
   statusId: null,
   attendeeReconfirm: true,
 };
@@ -172,6 +174,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
       : [],
     statusId: meet.statusId ?? null,
     imagePreview: meet.imageUrl ?? "",
+    imageCount: meet.imageUrl ? 1 : 0,
   };
 };
 

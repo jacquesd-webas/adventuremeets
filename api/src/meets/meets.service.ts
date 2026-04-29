@@ -11,11 +11,14 @@ import {
   MeetMetaDefinitionInputDto,
 } from "./dto/create-meet.dto";
 import { MeetDto } from "./dto/meet.dto";
+import { MeetImageDto } from "./dto/meet-image.dto";
 import { CreateMeetAttendeeDto } from "./dto/create-meet-attendee.dto";
 import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
+import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
 import { MinioService } from "../storage/minio.service";
+import { detectMeetImageAspect } from "./image-aspect";
 import { v4 as uuid } from "uuid";
 import { MEET_STATUS } from "./constants/meet-status.enum";
 
@@ -355,14 +358,15 @@ export class MeetsService {
     if (!meet) {
       throw new NotFoundException("Meet not found");
     }
-    const image = await this.db
+    const images = await this.db
       .getClient()("meet_images")
-      .where({ meet_id: meet.id, is_primary: true })
+      .where({ meet_id: meet.id })
       .orderBy([
+        { column: "is_primary", order: "desc" },
         { column: "created_at", order: "desc" },
         { column: "id", order: "desc" },
       ])
-      .first();
+      .select("*");
     const metaDefinitions = await this.db
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meet.id })
@@ -378,9 +382,9 @@ export class MeetsService {
       );
     const meetWithImage = {
       ...meet,
-      image_url: image?.url ?? meet.image_url ?? undefined,
+      image_url: images[0]?.url ?? meet.image_url ?? undefined,
     };
-    return this.toMeetDto(meetWithImage, metaDefinitions);
+    return this.toMeetDto(meetWithImage, metaDefinitions, images);
   }
 
   async create(dto: CreateMeetDto) {
@@ -433,6 +437,7 @@ export class MeetsService {
           "url",
           "content_type",
           "size_bytes",
+          "aspect",
           "is_primary",
         );
 
@@ -477,6 +482,7 @@ export class MeetsService {
             url: image.url,
             content_type: image.content_type,
             size_bytes: image.size_bytes,
+            aspect: image.aspect,
             is_primary: image.is_primary,
             created_at: now,
           })),
@@ -881,12 +887,7 @@ export class MeetsService {
           );
           const normalizedName = (dto.name || "").trim().toLowerCase();
           let invited = candidates.length === 1 ? candidates[0] : undefined;
-          if (
-            !invited &&
-            dto.isMinor &&
-            normalizedName &&
-            candidates.length
-          ) {
+          if (!invited && dto.isMinor && normalizedName && candidates.length) {
             const nameMatches = candidates.filter(
               (row) =>
                 row.name && row.name.trim().toLowerCase() === normalizedName,
@@ -1256,29 +1257,90 @@ export class MeetsService {
     return { updated: updatedRows };
   }
 
+  async listImages(meetId: string) {
+    const images = await this.db
+      .getClient()("meet_images")
+      .where({ meet_id: meetId })
+      .orderBy([
+        { column: "is_primary", order: "desc" },
+        { column: "created_at", order: "desc" },
+        { column: "id", order: "desc" },
+      ])
+      .select("*");
+
+    return {
+      images: images.map((image) => this.toMeetImageDto(image)),
+    };
+  }
+
   async addImage(meetId: string, file: any, dto: CreateMeetImageDto) {
     const extension = file.mimetype.split("/")[1] || "jpg";
     const objectKey = `meets/${meetId}/${uuid()}.${extension}`;
+    const aspect = detectMeetImageAspect(file.buffer);
     const uploaded = await this.minio.upload(
       objectKey,
       file.buffer,
       file.mimetype,
     );
-    const [created] = await this.db
-      .getClient()("meet_images")
-      .insert(
+
+    return this.db.getClient().transaction(async (trx) => {
+      const existingPrimary = await trx("meet_images")
+        .where({ meet_id: meetId, is_primary: true })
+        .first("id");
+      const shouldBePrimary = dto.isPrimary ?? !existingPrimary;
+
+      if (shouldBePrimary) {
+        await trx("meet_images")
+          .where({ meet_id: meetId })
+          .update({ is_primary: false });
+      }
+
+      const [created] = await trx("meet_images").insert(
         {
           meet_id: meetId,
           object_key: uploaded.objectKey,
           url: uploaded.url,
           content_type: file.mimetype,
           size_bytes: file.size,
-          is_primary: dto.isPrimary ?? false,
+          aspect,
+          is_primary: shouldBePrimary,
           created_at: new Date().toISOString(),
         },
         ["*"],
       );
-    return { image: created };
+
+      return { image: this.toMeetImageDto(created) };
+    });
+  }
+
+  async updateImage(meetId: string, imageId: string, dto: UpdateMeetImageDto) {
+    return this.db.getClient().transaction(async (trx) => {
+      const existing = await trx("meet_images")
+        .where({ meet_id: meetId, id: imageId })
+        .first("*");
+
+      if (!existing) {
+        throw new NotFoundException("Meet image not found");
+      }
+
+      if (dto.isPrimary === true) {
+        await trx("meet_images")
+          .where({ meet_id: meetId })
+          .update({ is_primary: false });
+      }
+
+      const [updated] = await trx("meet_images")
+        .where({ meet_id: meetId, id: imageId })
+        .update(
+          {
+            is_primary:
+              dto.isPrimary !== undefined ? dto.isPrimary : existing.is_primary,
+          },
+          ["*"],
+        );
+
+      return { image: this.toMeetImageDto(updated) };
+    });
   }
 
   async removeAttendee(meetId: string, attendeeId: string) {
@@ -1390,7 +1452,10 @@ export class MeetsService {
   private toMeetDto(
     meet: Record<string, any>,
     metaDefinitions: Record<string, any>[],
+    images: Record<string, any>[] = [],
   ): MeetDto {
+    const resolvedImages = Array.isArray(images) ? images : [];
+
     return {
       id: meet.id,
       name: meet.name,
@@ -1433,6 +1498,7 @@ export class MeetsService {
       organizerEmail: meet.organizer_email ?? undefined,
       organizerPhone: meet.organizer_phone ?? undefined,
       imageUrl: meet.primary_image_url ?? meet.image_url ?? undefined,
+      images: resolvedImages.map((image) => this.toMeetImageDto(image)),
       attendeeCount: Number(meet.attendee_count ?? 0),
       confirmedCount: Number(meet.confirmed_count ?? 0),
       waitlistCount: Number(meet.waitlist_count ?? 0),
@@ -1452,6 +1518,21 @@ export class MeetsService {
         position: definition.position,
         config: definition.config,
       })),
+    };
+  }
+
+  private toMeetImageDto(image: Record<string, any>): MeetImageDto {
+    return {
+      id: image.id,
+      meetId: image.meet_id,
+      url: image.url,
+      isPrimary: Boolean(image.is_primary),
+      aspect: image.aspect ?? "O",
+      objectKey: image.object_key ?? undefined,
+      contentType: image.content_type ?? undefined,
+      sizeBytes:
+        image.size_bytes != null ? Number(image.size_bytes) : undefined,
+      createdAt: image.created_at ?? undefined,
     };
   }
 

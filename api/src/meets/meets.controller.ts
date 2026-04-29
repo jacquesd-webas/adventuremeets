@@ -31,6 +31,7 @@ import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetStatusDto } from "./dto/update-meet-status.dto";
 import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
+import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
 import { CloneMeetDto } from "./dto/clone-meet.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Public } from "../auth/decorators/public.decorator";
@@ -537,6 +538,35 @@ export class MeetsController {
       throw new BadRequestException("Only image uploads are allowed");
     }
     return this.meetsService.addImage(id, file, dto);
+  }
+
+  @Get(":id/images")
+  async listImages(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    return this.meetsService.listImages(id);
+  }
+
+  @Patch(":id/images/:imageId")
+  async updateImage(
+    @Param("id") id: string,
+    @Param("imageId") imageId: string,
+    @Body() dto: UpdateMeetImageDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    return this.meetsService.updateImage(id, imageId, dto);
   }
 
   @Delete(":id")

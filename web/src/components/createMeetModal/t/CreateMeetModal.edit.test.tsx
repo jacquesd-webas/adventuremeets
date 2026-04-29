@@ -205,11 +205,13 @@ describe("CreateMeetModal edit mode", () => {
       );
     });
 
-    const openingDateCall = mockSave.mock.calls.find(
-      ([payload]) => payload?.openingDate,
-    );
+    const openingDateCall = mockSave.mock.calls.find((call) => {
+      const payload = call[0] as { openingDate?: string } | undefined;
+      return typeof payload?.openingDate === "string";
+    });
     expect(openingDateCall).toBeTruthy();
-    const openingDate = openingDateCall?.[0]?.openingDate;
+    const openingDate = (openingDateCall?.[0] as { openingDate: string })
+      .openingDate;
     expect(typeof openingDate).toBe("string");
     expect(new Date(openingDate).getTime()).toBeGreaterThanOrEqual(
       beforePublish,

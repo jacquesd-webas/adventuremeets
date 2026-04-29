@@ -24,6 +24,17 @@ export type Meet = {
   organizerEmail?: string;
   organizerPhone?: string;
   imageUrl?: string;
+  images?: Array<{
+    id: string;
+    meetId: string;
+    url: string;
+    isPrimary: boolean;
+    aspect: "W" | "S" | "P" | "O";
+    objectKey?: string;
+    contentType?: string;
+    sizeBytes?: number;
+    createdAt?: string;
+  }>;
   capacity?: number;
   waitlistSize?: number;
   autoPlacement?: boolean;

@@ -15,6 +15,7 @@ import { useAuth } from "../../context/authContext";
 import Meet from "../../types/MeetModel";
 import { MeetInfoDeets } from "./MeetInfoDeets";
 import { getMeetDateLabel } from "../../helpers/meetTime";
+import { MeetImageCarouselDialog } from "./MeetImageCarouselDialog";
 
 type MeetInfoSummaryProps = {
   meet: Meet;
@@ -45,8 +46,41 @@ export function MeetInfoSummary({
   const descriptionRef = useRef<HTMLParagraphElement | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
+  const [carouselOpen, setCarouselOpen] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const dateLabel = useMemo(() => getMeetDateLabel(meet), [meet]);
-  const hasImage = Boolean(meet.imageUrl);
+  const images = useMemo(() => {
+    if (meet.images?.length) {
+      return meet.images;
+    }
+    if (meet.imageUrl) {
+      return [
+        {
+          id: "primary",
+          meetId: meet.id,
+          url: meet.imageUrl,
+          isPrimary: true,
+          aspect: "O" as const,
+        },
+      ];
+    }
+    return [];
+  }, [meet.id, meet.imageUrl, meet.images]);
+  const hasImage = images.length > 0;
+  const previewImageAspect = images[0]?.aspect ?? "O";
+  const previewImageSize = useMemo(() => {
+    switch (previewImageAspect) {
+      case "P":
+        return { width: 150, height: 210 };
+      case "S":
+        return { width: 170, height: 170 };
+      case "W":
+        return { width: 220, height: 130 };
+      case "O":
+      default:
+        return { width: 200, height: 150 };
+    }
+  }, [previewImageAspect]);
   const displayName = useMemo(() => {
     if (!user) return "";
     const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
@@ -224,33 +258,67 @@ export function MeetInfoSummary({
             mt={1}
           >
             <Box
-              component="img"
-              src={meet.imageUrl || ""}
-              alt="Meet preview"
               sx={{
-                width: 180,
-                height: 130,
-                borderRadius: 2,
-                objectFit: "cover",
+                position: "relative",
+                width: previewImageSize.width,
+                height: previewImageSize.height,
+                cursor: "pointer",
+                flexShrink: 0,
               }}
-            />
-            <MeetInfoDeets
-              meet={meet}
-            />
+              onClick={() => setCarouselOpen(true)}
+            >
+              <Box
+                component="img"
+                src={images[0]?.url || ""}
+                alt="Meet preview"
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: 2,
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
+              {images.length > 1 ? (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    right: 8,
+                    bottom: 8,
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 999,
+                    bgcolor: "rgba(15, 23, 42, 0.8)",
+                    color: "#fff",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  +{images.length - 1}
+                </Box>
+              ) : null}
+            </Box>
+            <MeetInfoDeets meet={meet} />
           </Stack>
           {renderDescription()}
         </>
       ) : (
         <>
           <Box mt={1}>
-            <MeetInfoDeets
-              meet={meet}
-              layout="horizontal"
-            />
+            <MeetInfoDeets meet={meet} layout="horizontal" />
           </Box>
           {renderDescription()}
         </>
       )}
+      <MeetImageCarouselDialog
+        open={carouselOpen}
+        title={meet.name}
+        images={images}
+        initialIndex={activeImageIndex}
+        onIndexChange={setActiveImageIndex}
+        onClose={() => setCarouselOpen(false)}
+      />
     </>
   );
 }

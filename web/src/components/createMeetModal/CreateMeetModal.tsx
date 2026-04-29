@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -27,7 +27,6 @@ import { CostsStep } from "./CostsStep";
 import { ResponsesStep } from "./ResponsesStep";
 import { FinishStep } from "./FinishStep";
 import { ImageStep } from "./ImageStep";
-import { useApi } from "../../hooks/useApi";
 import { useSaveMeet, SaveMeetPayload } from "../../hooks/useSaveMeet";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
@@ -48,6 +47,7 @@ import {
 import { useCurrentOrganization } from "../../context/organizationContext";
 import { LockedMeet } from "./LockedMeet";
 import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
+import MeetImage from "../../types/MeetImageModel";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -86,7 +86,6 @@ export function CreateMeetModal({
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const api = useApi();
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
@@ -119,6 +118,18 @@ export function CreateMeetModal({
     );
   }, [fetchedMeet?.organizerId, isEditing, isOrganizer, user?.id]);
   const isMeetLocked = isEditing && !isOrganizerForEditingMeet;
+
+  const syncImagesToState = useCallback((images: MeetImage[]) => {
+    const primaryImage = images.find((image) => image.isPrimary) ?? images[0];
+    const apply = (prev: CreateMeetState) => ({
+      ...prev,
+      imageFile: null,
+      imagePreview: primaryImage?.url ?? "",
+      imageCount: images.length,
+    });
+    setState(apply);
+    setBaselineState(apply);
+  }, []);
 
   // Reset to first step when opened/closed
   useEffect(() => {
@@ -240,7 +251,7 @@ export function CreateMeetModal({
       Boolean(state.approvedResponse?.trim()) ||
       Boolean(state.rejectResponse?.trim()) ||
       Boolean(state.waitlistResponse?.trim());
-    const hasImage = Boolean(state.imageFile || state.imagePreview);
+    const hasImage = state.imageCount > 0;
     const isPublished =
       (state.statusId ?? null) !== null && state.statusId !== 1;
 
@@ -273,7 +284,7 @@ export function CreateMeetModal({
     state.rejectResponse,
     state.waitlistResponse,
     state.statusId,
-    state.imageFile,
+    state.imageCount,
     state.imagePreview,
     meetId,
     shareCode,
@@ -397,32 +408,6 @@ export function CreateMeetModal({
 
   // Save method for each step
   const handleSaveStep = async (step: number) => {
-    if (step === 7 && meetId) {
-      if (!state.imageFile) {
-        return false;
-      }
-      const formData = new FormData();
-      formData.append("file", state.imageFile);
-      formData.append("isPrimary", "true");
-      const headers: Record<string, string> = {};
-      const token =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("accessToken")
-          : null;
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-      const res = await fetch(`${api.baseUrl}/meets/${meetId}/images`, {
-        method: "POST",
-        headers,
-        body: formData,
-      });
-      if (!res.ok) {
-        const message = await res.text();
-        throw new Error(message || "Failed to upload image");
-      }
-      return true;
-    }
     const payload = buildPayloadForStep(state, meetId ? step : 0);
     if (Object.keys(payload).length === 0) {
       return false;
@@ -723,8 +708,8 @@ export function CreateMeetModal({
       case 7:
         return (
           <ImageStep
-            state={state}
-            setState={(fn) => setState(fn)}
+            meetId={meetId}
+            onImagesChange={syncImagesToState}
             disabled={isMeetLocked}
           />
         );

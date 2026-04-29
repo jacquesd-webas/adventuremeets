@@ -15,6 +15,9 @@ describe("MeetsController", () => {
 
   const meetsService = {
     findOne: jest.fn(),
+    listImages: jest.fn(),
+    addImage: jest.fn(),
+    updateImage: jest.fn(),
     updateStatus: jest.fn(),
     remove: jest.fn(),
     resetConfirmedAttendeesToInvited: jest.fn(),
@@ -137,6 +140,40 @@ describe("MeetsController", () => {
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("lists images for an editable meet", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.listImages as jest.Mock).mockResolvedValue({
+      images: [{ id: "image-1", isPrimary: true, url: "https://cdn/img.jpg" }],
+    });
+    setRoles({ organizer: true });
+
+    await expect(controller.listImages("meet-1", user)).resolves.toEqual({
+      images: [{ id: "image-1", isPrimary: true, url: "https://cdn/img.jpg" }],
+    });
+
+    expect(meetsService.listImages).toHaveBeenCalledWith("meet-1");
+  });
+
+  it("updates the main image for an editable meet", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.updateImage as jest.Mock).mockResolvedValue({
+      image: { id: "image-1", isPrimary: true },
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.updateImage("meet-1", "image-1", { isPrimary: true }, user),
+    ).resolves.toEqual({
+      image: { id: "image-1", isPrimary: true },
+    });
+
+    expect(meetsService.updateImage).toHaveBeenCalledWith(
+      "meet-1",
+      "image-1",
+      { isPrimary: true },
+    );
   });
 
   it("resets confirmed attendees to invited when reconfirmAttendees is true", async () => {

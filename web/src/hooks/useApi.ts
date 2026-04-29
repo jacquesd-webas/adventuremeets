@@ -5,6 +5,10 @@ type ApiOptions = {
   token?: string;
 };
 
+type RequestModeOptions = {
+  includeJsonContentType?: boolean;
+};
+
 class ApiError extends Error {
   status: number;
 
@@ -67,10 +71,14 @@ export function useApi(options: ApiOptions = {}) {
     return data?.accessToken || null;
   }
 
-  const buildHeaders = (tokenOverride?: string | null) => {
-    const common: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+  const buildHeaders = (
+    tokenOverride?: string | null,
+    includeJsonContentType = true,
+  ) => {
+    const common: Record<string, string> = {};
+    if (includeJsonContentType) {
+      common["Content-Type"] = "application/json";
+    }
     const token = tokenOverride ?? options.token ?? null;
     if (token) {
       common.Authorization = `Bearer ${token}`;
@@ -78,18 +86,37 @@ export function useApi(options: ApiOptions = {}) {
     return common;
   };
 
+  const mergeHeaders = (
+    baseHeaders: Record<string, string>,
+    extraHeaders?: HeadersInit,
+  ) => {
+    const headers = new Headers();
+    Object.entries(baseHeaders).forEach(([key, value]) => {
+      headers.set(key, value);
+    });
+    if (extraHeaders) {
+      new Headers(extraHeaders).forEach((value, key) => {
+        headers.set(key, value);
+      });
+    }
+    return headers;
+  };
+
   async function request<T>(
     path: string,
     init?: RequestInit,
-    isRetry = false
+    isRetry = false,
+    modeOptions: RequestModeOptions = {},
   ): Promise<T> {
+    const { includeJsonContentType = true } = modeOptions;
     const token = getAccessToken();
-    const headers: Record<string, string> = buildHeaders(token);
+    const headers = mergeHeaders(
+      buildHeaders(token, includeJsonContentType),
+      init?.headers,
+    );
     const res = await fetch(`${baseUrl}${path}`, {
       ...init,
-      headers: {
-        ...headers,
-      },
+      headers,
     });
     if (res.status === 401 && typeof window !== "undefined") {
       if (!isRetry && getRefreshToken()) {
@@ -99,12 +126,13 @@ export function useApi(options: ApiOptions = {}) {
             path,
             {
               ...init,
-              headers: {
-                ...headers,
-                Authorization: `Bearer ${newToken}`,
-              },
+              headers: mergeHeaders(
+                buildHeaders(newToken, includeJsonContentType),
+                init?.headers,
+              ),
             },
-            true
+            true,
+            modeOptions,
           );
         }
       }
@@ -117,7 +145,7 @@ export function useApi(options: ApiOptions = {}) {
       const message = await res.text();
       throw new ApiError(
         res.status,
-        message || `Request failed with status ${res.status}`
+        message || `Request failed with status ${res.status}`,
       );
     }
     if (res.status === 204) {
@@ -146,9 +174,22 @@ export function useApi(options: ApiOptions = {}) {
     });
   }
 
+  async function postForm<T>(path: string, body: FormData, init?: RequestInit) {
+    return request<T>(
+      path,
+      {
+        ...init,
+        method: "POST",
+        body,
+      },
+      false,
+      { includeJsonContentType: false },
+    );
+  }
+
   async function del<T>(path: string, init?: RequestInit) {
     return request<T>(path, { ...init, method: "DELETE" });
   }
 
-  return { baseUrl, get, post, patch, del };
+  return { baseUrl, get, post, patch, postForm, del };
 }

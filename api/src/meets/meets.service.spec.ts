@@ -118,15 +118,18 @@ describe("MeetsService", () => {
       status_id: 2,
     };
     const imageRow = {
+      id: "image-1",
+      meet_id: "meet-1",
       url: "https://cdn.example.com/meet.jpg",
       is_primary: true,
+      aspect: "W",
     };
 
     const meetBuilder = buildBuilder();
     meetBuilder.first.mockResolvedValue(meetRow);
 
     const imageBuilder = buildBuilder();
-    imageBuilder.first.mockResolvedValue(imageRow);
+    imageBuilder.select.mockResolvedValue([imageRow]);
 
     const metaBuilder = buildBuilder();
     metaBuilder.select = jest.fn().mockResolvedValue([]);
@@ -145,6 +148,15 @@ describe("MeetsService", () => {
 
     const result = await service.findOne("meet-1");
     expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
+    expect(result.images).toEqual([
+      expect.objectContaining({
+        id: "image-1",
+        meetId: "meet-1",
+        url: "https://cdn.example.com/meet.jpg",
+        isPrimary: true,
+        aspect: "W",
+      }),
+    ]);
   });
 
   it("clones a meet as a draft without carrying over dates", async () => {
@@ -201,6 +213,7 @@ describe("MeetsService", () => {
         url: "https://cdn.example.com/meet.jpg",
         content_type: "image/jpeg",
         size_bytes: 12345,
+        aspect: "O",
         is_primary: true,
       },
     ]);
@@ -269,6 +282,7 @@ describe("MeetsService", () => {
         meet_id: "meet-2",
         object_key: "meets/meet-1/image.jpg",
         url: "https://cdn.example.com/meet.jpg",
+        aspect: "O",
         is_primary: true,
       }),
     ]);
@@ -491,5 +505,165 @@ describe("MeetsService", () => {
     await expect(
       service.attendeeHasMissingFields("meet-1", "attendee-1"),
     ).resolves.toBe(true);
+  });
+
+  it("lists meet images with the primary image first", async () => {
+    const imageBuilder = buildBuilder();
+    imageBuilder.select.mockResolvedValue([
+      {
+        id: "image-1",
+        meet_id: "meet-1",
+        url: "https://cdn.example.com/primary.jpg",
+        is_primary: true,
+        aspect: "W",
+        content_type: "image/jpeg",
+        size_bytes: 123,
+      },
+      {
+        id: "image-2",
+        meet_id: "meet-1",
+        url: "https://cdn.example.com/secondary.jpg",
+        is_primary: false,
+        aspect: "O",
+        content_type: "image/jpeg",
+        size_bytes: 456,
+      },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "meet_images") return imageBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(service.listImages("meet-1")).resolves.toEqual({
+      images: [
+        expect.objectContaining({
+          id: "image-1",
+          meetId: "meet-1",
+          isPrimary: true,
+          aspect: "W",
+        }),
+        expect.objectContaining({
+          id: "image-2",
+          meetId: "meet-1",
+          isPrimary: false,
+          aspect: "O",
+        }),
+      ],
+    });
+  });
+
+  it("promotes a meet image to primary", async () => {
+    const imageBuilder = buildBuilder();
+    imageBuilder.first.mockResolvedValue({
+      id: "image-2",
+      meet_id: "meet-1",
+      is_primary: false,
+      aspect: "O",
+      url: "https://cdn.example.com/secondary.jpg",
+    });
+    imageBuilder.update.mockResolvedValueOnce(1).mockResolvedValueOnce([
+      {
+        id: "image-2",
+        meet_id: "meet-1",
+        is_primary: true,
+        aspect: "O",
+        url: "https://cdn.example.com/secondary.jpg",
+      },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "meet_images") return imageBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.updateImage("meet-1", "image-2", { isPrimary: true }),
+    ).resolves.toEqual({
+      image: expect.objectContaining({
+        id: "image-2",
+        meetId: "meet-1",
+        isPrimary: true,
+        aspect: "O",
+      }),
+    });
+
+    expect(imageBuilder.update).toHaveBeenNthCalledWith(1, {
+      is_primary: false,
+    });
+    expect(imageBuilder.update).toHaveBeenNthCalledWith(
+      2,
+      { is_primary: true },
+      ["*"],
+    );
+  });
+
+  it("detects and stores the uploaded image aspect", async () => {
+    const imageBuilder = buildBuilder();
+    imageBuilder.first.mockResolvedValue({ id: "image-existing" });
+    imageBuilder.insert.mockResolvedValue([
+      {
+        id: "image-3",
+        meet_id: "meet-1",
+        url: "https://cdn.example.com/uploaded.png",
+        is_primary: false,
+        aspect: "P",
+      },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "meet_images") return imageBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {
+      upload: jest.fn().mockResolvedValue({
+        objectKey: "meets/meet-1/uploaded.png",
+        url: "https://cdn.example.com/uploaded.png",
+      }),
+    } as unknown as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const portraitPng = Buffer.from(
+      "89504e470d0a1a0a0000000d494844520000012c00000258080600000072b60d240000000049454e44ae426082",
+      "hex",
+    );
+
+    await expect(
+      service.addImage(
+        "meet-1",
+        {
+          mimetype: "image/png",
+          size: portraitPng.length,
+          buffer: portraitPng,
+        },
+        { isPrimary: false },
+      ),
+    ).resolves.toEqual({
+      image: expect.objectContaining({
+        id: "image-3",
+        meetId: "meet-1",
+        aspect: "P",
+      }),
+    });
+
+    expect(imageBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meet_id: "meet-1",
+        aspect: "P",
+      }),
+      ["*"],
+    );
   });
 });
