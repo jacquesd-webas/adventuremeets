@@ -1,4 +1,5 @@
 import Meet from "../types/MeetModel";
+import MeetStatusEnum from "../types/MeetStatusEnum";
 
 export const getCardRangeLabel = (meet: Meet): string => {
   // If we don't have a start time we know nothing
@@ -20,6 +21,15 @@ export const getCardRangeLabel = (meet: Meet): string => {
 
   // Multi-day meet, show the short start and end dates
   return `${numericDate(startTime)} — ${numericDate(endTime)}`;
+};
+
+export const isMeetUpcoming = (meet: Meet): boolean => {
+  if (meet.statusId === MeetStatusEnum.Draft || !meet.endTime) {
+    return false;
+  }
+
+  const endTime = new Date(meet.endTime);
+  return !Number.isNaN(endTime.getTime()) && endTime >= new Date();
 };
 
 export const getMeetDateLabel = (meet: Meet): string => {

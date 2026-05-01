@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
   Box,
+  Button,
   Container,
   IconButton,
   List,
@@ -157,7 +158,7 @@ function MeetCheckinPage() {
         flexDirection: "column",
       }}
     >
-      <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
+      <Stack spacing={2}>
         <Box
           sx={{
             px: isMobile ? 2 : 0,
@@ -253,7 +254,11 @@ function MeetCheckinPage() {
           )}
         </Paper>
       </Stack>
-      <Box sx={{ position: "sticky", bottom: 0, mt: 2 }} />
+      <Box sx={{ mt: 2, px: isMobile ? 2 : 0, pb: isMobile ? 2 : 0 }}>
+        <Button fullWidth variant="contained" onClick={handleClose}>
+          Finish Check-In
+        </Button>
+      </Box>
       <ConfirmActionDialog
         open={Boolean(undoTarget)}
         title="Undo check-in?"

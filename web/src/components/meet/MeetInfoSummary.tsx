@@ -23,8 +23,7 @@ type MeetInfoSummaryProps = {
   loginHref?: string;
   onLoginClick?: () => void;
   onCopyLink?: () => void;
-  descriptionMaxLines?: number;
-  showMoreChip?: boolean;
+  maxDescriptionLines?: number;
   showUserAction?: boolean;
   actionSlot?: ReactNode;
   onClose?: () => void;
@@ -36,8 +35,7 @@ export function MeetInfoSummary({
   loginHref = "/login",
   onLoginClick,
   onCopyLink,
-  descriptionMaxLines,
-  showMoreChip = false,
+  maxDescriptionLines,
   showUserAction = true,
   actionSlot,
   onClose,
@@ -95,7 +93,7 @@ export function MeetInfoSummary({
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   }, [displayName]);
-  const shouldClamp = Boolean(descriptionMaxLines) && !isExpanded;
+  const shouldClamp = Boolean(maxDescriptionLines) && !isExpanded;
   const linkifyText = (text?: string) => {
     if (!text) return text;
     const pattern =
@@ -141,13 +139,36 @@ export function MeetInfoSummary({
   };
 
   useEffect(() => {
-    if (!descriptionRef.current || !descriptionMaxLines) {
+    if (!descriptionRef.current || !maxDescriptionLines) {
       setIsTruncated(false);
       return;
     }
     const el = descriptionRef.current;
-    setIsTruncated(el.scrollHeight > el.clientHeight + 1);
-  }, [descriptionMaxLines, meet.description, isExpanded]);
+    let frameId = 0;
+
+    const measure = () => {
+      setIsTruncated(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(measure);
+    };
+
+    scheduleMeasure();
+
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleMeasure();
+    });
+    resizeObserver.observe(el);
+    window.addEventListener("resize", scheduleMeasure);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [maxDescriptionLines, meet.description, isExpanded]);
 
   const renderDescription = () => (
     <Stack spacing={1} alignItems="flex-start">
@@ -159,7 +180,7 @@ export function MeetInfoSummary({
           whiteSpace: "pre-line",
           ...(shouldClamp && {
             display: "-webkit-box",
-            WebkitLineClamp: descriptionMaxLines,
+            WebkitLineClamp: maxDescriptionLines,
             WebkitBoxOrient: "vertical",
             overflow: "hidden",
           }),
@@ -167,7 +188,7 @@ export function MeetInfoSummary({
       >
         {linkifyText(meet.description)}
       </Typography>
-      {showMoreChip && descriptionMaxLines && isTruncated && (
+      {maxDescriptionLines && isTruncated && (
         <Chip
           label={"show more"}
           size="small"
@@ -177,7 +198,7 @@ export function MeetInfoSummary({
           }}
         />
       )}
-      {showMoreChip && descriptionMaxLines && isExpanded && (
+      {maxDescriptionLines && isExpanded && (
         <Chip
           label={"show less"}
           size="small"

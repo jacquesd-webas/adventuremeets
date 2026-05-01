@@ -19,6 +19,7 @@ const buildBuilder = () => {
   builder.whereNotIn = jest.fn().mockReturnValue(builder);
   builder.whereNotNull = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
+  builder.orderByRaw = jest.fn().mockReturnValue(builder);
   builder.orderBy = jest.fn().mockReturnValue(builder);
   builder.modify = jest.fn().mockReturnValue(builder);
   builder.max = jest.fn().mockReturnValue(builder);
@@ -30,6 +31,9 @@ const buildBuilder = () => {
   builder.update = jest.fn();
   builder.insert = jest.fn();
   builder.del = jest.fn();
+  builder.onConflict = jest.fn().mockReturnValue(builder);
+  builder.ignore = jest.fn().mockReturnValue(builder);
+  builder.merge = jest.fn().mockReturnValue(builder);
   return builder;
 };
 
@@ -664,6 +668,365 @@ describe("MeetsService", () => {
         aspect: "P",
       }),
       ["*"],
+    );
+  });
+
+  it("creates a wall item with a photo upload and detected aspect", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.first.mockResolvedValue({
+      id: "wall-1",
+      meet_id: "meet-1",
+      created_by: "user-1",
+      attendee_id: "attendee-1",
+      attendee_name: "Alice",
+      comment: "Great day out",
+      stars: 5,
+      url: "https://cdn.example.com/wall.png",
+      object_key: "wall/meet-1/item.png",
+      content_type: "image/png",
+      size_bytes: 1234,
+      aspect: "P",
+      favourite: 0,
+    });
+    wallItemBuilder.insert.mockResolvedValue([
+      {
+        id: "wall-1",
+        meet_id: "meet-1",
+        created_by: "user-1",
+        attendee_id: "attendee-1",
+        attendee_name: "Alice",
+        comment: "Great day out",
+        stars: 5,
+        url: "https://cdn.example.com/wall.png",
+        object_key: "wall/meet-1/item.png",
+        content_type: "image/png",
+        size_bytes: 1234,
+        aspect: "P",
+        favourite: 0,
+      },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "wall_item" || table === "wall_item as wi") {
+        return wallItemBuilder;
+      }
+      if (table === "wall_item_likes") {
+        const likesBuilder = buildBuilder();
+        likesBuilder.select.mockResolvedValue([]);
+        return likesBuilder;
+      }
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {
+      upload: jest.fn().mockResolvedValue({
+        objectKey: "wall/meet-1/item.png",
+        url: "https://cdn.example.com/wall.png",
+      }),
+    } as unknown as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const portraitPng = Buffer.from(
+      "89504e470d0a1a0a0000000d494844520000012c00000258080600000072b60d240000000049454e44ae426082",
+      "hex",
+    );
+
+    await expect(
+      service.createWallItem(
+        "meet-1",
+        { comment: "Great day out", stars: 5 },
+        {
+          originalname: "item.png",
+          mimetype: "image/png",
+          size: portraitPng.length,
+          buffer: portraitPng,
+        },
+        {
+          userId: "user-1",
+          attendeeId: "attendee-1",
+        },
+      ),
+    ).resolves.toEqual({
+      wallItem: expect.objectContaining({
+        id: "wall-1",
+        meetId: "meet-1",
+        createdBy: "user-1",
+        attendeeId: "attendee-1",
+        authorName: "Alice",
+        stars: 5,
+        aspect: "P",
+        likesCount: 0,
+        dislikesCount: 0,
+        heartsCount: 0,
+        likedByMe: false,
+      }),
+    });
+
+    expect(minio.upload).toHaveBeenCalledWith(
+      expect.stringMatching(/^wall\/meet-1\//),
+      portraitPng,
+      "image/png",
+    );
+    expect(wallItemBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meet_id: "meet-1",
+        created_by: "user-1",
+        attendee_id: "attendee-1",
+        comment: "Great day out",
+        stars: 5,
+        aspect: "P",
+      }),
+      ["*"],
+    );
+  });
+
+  it("lists wall items with separate reaction counts and reaction state", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.select.mockResolvedValue([
+      {
+        id: "wall-1",
+        meet_id: "meet-1",
+        comment: "Nice route",
+        favourite: 2,
+        attendee_name: "Alice",
+        created_at: "2026-04-29T08:00:00.000Z",
+      },
+      {
+        id: "wall-2",
+        meet_id: "meet-1",
+        stars: 4,
+        favourite: 0,
+        author_first_name: "Bob",
+        author_last_name: "Stone",
+        created_at: "2026-04-29T07:00:00.000Z",
+      },
+    ]);
+
+    const likesBuilder = buildBuilder();
+    likesBuilder.select.mockResolvedValue([
+      { wall_item_id: "wall-1", user_id: "user-1", reaction: "like" },
+      { wall_item_id: "wall-1", user_id: "user-2", reaction: "like" },
+      { wall_item_id: "wall-1", user_id: "user-4", reaction: "dislike" },
+      { wall_item_id: "wall-1", user_id: "user-5", reaction: "heart" },
+      { wall_item_id: "wall-2", user_id: "user-3", reaction: "dislike" },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "wall_item as wi") return wallItemBuilder;
+      if (table === "wall_item_likes") return likesBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.listWallItems("meet-1", { userId: "user-1" }),
+    ).resolves.toEqual({
+      wallItems: [
+        expect.objectContaining({
+          id: "wall-1",
+          authorName: "Alice",
+          likesCount: 2,
+          dislikesCount: 1,
+          heartsCount: 1,
+          likedByMe: true,
+          myReaction: "like",
+          favourite: 2,
+        }),
+        expect.objectContaining({
+          id: "wall-2",
+          authorName: "Bob Stone",
+          likesCount: 0,
+          dislikesCount: 1,
+          heartsCount: 0,
+          likedByMe: false,
+          stars: 4,
+        }),
+      ],
+    });
+  });
+
+  it("reorders meet wall favourites and resets previous favourite ranks", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.pluck.mockResolvedValue(["wall-2", "wall-1"]);
+
+    const transactionBuilder = buildBuilder();
+    transactionBuilder.update.mockResolvedValue(1);
+
+    const transactionClient: any = (table: string) => {
+      if (table === "wall_item") return transactionBuilder;
+      return buildBuilder();
+    };
+
+    const client: any = (table: string) => {
+      if (table === "wall_item") return wallItemBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (callback: any) => callback(transactionClient));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+    const listWallItemsSpy = jest
+      .spyOn(service, "listWallItems")
+      .mockResolvedValue({
+        wallItems: [
+          { id: "wall-2", favourite: 2 } as any,
+          { id: "wall-1", favourite: 1 } as any,
+          { id: "wall-3", favourite: 0 } as any,
+        ],
+      });
+
+    await expect(
+      service.orderWallItemFavourites("meet-1", ["wall-2", "wall-1"]),
+    ).resolves.toEqual({
+      wallItems: [
+        { id: "wall-2", favourite: 2 },
+        { id: "wall-1", favourite: 1 },
+      ],
+    });
+
+    expect(transactionBuilder.update).toHaveBeenNthCalledWith(1, {
+      favourite: 0,
+    });
+    expect(transactionBuilder.update).toHaveBeenNthCalledWith(2, {
+      favourite: 2,
+    });
+    expect(transactionBuilder.update).toHaveBeenNthCalledWith(3, {
+      favourite: 1,
+    });
+    expect(listWallItemsSpy).toHaveBeenCalledWith("meet-1");
+  });
+
+  it("updates a wall item reaction idempotently and returns the updated reaction", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.first
+      .mockResolvedValueOnce({
+        id: "wall-1",
+        meet_id: "meet-1",
+        comment: "Solid hike",
+        favourite: 0,
+        author_first_name: "Sam",
+        author_last_name: "Trail",
+      })
+      .mockResolvedValueOnce({
+        id: "wall-1",
+        meet_id: "meet-1",
+        comment: "Solid hike",
+        favourite: 0,
+        author_first_name: "Sam",
+        author_last_name: "Trail",
+      });
+
+    const likesBuilder = buildBuilder();
+    likesBuilder.select.mockResolvedValue([
+      { wall_item_id: "wall-1", user_id: "user-1", reaction: "heart" },
+      { wall_item_id: "wall-1", user_id: "user-2", reaction: "like" },
+    ]);
+    likesBuilder.first.mockResolvedValue({ id: "like-1" });
+
+    const client: any = (table: string) => {
+      if (table === "wall_item" || table === "wall_item as wi") {
+        return wallItemBuilder;
+      }
+      if (table === "wall_item_likes") return likesBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.updateWallItemReaction(
+        "meet-1",
+        "wall-1",
+        { userId: "user-1" },
+        "heart",
+      ),
+    ).resolves.toEqual({
+      wallItem: expect.objectContaining({
+        id: "wall-1",
+        authorName: "Sam Trail",
+        likesCount: 1,
+        dislikesCount: 0,
+        heartsCount: 1,
+        likedByMe: false,
+        myReaction: "heart",
+      }),
+    });
+
+    expect(likesBuilder.update).toHaveBeenCalledWith({ reaction: "heart" });
+  });
+
+  it("creates attendee-based reactions and returns attendee reaction state", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.first
+      .mockResolvedValueOnce({
+        id: "wall-1",
+        meet_id: "meet-1",
+        comment: "Solid hike",
+        favourite: 0,
+        author_first_name: "Sam",
+        author_last_name: "Trail",
+      })
+      .mockResolvedValueOnce({
+        id: "wall-1",
+        meet_id: "meet-1",
+        comment: "Solid hike",
+        favourite: 0,
+        author_first_name: "Sam",
+        author_last_name: "Trail",
+      });
+
+    const likesBuilder = buildBuilder();
+    likesBuilder.first.mockResolvedValue(undefined);
+    likesBuilder.insert.mockResolvedValue([{ id: "like-1" }]);
+    likesBuilder.select.mockResolvedValue([
+      { wall_item_id: "wall-1", attendee_id: "attendee-1", reaction: "dislike" },
+      { wall_item_id: "wall-1", user_id: "user-2", reaction: "like" },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "wall_item" || table === "wall_item as wi") {
+        return wallItemBuilder;
+      }
+      if (table === "wall_item_likes") return likesBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.updateWallItemReaction(
+        "meet-1",
+        "wall-1",
+        { attendeeId: "attendee-1" },
+        "dislike",
+      ),
+    ).resolves.toEqual({
+      wallItem: expect.objectContaining({
+        id: "wall-1",
+        likesCount: 1,
+        dislikesCount: 1,
+        likedByMe: false,
+        myReaction: "dislike",
+      }),
+    });
+
+    expect(likesBuilder.insert).toHaveBeenCalledWith(
+      {
+        wall_item_id: "wall-1",
+        user_id: null,
+        attendee_id: "attendee-1",
+        reaction: "dislike",
+      },
+      ["id"],
     );
   });
 });

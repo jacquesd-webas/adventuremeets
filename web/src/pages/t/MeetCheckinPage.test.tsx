@@ -81,4 +81,24 @@ describe("MeetCheckinPage", () => {
 
     expect(await screen.findByText("List Page")).toBeInTheDocument();
   });
+
+  it("returns to the dashboard when finishing check-in", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter
+        initialEntries={["/meet/meet-1/checkin"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+          <Route path="/" element={<div>Dashboard</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Finish Check-In" }));
+
+    expect(await screen.findByText("Dashboard")).toBeInTheDocument();
+  });
 });

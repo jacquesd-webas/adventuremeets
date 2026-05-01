@@ -83,6 +83,11 @@ export function MeetImageCarouselDialog({
       fullScreen={isMobile}
       sx={{
         "& .MuiDialog-paper": {
+          m: isMobile ? 0 : 2,
+          height: isMobile ? "100dvh" : "calc(100dvh - 32px)",
+          maxHeight: isMobile ? "100dvh" : "calc(100dvh - 32px)",
+          borderRadius: isMobile ? 0 : 2,
+          overflow: "hidden",
           bgcolor: "rgba(15, 23, 42, 0.98)",
           color: "#fff",
         },
@@ -92,11 +97,12 @@ export function MeetImageCarouselDialog({
         sx={{
           p: isMobile ? 1.5 : 2,
           height: "100%",
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
         }}
       >
-        <Stack spacing={2} sx={{ height: "100%" }}>
+        <Stack spacing={2} sx={{ height: "100%", minHeight: 0 }}>
           <Stack
             direction="row"
             alignItems="center"
@@ -133,10 +139,11 @@ export function MeetImageCarouselDialog({
             <Box
               sx={{
                 flex: 1,
+                minHeight: 0,
                 minWidth: 0,
                 position: "relative",
-                height: { xs: "62vh", sm: "70vh" },
-                maxHeight: 720,
+                height: "100%",
+                maxHeight: "100%",
                 width: "100%",
                 maxWidth: 960,
                 display: "flex",

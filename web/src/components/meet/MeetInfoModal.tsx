@@ -9,8 +9,10 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { MeetInfoSummary } from "./MeetInfoSummary";
+import { MeetWall } from "../wall/MeetWall";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { MeetStatusAlert } from "./MeetStatusAlert";
+import { MeetStatusEnum } from "../../types/MeetStatusEnum";
 
 type MeetInfoModalProps = {
   open: boolean;
@@ -22,6 +24,13 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { data: meet, isLoading } = useFetchMeet(meetId);
+  const meetHasStarted =
+    !!meet?.startTime &&
+    !Number.isNaN(new Date(meet.startTime).getTime()) &&
+    new Date(meet.startTime).getTime() <= Date.now();
+  const shouldShowMeetWall =
+    meet?.statusId === MeetStatusEnum.Completed ||
+    (meet?.statusId === MeetStatusEnum.Closed && meetHasStarted);
 
   return (
     <Dialog
@@ -43,6 +52,7 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
             <MeetInfoSummary
               meet={meet}
               isPreview={false}
+              maxDescriptionLines={shouldShowMeetWall ? 2 : undefined}
               actionSlot={
                 <IconButton
                   onClick={onClose}
@@ -58,13 +68,17 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
             <Typography color="text.secondary">Loading meet...</Typography>
           ) : null}
           {meet ? (
-            <MeetStatusAlert
-              statusId={meet.statusId}
-              openingDate={meet.openingDate}
-              enableApply={true}
-              shareCode={meet.shareCode}
-              size="small"
-            />
+            shouldShowMeetWall ? (
+              <MeetWall meetId={meet.id} />
+            ) : (
+              <MeetStatusAlert
+                statusId={meet.statusId}
+                openingDate={meet.openingDate}
+                enableApply={true}
+                shareCode={meet.shareCode}
+                size="small"
+              />
+            )
           ) : null}
         </Stack>
       </DialogContent>

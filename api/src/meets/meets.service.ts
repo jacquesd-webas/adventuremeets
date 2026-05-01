@@ -17,10 +17,13 @@ import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
 import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
+import { CreateWallItemDto } from "./dto/create-wall-item.dto";
 import { MinioService } from "../storage/minio.service";
 import { detectMeetImageAspect } from "./image-aspect";
 import { v4 as uuid } from "uuid";
 import { MEET_STATUS } from "./constants/meet-status.enum";
+import { type WallItemReaction } from "./dto/update-wall-item-reaction.dto";
+import { WallItemDto } from "./dto/wall-item.dto";
 
 @Injectable()
 export class MeetsService {
@@ -1343,6 +1346,232 @@ export class MeetsService {
     });
   }
 
+  async findMeetAttendeeByUser(meetId: string, userId: string) {
+    const attendee = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, user_id: userId })
+      .first();
+    return attendee ? this.toAttendeeDto(attendee) : null;
+  }
+
+  async findMeetAttendeeById(meetId: string, attendeeId: string) {
+    const attendee = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, id: attendeeId })
+      .first();
+    return attendee ? this.toAttendeeDto(attendee) : null;
+  }
+
+  async createWallItem(
+    meetId: string,
+    dto: CreateWallItemDto,
+    file?: any,
+    actor?: { userId?: string; attendeeId?: string | null },
+  ) {
+    const comment = dto.comment?.trim() || null;
+    const stars =
+      dto.stars === undefined || dto.stars === null ? null : Number(dto.stars);
+
+    if (!comment && stars == null && !file) {
+      throw new BadRequestException(
+        "A comment, rating, or photo is required for a wall item",
+      );
+    }
+
+    let uploaded:
+      | {
+          objectKey: string;
+          url: string;
+        }
+      | undefined;
+    let aspect: string | null = null;
+
+    if (file) {
+      const extension = this.getFileExtension(file.originalname);
+      const objectKey = `wall/${meetId}/${uuid()}${extension}`;
+      uploaded = await this.minio.upload(
+        objectKey,
+        file.buffer,
+        file.mimetype || "application/octet-stream",
+      );
+      aspect = detectMeetImageAspect(file.buffer);
+    }
+
+    const [wallItem] = await this.db
+      .getClient()("wall_item")
+      .insert(
+        {
+          meet_id: meetId,
+          created_by: actor?.userId ?? null,
+          attendee_id: actor?.attendeeId ?? null,
+          comment,
+          stars,
+          object_key: uploaded?.objectKey ?? null,
+          url: uploaded?.url ?? null,
+          content_type: file?.mimetype ?? null,
+          size_bytes:
+            file?.size === undefined || file?.size === null ? null : file.size,
+          aspect,
+        },
+        ["*"],
+      );
+
+    return this.getWallItem(meetId, wallItem.id, actor);
+  }
+
+  async listWallItems(
+    meetId: string,
+    actor?: { userId?: string; attendeeId?: string | null },
+  ) {
+    const wallItems = await this.db
+      .getClient()("wall_item as wi")
+      .leftJoin("users as u", "u.id", "wi.created_by")
+      .leftJoin("meet_attendees as ma", "ma.id", "wi.attendee_id")
+      .where({ "wi.meet_id": meetId })
+      .orderBy("wi.created_at", "desc")
+      .orderBy("wi.id", "desc")
+      .select(
+        "wi.*",
+        "u.first_name as author_first_name",
+        "u.last_name as author_last_name",
+        "u.email as author_email",
+        "u.idp_profile as author_idp_profile",
+        "ma.name as attendee_name",
+      );
+
+    if (!wallItems.length) {
+      return { wallItems: [] as WallItemDto[] };
+    }
+
+    const likes = await this.db
+      .getClient()("wall_item_likes")
+      .whereIn(
+        "wall_item_id",
+        wallItems.map((wallItem: any) => wallItem.id),
+      )
+      .select("wall_item_id", "user_id", "attendee_id", "reaction");
+
+    return {
+      wallItems: wallItems.map((wallItem: any) =>
+        this.toWallItemDto(wallItem, likes, actor),
+      ),
+    };
+  }
+
+  async updateWallItemFavourite(
+    meetId: string,
+    wallItemId: string,
+    favourite: number,
+  ) {
+    const [wallItem] = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .update({ favourite }, ["*"]);
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    return { wallItem: this.toWallItemDto(wallItem) };
+  }
+
+  async orderWallItemFavourites(meetId: string, wallItemIds: string[]) {
+    const existingIds = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId })
+      .whereIn("id", wallItemIds)
+      .pluck<string>("id");
+
+    if (existingIds.length !== wallItemIds.length) {
+      throw new NotFoundException("One or more wall items were not found");
+    }
+
+    await this.db.getClient().transaction(async (trx) => {
+      await trx("wall_item")
+        .where({ meet_id: meetId })
+        .where("favourite", ">", 0)
+        .update({ favourite: 0 });
+
+      for (const [index, wallItemId] of wallItemIds.entries()) {
+        await trx("wall_item")
+          .where({ meet_id: meetId, id: wallItemId })
+          .update({ favourite: wallItemIds.length - index });
+      }
+    });
+
+    const { wallItems } = await this.listWallItems(meetId);
+    const favouriteIds = new Set(wallItemIds);
+    return {
+      wallItems: wallItems.filter((wallItem) => favouriteIds.has(wallItem.id)),
+    };
+  }
+
+  async updateWallItemReaction(
+    meetId: string,
+    wallItemId: string,
+    actor: { userId?: string; attendeeId?: string | null },
+    reaction: WallItemReaction,
+  ) {
+    const wallItem = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .first();
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const userId = actor.userId ?? undefined;
+    const attendeeId = actor.attendeeId ?? undefined;
+
+    if (!userId && !attendeeId) {
+      throw new NotFoundException("Reaction actor not found");
+    }
+
+    const likesQuery = this.db.getClient()("wall_item_likes").where({
+      wall_item_id: wallItemId,
+    });
+    if (attendeeId) {
+      likesQuery.andWhere({ attendee_id: attendeeId });
+    } else if (userId) {
+      likesQuery.andWhere({ user_id: userId });
+    }
+
+    const existing = await likesQuery.first("id");
+
+    if (existing) {
+      await this.db
+        .getClient()("wall_item_likes")
+        .where({ id: existing.id })
+        .update({ reaction });
+    } else {
+      await this.db.getClient()("wall_item_likes").insert(
+        {
+          wall_item_id: wallItemId,
+          user_id: attendeeId ? null : userId ?? null,
+          attendee_id: attendeeId ?? null,
+          reaction,
+        },
+        ["id"],
+      );
+    }
+
+    return this.getWallItem(meetId, wallItemId, actor);
+  }
+
+  async removeWallItem(meetId: string, wallItemId: string) {
+    const deleted = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .del();
+
+    if (!deleted) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    return { deleted: true };
+  }
+
   async removeAttendee(meetId: string, attendeeId: string) {
     const query = this.db
       .getClient()("meet_attendees")
@@ -1534,6 +1763,121 @@ export class MeetsService {
         image.size_bytes != null ? Number(image.size_bytes) : undefined,
       createdAt: image.created_at ?? undefined,
     };
+  }
+
+  private toWallItemDto(
+    wallItem: Record<string, any>,
+    likes: Array<Record<string, any>> = [],
+    actor?: { userId?: string; attendeeId?: string | null },
+  ): WallItemDto {
+    const itemLikes = likes.filter(
+      (like) => like.wall_item_id === wallItem.id,
+    );
+    const attendeeReaction = actor?.attendeeId
+      ? itemLikes.find((like) => like.attendee_id === actor.attendeeId)
+      : undefined;
+    const userReaction =
+      attendeeReaction ??
+      (actor?.userId
+        ? itemLikes.find((like) => like.user_id === actor.userId)
+        : undefined);
+    const likeCount = itemLikes.filter((like) => like.reaction === "like").length;
+    const dislikeCount = itemLikes.filter(
+      (like) => like.reaction === "dislike",
+    ).length;
+    const heartCount = itemLikes.filter((like) => like.reaction === "heart").length;
+
+    return {
+      id: wallItem.id,
+      meetId: wallItem.meet_id,
+      createdBy: wallItem.created_by ?? undefined,
+      attendeeId: wallItem.attendee_id ?? undefined,
+      authorName: this.getWallItemAuthorName(wallItem),
+      comment: wallItem.comment ?? undefined,
+      stars: wallItem.stars != null ? Number(wallItem.stars) : undefined,
+      url: wallItem.url ?? undefined,
+      aspect: wallItem.aspect ?? undefined,
+      objectKey: wallItem.object_key ?? undefined,
+      contentType: wallItem.content_type ?? undefined,
+      sizeBytes:
+        wallItem.size_bytes != null ? Number(wallItem.size_bytes) : undefined,
+      favourite: Number(wallItem.favourite ?? 0),
+      likesCount: likeCount,
+      dislikesCount: dislikeCount,
+      heartsCount: heartCount,
+      likedByMe: userReaction?.reaction === "like",
+      myReaction: userReaction?.reaction ?? undefined,
+      createdAt: wallItem.created_at ?? undefined,
+    };
+  }
+
+  private async getWallItem(
+    meetId: string,
+    wallItemId: string,
+    actor?: { userId?: string; attendeeId?: string | null },
+  ) {
+    const wallItem = await this.db
+      .getClient()("wall_item as wi")
+      .leftJoin("users as u", "u.id", "wi.created_by")
+      .leftJoin("meet_attendees as ma", "ma.id", "wi.attendee_id")
+      .where({ "wi.meet_id": meetId, "wi.id": wallItemId })
+      .first(
+        "wi.*",
+        "u.first_name as author_first_name",
+        "u.last_name as author_last_name",
+        "u.email as author_email",
+        "u.idp_profile as author_idp_profile",
+        "ma.name as attendee_name",
+      );
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const likes = await this.db
+      .getClient()("wall_item_likes")
+      .where({ wall_item_id: wallItemId })
+      .select("wall_item_id", "user_id", "attendee_id", "reaction");
+
+    return { wallItem: this.toWallItemDto(wallItem, likes, actor) };
+  }
+
+  private getFileExtension(filename?: string) {
+    const cleaned = filename?.trim();
+    if (!cleaned) return "";
+    const lastDot = cleaned.lastIndexOf(".");
+    if (lastDot <= 0) return "";
+    return cleaned.slice(lastDot);
+  }
+
+  private getWallItemAuthorName(wallItem: Record<string, any>) {
+    const attendeeName = wallItem.attendee_name?.trim();
+    if (attendeeName) {
+      return attendeeName;
+    }
+
+    const firstName = wallItem.author_first_name?.trim() ?? "";
+    const lastName = wallItem.author_last_name?.trim() ?? "";
+    const fullName = `${firstName} ${lastName}`.trim();
+    if (fullName) {
+      return fullName;
+    }
+
+    const profileName =
+      wallItem.author_idp_profile &&
+      typeof wallItem.author_idp_profile === "object"
+        ? wallItem.author_idp_profile.name
+        : undefined;
+    if (typeof profileName === "string" && profileName.trim()) {
+      return profileName.trim();
+    }
+
+    const email = wallItem.author_email?.trim();
+    if (email) {
+      return email.split("@")[0];
+    }
+
+    return undefined;
   }
 
   private async syncMetaDefinitions(

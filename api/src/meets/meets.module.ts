@@ -8,6 +8,7 @@ import { IncomingMailController } from './incoming-mail.controller';
 import { EmailModule } from '../email/email.module';
 import { AuthModule } from '../auth/auth.module';
 import { MeetShareController } from './meet-share.controller';
+import { MeetWallController } from './meet-wall.controller';
 
 @Module({
   imports: [DatabaseModule, EmailModule, AuthModule],
@@ -16,6 +17,7 @@ import { MeetShareController } from './meet-share.controller';
     MeetAttendeesController,
     IncomingMailController,
     MeetShareController,
+    MeetWallController,
   ],
   providers: [MeetsService, MinioService],
   exports: [MeetsService],

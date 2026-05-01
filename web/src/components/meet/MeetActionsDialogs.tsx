@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ConfirmCloseMeetDialog } from "../confirmDialogs/ConfirmCloseMeetDialog";
 import { ConfirmCancelMeetDialog } from "../confirmDialogs/ConfirmCancelMeetDialog";
 import { ConfirmOpenMeetDialog } from "../confirmDialogs/ConfirmOpenMeetDialog";
@@ -36,6 +37,8 @@ function MeetActionsDialogs({
   setSelectedMeetId,
   onActionConfirm,
 }: MeetActionsDialogsProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isCloseDialogOpen, setIsCloseDialogOpen] = React.useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = React.useState(false);
   const [isOpenDialogOpen, setIsOpenDialogOpen] = React.useState(false);
@@ -135,7 +138,15 @@ function MeetActionsDialogs({
         setShowMeetModal(true);
         break;
       case "checkin":
-        setShowAttendeesModal(true);
+        if (meetId) {
+          navigate(`/meet/${meetId}/checkin`, {
+            state: {
+              returnTo: `${location.pathname}${location.search}`,
+            },
+          });
+          setPendingAction(null);
+          setSelectedMeetId(null);
+        }
         break;
       case "close":
         setIsCloseDialogOpen(true);
@@ -167,7 +178,16 @@ function MeetActionsDialogs({
       default:
         break;
     }
-  }, [pendingAction, meetId, onActionConfirm, setSelectedMeetId]);
+  }, [
+    location.pathname,
+    location.search,
+    meetId,
+    navigate,
+    onActionConfirm,
+    pendingAction,
+    setPendingAction,
+    setSelectedMeetId,
+  ]);
 
   // If we have a callback for confirming the action, call it now
   const handleConfirm = async () => {

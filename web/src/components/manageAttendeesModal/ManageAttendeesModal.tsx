@@ -504,7 +504,7 @@ export function ManageAttendeesModal({
   );
   const baseInviteLink =
     meet?.shareCode && typeof window !== "undefined"
-      ? `${window.location.origin}/${meet.shareCode}`
+      ? `${window.location.origin}/meets/${meet.shareCode}`
       : "";
   const inviteLinkForAttendee = (attendeeId: string) =>
     baseInviteLink

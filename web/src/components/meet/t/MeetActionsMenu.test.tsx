@@ -7,6 +7,7 @@ import MeetStatusEnum from "../../../types/MeetStatusEnum";
 describe("MeetActionsMenu", () => {
   const renderMenu = (props?: {
     statusId?: number;
+    isUpcoming?: boolean;
     canViewMeet?: boolean;
     canManageMeet?: boolean;
   }) => {
@@ -17,6 +18,7 @@ describe("MeetActionsMenu", () => {
         <MeetActionsMenu
           meetId="meet-1"
           statusId={props?.statusId ?? MeetStatusEnum.Draft}
+          isUpcoming={props?.isUpcoming ?? false}
           canViewMeet={props?.canViewMeet}
           canManageMeet={props?.canManageMeet ?? true}
           setSelectedMeetId={vi.fn()}
@@ -55,6 +57,16 @@ describe("MeetActionsMenu", () => {
     );
   });
 
+  it("does not show Preview for non-published meets", () => {
+    renderMenu({
+      statusId: MeetStatusEnum.Open,
+      canViewMeet: true,
+      canManageMeet: false,
+    });
+
+    expect(screen.queryByText("Preview")).not.toBeInTheDocument();
+  });
+
   it("shows the menu button even when the user cannot view or manage the meet", () => {
     render(
       <MemoryRouter
@@ -63,6 +75,7 @@ describe("MeetActionsMenu", () => {
         <MeetActionsMenu
           meetId="meet-1"
           statusId={MeetStatusEnum.Open}
+          isUpcoming={true}
           canViewMeet={false}
           canManageMeet={false}
           setSelectedMeetId={vi.fn()}
