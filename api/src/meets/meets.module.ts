@@ -9,9 +9,10 @@ import { EmailModule } from '../email/email.module';
 import { AuthModule } from '../auth/auth.module';
 import { MeetShareController } from './meet-share.controller';
 import { MeetWallController } from './meet-wall.controller';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [DatabaseModule, EmailModule, AuthModule],
+  imports: [DatabaseModule, EmailModule, AuthModule, UsersModule],
   controllers: [
     MeetsController,
     MeetAttendeesController,

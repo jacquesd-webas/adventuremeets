@@ -18,6 +18,7 @@ import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { UserProfile } from "../users/dto/user-profile.dto";
+import { UsersService } from "../users/users.service";
 
 describe("MeetAttendeesController", () => {
   let controller: MeetAttendeesController;
@@ -42,6 +43,10 @@ describe("MeetAttendeesController", () => {
     sendEmail: jest.fn(),
     saveMessage: jest.fn(),
   } as unknown as EmailService;
+
+  const usersService = {
+    findIceInfoByUserId: jest.fn(),
+  } as unknown as UsersService;
 
   const user: UserProfile = {
     id: "user-1",
@@ -74,6 +79,7 @@ describe("MeetAttendeesController", () => {
       meetsService,
       authService,
       emailService,
+      usersService,
     );
   });
 
@@ -90,6 +96,36 @@ describe("MeetAttendeesController", () => {
     await expect(
       controller.list("meet-1", "accepted", user),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("returns ICE info for the meet organizer on the meet day", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-04-14T06:00:00.000Z"));
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+      attendee: { userId: "user-2" },
+    });
+    (usersService.findIceInfoByUserId as jest.Mock).mockResolvedValue({
+      iceName: "Jordan Contact",
+    });
+
+    await expect(
+      controller.getIceInfo("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      iceInfo: { iceName: "Jordan Contact" },
+    });
+
+    jest.useRealTimers();
+  });
+
+  it("rejects ICE info access outside the meet day", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-04-15T06:00:00.000Z"));
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+
+    await expect(
+      controller.getIceInfo("meet-1", "attendee-1", user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    jest.useRealTimers();
   });
 
   it("checks duplicates without including invited attendees", async () => {
@@ -113,11 +149,10 @@ describe("MeetAttendeesController", () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(null);
 
     await expect(
-      controller.add(
-        "missing-meet",
-        {},
-        { headers: {}, ip: "127.0.0.1" } as unknown as Request,
-      ),
+      controller.add("missing-meet", {}, {
+        headers: {},
+        ip: "127.0.0.1",
+      } as unknown as Request),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -209,11 +244,10 @@ describe("MeetAttendeesController", () => {
       phone: "+27129876543",
     };
 
-    await controller.add(
-      "meet-1",
-      dto,
-      { headers: {}, ip: "127.0.0.1" } as unknown as Request,
-    );
+    await controller.add("meet-1", dto, {
+      headers: {},
+      ip: "127.0.0.1",
+    } as unknown as Request);
 
     expect(meetsService.autoPlaceAttendees).not.toHaveBeenCalled();
     expect(renderEmailTemplate).toHaveBeenCalledWith(
@@ -236,11 +270,10 @@ describe("MeetAttendeesController", () => {
     });
 
     await expect(
-      controller.add(
-        "meet-1",
-        { name: "Phone Only", phone: "+27123400000" },
-        { headers: {}, ip: "127.0.0.1" } as unknown as Request,
-      ),
+      controller.add("meet-1", { name: "Phone Only", phone: "+27123400000" }, {
+        headers: {},
+        ip: "127.0.0.1",
+      } as unknown as Request),
     ).resolves.toEqual({
       attendee: { id: "attendee-3", status: "pending" },
     });
@@ -351,9 +384,9 @@ describe("MeetAttendeesController", () => {
   });
 
   it("rejects unauthenticated attendee removal", async () => {
-    await expect(controller.remove("meet-1", "attendee-1")).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      controller.remove("meet-1", "attendee-1"),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it("rejects attendee removal for non-organizers", async () => {

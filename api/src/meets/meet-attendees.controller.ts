@@ -24,6 +24,7 @@ import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { EmailTemplateName } from "../email/email.types";
 import type { Request } from "express";
+import { UsersService } from "../users/users.service";
 
 @ApiTags("Meet Attendees")
 @Controller("meets/:meetId/attendees")
@@ -32,6 +33,7 @@ export class MeetAttendeesController {
     private readonly meetsService: MeetsService,
     private readonly authService: AuthService,
     private readonly emailService: EmailService,
+    private readonly usersService: UsersService,
   ) {}
 
   @Get()
@@ -221,6 +223,42 @@ export class MeetAttendeesController {
     return this.meetsService.updateAttendee(meetId, attendeeId, dto);
   }
 
+  @Get(":attendeeId/ice")
+  async getIceInfo(
+    @Param("meetId") meetId: string,
+    @Param("attendeeId") attendeeId: string,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(meetId);
+
+    if (!meet || user.id !== meet.organizerId) {
+      throw new ForbiddenException(
+        "Only the meet organizer can access ICE information",
+      );
+    }
+
+    if (!this.isMeetAccessDay(meet)) {
+      throw new ForbiddenException(
+        "ICE information is only available on the day of the meet",
+      );
+    }
+
+    const attendee = await this.meetsService.findAttendeeForEdit(
+      meetId,
+      attendeeId,
+    );
+    const linkedUserId = attendee?.attendee?.userId;
+
+    if (!linkedUserId) {
+      return { iceInfo: null };
+    }
+
+    const iceInfo = await this.usersService.findIceInfoByUserId(linkedUserId);
+    return { iceInfo };
+  }
+
   @Delete(":attendeeId")
   async remove(
     @Param("meetId") meetId: string,
@@ -237,5 +275,44 @@ export class MeetAttendeesController {
       );
     }
     return this.meetsService.removeAttendee(meetId, attendeeId);
+  }
+
+  private isMeetAccessDay(
+    meet?: {
+      startTime?: string | null;
+      endTime?: string | null;
+      timeZone?: string | null;
+    } | null,
+  ) {
+    if (!meet?.startTime) {
+      return false;
+    }
+
+    const startTime = new Date(meet.startTime);
+    const endTime = meet.endTime ? new Date(meet.endTime) : startTime;
+    const now = new Date();
+
+    if (
+      Number.isNaN(startTime.getTime()) ||
+      Number.isNaN(endTime.getTime()) ||
+      Number.isNaN(now.getTime())
+    ) {
+      return false;
+    }
+
+    const timeZone = meet.timeZone || "UTC";
+    const formatDate = (value: Date) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(value);
+
+    const currentDate = formatDate(now);
+    const startDate = formatDate(startTime);
+    const endDate = formatDate(endTime);
+
+    return currentDate >= startDate && currentDate <= endDate;
   }
 }

@@ -15,8 +15,12 @@ describe("UsersController", () => {
   const usersService = {
     findAllByOrganizations: jest.fn(),
     findById: jest.fn(),
+    findIceInfoByUserId: jest.fn(),
+    upsertIceInfo: jest.fn(),
+    uploadAvatar: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    copyUserMetaValuesFromAttendee: jest.fn(),
     listUserMetaValues: jest.fn(),
     saveUserMetaValues: jest.fn(),
     remove: jest.fn(),
@@ -45,6 +49,77 @@ describe("UsersController", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     controller = new UsersController(usersService, authService);
+  });
+
+  it("returns the caller's own ICE info", async () => {
+    (usersService.findIceInfoByUserId as jest.Mock).mockResolvedValue({
+      iceName: "Alex",
+      icePhone: "+27123456789",
+    });
+
+    await expect(controller.getMyIceInfo(memberUser)).resolves.toEqual({
+      iceInfo: {
+        iceName: "Alex",
+        icePhone: "+27123456789",
+      },
+    });
+  });
+
+  it("updates the caller's own ICE info", async () => {
+    (usersService.upsertIceInfo as jest.Mock).mockResolvedValue({
+      iceMedicalHistory: "Asthma",
+    });
+
+    await expect(
+      controller.updateMyIceInfo(
+        { iceMedicalHistory: "Asthma" },
+        memberUser,
+      ),
+    ).resolves.toEqual({
+      iceInfo: { iceMedicalHistory: "Asthma" },
+    });
+  });
+
+  it("copies the caller's meta values from an attendee submission", async () => {
+    (usersService.copyUserMetaValuesFromAttendee as jest.Mock).mockResolvedValue(
+      {
+        organizationId: "org-1",
+        values: [{ key: "gear", value: "Helmet" }],
+      },
+    );
+
+    await expect(
+      controller.copyMyMetaValuesFromAttendee(
+        { meetId: "meet-1", attendeeId: "5f4da8b4-b217-4fd0-99aa-bf10f1ef5a1e" },
+        memberUser,
+      ),
+    ).resolves.toEqual({
+      organizationId: "org-1",
+      metaValues: [{ key: "gear", value: "Helmet" }],
+    });
+  });
+
+  it("uploads the caller's avatar", async () => {
+    (usersService.uploadAvatar as jest.Mock).mockResolvedValue({
+      id: "member-1",
+      avatarUrl: "https://cdn.example.com/avatar.jpg",
+    });
+
+    await expect(
+      controller.uploadMyAvatar(
+        {
+          mimetype: "image/jpeg",
+          buffer: Buffer.from("image"),
+          originalname: "avatar.jpg",
+        },
+        memberUser,
+      ),
+    ).resolves.toEqual({
+      user: {
+        id: "member-1",
+        avatarUrl: "https://cdn.example.com/avatar.jpg",
+      },
+    });
   });
 
   it("rejects unauthenticated user listing", async () => {
