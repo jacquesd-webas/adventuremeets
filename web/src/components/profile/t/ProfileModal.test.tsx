@@ -13,8 +13,12 @@ let mockedOrganization: Record<string, any> = {
 let mockedMetaDefinitions: Array<Record<string, any>> = [];
 let mockedUserMetaValues: Array<Record<string, any>> = [];
 let mockedInvites: Array<Record<string, any>> = [];
+let mockedIceInfo: Record<string, any> | null = null;
+let mockedCurrentOrganizationRole = "admin";
 const mockedUpdateMetaValuesAsync = vi.fn();
 const mockedCreateInviteAsync = vi.fn();
+const mockedUpdateMyIceInfoAsync = vi.fn();
+const mockedUploadMyAvatarAsync = vi.fn();
 
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
@@ -25,6 +29,7 @@ vi.mock("../../../context/authContext", () => ({
       email: "alice@example.com",
       phone: "+61412345678",
       emailVerified: true,
+      avatarUrl: "https://cdn.example.com/existing-avatar.jpg",
     },
   }),
 }));
@@ -32,7 +37,7 @@ vi.mock("../../../context/authContext", () => ({
 vi.mock("../../../context/organizationContext", () => ({
   useCurrentOrganization: () => ({
     currentOrganizationId: "org-1",
-    currentOrganizationRole: "admin",
+    currentOrganizationRole: mockedCurrentOrganizationRole,
   }),
 }));
 
@@ -98,6 +103,30 @@ vi.mock("../../../hooks/useCreateOrganizationInvite", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useFetchMyIceInfo", () => ({
+  useFetchMyIceInfo: () => ({
+    data: mockedIceInfo,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useUpdateMyIceInfo", () => ({
+  useUpdateMyIceInfo: () => ({
+    updateMyIceInfoAsync: mockedUpdateMyIceInfoAsync,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useUploadMyAvatar", () => ({
+  useUploadMyAvatar: () => ({
+    uploadMyAvatarAsync: mockedUploadMyAvatarAsync,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../../../hooks/useOrganizationRoleOptions", () => ({
   useOrganizationRoleOptions: () => ({
     roleOptions: [
@@ -132,6 +161,8 @@ describe("ProfileModal", () => {
   beforeEach(() => {
     mockedUpdateMetaValuesAsync.mockReset();
     mockedCreateInviteAsync.mockReset();
+    mockedUpdateMyIceInfoAsync.mockReset();
+    mockedUploadMyAvatarAsync.mockReset();
     mockedOrganization = {
       id: "org-1",
       name: "Adventure Meets",
@@ -141,6 +172,8 @@ describe("ProfileModal", () => {
     mockedMetaDefinitions = [];
     mockedUserMetaValues = [];
     mockedInvites = [];
+    mockedIceInfo = null;
+    mockedCurrentOrganizationRole = "admin";
   });
 
   it("renders and allows section navigation", async () => {
@@ -217,6 +250,16 @@ describe("ProfileModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides the invites section for non-admin users", async () => {
+    mockedCurrentOrganizationRole = "organizer";
+
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Invites" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("sends empty values for omitted autofill fields", async () => {
     mockedMetaDefinitions = [
       {
@@ -253,5 +296,57 @@ describe("ProfileModal", () => {
         screen.getByRole("button", { name: "Saved" }),
       ).toBeInTheDocument();
     });
+  });
+
+  it("saves emergency info through the dedicated ICE endpoint", async () => {
+    mockedIceInfo = {
+      iceName: "Existing Contact",
+      icePhone: "+61412345678",
+      iceMedicalAid: "Discovery",
+      iceMedicalAidNumber: "MA-1",
+      iceMedicalHistory: "Asthma",
+      iceDob: "1990-04-12T00:00:00.000Z",
+    };
+
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Emergency Info" }));
+    fireEvent.change(screen.getByLabelText("Medical history"), {
+      target: { value: "Asthma and peanut allergy" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save emergency info" }));
+
+    await waitFor(() =>
+      expect(mockedUpdateMyIceInfoAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          iceMedicalHistory: "Asthma and peanut allergy",
+          iceName: "Existing Contact",
+          iceMedicalAid: "Discovery",
+          iceMedicalAidNumber: "MA-1",
+          iceDob: "1990-04-12T00:00:00.000Z",
+        }),
+      ),
+    );
+  });
+
+  it("uploads an avatar from the avatar section", async () => {
+    mockedUploadMyAvatarAsync.mockResolvedValue({
+      user: { avatarUrl: "https://cdn.example.com/new-avatar.jpg" },
+    });
+
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Avatar" }));
+
+    const fileInput = screen
+      .getByRole("button", { name: "Choose file" })
+      .querySelector("input[type='file']") as HTMLInputElement;
+    const file = new File(["avatar"], "avatar.jpg", { type: "image/jpeg" });
+
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [file] } });
+    });
+
+    await waitFor(() =>
+      expect(mockedUploadMyAvatarAsync).toHaveBeenCalledWith({ file }),
+    );
   });
 });

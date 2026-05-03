@@ -399,7 +399,12 @@ function MainLayout() {
                 aria-label="Open account menu"
                 data-testid="account-menu-button"
               >
-                <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
+                <Avatar
+                  src={user?.avatarUrl || undefined}
+                  sx={{ width: 36, height: 36 }}
+                >
+                  {initials}
+                </Avatar>
               </IconButton>
             </Tooltip>
             {isAdmin && (

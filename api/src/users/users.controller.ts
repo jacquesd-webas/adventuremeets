@@ -10,6 +10,8 @@ import {
   Post,
   Query,
   UnauthorizedException,
+  UploadedFile,
+  UseInterceptors,
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { CreateUserDto } from "./dto/create-user.dto";
@@ -20,6 +22,9 @@ import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "./dto/user-profile.dto";
 import { ForbiddenException } from "@nestjs/common";
 import { UserMetaValuesPayloadDto } from "./dto/user-meta-values.dto";
+import { UpdateUserIceInfoDto } from "./dto/update-user-ice-info.dto";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { CopyUserMetaValuesFromAttendeeDto } from "./dto/copy-user-meta-values-from-attendee.dto";
 
 @ApiTags("Users")
 @Controller("users")
@@ -28,6 +33,65 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly authService: AuthService
   ) {}
+
+  @Get("me/ice")
+  async getMyIceInfo(@User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    const iceInfo = await this.usersService.findIceInfoByUserId(user.id);
+    return { iceInfo };
+  }
+
+  @Patch("me/ice")
+  async updateMyIceInfo(
+    @Body() body: UpdateUserIceInfoDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const iceInfo = await this.usersService.upsertIceInfo(user.id, body);
+    return { iceInfo };
+  }
+
+  @Post("me/meta-values/from-attendee")
+  async copyMyMetaValuesFromAttendee(
+    @Body() body: CopyUserMetaValuesFromAttendeeDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const result = await this.usersService.copyUserMetaValuesFromAttendee(
+      user.id,
+      body.meetId,
+      body.attendeeId,
+    );
+    return {
+      organizationId: result.organizationId,
+      metaValues: result.values,
+    };
+  }
+
+  @Post("me/avatar")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async uploadMyAvatar(
+    @UploadedFile() file: any,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+    if (!file) {
+      throw new BadRequestException("Avatar image file is required");
+    }
+    if (!file.mimetype?.startsWith("image/")) {
+      throw new BadRequestException("Only image uploads are allowed");
+    }
+
+    const updatedUser = await this.usersService.uploadAvatar(user.id, file);
+    return { user: updatedUser };
+  }
 
   @Get()
   async findAll(@User() user?: UserProfile) {

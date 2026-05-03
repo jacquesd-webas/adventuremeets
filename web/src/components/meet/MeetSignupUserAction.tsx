@@ -215,7 +215,9 @@ export function MeetSignupUserAction({
       <Button size="small" variant="outlined" onClick={handleLogout}>
         Logout
       </Button>
-      <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
+      <Avatar src={user?.avatarUrl || undefined} sx={{ width: 36, height: 36 }}>
+        {initials}
+      </Avatar>
     </Stack>
   );
 }

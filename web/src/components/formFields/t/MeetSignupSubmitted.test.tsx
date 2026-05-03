@@ -4,6 +4,9 @@ import { MeetSignupSubmitted } from "../../meet/MeetSignupSubmitted";
 import { AuthContext } from "../../../context/authContext";
 
 const navigate = vi.fn();
+const copyMyMetaValuesFromAttendeeAsync = vi.fn().mockResolvedValue({});
+const success = vi.fn();
+const error = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual =
@@ -16,9 +19,27 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
+vi.mock("../../../hooks/useCopyMyMetaValuesFromAttendee", () => ({
+  useCopyMyMetaValuesFromAttendee: () => ({
+    copyMyMetaValuesFromAttendeeAsync,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useNotistack", () => ({
+  useNotistack: () => ({
+    success,
+    error,
+  }),
+}));
+
 describe("MeetSignupSubmitted", () => {
   beforeEach(() => {
     navigate.mockClear();
+    copyMyMetaValuesFromAttendeeAsync.mockClear();
+    success.mockClear();
+    error.mockClear();
   });
 
   it("navigates to register with state when creating profile", () => {

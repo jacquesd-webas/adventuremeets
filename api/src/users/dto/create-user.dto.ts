@@ -1,10 +1,4 @@
-import {
-  IsDateString,
-  IsEmail,
-  IsOptional,
-  IsString,
-  MinLength,
-} from "class-validator";
+import { IsEmail, IsOptional, IsString, MinLength } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateUserDto {
@@ -31,31 +25,6 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   phone?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  icePhone?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  iceName?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  iceMedicalAid?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  iceMedicalAidNumber?: string;
-
-  @ApiPropertyOptional({ description: "ICE date of birth" })
-  @IsOptional()
-  @IsDateString()
-  iceDob?: string;
 
   @ApiPropertyOptional({
     description: "IDP provider name (google, facebook, etc.)",

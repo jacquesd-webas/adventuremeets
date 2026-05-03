@@ -60,23 +60,7 @@ export class UserProfile {
 
   @ApiPropertyOptional()
   @IsString()
-  icePhone?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  iceName?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  iceMedicalAid?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  iceMedicalAidNumber?: string;
-
-  @ApiPropertyOptional()
-  @IsDateString()
-  iceDob?: string;
+  avatarUrl?: string;
 
   @ApiPropertyOptional({
     type: "object",

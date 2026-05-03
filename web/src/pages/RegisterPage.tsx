@@ -141,7 +141,12 @@ function RegisterPage() {
   const handleGoogleSignup = async () => {
     if (isGoogleRedirecting || !googleRedirectUri) return;
     try {
-      const state = JSON.stringify({ invite: inviteCode || undefined });
+      const state = JSON.stringify({
+        invite: inviteCode || undefined,
+        returnTo: pendingMeetLink
+          ? `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
+          : undefined,
+      });
       const response = await getGoogleAuthUrlAsync({
         redirectUri: googleRedirectUri,
         state,
@@ -155,7 +160,12 @@ function RegisterPage() {
   const handleFacebookSignup = async () => {
     if (isFacebookRedirecting || !facebookRedirectUri) return;
     try {
-      const state = JSON.stringify({ invite: inviteCode || undefined });
+      const state = JSON.stringify({
+        invite: inviteCode || undefined,
+        returnTo: pendingMeetLink
+          ? `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
+          : undefined,
+      });
       const response = await getFacebookAuthUrlAsync({
         redirectUri: facebookRedirectUri,
         state,
@@ -210,7 +220,6 @@ function RegisterPage() {
           attendeeId: state.attendeeId,
         });
       }
-      setSelectedMethod("email");
       prefillApplied.current = true;
     }
   }, [location.state]);

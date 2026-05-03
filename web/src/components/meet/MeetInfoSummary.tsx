@@ -247,6 +247,7 @@ export function MeetInfoSummary({
             </Button>
           ) : isAuthenticated ? (
             <Avatar
+              src={user?.avatarUrl || undefined}
               role="button"
               sx={{ width: 36, height: 36, cursor: "pointer" }}
               onClick={() => void logout()}

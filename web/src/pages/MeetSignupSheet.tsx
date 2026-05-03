@@ -178,6 +178,8 @@ function MeetSignupSheet() {
 
   const { data: userMetaValues, isLoading: userMetaLoading } =
     useFetchUserMetaValues(user?.id, meet?.organizationId);
+  const hasMinorQueryPrefill =
+    !isEditing && parseBooleanQuery(searchParams.get("isMinor")) === true;
 
   const loggedInName = user
     ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
@@ -213,6 +215,7 @@ function MeetSignupSheet() {
 
   // Auto-fill questions based on users profile
   useEffect(() => {
+    if (hasMinorQueryPrefill || isMinor) return;
     if (!isAuthenticated || !meet || userMetaLoading) return;
     if (metaAutofillRef.current) return;
     if (!userMetaValues.length) {
@@ -248,6 +251,8 @@ function MeetSignupSheet() {
     metaAutofillRef.current = true;
   }, [
     isAuthenticated,
+    hasMinorQueryPrefill,
+    isMinor,
     meet,
     metaValues,
     setMetaValue,
@@ -558,6 +563,7 @@ function MeetSignupSheet() {
             shareCode={code}
             hasIndemnity={meet?.hasIndemnity || false}
             guests={guests}
+            isMinor={isMinor}
             isOrganizationPrivate={organization?.isPrivate}
             isPreview={isPreview}
             isGuest={Boolean(guestOf)}

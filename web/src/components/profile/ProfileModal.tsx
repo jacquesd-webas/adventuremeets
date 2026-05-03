@@ -54,6 +54,9 @@ import { useCreateOrganizationInvite } from "../../hooks/useCreateOrganizationIn
 import { useOrganizationRoleOptions } from "../../hooks/useOrganizationRoleOptions";
 import { useFetchOrganizationInvites } from "../../hooks/useFetchOrganizationInvites";
 import { RoleChip } from "../admin/RoleChip";
+import { useFetchMyIceInfo } from "../../hooks/useFetchMyIceInfo";
+import { useUpdateMyIceInfo } from "../../hooks/useUpdateMyIceInfo";
+import { useUploadMyAvatar } from "../../hooks/useUploadMyAvatar";
 
 function LabeledField({
   label,
@@ -143,6 +146,16 @@ export function ProfileContent({ open }: ProfileContentProps) {
     return getDefaultPhoneCountry(localeCountry);
   });
   const [phoneLocal, setPhoneLocal] = useState("");
+  const [icePhoneCountry, setIcePhoneCountry] = useState(() => {
+    const localeCountry = getLocaleDefaults().countryCode;
+    return getDefaultPhoneCountry(localeCountry);
+  });
+  const [icePhoneLocal, setIcePhoneLocal] = useState("");
+  const [iceName, setIceName] = useState("");
+  const [iceMedicalAid, setIceMedicalAid] = useState("");
+  const [iceMedicalAidNumber, setIceMedicalAidNumber] = useState("");
+  const [iceMedicalHistory, setIceMedicalHistory] = useState("");
+  const [iceDob, setIceDob] = useState("");
   const [orgName, setOrgName] = useState("");
   const [orgTheme, setOrgTheme] = useState("");
   const [isOrgPrivate, setIsOrgPrivate] = useState(true);
@@ -166,6 +179,8 @@ export function ProfileContent({ open }: ProfileContentProps) {
   const [autoFillSaved, setAutoFillSaved] = useState(false);
   const [orgSaved, setOrgSaved] = useState(false);
   const [themeSaved, setThemeSaved] = useState(false);
+  const [emergencySaved, setEmergencySaved] = useState(false);
+  const [avatarSaved, setAvatarSaved] = useState(false);
   const [autoFillValues, setAutoFillValues] = useState<Record<string, any>>({});
   const autoFillLoadedRef = useRef(false);
   const {
@@ -183,6 +198,21 @@ export function ProfileContent({ open }: ProfileContentProps) {
     isLoading: userMetaSaving,
     error: userMetaSaveError,
   } = useUpdateUserMetaValues();
+  const {
+    data: iceInfo,
+    isLoading: isIceLoading,
+    error: iceError,
+  } = useFetchMyIceInfo(open);
+  const {
+    updateMyIceInfoAsync,
+    isLoading: isIceSaving,
+    error: iceSaveError,
+  } = useUpdateMyIceInfo();
+  const {
+    uploadMyAvatarAsync,
+    isLoading: isAvatarSaving,
+    error: avatarSaveError,
+  } = useUploadMyAvatar();
   const setAutoFillValue = (key: string, value: string | number | boolean) => {
     setAutoFillValues((prev) => ({ ...prev, [key]: value }));
   };
@@ -243,6 +273,24 @@ export function ProfileContent({ open }: ProfileContentProps) {
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (iceInfo?.icePhone) {
+      const parsed = splitInternationalPhone(iceInfo.icePhone);
+      setIcePhoneCountry(parsed.country);
+      setIcePhoneLocal(parsed.local);
+    } else {
+      const localeCountry = getLocaleDefaults().countryCode;
+      setIcePhoneCountry(getDefaultPhoneCountry(localeCountry));
+      setIcePhoneLocal("");
+    }
+    setIceName(iceInfo?.iceName ?? "");
+    setIceMedicalAid(iceInfo?.iceMedicalAid ?? "");
+    setIceMedicalAidNumber(iceInfo?.iceMedicalAidNumber ?? "");
+    setIceMedicalHistory(iceInfo?.iceMedicalHistory ?? "");
+    setIceDob(iceInfo?.iceDob ? iceInfo.iceDob.slice(0, 10) : "");
+  }, [iceInfo, open]);
 
   useEffect(() => {
     if (organization) {
@@ -396,13 +444,35 @@ export function ProfileContent({ open }: ProfileContentProps) {
     window.setTimeout(() => setAutoFillSaved(false), 1500);
   };
 
+  const handleSaveEmergency = async () => {
+    const icePhone = buildInternationalPhone(icePhoneCountry, icePhoneLocal);
+    await updateMyIceInfoAsync({
+      iceName: iceName.trim() || null,
+      icePhone: icePhone || null,
+      iceMedicalAid: iceMedicalAid.trim() || null,
+      iceMedicalAidNumber: iceMedicalAidNumber.trim() || null,
+      iceMedicalHistory: iceMedicalHistory.trim() || null,
+      iceDob: iceDob ? new Date(`${iceDob}T00:00:00.000Z`).toISOString() : null,
+    });
+    success("Emergency info updated");
+    setEmergencySaved(true);
+    window.setTimeout(() => setEmergencySaved(false), 1500);
+  };
+
   const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => setAvatarPreview(reader.result as string);
     reader.readAsDataURL(file);
-    // TODO: wire to backend avatar upload endpoint when available.
+    void uploadMyAvatarAsync({ file })
+      .then(() => {
+        success("Avatar updated");
+        setAvatarSaved(true);
+        setAvatarPreview(null);
+        window.setTimeout(() => setAvatarSaved(false), 1500);
+      })
+      .catch(() => undefined);
   };
 
   const inviteLink = currentOrganizationId
@@ -463,19 +533,22 @@ export function ProfileContent({ open }: ProfileContentProps) {
     }, 1500);
   };
 
+  const sections = [
+    { key: "personal", label: "Personal details" },
+    { key: "organization", label: "Organisation" },
+    ...(isAdmin ? [{ key: "invites", label: "Invites" }] : []),
+    { key: "security", label: "Security" },
+    { key: "autofill", label: "AutoFill" },
+    { key: "emergency", label: "Emergency Info" },
+    { key: "avatar", label: "Avatar" },
+  ] as const;
+  const currentAvatarSrc = avatarPreview || user?.avatarUrl || undefined;
+
   return (
     <Grid container spacing={2} sx={{ mt: 0 }}>
       <Grid item xs={12} sm={4} md={3}>
         <List component="nav">
-          {[
-            { key: "personal", label: "Personal details" },
-            { key: "organization", label: "Organisation" },
-            { key: "invites", label: "Invites" },
-            { key: "security", label: "Security" },
-            { key: "autofill", label: "AutoFill" },
-            { key: "emergency", label: "Emergency Info" },
-            { key: "avatar", label: "Avatar" },
-          ].map((item) => (
+          {sections.map((item) => (
             <ListItemButton
               key={item.key}
               selected={section === item.key}
@@ -1271,10 +1344,69 @@ export function ProfileContent({ open }: ProfileContentProps) {
                 not able to access your information for first responders.
               </Typography>
             </Box>
-            <Typography variant="body2" color="text.secondary">
-              Emergency info settings will be available soon.
-            </Typography>
+            <TextField
+              label="Emergency contact name"
+              value={iceName}
+              onChange={(e) => setIceName(e.target.value)}
+              fullWidth
+              disabled={isIceLoading || isIceSaving}
+            />
+            <InternationalPhoneField
+              country={icePhoneCountry}
+              local={icePhoneLocal}
+              onCountryChange={(value) => setIcePhoneCountry(value)}
+              onLocalChange={(value) => setIcePhoneLocal(value)}
+            />
+            <TextField
+              label="Medical aid"
+              value={iceMedicalAid}
+              onChange={(e) => setIceMedicalAid(e.target.value)}
+              fullWidth
+              disabled={isIceLoading || isIceSaving}
+            />
+            <TextField
+              label="Medical aid number"
+              value={iceMedicalAidNumber}
+              onChange={(e) => setIceMedicalAidNumber(e.target.value)}
+              fullWidth
+              disabled={isIceLoading || isIceSaving}
+            />
+            <TextField
+              label="Date of birth"
+              type="date"
+              value={iceDob}
+              onChange={(e) => setIceDob(e.target.value)}
+              fullWidth
+              disabled={isIceLoading || isIceSaving}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Medical history"
+              value={iceMedicalHistory}
+              onChange={(e) => setIceMedicalHistory(e.target.value)}
+              fullWidth
+              multiline
+              minRows={4}
+              disabled={isIceLoading || isIceSaving}
+            />
+            {iceError ? <Alert severity="error">{iceError}</Alert> : null}
+            {iceSaveError ? <Alert severity="error">{iceSaveError}</Alert> : null}
             <Box sx={{ flexGrow: 1 }} />
+            <Button
+              variant="contained"
+              onClick={handleSaveEmergency}
+              disabled={isIceLoading || isIceSaving}
+              sx={actionButtonSx}
+              startIcon={
+                emergencySaved ? <CheckCircleIcon fontSize="small" /> : undefined
+              }
+            >
+              {isIceSaving
+                ? "Saving..."
+                : emergencySaved
+                  ? "Saved"
+                  : "Save emergency info"}
+            </Button>
           </Stack>
         )}
 
@@ -1292,16 +1424,20 @@ export function ProfileContent({ open }: ProfileContentProps) {
             </Box>
             <Stack direction="row" spacing={2} alignItems="center">
               <Avatar
-                src={avatarPreview || undefined}
+                src={currentAvatarSrc}
                 sx={{ width: 64, height: 64 }}
               >
                 {initials}
               </Avatar>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  Upload an image to use as your avatar. (Coming soon!)
+                  Upload an image to use as your avatar.
                 </Typography>
-                <Button variant="outlined" component="label">
+                <Button
+                  variant="outlined"
+                  component="label"
+                  disabled={isAvatarSaving}
+                >
                   Choose file
                   <input
                     hidden
@@ -1310,6 +1446,16 @@ export function ProfileContent({ open }: ProfileContentProps) {
                     onChange={handleAvatarChange}
                   />
                 </Button>
+                {avatarSaved ? (
+                  <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+                    Avatar saved
+                  </Typography>
+                ) : null}
+                {avatarSaveError ? (
+                  <Alert severity="error" sx={{ mt: 1 }}>
+                    {avatarSaveError}
+                  </Alert>
+                ) : null}
               </Box>
             </Stack>
             <Box sx={{ flexGrow: 1 }} />

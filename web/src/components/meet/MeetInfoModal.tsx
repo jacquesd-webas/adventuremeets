@@ -72,10 +72,12 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
               <MeetWall meetId={meet.id} />
             ) : (
               <MeetStatusAlert
+                meetId={meet.id}
                 statusId={meet.statusId}
                 openingDate={meet.openingDate}
                 enableApply={true}
                 shareCode={meet.shareCode}
+                allowGuests={Boolean(meet.allowGuests)}
                 size="small"
               />
             )

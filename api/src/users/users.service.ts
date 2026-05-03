@@ -2,8 +2,11 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
+import { UpdateUserIceInfoDto } from "./dto/update-user-ice-info.dto";
 import { v4 as uuid } from "uuid";
 import * as bcrypt from "bcryptjs";
+import { MinioService } from "../storage/minio.service";
+import sharp from "sharp";
 
 export type PendingInviteSummary = {
   id: string;
@@ -17,7 +20,10 @@ export type PendingInviteSummary = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly minio: MinioService,
+  ) {}
 
   async create(dto: CreateUserDto) {
     const id = uuid();
@@ -38,11 +44,6 @@ export class UsersService {
         first_name: dto.firstName || null,
         last_name: dto.lastName || null,
         phone: dto.phone || null,
-        ice_phone: dto.icePhone || null,
-        ice_name: dto.iceName || null,
-        ice_medical_aid: dto.iceMedicalAid || null,
-        ice_medical_aid_number: dto.iceMedicalAidNumber || null,
-        ice_dob: dto.iceDob || null,
         password_hash: dto.password || null,
         idp_provider: dto.idpProvider || null,
         idp_subject: dto.idpSubject || null,
@@ -330,21 +331,6 @@ export class UsersService {
     if (dto.phone !== undefined) {
       updates.phone = dto.phone;
     }
-    if (dto.icePhone !== undefined) {
-      updates.ice_phone = dto.icePhone;
-    }
-    if (dto.iceName !== undefined) {
-      updates.ice_name = dto.iceName;
-    }
-    if (dto.iceMedicalAid !== undefined) {
-      updates.ice_medical_aid = dto.iceMedicalAid;
-    }
-    if (dto.iceMedicalAidNumber !== undefined) {
-      updates.ice_medical_aid_number = dto.iceMedicalAidNumber;
-    }
-    if (dto.iceDob !== undefined) {
-      updates.ice_dob = dto.iceDob;
-    }
     if (dto.email !== undefined) {
       updates.email = dto.email;
       updates.email_verified_at = null;
@@ -370,6 +356,82 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException("User not found");
     }
+    return this.stripSensitive(user);
+  }
+
+  async findIceInfoByUserId(userId: string) {
+    const row = await this.database
+      .getClient()("user_ice_info")
+      .where({ user_id: userId })
+      .first();
+
+    if (!row) {
+      return null;
+    }
+
+    return this.toIceInfoDto(row);
+  }
+
+  async upsertIceInfo(userId: string, dto: UpdateUserIceInfoDto) {
+    const now = new Date().toISOString();
+    const values = {
+      user_id: userId,
+      ice_phone: dto.icePhone ?? null,
+      ice_name: dto.iceName ?? null,
+      ice_medical_aid: dto.iceMedicalAid ?? null,
+      ice_medical_aid_number: dto.iceMedicalAidNumber ?? null,
+      ice_medical_history: dto.iceMedicalHistory ?? null,
+      ice_dob: dto.iceDob ?? null,
+      updated_at: now,
+    };
+
+    await this.database
+      .getClient()("user_ice_info")
+      .insert({
+        id: uuid(),
+        ...values,
+        created_at: now,
+      })
+      .onConflict("user_id")
+      .merge(values);
+
+    return this.findIceInfoByUserId(userId);
+  }
+
+  async uploadAvatar(userId: string, file: any) {
+    const normalized = await sharp(file.buffer)
+      .rotate()
+      .resize(512, 512, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    const objectKey = `avatars/${userId}/${uuid()}.webp`;
+    const uploaded = await this.minio.upload(
+      objectKey,
+      normalized,
+      "image/webp",
+    );
+
+    const updated = await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update(
+        {
+          avatar_object_key: uploaded.objectKey,
+          avatar_url: uploaded.url,
+          updated_at: new Date().toISOString(),
+        },
+        ["*"],
+      );
+
+    const user = updated[0];
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
     return this.stripSensitive(user);
   }
 
@@ -425,6 +487,56 @@ export class UsersService {
     return this.listUserMetaValues(userId, organizationId);
   }
 
+  async copyUserMetaValuesFromAttendee(
+    userId: string,
+    meetId: string,
+    attendeeId: string,
+  ) {
+    const meet = await this.database
+      .getClient()("meets")
+      .where({ id: meetId })
+      .first("id", "organization_id");
+    if (!meet) {
+      throw new NotFoundException("Meet not found");
+    }
+
+    const attendee = await this.database
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, id: attendeeId })
+      .first("id", "user_id");
+    if (!attendee || attendee.user_id !== userId) {
+      throw new NotFoundException("Attendee not found");
+    }
+
+    const definitions = await this.database
+      .getClient()("meet_meta_definitions")
+      .where({ meet_id: meetId })
+      .select("id", "field_key");
+    const rawValues = await this.database
+      .getClient()("meet_meta_values")
+      .where({ meet_id: meetId, attendee_id: attendeeId })
+      .select("meta_definition_id", "value");
+
+    const byDefinitionId = new Map(
+      rawValues.map((row: any) => [row.meta_definition_id, row.value as string]),
+    );
+    const values = definitions.map((definition: any) => ({
+      key: definition.field_key,
+      value: byDefinitionId.get(definition.id) ?? null,
+    }));
+
+    const saved = await this.saveUserMetaValues(
+      userId,
+      meet.organization_id,
+      values,
+    );
+
+    return {
+      organizationId: meet.organization_id as string,
+      values: saved,
+    };
+  }
+
   async updateLogin(userId: string, options: { isSuccess: boolean }) {
     const updates: any = { updated_at: new Date().toISOString() };
     if (options.isSuccess) {
@@ -463,11 +575,23 @@ export class UsersService {
       lastName: row.last_name,
       email: row.email,
       phone: row.phone,
+      avatarUrl: row.avatar_url,
       lastLogin: row.last_login,
       emailVerified: row.email_verified_at ? true : false,
       emailVerifiedAt: row.email_verified_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  private toIceInfoDto(row: any) {
+    return {
+      icePhone: row.ice_phone ?? null,
+      iceName: row.ice_name ?? null,
+      iceMedicalAid: row.ice_medical_aid ?? null,
+      iceMedicalAidNumber: row.ice_medical_aid_number ?? null,
+      iceMedicalHistory: row.ice_medical_history ?? null,
+      iceDob: row.ice_dob ?? null,
     };
   }
 }
