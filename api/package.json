@@ -35,6 +35,7 @@
     "pg": "^8.11.3",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0",
+    "sharp": "^0.34.5",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
