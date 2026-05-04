@@ -1,14 +1,3 @@
-const pad = (value: number) => String(value).padStart(2, "0");
-
-const toLocalDateTimeInput = (date: Date) => {
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
-
 describe("Meet signup duplicate", () => {
   it("creates a meet and handles duplicate signup", () => {
     const unique = Date.now();
@@ -16,88 +5,26 @@ describe("Meet signup duplicate", () => {
     const attendeeEmail = `attendee.${unique}@example.com`;
     const meetName = `Signup Meet ${unique}`;
     const description = "Short description for signup test.";
-    const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const startValue = toLocalDateTimeInput(start);
-
-    // Register and create minimal meet
 
     cy.visit("/register");
-    cy.contains("Continue with Email").click();
-    cy.get('input[type="text"]').first().type("Cypress");
-    cy.get('input[type="text"]').eq(1).type("Duplicate");
-    cy.get('input[placeholder="Mobile phone number"]').type(
-      `555${Math.floor(1000000 + Math.random() * 9000000)}`,
-    );
-    cy.get('input[type="email"]').type(email);
-    cy.get('input[type="password"]').type("Str0ng!Passw0rd2026");
-    cy.contains("button", "Create account").click();
+    cy.registerWithEmail({
+      firstName: "Cypress",
+      lastName: "Duplicate",
+      phone: `555${Math.floor(1000000 + Math.random() * 9000000)}`,
+      email,
+      password: "Str0ng!Passw0rd2026",
+    });
     cy.url().should("match", /\/$/);
 
-    cy.visit("/plan");
-    cy.contains("button", "New meet").click();
-
-    cy.get('input[placeholder="Give your meet a name"]').type(meetName);
-    cy.get('textarea[placeholder="Describe your meet in detail here"]')
-      .clear()
-      .type(description, { delay: 0 });
-    cy.contains("button", "Save & Continue").click();
-
-    cy.get('[data-testid="start-time-input"]').clear().type(startValue);
-    cy.contains("button", "Save & Continue").click();
-
-    cy.get(
-      'textarea[placeholder="Paste or write indemnity text attendees must accept"]',
-    )
-      .clear()
-      .type(
-        "By attending this meet, you accept the risks and agree to act responsibly.",
-        { delay: 0 },
-      );
-    cy.contains("label", "Require attendees to accept indemnity")
-      .find('input[type="checkbox"]')
-      .check({ force: true });
-    cy.contains("button", "Save & Continue").click();
-
-    cy.contains("button", "Textfield").click();
-    cy.contains("button", "Select").click();
-    cy.contains("button", "Switch").click();
-    cy.contains("button", "Checkbox").click();
-
-    cy.get('input[placeholder="What should the user see?"]')
-      .eq(0)
-      .type("Dietary notes");
-    cy.get('input[placeholder="What should the user see?"]')
-      .eq(1)
-      .type("Pace preference");
-    cy.get('input[placeholder="e.g. Beginner, Intermediate, Advanced"]')
-      .first()
-      .type("Easy, Moderate, Fast");
-    cy.get('input[placeholder="What should the user see?"]')
-      .eq(2)
-      .type("Bringing extra water?");
-    cy.get('input[placeholder="What should the user see?"]')
-      .eq(3)
-      .type("Agree to leave no trace?");
-
-    cy.contains("button", "Save & Continue").click();
-
-    for (let i = 0; i < 4; i += 1) {
-      cy.contains("button", "Save & Continue").click();
-    }
-
-    cy.get('[data-testid="share-link-input"]')
-      .invoke("val")
-      .then((value) => {
-        expect(value).to.match(/\/meets\//);
-        cy.wrap(value).as("shareLink");
-      });
-
-    cy.contains("button", "Publish").click();
+    cy.createMinimalMeet({
+      meetName,
+      description,
+      requireIndemnity: true,
+      includeQuestions: true,
+    }).as("shareLink");
 
     cy.get('[data-testid="account-menu-button"]').click();
     cy.contains("Logout").click();
-
-    // Wait for meet to open and sign up
 
     cy.get("@shareLink").then((shareLink) => {
       cy.visit(shareLink as unknown as string);

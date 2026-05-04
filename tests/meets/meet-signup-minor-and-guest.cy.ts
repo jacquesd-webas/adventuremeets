@@ -1,23 +1,10 @@
 export {};
 
-const pad = (value: number) => String(value).padStart(2, "0");
-
-const toLocalDateTimeInput = (date: Date) => {
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
-
 describe("Meet signup with Bob including minor and guest", () => {
   it("creates a meet and signs up a normal attendee, a minor, and a guest", () => {
     const unique = Date.now();
     const meetName = `Bob Signup Mixed Meet ${unique}`;
     const description = "Short description for bob mixed signup test.";
-    const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const startValue = toLocalDateTimeInput(start);
 
     const hostAttendee = {
       name: "Normal Attendee",
@@ -38,41 +25,12 @@ describe("Meet signup with Bob including minor and guest", () => {
     cy.contains("button", "Login").click();
     cy.url().should("match", /\/$/);
 
-    cy.visit("/plan");
-    cy.contains("button", "New meet").click();
-
-    cy.get('input[placeholder="Give your meet a name"]').type(meetName);
-    cy.get('textarea[placeholder="Describe your meet in detail here"]')
-      .clear()
-      .type(description, { delay: 0 });
-    cy.contains("button", "Save & Continue").click();
-
-    cy.get('[data-testid="start-time-input"]').clear().type(startValue);
-    cy.contains("button", "Save & Continue").click();
-
-    cy.contains("button", "Save & Continue").click();
-    cy.contains("button", "Save & Continue").click();
-
-    cy.contains("label", "Allow attendees to bring guests")
-      .find('input[type="checkbox"]')
-      .check({ force: true });
-    cy.get('input[placeholder="How many guests per attendee?"]')
-      .clear()
-      .type("1");
-    cy.contains("button", "Save & Continue").click();
-
-    for (let i = 0; i < 3; i += 1) {
-      cy.contains("button", "Save & Continue").click();
-    }
-
-    cy.get('[data-testid="share-link-input"]')
-      .invoke("val")
-      .then((value) => {
-        expect(value).to.match(/\/meets\//);
-        cy.wrap(value).as("shareLink");
-      });
-
-    cy.contains("button", "Publish").click();
+    cy.createMinimalMeet({
+      meetName,
+      description,
+      allowGuests: true,
+      maxGuests: 1,
+    }).as("shareLink");
 
     cy.get('[data-testid="account-menu-button"]').click();
     cy.contains("Logout").click();
