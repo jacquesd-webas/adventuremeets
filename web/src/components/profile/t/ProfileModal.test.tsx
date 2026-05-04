@@ -20,6 +20,22 @@ const mockedCreateInviteAsync = vi.fn();
 const mockedUpdateMyIceInfoAsync = vi.fn();
 const mockedUploadMyAvatarAsync = vi.fn();
 
+const setMatchMedia = (matches: boolean) => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+};
+
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
     user: {
@@ -159,6 +175,7 @@ describe("ProfileModal", () => {
   };
 
   beforeEach(() => {
+    setMatchMedia(false);
     mockedUpdateMetaValuesAsync.mockReset();
     mockedCreateInviteAsync.mockReset();
     mockedUpdateMyIceInfoAsync.mockReset();
@@ -201,6 +218,31 @@ describe("ProfileModal", () => {
     expect(screen.getByText("Update password")).toBeInTheDocument();
   });
 
+  it("renders all profile sections stacked on mobile", async () => {
+    setMatchMedia(true);
+
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+
+    expect(
+      screen.getByRole("heading", { name: "Personal details" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Allow regular users to join with invite link"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Update password")).toBeInTheDocument();
+    expect(screen.getByText("Save AutoFill")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save emergency info" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose file" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Invite User" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Organisation" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("calls onClose when close is clicked", async () => {
     const onClose = vi.fn();
     await renderWithQueryClient(<ProfileModal open onClose={onClose} />);
@@ -222,6 +264,22 @@ describe("ProfileModal", () => {
     expect(
       screen.getByText("Allow regular users to join with invite link"),
     ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Invite link")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Copy invite link" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the invite link textbox in invites when organization is private", async () => {
+    mockedOrganization = {
+      id: "org-1",
+      name: "Adventure Meets",
+      isPrivate: true,
+    };
+
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Invites" }));
+
     expect(screen.queryByLabelText("Invite link")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Copy invite link" }),

@@ -6,7 +6,7 @@ import { UpdateUserIceInfoDto } from "./dto/update-user-ice-info.dto";
 import { v4 as uuid } from "uuid";
 import * as bcrypt from "bcryptjs";
 import { MinioService } from "../storage/minio.service";
-import sharp from "sharp";
+import sharp = require("sharp");
 
 export type PendingInviteSummary = {
   id: string;

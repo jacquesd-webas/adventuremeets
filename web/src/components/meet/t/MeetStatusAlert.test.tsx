@@ -62,7 +62,7 @@ describe("MeetStatusAlert", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows view your application and sign up your guest for signed-in users with an application", async () => {
+  it("shows view your application and sign up minor guest for signed-in users with an application", async () => {
     const user = userEvent.setup();
 
     vi.mocked(useAuth).mockReturnValue({
@@ -99,7 +99,7 @@ describe("MeetStatusAlert", () => {
       screen.getByRole("button", { name: /view your application/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /sign up your guest/i }),
+      screen.getByRole("button", { name: /sign up minor guest/i }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /apply now/i }),
@@ -111,8 +111,10 @@ describe("MeetStatusAlert", () => {
     expect(navigate).toHaveBeenCalledWith("/meets/share-1/attendee-1");
 
     await user.click(
-      screen.getByRole("button", { name: /sign up your guest/i }),
+      screen.getByRole("button", { name: /sign up minor guest/i }),
     );
-    expect(navigate).toHaveBeenCalledWith("/meets/share-1?guestOf=attendee-1");
+    expect(navigate).toHaveBeenCalledWith(
+      "/meets/share-1?guestOf=attendee-1&isMinor=true",
+    );
   });
 });

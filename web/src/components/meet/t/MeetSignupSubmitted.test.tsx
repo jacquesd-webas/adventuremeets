@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AuthContext } from "../../../context/authContext";
 import { MeetSignupSubmitted } from "../MeetSignupSubmitted";
@@ -89,7 +89,12 @@ describe("MeetSignupSubmitted", () => {
       meetId: "meet-1",
       attendeeId: "attendee-1",
     });
-    expect(success).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(success).toHaveBeenCalled();
+      expect(
+        screen.getByRole("checkbox", { name: /remember my answers/i }),
+      ).toBeDisabled();
+    });
   });
 
   it("hides remember my answers for minor submissions", () => {
@@ -120,5 +125,45 @@ describe("MeetSignupSubmitted", () => {
     expect(
       screen.queryByRole("checkbox", { name: /remember my answers/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows an error and resets the checkbox when saving answers fails", async () => {
+    const user = userEvent.setup();
+    copyMyMetaValuesFromAttendeeAsync.mockRejectedValueOnce(
+      new Error("Unable to save answers"),
+    );
+
+    render(
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <AuthContext.Provider
+          value={{
+            user: { id: "user-1", email: "alice@example.com" },
+            isLoading: false,
+            isAuthenticated: true,
+            meUpdatedAt: 0,
+            refreshSession: vi.fn(),
+            logout: vi.fn(),
+          }}
+        >
+          <MeetSignupSubmitted
+            hasIndemnity={false}
+            meetId="meet-1"
+            attendeeId="attendee-1"
+          />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: /remember my answers/i,
+    });
+    await user.click(checkbox);
+
+    await waitFor(() => {
+      expect(error).toHaveBeenCalledWith("Unable to save answers");
+      expect(checkbox).not.toBeChecked();
+    });
   });
 });

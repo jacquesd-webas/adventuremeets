@@ -15,8 +15,92 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <style>
+      body {
+        margin: 0;
+      }
+
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(
+            circle at top,
+            rgba(47, 109, 181, 0.2),
+            transparent 45%
+          ),
+          linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%);
+        color: #14213d;
+        z-index: 9999;
+        transition: opacity 220ms ease;
+      }
+
+      #boot-splash.boot-splash-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .boot-splash-card {
+        min-width: 220px;
+        padding: 24px 28px;
+        border: 1px solid rgba(20, 33, 61, 0.08);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.84);
+        box-shadow: 0 18px 45px rgba(20, 33, 61, 0.12);
+        text-align: center;
+        backdrop-filter: blur(10px);
+      }
+
+      .boot-splash-title {
+        margin: 0 0 8px;
+        font:
+          700 24px/1.1 "Trebuchet MS",
+          "Avenir Next",
+          sans-serif;
+        letter-spacing: -0.03em;
+      }
+
+      .boot-splash-copy {
+        margin: 0;
+        font:
+          500 14px/1.4 "Trebuchet MS",
+          "Avenir Next",
+          sans-serif;
+        color: rgba(20, 33, 61, 0.7);
+      }
+
+      .boot-splash-spinner {
+        width: 34px;
+        height: 34px;
+        margin: 0 auto 14px;
+        border-radius: 999px;
+        border: 3px solid rgba(47, 109, 181, 0.2);
+        border-top-color: #2f6db5;
+        animation: boot-splash-spin 0.8s linear infinite;
+      }
+
+      @keyframes boot-splash-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
+    <div
+      id="boot-splash"
+      aria-live="polite"
+      aria-label="Loading AdventureMeets"
+    >
+      <div class="boot-splash-card">
+        <div class="boot-splash-spinner" aria-hidden="true"></div>
+        <h1 class="boot-splash-title">AdventureMeets</h1>
+        <p class="boot-splash-copy">Loading adventures...</p>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

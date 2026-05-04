@@ -17,24 +17,27 @@ import SplashPage from "./pages/SplashPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TncPage from "./pages/TncPage";
 import RequestAccountDeletionPage from "./pages/RequestAccountDeletionPage";
+import { RequireAuth } from "./components/auth/RequireAuth";
 
 function App() {
   return (
     <Routes>
-      <Route element={<MainLayout />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/plan" element={<ListPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/admin/organizations" element={<OrganisationsPage />} />
-        <Route
-          path="/admin/organizations/:id/members"
-          element={<MembersPage />}
-        />
-        <Route path="/admin/users" element={<MembersPage />} />
-        <Route
-          path="/admin/organizations/:id/templates"
-          element={<TemplatesPage />}
-        />
+      <Route element={<RequireAuth />}>
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/plan" element={<ListPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/admin/organizations" element={<OrganisationsPage />} />
+          <Route
+            path="/admin/organizations/:id/members"
+            element={<MembersPage />}
+          />
+          <Route path="/admin/users" element={<MembersPage />} />
+          <Route
+            path="/admin/organizations/:id/templates"
+            element={<TemplatesPage />}
+          />
+        </Route>
       </Route>
       <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
       <Route path="/meets/:code/:attendeeId" element={<AttendeeStatusPage />} />

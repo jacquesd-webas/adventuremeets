@@ -31,7 +31,7 @@ vi.mock("../hooks/useApi", () => ({
 }));
 
 describe("App", () => {
-  it("renders next steps", () => {
+  it("redirects unauthenticated users to login", () => {
     const queryClient = new QueryClient();
     render(
       <ThemeModeProvider>
@@ -65,6 +65,7 @@ describe("App", () => {
                   }}
                 >
                   <MemoryRouter
+                    initialEntries={["/"]}
                     future={{
                       v7_startTransition: true,
                       v7_relativeSplatPath: true,
@@ -79,7 +80,6 @@ describe("App", () => {
         </QueryClientProvider>
       </ThemeModeProvider>,
     );
-    expect(screen.getAllByText(/Dashboard/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Upcoming Meets/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: /login/i })).toBeInTheDocument();
   });
 });

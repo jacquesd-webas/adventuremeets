@@ -12,6 +12,7 @@ import { registerServiceWorker } from "./helpers/registerServiceWorker";
 import "./styles.css";
 
 const root = document.getElementById("root");
+const bootSplash = document.getElementById("boot-splash");
 
 if (!root) {
   throw new Error("Root container missing in index.html");
@@ -47,8 +48,15 @@ ReactDOM.createRoot(root).render(
         </QueryClientProvider>
       </BrowserRouter>
     </ThemeModeProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
+
+if (bootSplash) {
+  requestAnimationFrame(() => {
+    bootSplash.classList.add("boot-splash-hidden");
+    window.setTimeout(() => bootSplash.remove(), 240);
+  });
+}
 
 if (import.meta.env.PROD) {
   registerServiceWorker();

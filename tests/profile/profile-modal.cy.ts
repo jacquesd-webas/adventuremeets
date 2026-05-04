@@ -12,22 +12,17 @@ describe("Profile modal", () => {
     `;
 
     cy.visit("/register");
-    cy.contains("Continue with Email").click();
-
-    cy.get('input[type="text"]').first().type("Cypress");
-    cy.get('input[type="text"]').eq(1).type("Profile");
-    cy.get('input[placeholder="Mobile phone number"]').type(initialPhone);
-    cy.get('input[type="email"]').type(email);
-    cy.get('input[type="password"]').type("Str0ng!Passw0rd2026");
-
-    cy.contains("button", "Create account").click();
+    cy.registerWithEmail({
+      firstName: "Cypress",
+      lastName: "Profile",
+      phone: initialPhone,
+      email,
+      password: "Str0ng!Passw0rd2026",
+    });
     cy.url().should("match", /\/$/);
     cy.contains("Dashboard").should("be.visible");
 
-    cy.get('[data-testid="account-menu-button"]').click();
-    cy.get('[role="menu"]').should("be.visible");
-    cy.get('[data-testid="account-profile-menu-item"]').click();
-    cy.get('[data-testid="profile-modal"]').should("be.visible");
+    cy.openProfileModal();
 
     cy.contains("label", "First name")
       .parent()
@@ -51,7 +46,11 @@ describe("Profile modal", () => {
       .parent()
       .find("input")
       .type("Morgan Contact");
-    cy.get('input[placeholder="Mobile phone number"]').eq(1).type("5550003333");
+    cy.get('[data-testid="profile-modal"]')
+      .find('input[placeholder="Mobile phone number"]')
+      .should("have.length", 1)
+      .first()
+      .type("5550003333");
     cy.contains("label", "Medical aid")
       .parent()
       .find("input")
@@ -62,14 +61,17 @@ describe("Profile modal", () => {
       .type("MA-123456");
     cy.get('input[type="date"]').type("1990-04-12");
     cy.contains("label", "Medical history")
+      .scrollIntoView()
       .parent()
       .find("textarea")
+      .filter(":visible")
+      .first()
       .type("Asthma and peanut allergy");
     cy.contains("button", "Save emergency info").click();
     cy.contains("button", "Saved").should("be.visible");
 
     cy.contains("Avatar").click();
-    cy.contains("button", "Choose file")
+    cy.get('[data-testid="profile-modal"]')
       .find('input[type="file"]')
       .selectFile(
         {
@@ -82,13 +84,9 @@ describe("Profile modal", () => {
       );
     cy.contains("Avatar saved").should("be.visible");
 
-    cy.get('[data-testid="close-profile-modal"]').click();
-    cy.get('[data-testid="profile-modal"]').should("not.exist");
+    cy.closeProfileModal();
 
-    cy.get('[data-testid="account-menu-button"]').click();
-    cy.get('[role="menu"]').should("be.visible");
-    cy.get('[data-testid="account-profile-menu-item"]').click();
-    cy.get('[data-testid="profile-modal"]').should("be.visible");
+    cy.openProfileModal();
 
     cy.contains("label", "First name")
       .parent()
@@ -116,8 +114,11 @@ describe("Profile modal", () => {
       .find("input")
       .should("have.value", "MA-123456");
     cy.contains("label", "Medical history")
+      .scrollIntoView()
       .parent()
       .find("textarea")
+      .filter(":visible")
+      .first()
       .should("have.value", "Asthma and peanut allergy");
 
     cy.contains("Avatar").click();
