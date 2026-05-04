@@ -57,6 +57,14 @@ vi.mock("../../../hooks/useFetchAttendeeMessages", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useFetchAttendeeHistory", () => ({
+  useFetchAttendeeHistory: () => ({
+    data: [],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../MessageModal", () => ({
   MessageModal: ({ open }: { open: boolean }) =>
     open ? <div>Message modal</div> : null,

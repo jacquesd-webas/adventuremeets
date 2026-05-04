@@ -21,7 +21,6 @@ import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import Meet from "../../types/MeetModel";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
-import { useQueryClient } from "@tanstack/react-query";
 
 type MessageModalProps = {
   open: boolean;
@@ -53,7 +52,6 @@ export function MessageModal({
 }: MessageModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const { notifyAttendeeAsync, isLoading } = useNotifyAttendee();
   const [subject, setSubject] = useState(defaultSubject);
@@ -254,16 +252,6 @@ export function MessageModal({
         markNotified: autoResponse || markAsNotified,
         includeStatusUrl,
       });
-      await queryClient.invalidateQueries({
-        queryKey: ["meet-attendees", meet.id],
-      });
-      await Promise.all(
-        ids.map((attendeeId) =>
-          queryClient.invalidateQueries({
-            queryKey: ["attendee-messages", meet.id, attendeeId],
-          }),
-        ),
-      );
       enqueueSnackbar("Message sent", {
         variant: "success",
         anchorOrigin: { vertical: "bottom", horizontal: "right" },

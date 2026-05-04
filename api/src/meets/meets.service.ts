@@ -1986,6 +1986,46 @@ export class MeetsService {
     }));
   }
 
+  async listAttendeeHistory(meetId: string, attendeeId: string) {
+    const attendee = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, id: attendeeId })
+      .first("email");
+
+    if (!attendee) {
+      throw new NotFoundException("Attendee not found");
+    }
+
+    const email = attendee.email?.trim().toLowerCase();
+    if (!email) {
+      return [];
+    }
+
+    const rows = await this.db
+      .getClient()("meet_attendees as ma")
+      .join("meets as m", "m.id", "ma.meet_id")
+      .whereRaw("LOWER(ma.email) = ?", [email])
+      .andWhereNot("ma.id", attendeeId)
+      .orderBy("m.start_time", "desc")
+      .select(
+        "ma.meet_id",
+        "ma.status",
+        "m.status_id",
+        "m.start_time",
+        "m.name",
+      );
+
+    return rows.map((row: any) => ({
+      meetId: row.meet_id,
+      date: row.start_time,
+      meetName: row.name,
+      attendeeStatus:
+        row.status_id === MEET_STATUS.Completed && row.status === "confirmed"
+          ? "no-show"
+          : row.status,
+    }));
+  }
+
   async markAttendeeMessageRead(meetId: string, messageId: string) {
     const updated = await this.db
       .getClient()("messages")

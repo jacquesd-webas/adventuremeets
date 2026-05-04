@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import { useNotistack } from "./useNotistack";
 
@@ -13,6 +13,7 @@ export type NotifyAttendeePayload = {
 
 export function useNotifyAttendee() {
   const api = useApi();
+  const queryClient = useQueryClient();
   const { error } = useNotistack();
 
   const mutation = useMutation<unknown, Error, NotifyAttendeePayload>({
@@ -30,6 +31,16 @@ export function useNotifyAttendee() {
     },
     onError: (err) => {
       error(`Failed to notify attendee: ${err.message}`);
+    },
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["meet-attendees", variables.meetId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["attendee-messages", variables.meetId],
+        }),
+      ]);
     },
   });
 

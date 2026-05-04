@@ -8,6 +8,7 @@ describe("MeetActionsMenu", () => {
   const renderMenu = (props?: {
     statusId?: number;
     isUpcoming?: boolean;
+    startTime?: string | null;
     canViewMeet?: boolean;
     canManageMeet?: boolean;
   }) => {
@@ -19,6 +20,7 @@ describe("MeetActionsMenu", () => {
           meetId="meet-1"
           statusId={props?.statusId ?? MeetStatusEnum.Draft}
           isUpcoming={props?.isUpcoming ?? false}
+          startTime={props?.startTime}
           canViewMeet={props?.canViewMeet}
           canManageMeet={props?.canManageMeet ?? true}
           setSelectedMeetId={vi.fn()}
@@ -76,6 +78,7 @@ describe("MeetActionsMenu", () => {
           meetId="meet-1"
           statusId={MeetStatusEnum.Open}
           isUpcoming={true}
+          startTime={null}
           canViewMeet={false}
           canManageMeet={false}
           setSelectedMeetId={vi.fn()}
@@ -85,5 +88,26 @@ describe("MeetActionsMenu", () => {
     );
 
     expect(screen.getByRole("button")).toBeInTheDocument();
+  });
+
+  it("shows Generate Report for closed meets on the same day even if still upcoming", () => {
+    const now = new Date();
+    const sameDayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      0,
+      0,
+    ).toISOString();
+
+    renderMenu({
+      statusId: MeetStatusEnum.Closed,
+      isUpcoming: true,
+      startTime: sameDayStart,
+      canManageMeet: true,
+    });
+
+    expect(screen.getByText("Generate Report")).toBeInTheDocument();
   });
 });

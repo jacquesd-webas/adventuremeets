@@ -51,7 +51,6 @@ describe("MessageModal", () => {
 
   it("sends a message to attendee ids", async () => {
     const queryClient = new QueryClient();
-    const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
     render(
       <QueryClientProvider client={queryClient}>
         <MessageModal
@@ -81,9 +80,6 @@ describe("MessageModal", () => {
         markNotified: false,
         includeStatusUrl: true,
       });
-    });
-    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
-      queryKey: ["meet-attendees", "m1"],
     });
     expect(enqueueSnackbar).toHaveBeenCalled();
   });

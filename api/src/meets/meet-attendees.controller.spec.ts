@@ -26,6 +26,7 @@ describe("MeetAttendeesController", () => {
   const meetsService = {
     findOne: jest.fn(),
     listAttendees: jest.fn(),
+    listAttendeeHistory: jest.fn(),
     findAttendeeByContact: jest.fn(),
     addAttendee: jest.fn(),
     autoPlaceAttendees: jest.fn(),
@@ -115,6 +116,37 @@ describe("MeetAttendeesController", () => {
     });
 
     jest.useRealTimers();
+  });
+
+  it("returns attendee history for organizers", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.listAttendeeHistory as jest.Mock).mockResolvedValue([
+      {
+        meetId: "meet-2",
+        date: "2026-03-20T08:00:00.000Z",
+        meetName: "Cliff Walk",
+        attendeeStatus: "confirmed",
+      },
+    ]);
+
+    await expect(
+      controller.getHistory("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      history: [
+        {
+          meetId: "meet-2",
+          date: "2026-03-20T08:00:00.000Z",
+          meetName: "Cliff Walk",
+          attendeeStatus: "confirmed",
+        },
+      ],
+    });
+
+    expect(meetsService.listAttendeeHistory).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+    );
   });
 
   it("rejects ICE info access outside the meet day", async () => {
@@ -257,10 +289,7 @@ describe("MeetAttendeesController", () => {
         attendeeName: dto.name,
       }),
     );
-    expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
-      "meet-1",
-      ["attendee-2"],
-    );
+    expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
   });
 
   it("skips email side effects when the attendee has no email address", async () => {

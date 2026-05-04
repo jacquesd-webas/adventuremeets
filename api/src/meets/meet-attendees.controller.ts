@@ -175,8 +175,11 @@ export class MeetAttendeesController {
         meetId,
       });
 
-      // Mark the attendee as notified unless it's meet-signup (this does not count as notification)
-      await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
+      // A plain signup acknowledgement is not an organizer response.
+      // Only auto-confirmed signups should be marked as responded/notified here.
+      if (attendee.status === "confirmed" || attendee.status === "waitlisted") {
+        await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
+      }
     }
     return { attendee };
   }
@@ -257,6 +260,29 @@ export class MeetAttendeesController {
 
     const iceInfo = await this.usersService.findIceInfoByUserId(linkedUserId);
     return { iceInfo };
+  }
+
+  @Get(":attendeeId/history")
+  async getHistory(
+    @Param("meetId") meetId: string,
+    @Param("attendeeId") attendeeId: string,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(meetId);
+
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        "You are not an organizer in this organization",
+      );
+    }
+
+    const history = await this.meetsService.listAttendeeHistory(
+      meetId,
+      attendeeId,
+    );
+    return { history };
   }
 
   @Delete(":attendeeId")

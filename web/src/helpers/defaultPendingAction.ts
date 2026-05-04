@@ -6,7 +6,7 @@ type DefaultPendingActionOptions = {
   canManageMeet?: boolean;
 };
 
-function isSameMeetDayOrLater(meet?: Pick<Meet, "startTime"> | null) {
+export function isSameMeetDayOrLater(meet?: Pick<Meet, "startTime"> | null) {
   if (!meet?.startTime) {
     return false;
   }

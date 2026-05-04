@@ -194,6 +194,11 @@ export function MeetCard({
             canManageMeet={canManageMeet}
             statusId={meet.statusId}
             isUpcoming={isUpcoming}
+            startTime={
+              meet.startTime instanceof Date
+                ? meet.startTime.toISOString()
+                : meet.startTime
+            }
             setSelectedMeetId={setSelectedMeetId}
             setPendingAction={setPendingAction}
             previewLinkCode={meet.shareCode}

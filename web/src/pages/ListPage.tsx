@@ -151,6 +151,7 @@ function ListPage() {
                   canViewMeet={canViewMeet}
                   canManageMeet={canManageMeet}
                   isUpcoming={isMeetUpcoming(params.row)}
+                  startTime={params.row.startTime}
                   setSelectedMeetId={setSelectedMeetId}
                   setPendingAction={setPendingAction}
                   previewLinkCode={params.row.shareCode}
@@ -412,6 +413,7 @@ function ListPage() {
                           canViewMeet={canViewMeet}
                           canManageMeet={canManageMeet}
                           isUpcoming={isMeetUpcoming(meet)}
+                          startTime={meet.startTime}
                           setSelectedMeetId={setSelectedMeetId}
                           setPendingAction={setPendingAction}
                           previewLinkCode={meet.shareCode || undefined}

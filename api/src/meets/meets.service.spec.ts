@@ -1029,4 +1029,57 @@ describe("MeetsService", () => {
       ["id"],
     );
   });
+
+  it("returns attendee history by matching email across other meets", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      email: "alex@example.com",
+    });
+
+    const historyBuilder = buildBuilder();
+    historyBuilder.select.mockResolvedValue([
+      {
+        meet_id: "meet-2",
+        status_id: 7,
+        start_time: "2026-03-20T08:00:00.000Z",
+        name: "Cliff Walk",
+        status: "confirmed",
+      },
+      {
+        meet_id: "meet-3",
+        status_id: 3,
+        start_time: "2026-02-01T09:00:00.000Z",
+        name: "Trail Run",
+        status: "waitlisted",
+      },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_attendees as ma") return historyBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.listAttendeeHistory("meet-1", "attendee-1"),
+    ).resolves.toEqual([
+      {
+        meetId: "meet-2",
+        date: "2026-03-20T08:00:00.000Z",
+        meetName: "Cliff Walk",
+        attendeeStatus: "no-show",
+      },
+      {
+        meetId: "meet-3",
+        date: "2026-02-01T09:00:00.000Z",
+        meetName: "Trail Run",
+        attendeeStatus: "waitlisted",
+      },
+    ]);
+  });
 });

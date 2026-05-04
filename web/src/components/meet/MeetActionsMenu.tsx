@@ -27,11 +27,13 @@ import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { useLocation, useNavigate } from "react-router-dom";
+import { isSameMeetDayOrLater } from "../../helpers/defaultPendingAction";
 
 type MeetActionsMenuProps = {
   meetId: string;
   statusId?: number;
   isUpcoming: boolean;
+  startTime?: string | null;
   isOrganizer?: boolean;
   canViewMeet?: boolean;
   canManageMeet?: boolean;
@@ -46,6 +48,7 @@ const shouldShow = (
   action: MeetActionsEnum,
   statusId: number,
   isUpcoming: boolean,
+  startTime?: string | null,
 ) => {
   switch (action) {
     case "create":
@@ -89,8 +92,10 @@ const shouldShow = (
     case "checkin":
       return statusId === MeetStatusEnum.Closed;
     case "report":
-      return statusId === MeetStatusEnum.Completed || (
-        statusId === MeetStatusEnum.Closed && !isUpcoming
+      return (
+        statusId === MeetStatusEnum.Completed ||
+        (statusId === MeetStatusEnum.Closed &&
+          (!isUpcoming || isSameMeetDayOrLater({ startTime })))
       );
     case "preview":
       return statusId === MeetStatusEnum.Published;
@@ -111,6 +116,7 @@ export function MeetActionsMenu({
   meetId,
   statusId,
   isUpcoming,
+  startTime,
   canViewMeet,
   canManageMeet,
   setSelectedMeetId,
@@ -191,7 +197,7 @@ export function MeetActionsMenu({
     <>
       {!canViewMeet && !canManageMeet ? (
         <>
-          {shouldShow(MeetActionsEnum.Details, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Details, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Details)
@@ -203,7 +209,7 @@ export function MeetActionsMenu({
               <ListItemText>Meet details</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Apply, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Apply, statusId, isUpcoming, startTime) && (
             <MenuItem onClick={(event) => handleNavigateToSignup(event, false)}>
               <ListItemIcon>
                 <HowToRegOutlinedIcon fontSize="small" />
@@ -214,7 +220,7 @@ export function MeetActionsMenu({
         </>
       ) : (
         <>
-          {shouldShow(MeetActionsEnum.Details, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Details, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Details)
@@ -226,7 +232,7 @@ export function MeetActionsMenu({
               <ListItemText>Meet details</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Attendees, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Attendees, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Attendees)
@@ -255,7 +261,7 @@ export function MeetActionsMenu({
               </ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Preview, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Preview, statusId, isUpcoming, startTime) && (
             <MenuItem onClick={(event) => handleNavigateToSignup(event, true)}>
               <ListItemIcon>
                 <OpenInNewOutlinedIcon fontSize="small" />
@@ -263,7 +269,7 @@ export function MeetActionsMenu({
               <ListItemText>Preview</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.CopyLink, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.CopyLink, statusId, isUpcoming, startTime) && (
             <MenuItem onClick={handleCopyLink}>
               <ListItemIcon>
                 <LinkIcon fontSize="small" />
@@ -271,7 +277,7 @@ export function MeetActionsMenu({
               <ListItemText>Copy link</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Clone, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Clone, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Clone)
@@ -284,7 +290,7 @@ export function MeetActionsMenu({
               <ListItemText>Create a copy</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Edit, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Edit, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Edit)
@@ -296,7 +302,7 @@ export function MeetActionsMenu({
               <ListItemText>Edit</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Checkin, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Checkin, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) => {
                 event.stopPropagation();
@@ -317,7 +323,7 @@ export function MeetActionsMenu({
               <ListItemText>Check-in</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Close, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Close, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Close)
@@ -330,7 +336,7 @@ export function MeetActionsMenu({
               <ListItemText>Close meet</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Postpone, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Postpone, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Postpone)
@@ -343,7 +349,7 @@ export function MeetActionsMenu({
               <ListItemText>Postpone</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Cancel, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Cancel, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Cancel)
@@ -356,7 +362,7 @@ export function MeetActionsMenu({
               <ListItemText>Cancel meet</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Report, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Report, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Report)
@@ -368,7 +374,7 @@ export function MeetActionsMenu({
               <ListItemText>Generate Report</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Delete, statusId, isUpcoming) && (
+          {shouldShow(MeetActionsEnum.Delete, statusId, isUpcoming, startTime) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Delete)
