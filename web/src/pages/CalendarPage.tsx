@@ -82,6 +82,19 @@ type MobileOccurrence = {
   sortTs: number;
 };
 
+type WeekEventSegment = {
+  meet: Meet;
+  startDayIndex: number;
+  endDayIndex: number;
+  lane: number;
+  sortTs: number;
+};
+
+type WeekLayout = {
+  segments: WeekEventSegment[];
+  laneCount: number;
+};
+
 const getMonthGrid = (monthDate: Date) => {
   const first = startOfMonth(monthDate);
   const firstWeekday = first.getDay(); // Sunday start
@@ -102,6 +115,117 @@ const chunkWeeks = (cells: Date[]) => {
     weeks.push(cells.slice(i, i + 7));
   }
   return weeks;
+};
+
+const getMeetDayRange = (meet: Meet) => {
+  const start = meet.startTime ? new Date(meet.startTime) : null;
+  if (!start || Number.isNaN(start.getTime())) return null;
+
+  const end = meet.endTime ? new Date(meet.endTime) : null;
+  let startDay = startOfDay(start);
+  let endDay = end && !Number.isNaN(end.getTime()) ? startOfDay(end) : startDay;
+
+  if (
+    end &&
+    end.getHours() === 0 &&
+    end.getMinutes() === 0 &&
+    end.getSeconds() === 0 &&
+    end.getMilliseconds() === 0 &&
+    endDay.getTime() > startDay.getTime()
+  ) {
+    endDay = addDays(endDay, -1);
+  }
+
+  if (endDay.getTime() < startDay.getTime()) {
+    endDay = startDay;
+  }
+
+  return {
+    start,
+    startDay,
+    endDay,
+  };
+};
+
+const buildWeekLayout = (week: Date[], meets: Meet[]): WeekLayout => {
+  const weekStart = startOfDay(week[0]);
+  const weekEnd = startOfDay(week[6]);
+
+  const candidates = meets
+    .map((meet) => {
+      const range = getMeetDayRange(meet);
+      if (!range) return null;
+      if (range.endDay.getTime() < weekStart.getTime()) return null;
+      if (range.startDay.getTime() > weekEnd.getTime()) return null;
+
+      const startDayIndex = Math.max(
+        0,
+        Math.floor(
+          (startOfDay(range.startDay).getTime() - weekStart.getTime()) / DAY_MS,
+        ),
+      );
+      const endDayIndex = Math.min(
+        6,
+        Math.floor(
+          (startOfDay(range.endDay).getTime() - weekStart.getTime()) / DAY_MS,
+        ),
+      );
+
+      return {
+        meet,
+        startDayIndex,
+        endDayIndex,
+        sortTs: range.start.getTime(),
+      };
+    })
+    .filter((item): item is Omit<WeekEventSegment, "lane"> => Boolean(item));
+
+  candidates.sort((a, b) => {
+    if (a.startDayIndex !== b.startDayIndex) {
+      return a.startDayIndex - b.startDayIndex;
+    }
+    const aSpan = a.endDayIndex - a.startDayIndex;
+    const bSpan = b.endDayIndex - b.startDayIndex;
+    if (aSpan !== bSpan) {
+      return bSpan - aSpan;
+    }
+    if (a.sortTs !== b.sortTs) {
+      return a.sortTs - b.sortTs;
+    }
+    return a.meet.name.localeCompare(b.meet.name);
+  });
+
+  const laneOccupancy: boolean[][] = [];
+  const segments: WeekEventSegment[] = [];
+
+  candidates.forEach((candidate) => {
+    let lane = 0;
+    while (true) {
+      const occupancy = laneOccupancy[lane] ?? Array.from({ length: 7 }, () => false);
+      const overlaps = occupancy
+        .slice(candidate.startDayIndex, candidate.endDayIndex + 1)
+        .some(Boolean);
+
+      if (!overlaps) {
+        for (
+          let dayIndex = candidate.startDayIndex;
+          dayIndex <= candidate.endDayIndex;
+          dayIndex += 1
+        ) {
+          occupancy[dayIndex] = true;
+        }
+        laneOccupancy[lane] = occupancy;
+        segments.push({ ...candidate, lane });
+        return;
+      }
+      lane += 1;
+    }
+  });
+
+  return {
+    segments,
+    laneCount: laneOccupancy.length,
+  };
 };
 
 const getStatusColor = (statusId?: number) => {
@@ -167,70 +291,12 @@ export default function CalendarPage() {
     [meets, visibleStatusIds],
   );
 
-  const multiDayMeetsByDay = useMemo(() => {
-    const map = new Map<
-      string,
-      Array<{ meet: Meet; renderId: string; weekKey: string }>
-    >();
-    filteredMeets.forEach((meet) => {
-      const start = meet.startTime ? new Date(meet.startTime) : null;
-      if (!start || Number.isNaN(start.getTime())) return;
-
-      const end = meet.endTime ? new Date(meet.endTime) : null;
-      if (!end || Number.isNaN(end.getTime())) return;
-
-      const startDay = startOfDay(start);
-      const endDay = startOfDay(end);
-      if (endDay <= startDay) {
-        return;
-      }
-
-      for (
-        let cursor = new Date(startDay);
-        cursor <= endDay;
-        cursor.setDate(cursor.getDate() + 1)
-      ) {
-        const key = formatKey(cursor);
-        const weekStart = new Date(cursor);
-        weekStart.setDate(cursor.getDate() - cursor.getDay());
-        const weekKey = formatKey(weekStart);
-        const list = map.get(key) || [];
-        const uniqueWeekKey = `${meet.id}-${weekKey}`;
-        list.push({ meet, renderId: uniqueWeekKey, weekKey: uniqueWeekKey });
-        map.set(key, list);
-      }
-    });
-    return map;
-  }, [filteredMeets]);
-
-  const singleDayMeetsByDay = useMemo(() => {
-    const map = new Map<string, Meet[]>();
-    filteredMeets.forEach((meet) => {
-      const start = meet.startTime ? new Date(meet.startTime) : null;
-      if (!start || Number.isNaN(start.getTime())) return;
-
-      const end = meet.endTime ? new Date(meet.endTime) : null;
-      if (!end || Number.isNaN(end.getTime())) {
-        const key = formatKey(start);
-        const list = map.get(key) || [];
-        list.push(meet);
-        map.set(key, list);
-        return;
-      }
-
-      const startDay = startOfDay(start);
-      const endDay = startOfDay(end);
-      if (endDay <= startDay) {
-        const key = formatKey(startDay);
-        const list = map.get(key) || [];
-        list.push(meet);
-        map.set(key, list);
-      }
-    });
-    return map;
-  }, [filteredMeets]);
   const monthCells = useMemo(() => getMonthGrid(currentMonth), [currentMonth]);
   const weeks = useMemo(() => chunkWeeks(monthCells), [monthCells]);
+  const weekLayouts = useMemo(
+    () => weeks.map((week) => buildWeekLayout(week, filteredMeets)),
+    [filteredMeets, weeks],
+  );
   const monthIndex = currentMonth.getMonth();
   const agendaDayKeys = useMemo(() => {
     const start = startOfMonth(currentMonth);
@@ -711,39 +777,21 @@ export default function CalendarPage() {
                   </Box>
                   <Stack spacing={0.75}>
                     {weeks.map((week, weekIndex) => {
-                      const weekGroups = new Map<
-                        string,
-                        {
-                          minX: number;
-                          maxX: number;
-                          minY: number;
-                          maxY: number;
-                          meet: Meet;
-                          weekKey: string;
-                        }
-                      >();
-                      const weekDayItems = week.map((day) => {
-                        const key = formatKey(day);
-                        return multiDayMeetsByDay.get(key) || [];
-                      });
-
-                      weekDayItems.forEach((items, dayIndex) => {
-                        items.forEach((item, itemIndex) => {
-                          const group = weekGroups.get(item.weekKey) || {
-                            minX: dayIndex,
-                            maxX: dayIndex,
-                            minY: itemIndex,
-                            maxY: itemIndex,
-                            meet: item.meet,
-                            weekKey: item.weekKey,
-                          };
-                          group.minX = Math.min(group.minX, dayIndex);
-                          group.maxX = Math.max(group.maxX, dayIndex);
-                          group.minY = Math.min(group.minY, itemIndex);
-                          group.maxY = Math.max(group.maxY, itemIndex);
-                          weekGroups.set(item.weekKey, group);
-                        });
-                      });
+                      const layout = weekLayouts[weekIndex];
+                      const laneCount = layout?.laneCount || 0;
+                      const minCellHeight = isMobile ? 92 : 120;
+                      const eventsHeight = laneCount
+                        ? laneCount * itemRowHeight +
+                          Math.max(0, laneCount - 1) * itemRowGap
+                        : 0;
+                      const cellHeight = Math.max(
+                        minCellHeight,
+                        dayPadding * 2 +
+                          headerHeight +
+                          (isLoading || eventsHeight
+                            ? itemRowGap + eventsHeight
+                            : 0),
+                      );
 
                       return (
                         <Box
@@ -767,15 +815,13 @@ export default function CalendarPage() {
                               const key = formatKey(day);
                               const isCurrentMonth =
                                 day.getMonth() === monthIndex;
-                              const singleDayItems =
-                                singleDayMeetsByDay.get(key) || [];
                               const isWeekend =
                                 day.getDay() === 0 || day.getDay() === 6;
                               return (
                                 <Box
                                   key={key}
                                   sx={{
-                                    height: isMobile ? 92 : 120,
+                                    height: cellHeight,
                                     borderRadius: 1.5,
                                     border: "1px solid",
                                     borderColor: "divider",
@@ -820,67 +866,7 @@ export default function CalendarPage() {
                                         >
                                           Loading...
                                         </Typography>
-                                      ) : (
-                                        <>
-                                          {singleDayItems.map((meet) => {
-                                            const isTruncated =
-                                              meet.name.length > 26;
-                                            const label = isTruncated
-                                              ? `${meet.name.slice(0, 16)}...`
-                                              : meet.name;
-                                            const content = (
-                                              <Box
-                                                sx={{
-                                                  px: 0.75,
-                                                  height:
-                                                    "var(--item-row-height)",
-                                                  display: "flex",
-                                                  alignItems: "center",
-                                                  borderRadius: 1,
-                                                  backgroundColor:
-                                                    getStatusColor(
-                                                      meet.statusId,
-                                                    ),
-                                                  color:
-                                                    theme.palette.mode ===
-                                                    "dark"
-                                                      ? "#222222"
-                                                      : theme.palette.primary
-                                                          .contrastText,
-                                                  fontSize: "0.62rem",
-                                                  lineHeight: 1.2,
-                                                  whiteSpace: "nowrap",
-                                                  overflow: "hidden",
-                                                  textOverflow: "ellipsis",
-                                                  cursor: "pointer",
-                                                }}
-                                                onClick={() =>
-                                                  setSelectedMeet(meet)
-                                                }
-                                              >
-                                                <Typography
-                                                  variant="caption"
-                                                  fontWeight={600}
-                                                  sx={{ display: "block" }}
-                                                >
-                                                  {label}
-                                                </Typography>
-                                              </Box>
-                                            );
-                                            return isTruncated ? (
-                                              <Tooltip
-                                                key={meet.id}
-                                                title={meet.name}
-                                                arrow
-                                              >
-                                                {content}
-                                              </Tooltip>
-                                            ) : (
-                                              <Box key={meet.id}>{content}</Box>
-                                            );
-                                          })}
-                                        </>
-                                      )}
+                                      ) : null}
                                     </Box>
                                   </Box>
                                 </Box>
@@ -888,20 +874,24 @@ export default function CalendarPage() {
                             })}
                           </Box>
                           {!isLoading
-                            ? Array.from(weekGroups.values()).map((group) => {
-                                const span = group.maxX - group.minX + 1;
-                                const row = group.minY;
+                            ? layout.segments.map((segment) => {
+                                const span =
+                                  segment.endDayIndex - segment.startDayIndex + 1;
+                                const row = segment.lane;
                                 const barTop = `calc(var(--day-padding) + var(--header-height) + var(--item-row-gap) + (${row} * (var(--item-row-height) + var(--item-row-gap))))`;
                                 const gridGap = theme.spacing(0.75);
-                                const left = `calc((((100% - (${gridGap} * 6)) / 7) * ${group.minX}) + (${gridGap} * ${group.minX}) + var(--day-padding))`;
+                                const left = `calc((((100% - (${gridGap} * 6)) / 7) * ${segment.startDayIndex}) + (${gridGap} * ${segment.startDayIndex}) + var(--day-padding))`;
                                 const width = `calc((((100% - (${gridGap} * 6)) / 7) * ${span}) + (${gridGap} * ${Math.max(0, span - 1)}) - (var(--day-padding) * 2))`;
-                                const isTruncated = group.meet.name.length > 42;
+                                const isSingleDay = span === 1;
+                                const truncateAt = isSingleDay ? 16 : 30;
+                                const isTruncated =
+                                  segment.meet.name.length > (isSingleDay ? 26 : 42);
                                 const label = isTruncated
-                                  ? `${group.meet.name.slice(0, 30)}...`
-                                  : group.meet.name;
+                                  ? `${segment.meet.name.slice(0, truncateAt)}...`
+                                  : segment.meet.name;
                                 const content = (
                                   <Box
-                                    key={group.weekKey}
+                                    key={`${segment.meet.id}-${segment.startDayIndex}-${segment.endDayIndex}`}
                                     sx={{
                                       position: "absolute",
                                       left,
@@ -911,7 +901,7 @@ export default function CalendarPage() {
                                       px: 0.75,
                                       borderRadius: 1,
                                       backgroundColor:
-                                        getStatusColor(group.meet.statusId),
+                                        getStatusColor(segment.meet.statusId),
                                       color:
                                         theme.palette.mode === "dark"
                                           ? "#222222"
@@ -924,7 +914,9 @@ export default function CalendarPage() {
                                       cursor: "pointer",
                                       zIndex: 2,
                                     }}
-                                    onClick={() => setSelectedMeet(group.meet)}
+                                    onClick={() =>
+                                      setSelectedMeet(segment.meet)
+                                    }
                                   >
                                     <Typography
                                       variant="caption"
@@ -940,8 +932,8 @@ export default function CalendarPage() {
                                 );
                                 return isTruncated ? (
                                   <Tooltip
-                                    key={group.weekKey}
-                                    title={group.meet.name}
+                                    key={`${segment.meet.id}-${segment.startDayIndex}-${segment.endDayIndex}`}
+                                    title={segment.meet.name}
                                     arrow
                                   >
                                     {content}
