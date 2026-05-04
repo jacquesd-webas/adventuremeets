@@ -48,7 +48,8 @@ export class EmailService {
     // It's not a message relating to a meet or attendee
     if (!attendeeId || !meetId) return;
 
-    const content = html && html.trim().length ? html : text;
+    const content =
+      text && text.trim().length ? text : html && html.trim().length ? html : "";
     const raw = `Subject: ${subject}\n\n${content}`;
     const parsed = this.parseMessageContent(raw);
     const body =
