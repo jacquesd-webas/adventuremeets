@@ -152,8 +152,8 @@ export function MeetActionsMenu({
 
     const shareUrl =
       typeof window === "undefined"
-        ? `/meets/${previewLinkCode}`
-        : `${window.location.origin}/meets/${previewLinkCode}`;
+        ? `/share/${previewLinkCode}`
+        : `${window.location.origin}/share/${previewLinkCode}`;
 
     await navigator.clipboard.writeText(shareUrl);
     handleClose();

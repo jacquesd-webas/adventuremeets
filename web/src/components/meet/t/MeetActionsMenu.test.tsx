@@ -90,6 +90,40 @@ describe("MeetActionsMenu", () => {
     expect(screen.getByRole("button")).toBeInTheDocument();
   });
 
+  it("copies the public share url using /share/:code", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText,
+      },
+    });
+
+    render(
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <MeetActionsMenu
+          meetId="meet-1"
+          statusId={MeetStatusEnum.Open}
+          isUpcoming={true}
+          startTime={null}
+          canViewMeet={true}
+          canManageMeet={false}
+          previewLinkCode="share-123"
+          setSelectedMeetId={vi.fn()}
+          setPendingAction={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByText("Copy link"));
+
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}/share/share-123`,
+    );
+  });
+
   it("shows Generate Report for closed meets on the same day even if still upcoming", () => {
     const now = new Date();
     const sameDayStart = new Date(
