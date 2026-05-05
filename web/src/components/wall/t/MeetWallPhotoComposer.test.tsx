@@ -1,27 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("@mui/material", async () => {
-  const actual = await vi.importActual<typeof import("@mui/material")>(
-    "@mui/material",
-  );
-
-  return {
-    ...actual,
-    Rating: ({ onChange }: { onChange?: (event: any, value: number) => void }) => (
-      <button
-        type="button"
-        aria-label="4 Stars"
-        onClick={(event) => {
-          onChange?.(event, 4);
-        }}
-      >
-        4 Stars
-      </button>
-    ),
-  };
-});
-
 import { MeetWallPhotoComposer } from "../MeetWallPhotoComposer";
 
 const createWallItemAsync = vi.fn();
@@ -65,19 +44,6 @@ describe("MeetWallPhotoComposer", () => {
   });
 
   it("shows local thumbnails for selected photos before posting", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <MeetWallPhotoComposer
-        meetId="meet-1"
-        onCancel={vi.fn()}
-        onCreated={vi.fn()}
-      />,
-    );
-
-    const input = document.querySelector('input[type="file"]');
-    expect(input).not.toBeNull();
-
     const photoOne = new File(["photo-1"], "photo-1.jpg", {
       type: "image/jpeg",
     });
@@ -85,7 +51,14 @@ describe("MeetWallPhotoComposer", () => {
       type: "image/png",
     });
 
-    await user.upload(input as HTMLInputElement, [photoOne, photoTwo]);
+    render(
+      <MeetWallPhotoComposer
+        meetId="meet-1"
+        initialFiles={[photoOne, photoTwo]}
+        onCancel={vi.fn()}
+        onCreated={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText("2 photos selected")).toBeInTheDocument();
     expect(screen.getByAltText("photo-1.jpg")).toHaveAttribute(
@@ -98,88 +71,69 @@ describe("MeetWallPhotoComposer", () => {
     );
   });
 
-  it("posts a text-only wall post without photos", async () => {
+  it("does not allow posting without selected photos", () => {
+    render(
+      <MeetWallPhotoComposer
+        meetId="meet-1"
+        onCancel={vi.fn()}
+        onCreated={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Post Photos" })).toBeDisabled();
+  });
+
+  it("posts selected photos and attaches the comment to the first photo", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     createWallItemAsync.mockResolvedValue({});
+    const photo = new File(["photo-1"], "photo-1.jpg", {
+      type: "image/jpeg",
+    });
 
     render(
       <MeetWallPhotoComposer
         meetId="meet-1"
+        initialFiles={[photo]}
         onCancel={vi.fn()}
         onCreated={onCreated}
       />,
     );
 
-    await user.type(screen.getByLabelText("Add Post"), "Great meet");
-    await user.click(screen.getByRole("button", { name: "Post" }));
+    await user.type(screen.getByLabelText("Add Photos"), "Great meet");
+    await user.click(screen.getByRole("button", { name: "Post Photos" }));
 
     await waitFor(() => {
       expect(createWallItemAsync).toHaveBeenCalledWith({
         meetId: "meet-1",
         attendeeId: undefined,
+        file: photo,
         comment: "Great meet",
         stars: undefined,
       });
     });
 
-    expect(success).toHaveBeenCalledWith("Post added");
+    expect(success).toHaveBeenCalledWith("Photos added");
     expect(onCreated).toHaveBeenCalled();
-  });
-
-  it("reveals the rating control when Rate is used", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <MeetWallPhotoComposer
-        meetId="meet-1"
-        onCancel={vi.fn()}
-        onCreated={vi.fn()}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Rate" }));
-
-    expect(screen.getByRole("button", { name: "4 Stars" })).toBeInTheDocument();
-  });
-
-  it("hides the rate button when rating is not allowed", () => {
-    render(
-      <MeetWallPhotoComposer
-        meetId="meet-1"
-        allowRating={false}
-        onCancel={vi.fn()}
-        onCreated={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "Rate" }),
-    ).not.toBeInTheDocument();
   });
 
   it("clears previews after the post with photos is submitted", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     createWallItemAsync.mockResolvedValue({});
-
-    render(
-      <MeetWallPhotoComposer
-        meetId="meet-1"
-        onCancel={vi.fn()}
-        onCreated={onCreated}
-      />,
-    );
-
-    const input = document.querySelector('input[type="file"]');
-    expect(input).not.toBeNull();
-
     const photo = new File(["photo-1"], "photo-1.jpg", {
       type: "image/jpeg",
     });
 
-    await user.upload(input as HTMLInputElement, photo);
-    await user.click(screen.getByRole("button", { name: "Post" }));
+    render(
+      <MeetWallPhotoComposer
+        meetId="meet-1"
+        initialFiles={[photo]}
+        onCancel={vi.fn()}
+        onCreated={onCreated}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Post Photos" }));
 
     await waitFor(() => {
       expect(createWallItemAsync).toHaveBeenCalledWith({
@@ -195,42 +149,40 @@ describe("MeetWallPhotoComposer", () => {
       expect(screen.queryByAltText("photo-1.jpg")).not.toBeInTheDocument();
     });
 
-    expect(success).toHaveBeenCalledWith("Post added");
+    expect(success).toHaveBeenCalledWith("Photos added");
     expect(onCreated).toHaveBeenCalled();
   });
 
-  it("creates separate rating and photo entries when a rated post has photos", async () => {
+  it("creates separate photo entries when multiple photos are selected", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     createWallItemAsync.mockResolvedValue({});
+    const photoOne = new File(["photo-1"], "photo-1.jpg", {
+      type: "image/jpeg",
+    });
+    const photoTwo = new File(["photo-2"], "photo-2.jpg", {
+      type: "image/jpeg",
+    });
 
     render(
       <MeetWallPhotoComposer
         meetId="meet-1"
+        initialFiles={[photoOne, photoTwo]}
         onCancel={vi.fn()}
         onCreated={onCreated}
       />,
     );
 
-    const input = document.querySelector('input[type="file"]');
-    expect(input).not.toBeNull();
-
-    const photo = new File(["photo-1"], "photo-1.jpg", {
-      type: "image/jpeg",
-    });
-
-    await user.type(screen.getByLabelText("Add Post"), "Great meet");
-    await user.upload(input as HTMLInputElement, photo);
-    await user.click(screen.getByRole("button", { name: "Rate" }));
-    await user.click(screen.getByRole("button", { name: "4 Stars" }));
-    await user.click(screen.getByRole("button", { name: "Post" }));
+    await user.type(screen.getByLabelText("Add Photos"), "Great meet");
+    await user.click(screen.getByRole("button", { name: "Post Photos" }));
 
     await waitFor(() => {
       expect(createWallItemAsync).toHaveBeenNthCalledWith(1, {
         meetId: "meet-1",
         attendeeId: undefined,
+        file: photoOne,
         comment: "Great meet",
-        stars: 4,
+        stars: undefined,
       });
     });
 
@@ -238,13 +190,13 @@ describe("MeetWallPhotoComposer", () => {
       expect(createWallItemAsync).toHaveBeenNthCalledWith(2, {
         meetId: "meet-1",
         attendeeId: undefined,
-        file: photo,
+        file: photoTwo,
         comment: undefined,
         stars: undefined,
       });
     });
 
-    expect(success).toHaveBeenCalledWith("Post added");
+    expect(success).toHaveBeenCalledWith("Photos added");
     expect(onCreated).toHaveBeenCalled();
   });
 });

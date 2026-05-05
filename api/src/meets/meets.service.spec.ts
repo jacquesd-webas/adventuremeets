@@ -1,7 +1,7 @@
 import { MeetsService } from "./meets.service";
 import { DatabaseService } from "../database/database.service";
 import { MinioService } from "../storage/minio.service";
-import { ConflictException } from "@nestjs/common";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 
 const buildBuilder = () => {
   const builder: any = {};
@@ -1081,5 +1081,78 @@ describe("MeetsService", () => {
         attendeeStatus: "waitlisted",
       },
     ]);
+  });
+
+  it("returns empty attendee history when the attendee has no email address", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      email: null,
+    });
+
+    const historyBuilder = buildBuilder();
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_attendees as ma") return historyBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.listAttendeeHistory("meet-1", "attendee-1"),
+    ).resolves.toEqual([]);
+
+    expect(historyBuilder.select).not.toHaveBeenCalled();
+  });
+
+  it("throws when attendee history is requested for a missing attendee", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue(undefined);
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.listAttendeeHistory("meet-1", "missing-attendee"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("excludes the current attendee row when listing attendee history", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      email: "alex@example.com",
+    });
+
+    const historyBuilder = buildBuilder();
+    historyBuilder.select.mockResolvedValue([]);
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_attendees as ma") return historyBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await service.listAttendeeHistory("meet-1", "attendee-1");
+
+    expect(historyBuilder.andWhereNot).toHaveBeenCalledWith(
+      "ma.id",
+      "attendee-1",
+    );
   });
 });

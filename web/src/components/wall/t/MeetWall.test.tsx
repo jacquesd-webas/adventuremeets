@@ -52,9 +52,11 @@ vi.mock("../MeetWallCommentComposer", () => ({
 }));
 
 vi.mock("../MeetWallPhotoComposer", () => ({
-  MeetWallPhotoComposer: (props: any) => (
-    <div>{props.allowRating ? "post composer with rating" : "post composer"}</div>
-  ),
+  MeetWallPhotoComposer: () => <div>photo composer</div>,
+}));
+
+vi.mock("../MeetWallRatingComposer", () => ({
+  MeetWallRatingComposer: () => <div>rating composer</div>,
 }));
 
 describe("MeetWall", () => {
@@ -126,7 +128,9 @@ describe("MeetWall", () => {
     render(<MeetWall meetId="meet-1" />);
 
     expect(screen.getByText("Meet Feedback")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add Post" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Comment" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Photos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rate Meet" })).toBeInTheDocument();
     expect(screen.getByText("Great day on the mountain")).toBeInTheDocument();
     expect(screen.getByLabelText("3 likes")).toBeInTheDocument();
     expect(screen.getByLabelText("Dislike")).toBeInTheDocument();
@@ -190,11 +194,13 @@ describe("MeetWall", () => {
     render(<MeetWall meetId="meet-1" />);
 
     expect(screen.getByText("Meet Feedback")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add Post" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Comment" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Photos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rate Meet" })).toBeInTheDocument();
     expect(screen.getByText("No wall posts yet.")).toBeInTheDocument();
   });
 
-  it("opens the post composer at the top of the wall when Add Post is clicked", async () => {
+  it("opens the comment composer at the top of the wall when Add Comment is clicked", async () => {
     const user = userEvent.setup();
 
     vi.mocked(useFetchMeetWall).mockReturnValue({
@@ -206,21 +212,13 @@ describe("MeetWall", () => {
 
     render(<MeetWall meetId="meet-1" />);
 
-    await user.click(screen.getByRole("button", { name: "Add Post" }));
+    await user.click(screen.getByRole("button", { name: "Add Comment" }));
 
-    expect(screen.getByText("post composer with rating")).toBeInTheDocument();
+    expect(screen.getByText("comment composer")).toBeInTheDocument();
   });
 
-  it("opens the post composer without rating for the organiser", async () => {
+  it("opens the photo composer for Add Photos", async () => {
     const user = userEvent.setup();
-    vi.mocked(useAuth).mockReturnValue({
-      user: { id: "organizer-1" },
-      isLoading: false,
-      isAuthenticated: true,
-      meUpdatedAt: 0,
-      refreshSession: vi.fn(),
-      logout: vi.fn(),
-    } as any);
 
     vi.mocked(useFetchMeetWall).mockReturnValue({
       data: [],
@@ -231,9 +229,32 @@ describe("MeetWall", () => {
 
     render(<MeetWall meetId="meet-1" />);
 
-    await user.click(screen.getByRole("button", { name: "Add Post" }));
+    await user.click(screen.getByRole("button", { name: "Add Photos" }));
+    const input = document.querySelector('input[type="file"]');
+    expect(input).not.toBeNull();
+    const photo = new File(["photo-1"], "photo-1.jpg", {
+      type: "image/jpeg",
+    });
+    await user.upload(input as HTMLInputElement, photo);
 
-    expect(screen.getByText("post composer")).toBeInTheDocument();
+    expect(screen.getByText("photo composer")).toBeInTheDocument();
+  });
+
+  it("opens the rating composer for non-organisers", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Rate Meet" }));
+
+    expect(screen.getByText("rating composer")).toBeInTheDocument();
   });
 
   it("hides wall action buttons when there is no logged-in user and no attendee id", () => {
@@ -256,11 +277,17 @@ describe("MeetWall", () => {
 
     expect(screen.getByText("Meet Feedback")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Add Post" }),
+      screen.queryByRole("button", { name: "Add Comment" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add Photos" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Rate Meet" }),
     ).not.toBeInTheDocument();
   });
 
-  it("shows add post for the organiser", () => {
+  it("shows comment and photo actions for the organiser but hides rating", () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { id: "organizer-1" },
       isLoading: false,
@@ -278,7 +305,11 @@ describe("MeetWall", () => {
 
     render(<MeetWall meetId="meet-1" />);
 
-    expect(screen.getByRole("button", { name: "Add Post" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Comment" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Photos" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Rate Meet" }),
+    ).not.toBeInTheDocument();
   });
 
   it("allows the organiser to mark a post as favourite", async () => {

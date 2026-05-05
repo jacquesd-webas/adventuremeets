@@ -1,8 +1,41 @@
 import {
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
+const workbookState: {
+  rows: Record<string, any>[];
+  columns: Record<string, any>[];
+} = {
+  rows: [],
+  columns: [],
+};
+
+jest.mock("exceljs", () => ({
+  Workbook: class MockWorkbook {
+    addWorksheet() {
+      workbookState.rows = [];
+      workbookState.columns = [];
+      return {
+        get columns() {
+          return workbookState.columns;
+        },
+        set columns(value: Record<string, any>[]) {
+          workbookState.columns = value;
+        },
+        addRow: (row: Record<string, any>) => {
+          workbookState.rows.push(row);
+        },
+      };
+    }
+
+    xlsx = {
+      writeBuffer: jest.fn().mockResolvedValue(Buffer.from("xlsx")),
+    };
+  },
+}));
+
 import { MeetsController } from "./meets.controller";
 import { MeetsService } from "./meets.service";
 import { AuthService } from "../auth/auth.service";
@@ -25,6 +58,8 @@ describe("MeetsController", () => {
     updateAttendeesNotified: jest.fn(),
     updateAttendee: jest.fn(),
     attendeeHasMissingFields: jest.fn(),
+    getOrganizerEmail: jest.fn(),
+    getReportData: jest.fn(),
   } as unknown as MeetsService;
 
   const emailService = {
@@ -80,6 +115,8 @@ describe("MeetsController", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    workbookState.rows = [];
+    workbookState.columns = [];
     controller = new MeetsController(
       meetsService,
       emailService,
@@ -140,6 +177,83 @@ describe("MeetsController", () => {
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("notifies attendees when closing a meet with notifyAttendees enabled", async () => {
+    process.env.MAIL_DOMAIN = "example.com";
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    setRoles({ organizer: true });
+    (meetsService.updateStatus as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      status_id: 4,
+    });
+    (meetsService.listAttendees as jest.Mock).mockResolvedValue({
+      attendees: [
+        {
+          id: "attendee-1",
+          email: "confirmed@example.com",
+          name: "Confirmed Casey",
+          status: "confirmed",
+        },
+        {
+          id: "attendee-2",
+          email: "waitlisted@example.com",
+          name: "Waitlisted Wren",
+          status: "waitlisted",
+        },
+        {
+          id: "attendee-3",
+          email: "invited@example.com",
+          name: "Invited Ian",
+          status: "invited",
+        },
+      ],
+    });
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+    (emailService.saveMessage as jest.Mock).mockResolvedValue(undefined);
+
+    await expect(
+      controller.updateStatus(
+        "meet-1",
+        { statusId: 4, notifyAttendees: true },
+        undefined,
+        user,
+      ),
+    ).resolves.toEqual({
+      id: "meet-1",
+      status_id: 4,
+    });
+
+    expect(emailService.sendEmail).toHaveBeenCalledTimes(2);
+    expect(emailService.saveMessage).toHaveBeenCalledTimes(2);
+    expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
+      "meet-1",
+      ["attendee-1", "attendee-2"],
+    );
+  });
+
+  it("allows worker-api status updates without a user session", async () => {
+    const previousWorkerApiKey = process.env.WORKER_API_KEY;
+    process.env.WORKER_API_KEY = "worker-secret";
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.updateStatus as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      status_id: 4,
+    });
+
+    await expect(
+      controller.updateStatus(
+        "meet-1",
+        { statusId: 4 },
+        "worker-secret",
+      ),
+    ).resolves.toEqual({
+      id: "meet-1",
+      status_id: 4,
+    });
+
+    expect(meetsService.updateStatus).toHaveBeenCalledWith("meet-1", 4);
+    process.env.WORKER_API_KEY = previousWorkerApiKey;
   });
 
   it("lists images for an editable meet", async () => {
@@ -282,5 +396,115 @@ describe("MeetsController", () => {
       "meet-1",
       "attendee-1",
     );
+  });
+
+  it("creates a final report that maps confirmed attendees to no-show", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
+      "organizer@example.com",
+    );
+    (meetsService.getReportData as jest.Mock).mockResolvedValue({
+      attendees: [
+        {
+          id: "attendee-1",
+          name: "Alex",
+          email: "alex@example.com",
+          phone: "+27123456789",
+          status: "confirmed",
+          guests: 0,
+          metaValues: [],
+        },
+        {
+          id: "attendee-2",
+          name: "Jamie",
+          email: "jamie@example.com",
+          phone: "+27123456780",
+          status: "attended",
+          guests: 1,
+          metaValues: [],
+        },
+      ],
+      metaDefinitions: [],
+    });
+    setRoles({ organizer: true });
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+
+    await expect(
+      controller.createReport(
+        "meet-1",
+        user,
+        { sendEmail: true, downloadReport: false, isFinalReport: true },
+      ),
+    ).resolves.toEqual({
+      status: "sent",
+      to: "organizer@example.com",
+    });
+
+    expect(workbookState.rows).toEqual([
+      expect.objectContaining({
+        name: "Alex",
+        status: "no-show",
+      }),
+      expect.objectContaining({
+        name: "Jamie",
+        status: "attended",
+      }),
+    ]);
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "organizer@example.com",
+        attachments: [
+          expect.objectContaining({
+            filename: `${meet.name}-report.xlsx`,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("creates an interim report without remapping confirmed attendees", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
+      "organizer@example.com",
+    );
+    (meetsService.getReportData as jest.Mock).mockResolvedValue({
+      attendees: [
+        {
+          id: "attendee-1",
+          name: "Alex",
+          email: "alex@example.com",
+          phone: "+27123456789",
+          status: "confirmed",
+          guests: 0,
+          metaValues: [],
+        },
+      ],
+      metaDefinitions: [],
+    });
+    setRoles({ organizer: true });
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+
+    await controller.createReport(
+      "meet-1",
+      user,
+      { sendEmail: true, downloadReport: false, isFinalReport: false },
+    );
+
+    expect(workbookState.rows).toEqual([
+      expect.objectContaining({
+        name: "Alex",
+        status: "confirmed",
+      }),
+    ]);
+  });
+
+  it("rejects report generation when no delivery method is selected", async () => {
+    await expect(
+      controller.createReport(
+        "meet-1",
+        user,
+        { sendEmail: false, downloadReport: false },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

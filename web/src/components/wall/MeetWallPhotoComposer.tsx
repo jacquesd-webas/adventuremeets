@@ -1,14 +1,13 @@
 import AddPhotoAlternateOutlinedIcon from "@mui/icons-material/AddPhotoAlternateOutlined";
-import StarOutlineOutlinedIcon from "@mui/icons-material/StarOutlineOutlined";
-import { Box, Button, Rating, Stack, TextField, Typography } from "@mui/material";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Box, Button, Stack, TextField, Typography } from "@mui/material";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCreateWallItem } from "../../hooks/useCreateWallItem";
 import { useNotistack } from "../../hooks/useNotistack";
 
 type MeetWallPhotoComposerProps = {
   meetId: string;
   attendeeId?: string;
-  allowRating?: boolean;
+  initialFiles?: File[];
   onCancel: () => void;
   onCreated: () => void;
 };
@@ -29,23 +28,20 @@ function createPreviewId() {
 export function MeetWallPhotoComposer({
   meetId,
   attendeeId,
-  allowRating = true,
+  initialFiles,
   onCancel,
   onCreated,
 }: MeetWallPhotoComposerProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<PhotoPreview[]>([]);
   const [comment, setComment] = useState("");
-  const [stars, setStars] = useState<number | null>(0);
-  const [showRating, setShowRating] = useState(false);
   const { createWallItemAsync, isLoading } = useCreateWallItem();
   const notice = useNotistack();
   const previewUrlsRef = useRef<string[]>([]);
 
   const trimmedComment = comment.trim();
   const hasFiles = files.length > 0;
-  const hasRating = Boolean(stars);
-  const canSubmit = Boolean(hasFiles || trimmedComment || hasRating);
+  const canSubmit = hasFiles;
   const helperLabel = useMemo(() => {
     if (!files.length) return "No photos selected";
     if (files.length === 1) return files[0].name;
@@ -59,16 +55,13 @@ export function MeetWallPhotoComposer({
     };
   }, []);
 
-  const clearPreviews = () => {
+  const clearPreviews = useCallback(() => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     previewUrlsRef.current = [];
     setPreviews([]);
-  };
+  }, []);
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files || []).filter((file) =>
-      file.type.startsWith("image/"),
-    );
+  const applyFiles = useCallback((selectedFiles: File[]) => {
     clearPreviews();
     setFiles(selectedFiles);
     setPreviews(
@@ -82,8 +75,15 @@ export function MeetWallPhotoComposer({
         };
       }),
     );
-    event.target.value = "";
-  };
+  }, [clearPreviews]);
+
+  useEffect(() => {
+    if (initialFiles && initialFiles.length > 0) {
+      applyFiles(initialFiles);
+    } else {
+      clearPreviews();
+    }
+  }, [applyFiles, clearPreviews, initialFiles]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -92,44 +92,23 @@ export function MeetWallPhotoComposer({
     }
 
     try {
-      if (files.length > 0) {
-        if (hasRating) {
-          await createWallItemAsync({
-            meetId,
-            attendeeId,
-            comment: trimmedComment || undefined,
-            stars: stars || undefined,
-          });
-        }
-
-        for (const [index, file] of files.entries()) {
-          await createWallItemAsync({
-            meetId,
-            attendeeId,
-            file,
-            comment:
-              !hasRating && index === 0 ? trimmedComment || undefined : undefined,
-            stars: undefined,
-          });
-        }
-      } else {
+      for (const [index, file] of files.entries()) {
         await createWallItemAsync({
           meetId,
           attendeeId,
-          comment: trimmedComment || undefined,
-          stars: stars || undefined,
+          file,
+          comment: index === 0 ? trimmedComment || undefined : undefined,
+          stars: undefined,
         });
       }
       clearPreviews();
       setFiles([]);
       setComment("");
-      setStars(0);
-      setShowRating(false);
-      notice.success("Post added");
+      notice.success("Photos added");
       onCreated();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to add post";
+        error instanceof Error ? error.message : "Unable to add photos";
       notice.error(message);
     }
   };
@@ -150,8 +129,8 @@ export function MeetWallPhotoComposer({
       <TextField
         multiline
         minRows={3}
-        label="Add Post"
-        placeholder="Share your thoughts about the meet"
+        label="Add Photos"
+        placeholder="Add a comment with your photos"
         value={comment}
         onChange={(event) => {
           setComment(event.target.value);
@@ -160,63 +139,18 @@ export function MeetWallPhotoComposer({
         fullWidth
       />
       <Stack spacing={0.75}>
-        <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-          <Button
-            component="label"
-            variant="outlined"
-            startIcon={<AddPhotoAlternateOutlinedIcon fontSize="small" />}
-            disabled={isLoading}
-          >
-            Choose Photos
-            <input
-              hidden
-              multiple
-              accept="image/*"
-              type="file"
-              onChange={handleFileChange}
-            />
-          </Button>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          useFlexGap
+          flexWrap="wrap"
+        >
+          <AddPhotoAlternateOutlinedIcon fontSize="small" />
           <Typography variant="body2" color="text.secondary">
             {helperLabel}
           </Typography>
         </Stack>
-        {allowRating ? (
-          <Stack spacing={0.75}>
-            <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-              <Button
-                type="button"
-                variant={showRating ? "contained" : "outlined"}
-                startIcon={<StarOutlineOutlinedIcon fontSize="small" />}
-                disabled={isLoading}
-                onClick={() => {
-                  setShowRating((current) => {
-                    const next = !current;
-                    if (!next) {
-                      setStars(0);
-                    }
-                    return next;
-                  });
-                }}
-              >
-                Rate
-              </Button>
-              {showRating && stars ? (
-                <Typography variant="body2" color="text.secondary">
-                  {`${stars} star${stars === 1 ? "" : "s"}`}
-                </Typography>
-              ) : null}
-            </Stack>
-            {showRating ? (
-              <Rating
-                name="meet-wall-rating"
-                value={stars}
-                onChange={(_event, value) => {
-                  setStars(value);
-                }}
-              />
-            ) : null}
-          </Stack>
-        ) : null}
         {previews.length ? (
           <Box
             sx={{
@@ -251,8 +185,12 @@ export function MeetWallPhotoComposer({
         <Button variant="text" onClick={onCancel} disabled={isLoading}>
           Cancel
         </Button>
-        <Button type="submit" variant="contained" disabled={!canSubmit || isLoading}>
-          Post
+        <Button
+          type="submit"
+          variant="contained"
+          disabled={!canSubmit || isLoading}
+        >
+          Post Photos
         </Button>
       </Stack>
     </Stack>

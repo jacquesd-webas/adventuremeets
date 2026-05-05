@@ -56,6 +56,13 @@ describe("MeetAttendeesController", () => {
     pendingInvites: [],
   };
 
+  const adminUser: UserProfile = {
+    id: "admin-1",
+    email: "admin@example.com",
+    organizations: { "org-1": "admin" },
+    pendingInvites: [],
+  };
+
   const meet = {
     id: "meet-1",
     organizationId: "org-1",
@@ -147,6 +154,40 @@ describe("MeetAttendeesController", () => {
       "meet-1",
       "attendee-1",
     );
+  });
+
+  it("rejects attendee history access for non-organizers", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.getHistory("meet-1", "attendee-1", user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("rejects ICE info access for an org admin who is not the meet organizer", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+
+    await expect(
+      controller.getIceInfo("meet-1", "attendee-1", adminUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("returns null ICE info when the attendee is not linked to a user", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-04-14T06:00:00.000Z"));
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+      attendee: { userId: null },
+    });
+
+    await expect(
+      controller.getIceInfo("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      iceInfo: null,
+    });
+
+    expect(usersService.findIceInfoByUserId).not.toHaveBeenCalled();
+    jest.useRealTimers();
   });
 
   it("rejects ICE info access outside the meet day", async () => {

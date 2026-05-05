@@ -1,9 +1,13 @@
-import PostAddOutlinedIcon from "@mui/icons-material/PostAddOutlined";
+import AddCommentOutlinedIcon from "@mui/icons-material/AddCommentOutlined";
+import AddPhotoAlternateOutlinedIcon from "@mui/icons-material/AddPhotoAlternateOutlined";
+import StarOutlineOutlinedIcon from "@mui/icons-material/StarOutlineOutlined";
 import { Button, Stack, Typography, useMediaQuery, useTheme } from "@mui/material";
-import { useState } from "react";
+import { ChangeEvent, useRef, useState } from "react";
 import { useAuth } from "../../context/authContext";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
+import { MeetWallCommentComposer } from "./MeetWallCommentComposer";
 import { MeetWallPhotoComposer } from "./MeetWallPhotoComposer";
+import { MeetWallRatingComposer } from "./MeetWallRatingComposer";
 
 type MeetWallActionsProps = {
   meetId: string;
@@ -11,7 +15,11 @@ type MeetWallActionsProps = {
 };
 
 export function MeetWallActions({ meetId, attendeeId }: MeetWallActionsProps) {
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [composer, setComposer] = useState<"comment" | "photo" | "rating" | null>(
+    null,
+  );
+  const [selectedPhotoFiles, setSelectedPhotoFiles] = useState<File[]>([]);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { user } = useAuth();
@@ -27,8 +35,33 @@ export function MeetWallActions({ meetId, attendeeId }: MeetWallActionsProps) {
       }
     : undefined;
 
+  const resetPhotoComposer = () => {
+    setSelectedPhotoFiles([]);
+    setComposer(null);
+  };
+
+  const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    event.target.value = "";
+    if (!files.length) {
+      return;
+    }
+    setSelectedPhotoFiles(files);
+    setComposer("photo");
+  };
+
   return (
     <>
+      <input
+        ref={photoInputRef}
+        hidden
+        multiple
+        accept="image/*"
+        type="file"
+        onChange={handlePhotoSelection}
+      />
       <Stack
         direction="row"
         spacing={2}
@@ -49,36 +82,100 @@ export function MeetWallActions({ meetId, attendeeId }: MeetWallActionsProps) {
             alignItems="center"
           >
             <Button
-              aria-label="Add Post"
+              aria-label="Add Comment"
               variant="outlined"
               size="small"
               startIcon={
-                !isMobile ? <PostAddOutlinedIcon fontSize="small" /> : undefined
+                !isMobile ? <AddCommentOutlinedIcon fontSize="small" /> : undefined
               }
               onClick={() => {
-                setIsComposerOpen(true);
+                setComposer("comment");
               }}
               sx={mobileButtonSx}
             >
               {isMobile ? (
-                <PostAddOutlinedIcon fontSize="small" />
+                <AddCommentOutlinedIcon fontSize="small" />
               ) : (
-                "Add Post"
+                "Add Comment"
               )}
             </Button>
+            <Button
+              aria-label="Add Photos"
+              variant="outlined"
+              size="small"
+              startIcon={
+                !isMobile ? (
+                  <AddPhotoAlternateOutlinedIcon fontSize="small" />
+                ) : undefined
+              }
+              onClick={() => {
+                photoInputRef.current?.click();
+              }}
+              sx={mobileButtonSx}
+            >
+              {isMobile ? (
+                <AddPhotoAlternateOutlinedIcon fontSize="small" />
+              ) : (
+                "Add Photos"
+              )}
+            </Button>
+            {!isOrganizer ? (
+              <Button
+                aria-label="Rate Meet"
+                variant="outlined"
+                size="small"
+                startIcon={
+                  !isMobile ? <StarOutlineOutlinedIcon fontSize="small" /> : undefined
+                }
+                onClick={() => {
+                  setComposer("rating");
+                }}
+                sx={mobileButtonSx}
+              >
+                {isMobile ? (
+                  <StarOutlineOutlinedIcon fontSize="small" />
+                ) : (
+                  "Rate Meet"
+                )}
+              </Button>
+            ) : null}
           </Stack>
         ) : null}
       </Stack>
-      {isComposerOpen ? (
+      {composer === "comment" ? (
+        <MeetWallCommentComposer
+          meetId={meetId}
+          attendeeId={attendeeId}
+          onCancel={() => {
+            setComposer(null);
+          }}
+          onCreated={() => {
+            setComposer(null);
+          }}
+        />
+      ) : null}
+      {composer === "photo" ? (
         <MeetWallPhotoComposer
           meetId={meetId}
           attendeeId={attendeeId}
-          allowRating={!isOrganizer}
+          initialFiles={selectedPhotoFiles}
           onCancel={() => {
-            setIsComposerOpen(false);
+            resetPhotoComposer();
           }}
           onCreated={() => {
-            setIsComposerOpen(false);
+            resetPhotoComposer();
+          }}
+        />
+      ) : null}
+      {composer === "rating" ? (
+        <MeetWallRatingComposer
+          meetId={meetId}
+          attendeeId={attendeeId}
+          onCancel={() => {
+            setComposer(null);
+          }}
+          onCreated={() => {
+            setComposer(null);
           }}
         />
       ) : null}
