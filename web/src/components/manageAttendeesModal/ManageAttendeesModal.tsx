@@ -48,6 +48,7 @@ import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
 import { LockedMeet } from "../createMeetModal/LockedMeet";
 import { AttendeeList } from "./AttendeeList";
 import { AttendeePanelHeader } from "./AttendeePanelHeader";
+import { ManageAttendeesSectionLoading } from "./ManageAttendeesSectionLoading";
 
 type ManageAttendeesModalProps = {
   open: boolean;
@@ -70,10 +71,13 @@ export function ManageAttendeesModal({
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const {
     data: attendees,
-    isLoading,
+    isLoading: attendeesLoading,
     refetch,
   } = useFetchMeetAttendees(meetId, open ? "all" : null);
-  const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
+  const { data: meet, isLoading: meetLoading } = useFetchMeet(
+    meetId,
+    Boolean(open && meetId),
+  );
   const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
   const { notifyAttendeeAsync, isLoading: isMessageSending } =
     useNotifyAttendee();
@@ -136,6 +140,7 @@ export function ManageAttendeesModal({
     meetId,
     selectedAttendeeId,
   );
+  const detailsLoading = attendeesLoading || meetLoading;
   const hasUnreadMessages = useMemo(
     () => (attendeeMessages || []).some((message) => !message.isRead),
     [attendeeMessages],
@@ -668,6 +673,21 @@ export function ManageAttendeesModal({
 
   const renderDesktopDetailsPanel = () => {
     if (!selectedAttendee) {
+      if (detailsLoading) {
+        return (
+          <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
+            <ManageAttendeesSectionLoading
+              label="Loading attendee details..."
+              minHeight={88}
+            />
+            <Divider />
+            <ManageAttendeesSectionLoading
+              label="Loading attendee content..."
+              minHeight={220}
+            />
+          </Stack>
+        );
+      }
       return (
         <Typography variant="body2" color="text.secondary">
           Select an attendee to view their details.
@@ -676,55 +696,69 @@ export function ManageAttendeesModal({
     }
     return (
       <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
-        <AttendeePanelHeader
-          selectedAttendee={selectedAttendee}
-          setSelectedAttendeeId={setSelectedAttendeeId}
-          meet={meet}
-          isUpdating={isUpdating}
-          isOrganizer={isOrganizer || false}
-          canManageMeet={canManageMeet}
-          isOrganizerSelected={isOrganizerSelected}
-          hasUnreadMessages={hasUnreadMessages}
-          detailView={detailView}
-          setDetailView={setDetailView}
-          handleUpdateStatus={handleUpdateStatus}
-          handleAttendeePaid={handleAttendeePaid}
-          fullscreen={false}
-        />
+        {detailsLoading ? (
+          <ManageAttendeesSectionLoading
+            label="Loading attendee header..."
+            minHeight={88}
+          />
+        ) : (
+          <AttendeePanelHeader
+            selectedAttendee={selectedAttendee}
+            setSelectedAttendeeId={setSelectedAttendeeId}
+            meet={meet}
+            isUpdating={isUpdating}
+            isOrganizer={isOrganizer || false}
+            canManageMeet={canManageMeet}
+            isOrganizerSelected={isOrganizerSelected}
+            hasUnreadMessages={hasUnreadMessages}
+            detailView={detailView}
+            setDetailView={setDetailView}
+            handleUpdateStatus={handleUpdateStatus}
+            handleAttendeePaid={handleAttendeePaid}
+            fullscreen={false}
+          />
+        )}
         <Divider />
         <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 }}>
-          <Stack spacing={2}>
-            {detailView === "messages" ? (
-              <AttendeeMessages
-                meetId={meetId}
-                attendeeId={selectedAttendee?.id}
-                attendeeEmail={selectedAttendee?.email}
-              />
-            ) : (
-              <Stack spacing={2}>
-                <AttendeesIndemnityInfo
-                  hasIndemnity={meet?.hasIndemnity}
-                  indemnityAccepted={selectedAttendee.indemnityAccepted}
-                  guests={selectedAttendee.guests}
-                  guestOfLabel={guestOfLabel(selectedAttendee)}
-                  showDivider={false}
-                  inviteDisabled={!baseInviteLink}
-                  guestsUpdating={isGuestsUpdating}
-                  onGuestIncrement={() => handleGuestCountChange(1)}
-                  onGuestDecrement={() => handleGuestCountChange(-1)}
-                  onInvite={handleInviteMessage}
-                  canManageMeet={isOrganizer}
-                />
-                <Divider />
-                <AttendeeResponses responses={selectedAttendee.metaValues} />
-                <Divider />
-                <AttendeeHistory
-                  attendeeId={selectedAttendee?.id}
+          {detailsLoading ? (
+            <ManageAttendeesSectionLoading
+              label="Loading attendee content..."
+              minHeight={220}
+            />
+          ) : (
+            <Stack spacing={2}>
+              {detailView === "messages" ? (
+                <AttendeeMessages
                   meetId={meetId}
+                  attendeeId={selectedAttendee?.id}
+                  attendeeEmail={selectedAttendee?.email}
                 />
-              </Stack>
-            )}
-          </Stack>
+              ) : (
+                <Stack spacing={2}>
+                  <AttendeesIndemnityInfo
+                    hasIndemnity={meet?.hasIndemnity}
+                    indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    guests={selectedAttendee.guests}
+                    guestOfLabel={guestOfLabel(selectedAttendee)}
+                    showDivider={false}
+                    inviteDisabled={!baseInviteLink}
+                    guestsUpdating={isGuestsUpdating}
+                    onGuestIncrement={() => handleGuestCountChange(1)}
+                    onGuestDecrement={() => handleGuestCountChange(-1)}
+                    onInvite={handleInviteMessage}
+                    canManageMeet={isOrganizer}
+                  />
+                  <Divider />
+                  <AttendeeResponses responses={selectedAttendee.metaValues} />
+                  <Divider />
+                  <AttendeeHistory
+                    attendeeId={selectedAttendee?.id}
+                    meetId={meetId}
+                  />
+                </Stack>
+              )}
+            </Stack>
+          )}
         </Box>
         <Divider />
         <Box sx={{ display: "flex", justifyContent: "center" }}>
@@ -775,25 +809,50 @@ export function ManageAttendeesModal({
   };
 
   const renderMobileDrawerContent = () => {
-    if (!selectedAttendee) return null;
+    if (!selectedAttendee) {
+      return detailsLoading ? (
+        <Box sx={{ p: 2 }}>
+          <ManageAttendeesSectionLoading
+            label="Loading attendee details..."
+            minHeight={220}
+          />
+        </Box>
+      ) : null;
+    }
 
     return (
       <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <AttendeePanelHeader
-          selectedAttendee={selectedAttendee}
-          setSelectedAttendeeId={setSelectedAttendeeId}
-          meet={meet}
-          isUpdating={isUpdating}
-          isOrganizer={isOrganizer || false}
-          canManageMeet={canManageMeet}
-          isOrganizerSelected={isOrganizerSelected}
-          hasUnreadMessages={hasUnreadMessages}
-          detailView={detailView}
-          setDetailView={setDetailView}
-          handleUpdateStatus={handleUpdateStatus}
-          handleAttendeePaid={handleAttendeePaid}
-          fullscreen={true}
-        />
+        {detailsLoading ? (
+          <Box
+            sx={{
+              px: 2,
+              py: 1.5,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <ManageAttendeesSectionLoading
+              label="Loading attendee header..."
+              minHeight={88}
+            />
+          </Box>
+        ) : (
+          <AttendeePanelHeader
+            selectedAttendee={selectedAttendee}
+            setSelectedAttendeeId={setSelectedAttendeeId}
+            meet={meet}
+            isUpdating={isUpdating}
+            isOrganizer={isOrganizer || false}
+            canManageMeet={canManageMeet}
+            isOrganizerSelected={isOrganizerSelected}
+            hasUnreadMessages={hasUnreadMessages}
+            detailView={detailView}
+            setDetailView={setDetailView}
+            handleUpdateStatus={handleUpdateStatus}
+            handleAttendeePaid={handleAttendeePaid}
+            fullscreen={true}
+          />
+        )}
 
         <Box
           sx={{
@@ -805,40 +864,47 @@ export function ManageAttendeesModal({
           }}
         >
           <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-            {detailView === "messages" ? (
-              <AttendeeMessages
-                meetId={meetId}
-                attendeeId={selectedAttendee?.id}
-                attendeeEmail={selectedAttendee?.email}
+            {detailsLoading ? (
+              <ManageAttendeesSectionLoading
+                label="Loading attendee content..."
+                minHeight={220}
               />
             ) : (
-              <>
-                <AttendeesIndemnityInfo
-                  hasIndemnity={meet?.hasIndemnity}
-                  indemnityAccepted={selectedAttendee.indemnityAccepted}
-                  guests={selectedAttendee.guests}
-                  guestOfLabel={guestOfLabel(selectedAttendee)}
-                  inviteDisabled={!baseInviteLink}
-                  showDivider={false}
-                  guestsUpdating={isGuestsUpdating}
-                  onGuestIncrement={() => handleGuestCountChange(1)}
-                  onGuestDecrement={() => handleGuestCountChange(-1)}
-                  onInvite={handleInviteMessage}
-                  canManageMeet={isOrganizer}
-                />
-                <Divider sx={{ mt: 1, mb: 2 }} />
-                <AttendeeResponses
-                  indemnityAccepted={selectedAttendee.indemnityAccepted}
-                  indemnityMinors={selectedAttendee.indemnityMinors}
-                  responses={selectedAttendee.metaValues}
-                  guestOfLabel={guestOfLabel(selectedAttendee)}
-                />
-                <Divider sx={{ mt: 1, mb: 2 }} />
-                <AttendeeHistory
-                  attendeeId={selectedAttendee?.id}
+              detailView === "messages" ? (
+                <AttendeeMessages
                   meetId={meetId}
+                  attendeeId={selectedAttendee?.id}
+                  attendeeEmail={selectedAttendee?.email}
                 />
-              </>
+              ) : (
+                <>
+                  <AttendeesIndemnityInfo
+                    hasIndemnity={meet?.hasIndemnity}
+                    indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    guests={selectedAttendee.guests}
+                    guestOfLabel={guestOfLabel(selectedAttendee)}
+                    inviteDisabled={!baseInviteLink}
+                    showDivider={false}
+                    guestsUpdating={isGuestsUpdating}
+                    onGuestIncrement={() => handleGuestCountChange(1)}
+                    onGuestDecrement={() => handleGuestCountChange(-1)}
+                    onInvite={handleInviteMessage}
+                    canManageMeet={isOrganizer}
+                  />
+                  <Divider sx={{ mt: 1, mb: 2 }} />
+                  <AttendeeResponses
+                    indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    indemnityMinors={selectedAttendee.indemnityMinors}
+                    responses={selectedAttendee.metaValues}
+                    guestOfLabel={guestOfLabel(selectedAttendee)}
+                  />
+                  <Divider sx={{ mt: 1, mb: 2 }} />
+                  <AttendeeHistory
+                    attendeeId={selectedAttendee?.id}
+                    meetId={meetId}
+                  />
+                </>
+              )
             )}
           </Box>
           <Divider sx={{ mt: 2 }} />
@@ -955,7 +1021,7 @@ export function ManageAttendeesModal({
             <Box sx={{ flex: 1, minHeight: 0 }}>
               <AttendeeList
                 attendees={attendees}
-                isLoading={isLoading}
+                isLoading={attendeesLoading}
                 meet={meet}
                 selectedAttendeeId={selectedAttendeeId}
                 setSelectedAttendeeId={setSelectedAttendeeId}
@@ -1207,7 +1273,7 @@ export function ManageAttendeesModal({
           >
             <AttendeeList
               attendees={attendees}
-              isLoading={isLoading}
+              isLoading={attendeesLoading}
               meet={meet}
               selectedAttendeeId={selectedAttendeeId}
               setSelectedAttendeeId={setSelectedAttendeeId}

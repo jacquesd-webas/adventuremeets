@@ -12,6 +12,7 @@ import { Attendee } from "../../types/AttendeeModel";
 import { AttendeeItem } from "./AttendeeItem";
 import { AttendeeStatusEnum } from "../../types/AttendeeStatusEnum";
 import { useMemo } from "react";
+import { ManageAttendeesSectionLoading } from "./ManageAttendeesSectionLoading";
 
 type AttendeeListProps = {
   attendees: Attendee[];
@@ -59,12 +60,12 @@ export function AttendeeList({
       sx={{
         width: { xs: "100%", md: 280 },
         flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        height: "100%",
         ...(fullScreen && {
-          display: "flex",
-          flexDirection: "column",
           flex: 1,
-          minHeight: 0,
-          height: "100%",
         }),
       }}
     >
@@ -92,16 +93,15 @@ export function AttendeeList({
       <Divider />
       <List
         sx={{
-          maxHeight: fullScreen ? "none" : { xs: 220, md: 420 },
+          flex: 1,
+          minHeight: 0,
+          maxHeight: "none",
           overflowY: "auto",
-          ...(fullScreen && { flex: 1 }),
         }}
       >
         {isLoading ? (
           <Box sx={{ p: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Loading attendees...
-            </Typography>
+            <ManageAttendeesSectionLoading label="Loading attendees..." />
           </Box>
         ) : attendees.length ? (
           attendees.map((attendee) => {
