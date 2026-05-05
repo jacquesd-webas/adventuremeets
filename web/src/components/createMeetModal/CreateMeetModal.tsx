@@ -757,6 +757,7 @@ export function CreateMeetModal({
             display: "flex",
             flexDirection: "column",
             borderRadius: fullScreen ? 0 : 3,
+            minHeight: 0,
           }}
         >
           <Stack
@@ -863,60 +864,91 @@ export function CreateMeetModal({
               </Box>
             )}
             <Stack sx={{ flex: 1, minHeight: 0 }}>
-              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: "auto",
+                  pr: fullScreen ? 0 : 1,
+                  pb: fullScreen ? 2 : 0,
+                }}
+              >
                 {renderStep()}
               </Box>
               <Box
                 sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
                   pt: 2,
+                  mt: 1,
                   borderTop: 1,
                   borderColor: "divider",
+                  position: fullScreen ? "sticky" : "static",
+                  bottom: 0,
+                  backgroundColor: "background.paper",
+                  zIndex: 1,
                 }}
               >
-                <Button
-                  variant="text"
-                  disabled={activeStep === 0}
-                  onClick={handlePrev}
+                <Box
+                  sx={
+                    fullScreen
+                      ? {
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(180px, 1fr))",
+                          gap: 1,
+                        }
+                      : {
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 1,
+                        }
+                  }
                 >
-                  Previous
-                </Button>
-                <Stack direction="row" spacing={1}>
-                  <LockedTooltipWrapper isReadOnly={isMeetLocked}>
-                    <Button
-                      variant="contained"
-                      onClick={
-                        isLastStep
-                          ? isDraft
-                            ? handlePublish
-                            : isPostponed
+                  <Button
+                    variant="text"
+                    disabled={activeStep === 0}
+                    onClick={handlePrev}
+                    sx={fullScreen ? { width: "100%" } : undefined}
+                  >
+                    Previous
+                  </Button>
+                  <Box sx={fullScreen ? { width: "100%" } : undefined}>
+                    <LockedTooltipWrapper isReadOnly={isMeetLocked}>
+                      <Button
+                        variant="contained"
+                        onClick={
+                          isLastStep
+                            ? isDraft
                               ? handlePublish
-                              : handleSaveAndClose
-                          : handleNext
-                      }
-                      disabled={
-                        isMeetLocked ||
-                        isSubmitting ||
-                        isLoadingMeet ||
-                        isPublishing ||
-                        (finalErrors && finalErrors.length > 0)
-                      }
-                    >
-                      {isLastStep
-                        ? isDraft || isPostponed
-                          ? isPublishing
-                            ? "Publishing..."
-                            : "Publish"
+                              : isPostponed
+                                ? handlePublish
+                                : handleSaveAndClose
+                            : handleNext
+                        }
+                        disabled={
+                          isMeetLocked ||
+                          isSubmitting ||
+                          isLoadingMeet ||
+                          isPublishing ||
+                          (finalErrors && finalErrors.length > 0)
+                        }
+                        sx={fullScreen ? { width: "100%" } : undefined}
+                      >
+                        {isLastStep
+                          ? isDraft || isPostponed
+                            ? isPublishing
+                              ? "Publishing..."
+                              : "Publish"
+                            : isSubmitting
+                              ? "Saving..."
+                              : "Save & Close"
                           : isSubmitting
                             ? "Saving..."
-                            : "Save & Close"
-                        : isSubmitting
-                          ? "Saving..."
-                          : "Save & Continue"}
-                    </Button>
-                  </LockedTooltipWrapper>
-                </Stack>
+                            : "Save & Continue"}
+                      </Button>
+                    </LockedTooltipWrapper>
+                  </Box>
+                </Box>
               </Box>
             </Stack>
           </Stack>

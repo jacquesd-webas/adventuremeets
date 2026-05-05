@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   FormControlLabel,
   IconButton,
@@ -7,6 +8,8 @@ import {
   Switch,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -19,6 +22,9 @@ export const QuestionsStep = ({
   setState,
   disabled = false,
 }: StepProps) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const addField = (type: QuestionField["type"]) => {
     const newField: QuestionField = {
       id: crypto.randomUUID
@@ -68,24 +74,68 @@ export const QuestionsStep = ({
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1} alignItems="center">
-        <SelectTemplate
-          organizationId={state.organizationId || undefined}
-          disabled={disabled}
-          onApply={(questions) => setState((prev) => ({ ...prev, questions }))}
-        />
-        <Button variant="outlined" onClick={() => addField("text")} disabled={disabled}>
-          Textfield
-        </Button>
-        <Button variant="outlined" onClick={() => addField("select")} disabled={disabled}>
-          Select
-        </Button>
-        <Button variant="outlined" onClick={() => addField("switch")} disabled={disabled}>
-          Switch
-        </Button>
-        <Button variant="outlined" onClick={() => addField("checkbox")} disabled={disabled}>
-          Checkbox
-        </Button>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.25}
+        alignItems={{ xs: "stretch", sm: "center" }}
+      >
+        <Box sx={{ flexShrink: 0, width: { xs: "100%", sm: "auto" } }}>
+          <SelectTemplate
+            organizationId={state.organizationId || undefined}
+            disabled={disabled}
+            onApply={(questions) =>
+              setState((prev) => ({ ...prev, questions }))
+            }
+          />
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            flex: 1,
+            gridTemplateColumns: {
+              xs: "repeat(2, minmax(0, 1fr))",
+              sm: "repeat(4, minmax(0, 1fr))",
+            },
+          }}
+        >
+          <Button
+            variant="outlined"
+            onClick={() => addField("text")}
+            disabled={disabled}
+            size={isMobile ? "small" : "medium"}
+            sx={{ width: "100%" }}
+          >
+            Textfield
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => addField("select")}
+            disabled={disabled}
+            size={isMobile ? "small" : "medium"}
+            sx={{ width: "100%" }}
+          >
+            Select
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => addField("switch")}
+            disabled={disabled}
+            size={isMobile ? "small" : "medium"}
+            sx={{ width: "100%" }}
+          >
+            Switch
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => addField("checkbox")}
+            disabled={disabled}
+            size={isMobile ? "small" : "medium"}
+            sx={{ width: "100%" }}
+          >
+            Checkbox
+          </Button>
+        </Box>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
         <i>
@@ -164,7 +214,11 @@ export const QuestionsStep = ({
                   disabled={disabled}
                 />
               )}
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                alignItems={{ xs: "flex-start", sm: "center" }}
+              >
                 <FormControlLabel
                   control={
                     <Switch

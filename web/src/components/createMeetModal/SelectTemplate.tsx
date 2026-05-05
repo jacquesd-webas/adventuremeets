@@ -54,8 +54,22 @@ export function SelectTemplate({
   );
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-      <FormControl size="small" sx={{ minWidth: 220 }}>
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 1,
+        width: { xs: "100%", sm: "auto" },
+      }}
+    >
+      <FormControl
+        size="small"
+        sx={{
+          minWidth: { xs: 0, sm: 220 },
+          width: { xs: "100%", sm: "auto" },
+          flex: { xs: 1, sm: "0 0 auto" },
+        }}
+      >
         <Select
           aria-label="Template"
           value={selectedId}
