@@ -958,10 +958,13 @@ export function ManageAttendeesModal({
       fullScreen={fullScreen}
       sx={{
         "& .MuiDialog-paper": {
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
           mt: fullScreen ? 0 : 10,
           minHeight: fullScreen ? "100%" : "85vh",
-          height: fullScreen ? "100%" : "auto",
-          maxHeight: fullScreen ? "100%" : undefined,
+          height: fullScreen ? "100%" : "85vh",
+          maxHeight: fullScreen ? "100%" : "85vh",
           borderRadius: fullScreen ? 0 : undefined,
           m: fullScreen ? 0 : undefined,
         },
@@ -1000,13 +1003,14 @@ export function ManageAttendeesModal({
       </DialogTitle>
       <DialogContent
         sx={{
+          flex: 1,
           pb: fullScreen ? 0 : 2,
           px: fullScreen ? 0 : undefined,
           pt: fullScreen ? 1 : undefined,
-          height: "100%",
           display: "flex",
           flexDirection: "column",
           minHeight: 0,
+          overflow: "hidden",
         }}
       >
         {fullScreen ? (
@@ -1269,6 +1273,9 @@ export function ManageAttendeesModal({
               minHeight: 360,
               height: "100%",
               flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              overflow: "hidden",
             }}
           >
             <AttendeeList

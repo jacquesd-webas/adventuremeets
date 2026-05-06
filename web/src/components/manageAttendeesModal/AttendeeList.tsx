@@ -64,6 +64,7 @@ export function AttendeeList({
         flexDirection: "column",
         minHeight: 0,
         height: "100%",
+        overflow: "hidden",
         ...(fullScreen && {
           flex: 1,
         }),
@@ -91,42 +92,43 @@ export function AttendeeList({
         </Stack>
       </Box>
       <Divider />
-      <List
+      <Box
         sx={{
           flex: 1,
           minHeight: 0,
-          maxHeight: "none",
           overflowY: "auto",
         }}
       >
-        {isLoading ? (
-          <Box sx={{ p: 2 }}>
-            <ManageAttendeesSectionLoading label="Loading attendees..." />
-          </Box>
-        ) : attendees.length ? (
-          attendees.map((attendee) => {
-            const label = attendeeLabel(attendee);
-            const subLabel = attendee.email || attendee.phone || "";
-            return (
-              <AttendeeItem
-                key={attendee.id}
-                attendee={attendee}
-                meet={meet}
-                selectedAttendeeId={selectedAttendeeId}
-                onSelect={setSelectedAttendeeId}
-                label={label}
-                subLabel={subLabel}
-              />
-            );
-          })
-        ) : (
-          <Box sx={{ p: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              No attendees yet.
-            </Typography>
-          </Box>
-        )}
-      </List>
+        <List sx={{ py: 0 }}>
+          {isLoading ? (
+            <Box sx={{ p: 2 }}>
+              <ManageAttendeesSectionLoading label="Loading attendees..." />
+            </Box>
+          ) : attendees.length ? (
+            attendees.map((attendee) => {
+              const label = attendeeLabel(attendee);
+              const subLabel = attendee.email || attendee.phone || "";
+              return (
+                <AttendeeItem
+                  key={attendee.id}
+                  attendee={attendee}
+                  meet={meet}
+                  selectedAttendeeId={selectedAttendeeId}
+                  onSelect={setSelectedAttendeeId}
+                  label={label}
+                  subLabel={subLabel}
+                />
+              );
+            })
+          ) : (
+            <Box sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                No attendees yet.
+              </Typography>
+            </Box>
+          )}
+        </List>
+      </Box>
     </Paper>
   );
 }
