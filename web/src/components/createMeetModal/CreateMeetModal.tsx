@@ -883,7 +883,7 @@ export function CreateMeetModal({
                   borderColor: "divider",
                   position: fullScreen ? "sticky" : "static",
                   bottom: 0,
-                  backgroundColor: "background.paper",
+                  backgroundColor: "inherit",
                   zIndex: 1,
                 }}
               >
