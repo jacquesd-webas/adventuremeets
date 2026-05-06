@@ -65,4 +65,29 @@ describe("useApi", () => {
     expect(window.localStorage.getItem("accessToken")).toBe("new-access");
     expect(window.localStorage.getItem("refreshToken")).toBe("new-refresh");
   });
+
+  it("surfaces the API message for anonymous 401 responses", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse(
+        { message: "Incorrect email or password" },
+        { status: 401 },
+      ),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useApi({ baseUrl: "http://localhost:8000" }),
+    );
+
+    await expect(
+      result.current.post("/auth/login", {
+        email: "user@example.com",
+        password: "bad-password",
+      }),
+    ).rejects.toMatchObject({
+      message: "Incorrect email or password",
+      status: 401,
+    });
+  });
 });

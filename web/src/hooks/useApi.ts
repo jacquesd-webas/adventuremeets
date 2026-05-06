@@ -18,6 +18,25 @@ class ApiError extends Error {
   }
 }
 
+async function readErrorMessage(res: Response): Promise<string> {
+  const bodyText = await res.text();
+  if (!bodyText) {
+    return `Request failed with status ${res.status}`;
+  }
+  try {
+    const parsed = JSON.parse(bodyText) as { message?: unknown };
+    if (typeof parsed.message === "string" && parsed.message.trim()) {
+      return parsed.message;
+    }
+    if (Array.isArray(parsed.message) && parsed.message.length) {
+      return parsed.message.join(", ");
+    }
+  } catch {
+    // Ignore JSON parse failures and fall back to plain text below.
+  }
+  return bodyText;
+}
+
 export function useApi(options: ApiOptions = {}) {
   const envBaseUrl =
     import.meta.env.VITE_API_BASEURL || import.meta.env.API_BASEURL;
@@ -136,13 +155,16 @@ export function useApi(options: ApiOptions = {}) {
           );
         }
       }
+      const message = await readErrorMessage(res);
       window.localStorage.removeItem("accessToken");
       window.localStorage.removeItem("refreshToken");
-      redirectToLogin();
-      throw new Error("Unauthorized");
+      if (token || getRefreshToken()) {
+        redirectToLogin();
+      }
+      throw new ApiError(401, message || "Unauthorized");
     }
     if (!res.ok) {
-      const message = await res.text();
+      const message = await readErrorMessage(res);
       throw new ApiError(
         res.status,
         message || `Request failed with status ${res.status}`,

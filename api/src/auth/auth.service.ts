@@ -156,10 +156,8 @@ export class AuthService {
       user: undefined,
       isValid: false,
     };
-    // This is a litte tricky as we want to mask any login failures or other errors
-    // as just "Login failed" to avoid giving away any hints to attackers. We also
-    // want to log failed attempts for non-real users so that fail2ban can block
-    // brute-force attacks.
+    // This is a litte tricky as for most failures we want to mask the reason to avoid
+    // giving hints to attackers, so we only have Login Failed and Incorrect email or password
 
     // 1. Verify if the user is valid (check email and password)
     try {
@@ -169,7 +167,7 @@ export class AuthService {
     } catch (err) {
       if (err instanceof UnauthorizedException) {
         this.logger.error(`Login failed for ${payload.email}: ${err.message}`);
-        throw new UnauthorizedException("Login failed");
+        throw new UnauthorizedException("Incorrect email or password");
       }
       if (err instanceof InternalServerErrorException) {
         this.logger.error(`Login failed for ${payload.email}: ${err.message}`);
@@ -178,7 +176,7 @@ export class AuthService {
     }
     if (!user) {
       this.logger.error(`Login failed for ${payload.email}: User not found`);
-      throw new UnauthorizedException("Login failed");
+      throw new UnauthorizedException("Incorrect email or password");
     }
 
     // 2. Log the login attempt (either as success or failure)
@@ -196,7 +194,7 @@ export class AuthService {
         refreshToken: this.signRefreshToken(user),
       };
     }
-    throw new UnauthorizedException("Login failed");
+    throw new UnauthorizedException("Incorrect email or password");
   }
 
   async refresh(payload: RefreshDto): Promise<TokenPair> {
