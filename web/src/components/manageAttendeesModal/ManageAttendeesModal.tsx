@@ -869,42 +869,40 @@ export function ManageAttendeesModal({
                 label="Loading attendee content..."
                 minHeight={220}
               />
+            ) : detailView === "messages" ? (
+              <AttendeeMessages
+                meetId={meetId}
+                attendeeId={selectedAttendee?.id}
+                attendeeEmail={selectedAttendee?.email}
+              />
             ) : (
-              detailView === "messages" ? (
-                <AttendeeMessages
-                  meetId={meetId}
-                  attendeeId={selectedAttendee?.id}
-                  attendeeEmail={selectedAttendee?.email}
+              <>
+                <AttendeesIndemnityInfo
+                  hasIndemnity={meet?.hasIndemnity}
+                  indemnityAccepted={selectedAttendee.indemnityAccepted}
+                  guests={selectedAttendee.guests}
+                  guestOfLabel={guestOfLabel(selectedAttendee)}
+                  inviteDisabled={!baseInviteLink}
+                  showDivider={false}
+                  guestsUpdating={isGuestsUpdating}
+                  onGuestIncrement={() => handleGuestCountChange(1)}
+                  onGuestDecrement={() => handleGuestCountChange(-1)}
+                  onInvite={handleInviteMessage}
+                  canManageMeet={isOrganizer}
                 />
-              ) : (
-                <>
-                  <AttendeesIndemnityInfo
-                    hasIndemnity={meet?.hasIndemnity}
-                    indemnityAccepted={selectedAttendee.indemnityAccepted}
-                    guests={selectedAttendee.guests}
-                    guestOfLabel={guestOfLabel(selectedAttendee)}
-                    inviteDisabled={!baseInviteLink}
-                    showDivider={false}
-                    guestsUpdating={isGuestsUpdating}
-                    onGuestIncrement={() => handleGuestCountChange(1)}
-                    onGuestDecrement={() => handleGuestCountChange(-1)}
-                    onInvite={handleInviteMessage}
-                    canManageMeet={isOrganizer}
-                  />
-                  <Divider sx={{ mt: 1, mb: 2 }} />
-                  <AttendeeResponses
-                    indemnityAccepted={selectedAttendee.indemnityAccepted}
-                    indemnityMinors={selectedAttendee.indemnityMinors}
-                    responses={selectedAttendee.metaValues}
-                    guestOfLabel={guestOfLabel(selectedAttendee)}
-                  />
-                  <Divider sx={{ mt: 1, mb: 2 }} />
-                  <AttendeeHistory
-                    attendeeId={selectedAttendee?.id}
-                    meetId={meetId}
-                  />
-                </>
-              )
+                <Divider sx={{ mt: 1, mb: 2 }} />
+                <AttendeeResponses
+                  indemnityAccepted={selectedAttendee.indemnityAccepted}
+                  indemnityMinors={selectedAttendee.indemnityMinors}
+                  responses={selectedAttendee.metaValues}
+                  guestOfLabel={guestOfLabel(selectedAttendee)}
+                />
+                <Divider sx={{ mt: 1, mb: 2 }} />
+                <AttendeeHistory
+                  attendeeId={selectedAttendee?.id}
+                  meetId={meetId}
+                />
+              </>
             )}
           </Box>
           <Divider sx={{ mt: 2 }} />
@@ -1274,7 +1272,6 @@ export function ManageAttendeesModal({
               height: "100%",
               flex: 1,
               minWidth: 0,
-              minHeight: 0,
               overflow: "hidden",
             }}
           >

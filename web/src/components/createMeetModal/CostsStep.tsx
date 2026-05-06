@@ -1,10 +1,4 @@
-import {
-  Box,
-  InputAdornment,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Box, InputAdornment, Stack, TextField } from "@mui/material";
 import { CurrencySelect, getCurrencySymbol } from "./CurrencySelect";
 import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
