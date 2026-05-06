@@ -16,6 +16,7 @@ import { HelpBanner } from "./HelpBanner";
 type FinishStepProps = StepProps & {
   shareCode?: string | null;
   isEditing?: boolean;
+  onPreview?: () => void;
 };
 
 export function FinishStep({
@@ -25,24 +26,31 @@ export function FinishStep({
   shareCode,
   disabled = false,
   isEditing = false,
+  onPreview,
   isHelpEnabled = false,
   isHelpBannerDismissed = false,
   onDismissHelpBanner,
 }: FinishStepProps) {
   const [copied, setCopied] = useState(false);
+
   const showPostponedWarning =
     isEditing && state.statusId === MeetStatusEnum.Postponed;
+
   const shareUrl = useMemo(() => {
     if (!shareCode) return "";
     if (typeof window === "undefined") return `/meets/${shareCode}`;
     return `${window.location.origin}/meets/${shareCode}`;
   }, [shareCode]);
+
   const previewUrl = useMemo(() => {
     if (!shareCode) return "";
+    const params = new URLSearchParams({
+      preview: "true",
+    });
     if (typeof window === "undefined") {
-      return `/meets/${shareCode}?preview=true`;
+      return `/meets/${shareCode}?${params.toString()}`;
     }
-    return `${window.location.origin}/meets/${shareCode}?preview=true`;
+    return `${window.location.origin}/meets/${shareCode}?${params.toString()}`;
   }, [shareCode]);
 
   const handleCopy = async () => {
@@ -50,11 +58,6 @@ export function FinishStep({
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handlePreview = () => {
-    if (!previewUrl || typeof window === "undefined") return;
-    window.open(previewUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -104,8 +107,8 @@ export function FinishStep({
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
               <Button
                 variant="outlined"
-                onClick={handlePreview}
-                disabled={!previewUrl}
+                onClick={onPreview}
+                disabled={typeof onPreview !== "function" || !previewUrl}
               >
                 Preview
               </Button>

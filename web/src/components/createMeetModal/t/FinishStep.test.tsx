@@ -4,6 +4,10 @@ import { initialState } from "../CreateMeetState";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
 
 describe("FinishStep", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("shows the postponed warning and toggles the reconfirm checkbox in edit mode", () => {
     const setState = vi.fn();
 
@@ -62,5 +66,23 @@ describe("FinishStep", () => {
     expect(
       screen.queryByText(/the meet was postponed/i),
     ).not.toBeInTheDocument();
+  });
+
+  it("calls onPreview for preview", () => {
+    const onPreview = vi.fn();
+
+    render(
+      <FinishStep
+        state={initialState}
+        setState={vi.fn()}
+        errors={[]}
+        shareCode="share-code-1"
+        onPreview={onPreview}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /preview/i }));
+
+    expect(onPreview).toHaveBeenCalledTimes(1);
   });
 });

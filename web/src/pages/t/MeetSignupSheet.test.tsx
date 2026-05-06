@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import MeetSignupSheet from "../MeetSignupSheet";
 
 const mockedMeet = {
@@ -122,8 +124,17 @@ vi.mock("../../helpers/organizationTheme", () => ({
 }));
 
 vi.mock("../../components/meet/MeetInfoSummary", () => ({
-  MeetInfoSummary: ({ meet }: { meet: { name: string } }) => (
-    <div>{meet.name}</div>
+  MeetInfoSummary: ({
+    meet,
+    actionSlot,
+  }: {
+    meet: { name: string };
+    actionSlot?: ReactNode;
+  }) => (
+    <div>
+      <div>{meet.name}</div>
+      <div>{actionSlot}</div>
+    </div>
   ),
 }));
 
@@ -232,5 +243,44 @@ describe("MeetSignupSheet", () => {
 
     expect(await screen.findByText("Mountain Hike")).toBeInTheDocument();
     expect(screen.getByText("Preview")).toBeInTheDocument();
+  });
+
+  it("uses the preview close action as back to editing for editor previews", async () => {
+    const user = userEvent.setup();
+    const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+    const openerDescriptor = Object.getOwnPropertyDescriptor(window, "opener");
+    Object.defineProperty(window, "opener", {
+      configurable: true,
+      value: {},
+    });
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          initialEntries={[
+            "/meets/share-123?preview=true&previewSource=editor",
+          ]}
+        >
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const closeButton = await screen.findByRole("button", {
+      name: /back to editing/i,
+    });
+    await user.click(closeButton);
+
+    expect(closeSpy).toHaveBeenCalled();
+
+    closeSpy.mockRestore();
+    if (openerDescriptor) {
+      Object.defineProperty(window, "opener", openerDescriptor);
+    } else {
+      delete (window as Window & { opener?: Window | null }).opener;
+    }
   });
 });

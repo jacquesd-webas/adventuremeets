@@ -12,6 +12,10 @@ import { ManageAttendeesModal } from "../manageAttendeesModal/ManageAttendeesMod
 import { ReportsModal } from "../reportsModal/ReportsModal";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
 import { MeetInfoModal } from "../meet/MeetInfoModal";
+import {
+  clearCreateMeetPreviewRestore,
+  readCreateMeetPreviewRestore,
+} from "../createMeetModal/createMeetPreviewRestore";
 
 type MeetActionsDialogsProps = {
   meetId: string | null;
@@ -37,7 +41,7 @@ function MeetActionsDialogs({
   setSelectedMeetId,
   onActionConfirm,
 }: MeetActionsDialogsProps) {
-  const navigate = useNavigate();
+  const nav = useNavigate();
   const location = useLocation();
   const [isCloseDialogOpen, setIsCloseDialogOpen] = React.useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = React.useState(false);
@@ -64,7 +68,7 @@ function MeetActionsDialogs({
     showReportsModal;
 
   // Prevent background scroll when any dialog/modal is open
-  React.useEffect(() => {
+  useEffect(() => {
     if (!anyOpen) {
       return;
     }
@@ -74,6 +78,9 @@ function MeetActionsDialogs({
       document.body.style.overflow = previousOverflow;
     };
   }, [anyOpen]);
+
+  // Retore key from doing something we need to come back to
+  const restore = readCreateMeetPreviewRestore();
 
   // Common handler to close dialogs and reset state
   const handleClose = () => {
@@ -123,6 +130,15 @@ function MeetActionsDialogs({
 
   // Open the dialog when we have something to do
   useEffect(() => {
+    if (restore?.meetId) {
+      setPendingAction(MeetActionsEnum.Edit);
+      setSelectedMeetId(restore.meetId);
+      clearCreateMeetPreviewRestore();
+      return;
+    }
+  }, [restore, setPendingAction, setSelectedMeetId]);
+
+  useEffect(() => {
     switch (pendingAction) {
       case "create":
         setSelectedMeetId(null);
@@ -139,7 +155,7 @@ function MeetActionsDialogs({
         break;
       case "checkin":
         if (meetId) {
-          navigate(`/meet/${meetId}/checkin`, {
+          nav(`/meet/${meetId}/checkin`, {
             state: {
               returnTo: `${location.pathname}${location.search}`,
             },
@@ -182,7 +198,7 @@ function MeetActionsDialogs({
     location.pathname,
     location.search,
     meetId,
-    navigate,
+    nav,
     onActionConfirm,
     pendingAction,
     setPendingAction,

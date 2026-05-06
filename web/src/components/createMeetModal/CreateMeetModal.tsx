@@ -50,6 +50,8 @@ import { useCurrentOrganization } from "../../context/organizationContext";
 import { LockedMeet } from "./LockedMeet";
 import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
 import MeetImage from "../../types/MeetImageModel";
+import { writeCreateMeetPreviewRestore } from "./createMeetPreviewRestore";
+import { useNavigate } from "react-router-dom";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -92,10 +94,13 @@ export function CreateMeetModal({
   >({});
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const previewRestoreAppliedRef = useRef(false);
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
+  const nav = useNavigate();
   const { currentOrganizationId } = useCurrentOrganization();
+
   const statusId =
     typeof state.statusId === "number"
       ? state.statusId
@@ -142,6 +147,7 @@ export function CreateMeetModal({
     if (!open) {
       setActiveStep(0);
       setHelpBannerState({});
+      previewRestoreAppliedRef.current = false;
     }
   }, [open]);
 
@@ -539,6 +545,17 @@ export function CreateMeetModal({
     }
   };
 
+  const handlePreview = () => {
+    if (!shareCode || typeof window === "undefined") return;
+    writeCreateMeetPreviewRestore({
+      meetId,
+    });
+    const params = new URLSearchParams({
+      preview: "true",
+    });
+    nav(`/meets/${shareCode}?${params.toString()}`);
+  };
+
   // User clicks "Next"
   const handleNext = async () => {
     setIsSubmitting(true);
@@ -578,7 +595,12 @@ export function CreateMeetModal({
 
   // User manually selects step
   const handleStepChange = (target: number) => {
-    if (target === activeStep) return;
+    if (target === activeStep) {
+      if (fullScreen) {
+        setShowSteps(false);
+      }
+      return;
+    }
     if (isDirty) {
       setPendingStep(target);
       setDirtyDialogOpen(true);
@@ -759,6 +781,7 @@ export function CreateMeetModal({
             shareCode={shareCode}
             disabled={isMeetLocked}
             isEditing={isEditing}
+            onPreview={handlePreview}
             isHelpEnabled={isHelpEnabled}
             isHelpBannerDismissed={Boolean(helpBannerState[8])}
             onDismissHelpBanner={() => dismissHelpBanner(8)}
@@ -770,6 +793,55 @@ export function CreateMeetModal({
         );
     }
   };
+
+  const renderStepNavigation = () => (
+    <Stepper activeStep={activeStep} orientation="vertical" nonLinear>
+      {steps.map((label, index) => (
+        <Step key={label} completed={completedSteps.includes(index + 1)}>
+          <StepLabel
+            icon={
+              errorSteps.has(index) ? (
+                <ErrorIcon
+                  color="error"
+                  sx={{
+                    fontSize: 28,
+                    transform: "translateX(-1px)",
+                  }}
+                />
+              ) : (
+                index + 1
+              )
+            }
+            onClick={() => handleStepChange(index)}
+            sx={{
+              cursor: "pointer",
+              "& .MuiStepLabel-label": {
+                color: errorSteps.has(index) ? "error.main" : "inherit",
+              },
+            }}
+          >
+            <Box component="span">
+              {label}
+              {requiredStepNumbers.has(index + 1) ? (
+                <Box
+                  component="span"
+                  aria-hidden="true"
+                  sx={{
+                    color: "error.main",
+                    ml: 0.25,
+                    fontSize: "1.35em",
+                    lineHeight: 1,
+                  }}
+                >
+                  *
+                </Box>
+              ) : null}
+            </Box>
+          </StepLabel>
+        </Step>
+      ))}
+    </Stepper>
+  );
 
   if (!open) return null;
 
@@ -810,14 +882,10 @@ export function CreateMeetModal({
               {meetId ? "Edit meet" : "New meet"}
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
-              <Tooltip
-                title={isHelpEnabled ? "Turn off help" : "Turn on help"}
-              >
+              <Tooltip title={isHelpEnabled ? "Turn off help" : "Turn on help"}>
                 <IconButton
                   onClick={() => setIsHelpEnabled((prev) => !prev)}
-                  aria-label={
-                    isHelpEnabled ? "Turn off help" : "Turn on help"
-                  }
+                  aria-label={isHelpEnabled ? "Turn off help" : "Turn on help"}
                   color={isHelpEnabled ? "primary" : "default"}
                 >
                   <HelpOutlineIcon />
@@ -847,10 +915,10 @@ export function CreateMeetModal({
           )}
           <Stack
             direction="row"
-            spacing={showSteps ? 3 : 0}
-            sx={{ flex: 1, overflow: "hidden" }}
+            spacing={!fullScreen && showSteps ? 3 : 0}
+            sx={{ flex: 1, overflow: "hidden", position: "relative" }}
           >
-            {showSteps && (
+            {!fullScreen && showSteps && (
               <Box
                 sx={{
                   minWidth: 220,
@@ -859,64 +927,43 @@ export function CreateMeetModal({
                   borderColor: "divider",
                 }}
               >
-                <Stepper
-                  activeStep={activeStep}
-                  orientation="vertical"
-                  nonLinear
-                >
-                  {steps.map((label, index) => (
-                    <Step
-                      key={label}
-                      completed={completedSteps.includes(index + 1)}
-                    >
-                      <StepLabel
-                        icon={
-                          errorSteps.has(index) ? (
-                            <ErrorIcon
-                              color="error"
-                              sx={{
-                                fontSize: 28,
-                                transform: "translateX(-1px)",
-                              }}
-                            />
-                          ) : (
-                            index + 1
-                          )
-                        }
-                        onClick={() => handleStepChange(index)}
-                        sx={{
-                          cursor: "pointer",
-                          "& .MuiStepLabel-label": {
-                            color: errorSteps.has(index)
-                              ? "error.main"
-                              : "inherit",
-                          },
-                        }}
-                      >
-                        <Box component="span">
-                          {label}
-                          {requiredStepNumbers.has(index + 1) ? (
-                            <Box
-                              component="span"
-                              aria-hidden="true"
-                              sx={{
-                                color: "error.main",
-                                ml: 0.25,
-                                fontSize: "1.35em",
-                                lineHeight: 1,
-                              }}
-                            >
-                              *
-                            </Box>
-                          ) : null}
-                        </Box>
-                      </StepLabel>
-                    </Step>
-                  ))}
-                </Stepper>
+                {renderStepNavigation()}
               </Box>
             )}
-            <Stack sx={{ flex: 1, minHeight: 0 }}>
+            {fullScreen && showSteps ? (
+              <>
+                <Box
+                  onClick={() => setShowSteps(false)}
+                  sx={{
+                    position: "absolute",
+                    inset: 0,
+                    bgcolor: "rgba(15,23,42,0.28)",
+                    zIndex: 1,
+                  }}
+                />
+                <Box
+                  data-testid="create-meet-steps-drawer"
+                  sx={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    zIndex: 2,
+                    width: "min(280px, 80vw)",
+                    px: 2,
+                    py: 1,
+                    bgcolor: "background.paper",
+                    borderRight: 1,
+                    borderColor: "divider",
+                    boxShadow: 6,
+                    overflowY: "auto",
+                  }}
+                >
+                  {renderStepNavigation()}
+                </Box>
+              </>
+            ) : null}
+            <Stack sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
               <Box
                 sx={{
                   flex: 1,
@@ -958,7 +1005,7 @@ export function CreateMeetModal({
                   }
                 >
                   <Button
-                    variant="text"
+                    variant="outlined"
                     disabled={activeStep === 0}
                     onClick={handlePrev}
                     sx={fullScreen ? { width: "100%" } : undefined}
