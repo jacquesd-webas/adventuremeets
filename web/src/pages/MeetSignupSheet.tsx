@@ -516,8 +516,13 @@ function MeetSignupSheet() {
   };
 
   const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
+  const isDraftMeet = meet?.statusId === MeetStatusEnum.Draft;
 
   if (!isLoading && !meet) {
+    return <MeetNotFound />;
+  }
+
+  if (!isLoading && isDraftMeet && !isPreview) {
     return <MeetNotFound />;
   }
 

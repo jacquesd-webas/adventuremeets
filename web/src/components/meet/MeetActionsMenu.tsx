@@ -98,7 +98,10 @@ const shouldShow = (
           (!isUpcoming || isSameMeetDayOrLater({ startTime })))
       );
     case "preview":
-      return statusId === MeetStatusEnum.Published;
+      return (
+        statusId === MeetStatusEnum.Draft ||
+        statusId === MeetStatusEnum.Published
+      );
     case "copy-link":
       return (
         statusId === MeetStatusEnum.Published ||

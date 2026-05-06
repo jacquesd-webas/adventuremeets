@@ -35,6 +35,7 @@ describe("MeetActionsMenu", () => {
     renderMenu({ statusId: MeetStatusEnum.Draft, canManageMeet: true });
     expect(screen.getByText("Delete")).toBeInTheDocument();
     expect(screen.getByText("Create a copy")).toBeInTheDocument();
+    expect(screen.getByText("Preview")).toBeInTheDocument();
   });
 
   it("does not show Delete for non-draft meets", () => {
@@ -59,7 +60,7 @@ describe("MeetActionsMenu", () => {
     );
   });
 
-  it("does not show Preview for non-published meets", () => {
+  it("does not show Preview for non-draft and non-published meets", () => {
     renderMenu({
       statusId: MeetStatusEnum.Open,
       canViewMeet: true,

@@ -146,6 +146,7 @@ vi.mock("../../components/meet/MeetSignupDuplicateDialog", () => ({
 describe("MeetSignupSheet", () => {
   beforeEach(() => {
     addAttendeeAsync.mockClear();
+    mockedMeet.statusId = 3;
   });
 
   it("autofills the signed-in user's phone and saved autofill answers", async () => {
@@ -194,5 +195,42 @@ describe("MeetSignupSheet", () => {
     expect(
       screen.getByRole("checkbox", { name: /bringing extra water/i }),
     ).not.toBeChecked();
+  });
+
+  it("shows meet not found for draft meets when preview is not enabled", async () => {
+    mockedMeet.statusId = 1;
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: /meet not found/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("allows draft meets to render in preview mode", async () => {
+    mockedMeet.statusId = 1;
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123?preview=true"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Mountain Hike")).toBeInTheDocument();
+    expect(screen.getByText("Preview")).toBeInTheDocument();
   });
 });
