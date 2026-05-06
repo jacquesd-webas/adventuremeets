@@ -106,6 +106,9 @@ export type StepProps = {
   setState: (fn: (prev: CreateMeetState) => CreateMeetState) => void;
   errors?: FieldError[];
   disabled?: boolean;
+  isHelpEnabled?: boolean;
+  isHelpBannerDismissed?: boolean;
+  onDismissHelpBanner?: () => void;
 };
 
 export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {

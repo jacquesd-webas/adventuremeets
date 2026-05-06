@@ -9,11 +9,13 @@ import {
   Step,
   StepLabel,
   Stepper,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import VerticalSplitOutlinedIcon from "@mui/icons-material/VerticalSplitOutlined";
 import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
 import ErrorIcon from "@mui/icons-material/Error";
@@ -84,6 +86,10 @@ export function CreateMeetModal({
   const [isLoadingMeet, setIsLoadingMeet] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [isHelpEnabled, setIsHelpEnabled] = useState(false);
+  const [helpBannerState, setHelpBannerState] = useState<
+    Record<number, boolean>
+  >({});
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
@@ -133,8 +139,15 @@ export function CreateMeetModal({
 
   // Reset to first step when opened/closed
   useEffect(() => {
-    if (!open) setActiveStep(0);
+    if (!open) {
+      setActiveStep(0);
+      setHelpBannerState({});
+    }
   }, [open]);
+
+  const dismissHelpBanner = useCallback((step: number) => {
+    setHelpBannerState((prev) => ({ ...prev, [step]: true }));
+  }, []);
 
   // Reset show/hide steps when screen size changes
   useEffect(() => {
@@ -651,6 +664,9 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[0])}
+            onDismissHelpBanner={() => dismissHelpBanner(0)}
           />
         );
       }
@@ -661,6 +677,9 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[1])}
+            onDismissHelpBanner={() => dismissHelpBanner(1)}
           />
         );
       case 2:
@@ -670,6 +689,9 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
             disableIndemnityText={isIndemnityLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[2])}
+            onDismissHelpBanner={() => dismissHelpBanner(2)}
           />
         );
       case 3:
@@ -678,6 +700,9 @@ export function CreateMeetModal({
             state={state}
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[3])}
+            onDismissHelpBanner={() => dismissHelpBanner(3)}
           />
         );
       case 4:
@@ -687,6 +712,9 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[4])}
+            onDismissHelpBanner={() => dismissHelpBanner(4)}
           />
         );
       case 5:
@@ -695,6 +723,9 @@ export function CreateMeetModal({
             state={state}
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[5])}
+            onDismissHelpBanner={() => dismissHelpBanner(5)}
           />
         );
       case 6:
@@ -703,6 +734,9 @@ export function CreateMeetModal({
             state={state}
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[6])}
+            onDismissHelpBanner={() => dismissHelpBanner(6)}
           />
         );
       case 7:
@@ -711,6 +745,9 @@ export function CreateMeetModal({
             meetId={meetId}
             onImagesChange={syncImagesToState}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[7])}
+            onDismissHelpBanner={() => dismissHelpBanner(7)}
           />
         );
       case 8:
@@ -722,6 +759,9 @@ export function CreateMeetModal({
             shareCode={shareCode}
             disabled={isMeetLocked}
             isEditing={isEditing}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[8])}
+            onDismissHelpBanner={() => dismissHelpBanner(8)}
           />
         );
       default:
@@ -770,6 +810,19 @@ export function CreateMeetModal({
               {meetId ? "Edit meet" : "New meet"}
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
+              <Tooltip
+                title={isHelpEnabled ? "Turn off help" : "Turn on help"}
+              >
+                <IconButton
+                  onClick={() => setIsHelpEnabled((prev) => !prev)}
+                  aria-label={
+                    isHelpEnabled ? "Turn off help" : "Turn on help"
+                  }
+                  color={isHelpEnabled ? "primary" : "default"}
+                >
+                  <HelpOutlineIcon />
+                </IconButton>
+              </Tooltip>
               {isMeetLocked ? <LockedMeet canUnlock={canManageMeet} /> : null}
 
               <IconButton

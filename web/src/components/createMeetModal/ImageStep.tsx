@@ -13,6 +13,7 @@ import { useUpdateMeetImage } from "../../hooks/useUpdateMeetImage";
 import { useNotistack } from "../../hooks/useNotistack";
 import MeetImage from "../../types/MeetImageModel";
 import { MeetImageCard } from "./MeetImageCard";
+import { HelpBanner } from "./HelpBanner";
 
 type PendingUploadPreview = {
   id: string;
@@ -24,6 +25,9 @@ type ImageStepProps = {
   meetId?: string | null;
   onImagesChange: (images: MeetImage[]) => void;
   disabled?: boolean;
+  isHelpEnabled?: boolean;
+  isHelpBannerDismissed?: boolean;
+  onDismissHelpBanner?: () => void;
 };
 
 function createPreviewId() {
@@ -94,6 +98,9 @@ export const ImageStep = ({
   meetId,
   onImagesChange,
   disabled = false,
+  isHelpEnabled = false,
+  isHelpBannerDismissed = false,
+  onDismissHelpBanner,
 }: ImageStepProps) => {
   const {
     data: images,
@@ -103,7 +110,7 @@ export const ImageStep = ({
   const { createMeetImageAsync, isLoading: isUploading } = useCreateMeetImage();
   const { updateMeetImageAsync, isLoading: isUpdatingImage } =
     useUpdateMeetImage();
-  const { success, error: showError, info } = useNotistack();
+  const { success, error: showError, warn } = useNotistack();
   const [pendingUploads, setPendingUploads] = useState<PendingUploadPreview[]>(
     [],
   );
@@ -141,7 +148,7 @@ export const ImageStep = ({
       return;
     }
     if (!meetId) {
-      info("Save the meet details first before uploading images.");
+      warn("Save the basic meet details first before uploading images.");
       return;
     }
 
@@ -208,103 +215,133 @@ export const ImageStep = ({
   const hasImages = images.length > 0 || pendingUploads.length > 0;
 
   return (
-    <Stack spacing={2}>
-      <Typography variant="body2" color="text.secondary">
-        Upload one or more images for your meet. The selected main image will be
-        used across the app.
-      </Typography>
-      {!meetId ? (
-        <Alert severity="info">
-          Save the meet details first before uploading images.
-        </Alert>
-      ) : null}
-      <Button
-        variant="outlined"
-        component="label"
-        disabled={disabled || !meetId || isUploading}
-      >
-        {isUploading ? "Uploading..." : "Choose images"}
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
+    <Box sx={{ position: "relative" }}>
+      <Stack spacing={2}>
+        <Typography variant="body2" color="text.secondary">
+          Upload one or more images for your meet. The selected main image will
+          be used across the app.
+        </Typography>
+        {!meetId ? (
+          <Alert severity="warning">
+            Save the basic meet details first before uploading images.
+          </Alert>
+        ) : null}
+        <Button
+          variant="outlined"
+          component="label"
           disabled={disabled || !meetId || isUploading}
-          onChange={(event) => {
-            void handleFiles(event.target.files);
-            event.currentTarget.value = "";
-          }}
-        />
-      </Button>
-      {error ? <Alert severity="error">{error}</Alert> : null}
-      {isLoading && !hasImages ? (
-        <Stack direction="row" spacing={1} alignItems="center">
-          <CircularProgress size={18} />
+        >
+          {isUploading ? "Uploading..." : "Choose images"}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            disabled={disabled || !meetId || isUploading}
+            onChange={(event) => {
+              void handleFiles(event.target.files);
+              event.currentTarget.value = "";
+            }}
+          />
+        </Button>
+        {isHelpEnabled ? (
           <Typography variant="body2" color="text.secondary">
-            Loading images...
+            Try to use clear, attractive photos that help attendees understand
+            the meet. You can upload more than one and choose a primary image.
           </Typography>
-        </Stack>
-      ) : null}
-      {hasImages ? (
+        ) : null}
+        {error ? <Alert severity="error">{error}</Alert> : null}
+        {isLoading && !hasImages ? (
+          <Stack direction="row" spacing={1} alignItems="center">
+            <CircularProgress size={18} />
+            <Typography variant="body2" color="text.secondary">
+              Loading images...
+            </Typography>
+          </Stack>
+        ) : null}
+        {hasImages ? (
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, minmax(0, 1fr))",
+              },
+            }}
+          >
+            {images.map((image) => (
+              <MeetImageCard
+                key={image.id}
+                image={image}
+                disabled={disabled}
+                isUpdating={isUpdatingImage}
+                onSelectMain={handleSelectMain}
+              />
+            ))}
+            {pendingUploads.map((preview) => (
+              <Stack
+                key={preview.id}
+                spacing={1.5}
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  border: "1px dashed",
+                  borderColor: "divider",
+                  backgroundColor: "background.paper",
+                }}
+              >
+                <Box
+                  component="img"
+                  src={preview.url}
+                  alt={preview.name}
+                  sx={{
+                    width: "100%",
+                    aspectRatio: "4 / 3",
+                    objectFit: "cover",
+                    borderRadius: 1.5,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    opacity: 0.72,
+                  }}
+                />
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <CircularProgress size={16} />
+                  <Typography variant="body2" color="text.secondary" noWrap>
+                    Uploading {preview.name}
+                  </Typography>
+                </Stack>
+              </Stack>
+            ))}
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No images uploaded yet.
+          </Typography>
+        )}
+      </Stack>
+      {isHelpEnabled && !isHelpBannerDismissed ? (
         <Box
           sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(2, minmax(0, 1fr))",
-            },
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            p: 1,
+            bgcolor: "rgba(255,255,255,0.72)",
+            backdropFilter: "blur(1px)",
           }}
         >
-          {images.map((image) => (
-            <MeetImageCard
-              key={image.id}
-              image={image}
-              disabled={disabled}
-              isUpdating={isUpdatingImage}
-              onSelectMain={handleSelectMain}
+          <Box sx={{ width: "100%", maxWidth: 760 }}>
+            <HelpBanner
+              message="Images help your meet stand out. You can upload photos and other information about to meet to make it more attractive and chose a main image that will be used in previews across the app."
+              onDismiss={onDismissHelpBanner || (() => undefined)}
             />
-          ))}
-          {pendingUploads.map((preview) => (
-            <Stack
-              key={preview.id}
-              spacing={1.5}
-              sx={{
-                p: 1.5,
-                borderRadius: 2,
-                border: "1px dashed",
-                borderColor: "divider",
-                backgroundColor: "background.paper",
-              }}
-            >
-              <Box
-                component="img"
-                src={preview.url}
-                alt={preview.name}
-                sx={{
-                  width: "100%",
-                  aspectRatio: "4 / 3",
-                  objectFit: "cover",
-                  borderRadius: 1.5,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  opacity: 0.72,
-                }}
-              />
-              <Stack direction="row" spacing={1} alignItems="center">
-                <CircularProgress size={16} />
-                <Typography variant="body2" color="text.secondary" noWrap>
-                  Uploading {preview.name}
-                </Typography>
-              </Stack>
-            </Stack>
-          ))}
+          </Box>
         </Box>
-      ) : (
-        <Typography variant="body2" color="text.secondary">
-          No images uploaded yet.
-        </Typography>
-      )}
-    </Stack>
+      ) : null}
+    </Box>
   );
 };
