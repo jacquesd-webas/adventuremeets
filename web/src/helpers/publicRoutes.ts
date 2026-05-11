@@ -12,7 +12,7 @@ const PUBLIC_PATH_PREFIXES = [
 ];
 
 function isPublicMeetRoute(pathname: string) {
-  if (!pathname.startsWith("/meets/")) {
+  if (!pathname.startsWith("/meets/") && !pathname.startsWith("/share/")) {
     return false;
   }
 

@@ -42,6 +42,7 @@ function App() {
       <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
       <Route path="/meets/:code/:attendeeId" element={<AttendeeStatusPage />} />
       <Route path="/meets/:code" element={<MeetSignupSheet />} />
+      <Route path="/share/:code" element={<MeetSignupSheet />} />
       <Route path="/splash" element={<SplashPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />

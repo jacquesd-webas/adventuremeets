@@ -10,6 +10,7 @@ describe("isPublicRoutePath", () => {
   it("treats meet share routes as public", () => {
     expect(isPublicRoutePath("/meets/share-123")).toBe(true);
     expect(isPublicRoutePath("/meets/share-123/attendee-1")).toBe(true);
+    expect(isPublicRoutePath("/share/share-123")).toBe(true);
   });
 
   it("does not treat app shell routes as public", () => {
