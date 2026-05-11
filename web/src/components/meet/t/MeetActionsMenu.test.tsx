@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
 import { MeetActionsMenu } from "../MeetActionsMenu";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
 
@@ -92,9 +93,11 @@ describe("MeetActionsMenu", () => {
   });
 
   it("copies the public share url using /share/:code", async () => {
+    const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, {
-      clipboard: {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
         writeText,
       },
     });
@@ -117,12 +120,14 @@ describe("MeetActionsMenu", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole("button"));
-    fireEvent.click(screen.getByText("Copy link"));
+    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByText("Copy link"));
 
-    expect(writeText).toHaveBeenCalledWith(
-      `${window.location.origin}/share/share-123`,
-    );
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/share/share-123`,
+      );
+    });
   });
 
   it("shows Generate Report for closed meets on the same day even if still upcoming", () => {
