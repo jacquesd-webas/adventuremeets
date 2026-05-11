@@ -296,12 +296,75 @@ describe("MeetWallController", () => {
     );
   });
 
+  it("rejects wall posting when the caller is neither a member nor an attendee", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeByUser as jest.Mock).mockResolvedValue(null);
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.create("meet-1", { comment: "No access" }, undefined, user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("rejects non-image wall uploads", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeByUser as jest.Mock).mockResolvedValue({
+      id: "attendee-1",
+    });
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.create(
+        "meet-1",
+        { comment: "Bad file" },
+        { mimetype: "application/pdf" },
+        user,
+      ),
+    ).rejects.toThrow("Only image uploads are allowed");
+  });
+
+  it("rejects wall reactions when the caller is neither a member nor an attendee", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeByUser as jest.Mock).mockResolvedValue(null);
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.updateReaction(
+        "meet-1",
+        "wall-1",
+        { reaction: "like" },
+        user,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it("rejects wall item deletion for non-admins", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (authService.hasRole as jest.Mock).mockReturnValue(false);
 
     await expect(controller.remove("meet-1", "wall-1", user)).rejects.toThrow(
       "You do not have permission to remove wall items for this meet",
+    );
+  });
+
+  it("allows admins to remove wall items", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _organizationId, role) => role === "admin",
+    );
+    (meetsService.removeWallItem as jest.Mock).mockResolvedValue({
+      deleted: true,
+    });
+
+    await expect(controller.remove("meet-1", "wall-1", user)).resolves.toEqual(
+      {
+        deleted: true,
+      },
+    );
+
+    expect(meetsService.removeWallItem).toHaveBeenCalledWith(
+      "meet-1",
+      "wall-1",
     );
   });
 

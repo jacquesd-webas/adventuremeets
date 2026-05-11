@@ -138,6 +138,7 @@ export default function AttendeeStatusPage() {
               showUserAction={false}
               actionSlot={
                 <IconButton
+                  data-testid="close-attendee-status"
                   onClick={() => navigate("/")}
                   size="small"
                   aria-label="Back to dashboard"

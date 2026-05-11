@@ -6,12 +6,19 @@ type RegisterWithEmailOptions = {
   password: string;
 };
 
+type CreateMinimalMeetQuestion = {
+  type: "text" | "select" | "switch" | "checkbox";
+  label: string;
+  options?: string[];
+};
+
 type CreateMinimalMeetOptions = {
   meetName: string;
   description?: string;
   start?: Date | string;
   requireIndemnity?: boolean;
   includeQuestions?: boolean;
+  questions?: CreateMinimalMeetQuestion[];
   allowGuests?: boolean;
   maxGuests?: number;
 };
@@ -87,27 +94,54 @@ Cypress.Commands.add("createMinimalMeet", (options: CreateMinimalMeetOptions) =>
   }
   cy.contains("button", "Save & Continue").click();
 
-  if (options.includeQuestions) {
-    cy.contains("button", "Textfield").click();
-    cy.contains("button", "Select").click();
-    cy.contains("button", "Switch").click();
-    cy.contains("button", "Checkbox").click();
+  if (options.includeQuestions || options.questions?.length) {
+    const defaultQuestions: CreateMinimalMeetQuestion[] = [
+      {
+        type: "text",
+        label: "Dietary notes",
+      },
+      {
+        type: "select",
+        label: "Pace preference",
+        options: ["Easy", "Moderate", "Fast"],
+      },
+      {
+        type: "switch",
+        label: "Bringing extra water?",
+      },
+      {
+        type: "checkbox",
+        label: "Agree to leave no trace?",
+      },
+    ];
+    const questions = options.questions ?? defaultQuestions;
 
-    cy.get('input[placeholder="What should the user see?"]')
-      .eq(0)
-      .type("Dietary notes");
-    cy.get('input[placeholder="What should the user see?"]')
-      .eq(1)
-      .type("Pace preference");
-    cy.get('input[placeholder="e.g. Beginner, Intermediate, Advanced"]')
-      .first()
-      .type("Easy, Moderate, Fast");
-    cy.get('input[placeholder="What should the user see?"]')
-      .eq(2)
-      .type("Bringing extra water?");
-    cy.get('input[placeholder="What should the user see?"]')
-      .eq(3)
-      .type("Agree to leave no trace?");
+    questions.forEach((question) => {
+      const buttonLabel =
+        question.type === "text"
+          ? "Textfield"
+          : question.type === "select"
+            ? "Select"
+            : question.type === "switch"
+              ? "Switch"
+              : "Checkbox";
+      cy.contains("button", buttonLabel).click();
+    });
+
+    questions.forEach((question, index) => {
+      cy.get('input[placeholder="What should the user see?"]')
+        .eq(index)
+        .type(question.label);
+      if (question.type === "select") {
+        cy.get('input[placeholder="e.g. Beginner, Intermediate, Advanced"]')
+          .eq(
+            questions
+              .slice(0, index + 1)
+              .filter((item) => item.type === "select").length - 1,
+          )
+          .type((question.options ?? []).join(", "));
+      }
+    });
   }
   cy.contains("button", "Save & Continue").click();
 

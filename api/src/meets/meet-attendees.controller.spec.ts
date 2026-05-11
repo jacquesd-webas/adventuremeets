@@ -106,6 +106,25 @@ describe("MeetAttendeesController", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it("lists attendees for organizers using the requested filter", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.listAttendees as jest.Mock).mockResolvedValue({
+      attendees: [{ id: "attendee-1", status: "confirmed" }],
+    });
+
+    await expect(controller.list("meet-1", "confirmed", user)).resolves.toEqual(
+      {
+        attendees: [{ id: "attendee-1", status: "confirmed" }],
+      },
+    );
+
+    expect(meetsService.listAttendees).toHaveBeenCalledWith(
+      "meet-1",
+      "confirmed",
+    );
+  });
+
   it("returns ICE info for the meet organizer on the meet day", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-04-14T06:00:00.000Z"));
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
@@ -229,7 +248,7 @@ describe("MeetAttendeesController", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it("auto-places pending attendees and sends the status email", async () => {
+  it("sets respondedAt for auto-accepted attendees by marking them notified", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue({
       ...meet,
       autoPlacement: true,
@@ -300,7 +319,7 @@ describe("MeetAttendeesController", () => {
     );
   });
 
-  it("sends the signup email for pending attendees without auto-placement", async () => {
+  it("does not set respondedAt for plain signup acknowledgements without auto-placement", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (meetsService.addAttendee as jest.Mock).mockResolvedValue({
       attendee: { id: "attendee-2", status: "pending" },
@@ -485,5 +504,22 @@ describe("MeetAttendeesController", () => {
       "meet-1",
       "attendee-1",
     );
+  });
+
+  it("allows attendee removal by another organizer in the same organization", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.removeAttendee as jest.Mock).mockResolvedValue({
+      deleted: true,
+    });
+
+    await expect(
+      controller.remove("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      deleted: true,
+    });
   });
 });

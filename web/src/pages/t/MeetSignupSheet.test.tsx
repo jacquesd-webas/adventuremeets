@@ -160,7 +160,7 @@ describe("MeetSignupSheet", () => {
     mockedMeet.statusId = 3;
   });
 
-  it("autofills the signed-in user's phone and saved autofill answers", async () => {
+  it("autofills the signed-in user's identity, phone, and saved autofill answers", async () => {
     const queryClient = new QueryClient();
 
     render(
@@ -177,6 +177,8 @@ describe("MeetSignupSheet", () => {
       expect(screen.getByDisplayValue("No peanuts")).toBeInTheDocument();
     });
 
+    expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("alice@example.com")).toBeInTheDocument();
     expect(screen.getByDisplayValue("5550004444")).toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", { name: /bringing extra water/i }),

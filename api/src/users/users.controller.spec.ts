@@ -97,6 +97,20 @@ describe("UsersController", () => {
       organizationId: "org-1",
       metaValues: [{ key: "gear", value: "Helmet" }],
     });
+    expect(usersService.copyUserMetaValuesFromAttendee).toHaveBeenCalledWith(
+      memberUser.id,
+      "meet-1",
+      "5f4da8b4-b217-4fd0-99aa-bf10f1ef5a1e",
+    );
+  });
+
+  it("rejects unauthenticated remember-my-answers copying", async () => {
+    await expect(
+      controller.copyMyMetaValuesFromAttendee({
+        meetId: "meet-1",
+        attendeeId: "5f4da8b4-b217-4fd0-99aa-bf10f1ef5a1e",
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it("uploads the caller's avatar", async () => {

@@ -58,6 +58,7 @@ describe("MeetsController", () => {
     updateAttendeesNotified: jest.fn(),
     updateAttendee: jest.fn(),
     attendeeHasMissingFields: jest.fn(),
+    getAttendeeContactById: jest.fn(),
     getOrganizerEmail: jest.fn(),
     getReportData: jest.fn(),
   } as unknown as MeetsService;
@@ -506,5 +507,43 @@ describe("MeetsController", () => {
         { sendEmail: false, downloadReport: false },
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("sets respondedAt for attendees when an organizer manually sends a message", async () => {
+    process.env.MAIL_DOMAIN = "example.com";
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    setRoles({ organizer: true });
+    (meetsService.getAttendeeContactById as jest.Mock).mockImplementation(
+      async (attendeeId: string) => ({
+        id: attendeeId,
+        name: attendeeId === "attendee-1" ? "Alex" : "Jamie",
+        email:
+          attendeeId === "attendee-1"
+            ? "alex@example.com"
+            : "jamie@example.com",
+      }),
+    );
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+    (emailService.saveMessage as jest.Mock).mockResolvedValue(undefined);
+
+    await expect(
+      controller.messageAttendees(
+        "meet-1",
+        {
+          subject: "Bring a shell",
+          text: "Please bring a shell jacket.",
+          attendeeIds: ["attendee-1", "attendee-2"],
+        },
+        user,
+      ),
+    ).resolves.toEqual({
+      status: "sent",
+      count: 2,
+    });
+
+    expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
+      "meet-1",
+      ["attendee-1", "attendee-2"],
+    );
   });
 });
