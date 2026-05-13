@@ -26,6 +26,11 @@ describe("Meet messaging", () => {
       });
     };
 
+    const openAttendeesFromMenu = () => {
+      cy.get('[role="menu"]').should("be.visible");
+      cy.contains('[role="menuitem"]', /^Attendees$/).click();
+    };
+
     const setAttendeeStatus = (
       name: string,
       action: "Accept" | "Waitlist" | "Reject",
@@ -47,7 +52,7 @@ describe("Meet messaging", () => {
       cy.contains("label", label)
         .invoke("attr", "for")
         .then((fieldId) => {
-          cy.get(`${tag}#${fieldId}`).clear().type(value);
+          cy.get(`${tag}[id="${fieldId}"]`).clear().type(value);
         });
     };
 
@@ -96,7 +101,7 @@ describe("Meet messaging", () => {
 
     cy.visit("/plan");
     openMeetRowMenu();
-    cy.contains("Attendees").click();
+    openAttendeesFromMenu();
 
     setAttendeeStatus(attendees[0].name, "Accept");
     setAttendeeStatus(attendees[1].name, "Reject");
@@ -104,10 +109,13 @@ describe("Meet messaging", () => {
 
     cy.contains('[role="button"]', attendees[4].name).click();
     cy.contains("button", `Message ${attendees[4].name}`).click();
-    cy.contains("Send message").should("be.visible");
-    typeInLabeledField("Subject", customSubject, "input");
-    typeInLabeledField("Message", customBody, "textarea");
-    cy.contains("button", "Send").click();
+    cy.contains('[role="dialog"]', "Send message")
+      .should("be.visible")
+      .within(() => {
+        typeInLabeledField("Subject", customSubject, "input");
+        typeInLabeledField("Message", customBody, "textarea");
+        cy.contains("button", /^Send$/).click();
+      });
     cy.contains("Send message").should("not.exist");
 
     cy.get('[data-testid="close-attendees-modal"]').click();
@@ -116,7 +124,7 @@ describe("Meet messaging", () => {
     cy.contains("Notify attendees?").should("not.exist");
 
     openMeetRowMenu();
-    cy.contains("Attendees").click();
+    openAttendeesFromMenu();
 
     openAttendeeMessages(attendees[0].name);
     expectVisibleTexts([`Confirmed: ${meetName}`]);
