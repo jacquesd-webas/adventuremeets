@@ -11,6 +11,7 @@ import AttendeeStatusEnum from "../../../types/AttendeeStatusEnum";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
 
 const updateMeetAttendeeAsync = vi.fn();
+const notifyAttendeeAsync = vi.fn();
 const refetch = vi.fn();
 const onClose = vi.fn();
 
@@ -46,6 +47,13 @@ vi.mock("../../../hooks/useFetchMeet", () => ({
 vi.mock("../../../hooks/useUpdateMeetAttendee", () => ({
   useUpdateMeetAttendee: () => ({
     updateMeetAttendeeAsync,
+  }),
+}));
+
+vi.mock("../../../hooks/useNotifyAttendee", () => ({
+  useNotifyAttendee: () => ({
+    notifyAttendeeAsync,
+    isLoading: false,
   }),
 }));
 
@@ -110,6 +118,7 @@ describe("ManageAttendeesModal", () => {
 
   beforeEach(() => {
     updateMeetAttendeeAsync.mockReset();
+    notifyAttendeeAsync.mockReset();
     refetch.mockReset();
     onClose.mockReset();
     mockAttendees = [
@@ -124,6 +133,10 @@ describe("ManageAttendeesModal", () => {
       id: "m1",
       organizerId: "org-1",
       statusId: MeetStatusEnum.Open,
+      name: "River Hike",
+      confirmMessage: "Confirmed custom body",
+      waitlistMessage: "Waitlisted custom body",
+      rejectMessage: "Rejected custom body",
     };
   });
 
@@ -222,5 +235,67 @@ describe("ManageAttendeesModal", () => {
 
     expect(onClose).toHaveBeenCalled();
     expect(screen.queryByText("Notify attendees?")).not.toBeInTheDocument();
+  });
+
+  it("groups close notifications by attendee status", async () => {
+    mockAttendees = [
+      {
+        id: "confirmed-1",
+        name: "Confirmed Person",
+        status: AttendeeStatusEnum.Confirmed,
+        email: "confirmed@example.com",
+      },
+      {
+        id: "waitlisted-1",
+        name: "Waitlisted Person",
+        status: AttendeeStatusEnum.Waitlisted,
+        email: "waitlisted@example.com",
+      },
+      {
+        id: "rejected-1",
+        name: "Rejected Person",
+        status: AttendeeStatusEnum.Rejected,
+        email: "rejected@example.com",
+      },
+    ];
+
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("close-attendees-modal"));
+    fireEvent.click(await screen.findByRole("button", { name: "Notify now" }));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenCalledTimes(3);
+    });
+
+    expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(1, {
+      meetId: "m1",
+      subject: "Confirmed: River Hike",
+      text: "Confirmed custom body",
+      attendeeIds: ["confirmed-1"],
+    });
+    expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(2, {
+      meetId: "m1",
+      subject: "Waitlist: River Hike",
+      text: "Waitlisted custom body",
+      attendeeIds: ["waitlisted-1"],
+    });
+    expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(3, {
+      meetId: "m1",
+      subject: "Update: River Hike",
+      text: "Rejected custom body",
+      attendeeIds: ["rejected-1"],
+    });
   });
 });

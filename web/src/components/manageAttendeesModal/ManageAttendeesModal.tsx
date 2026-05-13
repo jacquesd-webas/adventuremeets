@@ -222,11 +222,7 @@ export function ManageAttendeesModal({
       const status = att.status as AttendeeStatusEnum;
       if (
         messageDrawerIncludeConfirmed &&
-        [
-          AttendeeStatusEnum.Confirmed,
-          AttendeeStatusEnum.CheckedIn,
-          AttendeeStatusEnum.Attended,
-        ].includes(status)
+        status === AttendeeStatusEnum.Confirmed
       )
         return true;
       if (
@@ -236,8 +232,7 @@ export function ManageAttendeesModal({
         return true;
       if (
         messageDrawerIncludeRejected &&
-        (status === AttendeeStatusEnum.Rejected ||
-          status === AttendeeStatusEnum.Cancelled)
+        status === AttendeeStatusEnum.Rejected
       )
         return true;
       return false;
@@ -271,24 +266,14 @@ export function ManageAttendeesModal({
     rejectMessage: meet?.rejectMessage,
   });
   const getDefaultMessageForStatus = (status: AttendeeStatusEnum) => {
-    if (
-      status === AttendeeStatusEnum.CheckedIn ||
-      status === AttendeeStatusEnum.Attended
-    ) {
+    if (status === AttendeeStatusEnum.Confirmed) {
       return confirmedMessage;
-    }
-    if (
-      status === AttendeeStatusEnum.Rejected ||
-      status === AttendeeStatusEnum.Cancelled ||
-      status === AttendeeStatusEnum.NoShow
-    ) {
-      return rejectMessage;
     }
     if (status === AttendeeStatusEnum.Waitlisted) {
       return waitlistMessage;
     }
-    if (status === AttendeeStatusEnum.Confirmed) {
-      return confirmedMessage;
+    if (status === AttendeeStatusEnum.Rejected) {
+      return rejectMessage;
     }
     return { subject: "", content: "" };
   };
@@ -444,10 +429,7 @@ export function ManageAttendeesModal({
         }
         return {
           ...acc,
-          [AttendeeStatusEnum.Confirmed]: [
-            ...(acc[AttendeeStatusEnum.Confirmed] || []),
-            attendee.id,
-          ],
+          [rawStatus]: [...(acc[rawStatus] || []), attendee.id],
         };
       }, {});
 

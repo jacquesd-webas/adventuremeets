@@ -11,9 +11,11 @@ type DefaultMessageOptions = {
 const createMessageContent = (status: AttendeeStatusEnum) => {
   if (status === AttendeeStatusEnum.Confirmed) {
     return "Your attendance has been confirmed for the meet. Looking forward to seeing you there!";
-  } else if (status === AttendeeStatusEnum.Waitlisted) {
+  }
+  if (status === AttendeeStatusEnum.Waitlisted) {
     return "You have been waitlisted for the meet. If a spot opens up, the organizer will notify you.";
-  } else if (status === AttendeeStatusEnum.Rejected) {
+  }
+  if (status === AttendeeStatusEnum.Rejected) {
     return "Unfortunately, the meet organizer has not been able to accept your application. This is usually due to capacity limits being reached.";
   }
   return "";
@@ -33,7 +35,7 @@ export function useDefaultMessage(
         subject: options?.meetName
           ? `Confirmed: ${options.meetName}`
           : "Meet attendance confirmed",
-        content: options?.confirmMessage || createMessageContent(status),
+        content: options?.confirmMessage?.trim() || createMessageContent(status),
       };
     }
     if (status === AttendeeStatusEnum.Waitlisted) {
@@ -41,7 +43,8 @@ export function useDefaultMessage(
         subject: options?.meetName
           ? `Waitlist: ${options.meetName}`
           : "Meet attendance waitlisted",
-        content: options?.waitlistMessage || createMessageContent(status),
+        content:
+          options?.waitlistMessage?.trim() || createMessageContent(status),
       };
     }
     if (status === AttendeeStatusEnum.Rejected) {
@@ -49,7 +52,7 @@ export function useDefaultMessage(
         subject: options?.meetName
           ? `Update: ${options.meetName}`
           : "Meet attendance update",
-        content: options?.rejectMessage || createMessageContent(status),
+        content: options?.rejectMessage?.trim() || createMessageContent(status),
       };
     }
 

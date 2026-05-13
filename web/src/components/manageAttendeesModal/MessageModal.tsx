@@ -70,6 +70,7 @@ export function MessageModal({
       ? (attendees?.find((att) => att.id === attendeeIds[0])
           ?.status as AttendeeStatusEnum)
       : undefined;
+
   const defaultMessageOptions = useMemo(
     () => ({
       meetName: meet?.name,
@@ -151,22 +152,11 @@ export function MessageModal({
     }
     return attendees.filter((att) => {
       const status = att.status as AttendeeStatusEnum;
-      if (
-        includeConfirmed &&
-        [
-          AttendeeStatusEnum.Confirmed,
-          AttendeeStatusEnum.CheckedIn,
-          AttendeeStatusEnum.Attended,
-        ].includes(status)
-      )
+      if (includeConfirmed && status === AttendeeStatusEnum.Confirmed)
         return true;
       if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
         return true;
-      if (
-        includeRejected &&
-        (status === AttendeeStatusEnum.Rejected ||
-          status === AttendeeStatusEnum.Cancelled)
-      )
+      if (includeRejected && status === AttendeeStatusEnum.Rejected)
         return true;
       return false;
     });
@@ -186,7 +176,17 @@ export function MessageModal({
       setSubject(defaultAutoSubject);
       setBody(defaultAutoContent);
     }
-  }, [autoResponse, defaultAutoSubject, defaultAutoContent]);
+  }, [
+    autoResponse,
+    attendeeIds,
+    attendeeStatus,
+    defaultAutoSubject,
+    defaultAutoContent,
+    includeConfirmed,
+    includeWaitlisted,
+    includeRejected,
+    selectedAttendees,
+  ]);
 
   const reset = () => {
     setSubject(defaultSubject);
@@ -212,22 +212,11 @@ export function MessageModal({
         : (attendees || [])
             .filter((att) => {
               const status = att.status as AttendeeStatusEnum;
-              if (
-                includeConfirmed &&
-                [
-                  AttendeeStatusEnum.Confirmed,
-                  AttendeeStatusEnum.CheckedIn,
-                  AttendeeStatusEnum.Attended,
-                ].includes(status)
-              )
+              if (includeConfirmed && status === AttendeeStatusEnum.Confirmed)
                 return true;
               if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
                 return true;
-              if (
-                includeRejected &&
-                (status === AttendeeStatusEnum.Rejected ||
-                  status === AttendeeStatusEnum.Cancelled)
-              )
+              if (includeRejected && status === AttendeeStatusEnum.Rejected)
                 return true;
               return false;
             })
