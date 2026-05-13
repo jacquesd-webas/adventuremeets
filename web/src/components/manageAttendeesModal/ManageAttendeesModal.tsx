@@ -83,6 +83,7 @@ export function ManageAttendeesModal({
     useNotifyAttendee();
   const { enqueueSnackbar } = useSnackbar();
   const api = useApi();
+  const canManageAttendees = Boolean(canManageMeet ?? isOrganizer);
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
     null,
   );
@@ -285,7 +286,7 @@ export function ManageAttendeesModal({
     }
   }, [messageDrawerAutoResponse, mobileMessageDefault]);
   const applyStatus = async (status: string) => {
-    if (!meetId || !selectedAttendeeId) return;
+    if (!canManageAttendees || !meetId || !selectedAttendeeId) return;
     setIsUpdating(true);
     try {
       await updateMeetAttendeeAsync({
@@ -356,6 +357,7 @@ export function ManageAttendeesModal({
   };
 
   const handleUpdateStatus = (status: AttendeeStatusEnum) => {
+    if (!canManageAttendees) return;
     if (!selectedAttendee) return;
     const isClosed = meetStatus === MeetStatusEnum.Closed;
     const isAlreadyNotified = Boolean(selectedAttendee.respondedAt);
@@ -380,7 +382,7 @@ export function ManageAttendeesModal({
     });
 
   const handleRequestClose = () => {
-    if (!isOrganizer || meetStatus === MeetStatusEnum.Completed) {
+    if (!canManageAttendees || meetStatus === MeetStatusEnum.Completed) {
       onClose();
       return;
     }
@@ -689,8 +691,8 @@ export function ManageAttendeesModal({
             setSelectedAttendeeId={setSelectedAttendeeId}
             meet={meet}
             isUpdating={isUpdating}
-            isOrganizer={isOrganizer || false}
-            canManageMeet={canManageMeet}
+            isOrganizer={canManageAttendees}
+            canManageMeet={canManageAttendees}
             isOrganizerSelected={isOrganizerSelected}
             hasUnreadMessages={hasUnreadMessages}
             detailView={detailView}
@@ -728,7 +730,7 @@ export function ManageAttendeesModal({
                     onGuestIncrement={() => handleGuestCountChange(1)}
                     onGuestDecrement={() => handleGuestCountChange(-1)}
                     onInvite={handleInviteMessage}
-                    canManageMeet={isOrganizer}
+                    canManageMeet={canManageAttendees}
                   />
                   <Divider />
                   <AttendeeResponses responses={selectedAttendee.metaValues} />
@@ -744,12 +746,12 @@ export function ManageAttendeesModal({
         </Box>
         <Divider />
         <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+          <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
             {isOrganizerSelected ? (
               detailView === "messages" ? (
                 <Button
                   variant="outlined"
-                  disabled={!isOrganizer}
+                  disabled={!canManageAttendees}
                   onClick={() =>
                     openMessageModal({
                       attendeeIds: selectedAttendee
@@ -764,7 +766,7 @@ export function ManageAttendeesModal({
                 <Button
                   variant="outlined"
                   onClick={() => setShowEditMetaDialog(true)}
-                  disabled={!isOrganizer}
+                  disabled={!canManageAttendees}
                 >
                   Edit responses
                 </Button>
@@ -772,7 +774,7 @@ export function ManageAttendeesModal({
             ) : (
               <Button
                 variant="outlined"
-                disabled={!selectedAttendee || !isOrganizer}
+                disabled={!selectedAttendee || !canManageAttendees}
                 onClick={() =>
                   openMessageModal({
                     attendeeIds: selectedAttendee
@@ -824,8 +826,8 @@ export function ManageAttendeesModal({
             setSelectedAttendeeId={setSelectedAttendeeId}
             meet={meet}
             isUpdating={isUpdating}
-            isOrganizer={isOrganizer || false}
-            canManageMeet={canManageMeet}
+            isOrganizer={canManageAttendees}
+            canManageMeet={canManageAttendees}
             isOrganizerSelected={isOrganizerSelected}
             hasUnreadMessages={hasUnreadMessages}
             detailView={detailView}
@@ -870,7 +872,7 @@ export function ManageAttendeesModal({
                   onGuestIncrement={() => handleGuestCountChange(1)}
                   onGuestDecrement={() => handleGuestCountChange(-1)}
                   onInvite={handleInviteMessage}
-                  canManageMeet={isOrganizer}
+                  canManageMeet={canManageAttendees}
                 />
                 <Divider sx={{ mt: 1, mb: 2 }} />
                 <AttendeeResponses
@@ -891,10 +893,10 @@ export function ManageAttendeesModal({
           <Box sx={{ display: "flex", justifyContent: "center", pt: 2 }}>
             {isOrganizerSelected ? (
               detailView === "messages" ? (
-                <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+                <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
                   <Button
                     variant="outlined"
-                    disabled={!isOrganizer}
+                    disabled={!canManageAttendees}
                     onClick={() => {
                       openMobileMessageDrawerForSelectedAttendee();
                     }}
@@ -911,10 +913,10 @@ export function ManageAttendeesModal({
                 </Button>
               )
             ) : (
-              <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+              <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
                 <Button
                   variant="outlined"
-                  disabled={!selectedAttendee || !isOrganizer}
+                  disabled={!selectedAttendee || !canManageAttendees}
                   onClick={() => {
                     openMobileMessageDrawerForSelectedAttendee();
                   }}
@@ -960,7 +962,9 @@ export function ManageAttendeesModal({
       >
         <span>Manage attendees</span>
         <Stack direction="row" spacing={0.5} alignItems="center">
-          {!isOrganizer ? <LockedMeet canUnlock={canManageMeet} /> : null}
+          {!canManageAttendees ? (
+            <LockedMeet canUnlock={canManageAttendees} />
+          ) : null}
           <Tooltip title="Download attendees">
             <IconButton
               aria-label="Download attendees"
@@ -1027,11 +1031,11 @@ export function ManageAttendeesModal({
                 borderColor: "divider",
               }}
             >
-              <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+              <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
                 <Button
                   variant="outlined"
                   sx={{ flex: 1 }}
-                  disabled={!isOrganizer}
+                  disabled={!canManageAttendees}
                   onClick={() => {
                     openMobileMessageDrawerForAllAttendees();
                   }}
@@ -1277,10 +1281,10 @@ export function ManageAttendeesModal({
       {!fullScreen && (
         <DialogActions>
           <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>
-            <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+            <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
               <Button
                 variant="outlined"
-                disabled={!isOrganizer}
+                disabled={!canManageAttendees}
                 onClick={() => openMessageModal({ attendeeIds: undefined })}
               >
                 Send Message to All Attendees
