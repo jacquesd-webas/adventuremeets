@@ -144,7 +144,13 @@ describe("ManageAttendeesModal", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <ManageAttendeesModal open onClose={onClose} meetId="m1" />
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
       </QueryClientProvider>,
     );
 
