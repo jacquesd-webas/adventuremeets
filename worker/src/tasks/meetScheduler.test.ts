@@ -16,6 +16,7 @@ const buildMockDb = (pluckResults: string[][]) => {
 
   const db: any = vi.fn(() => builder);
   db.fn = { now: vi.fn(() => "now") };
+  db.raw = vi.fn((value: string) => value);
   db.destroy = vi.fn();
 
   return { db, builder };
@@ -101,5 +102,30 @@ describe("runMeetScheduler", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(db.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes meets only when confirmed plus waitlisted attendees fill capacity and waitlist", async () => {
+    vi.resetModules();
+    const { db, builder } = buildMockDb([[], [], ["m3"]]);
+    const knexModule = await import("knex");
+    (knexModule.default as any).mockReturnValue(db);
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: vi.fn() });
+    (global as any).fetch = fetchMock;
+
+    const { runMeetScheduler } = await import("./meetScheduler");
+    await runMeetScheduler();
+
+    expect(builder.where).toHaveBeenCalledWith("m.capacity", ">", 0);
+    expect(builder.whereRaw).toHaveBeenCalledWith(
+      "coalesce(ma.confirmed_count, 0) + coalesce(ma.waitlist_count, 0) >= m.capacity + m.waitlist_size",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api.test/api/v1/meets/m3/status",
+      expect.objectContaining({
+        method: "PATCH",
+      }),
+    );
   });
 });

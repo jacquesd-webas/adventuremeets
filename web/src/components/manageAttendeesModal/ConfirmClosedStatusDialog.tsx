@@ -37,10 +37,12 @@ export function ConfirmClosedStatusDialog({
   const [shouldSendMessage, setShouldSendMessage] = useState(true);
   const [editableSubject, setEditableSubject] = useState(subject);
   const [editableMessage, setEditableMessage] = useState(messageContent);
+  const canSendMessage =
+    Boolean(editableSubject.trim()) && Boolean(editableMessage.trim());
 
   useEffect(() => {
     if (!open) return;
-    setShouldSendMessage(true);
+    setShouldSendMessage(Boolean(subject.trim() && messageContent.trim()));
     setEditableSubject(subject);
     setEditableMessage(messageContent);
   }, [open, subject, messageContent]);
@@ -85,6 +87,7 @@ export function ConfirmClosedStatusDialog({
       cancelLabel="Cancel"
       onConfirm={handleConfirm}
       onClose={onClose}
+      confirmDisabled={shouldSendMessage && !canSendMessage}
     >
       <Box>
         <Typography variant="body2">

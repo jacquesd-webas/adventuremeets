@@ -113,18 +113,21 @@ export function MessageModal({
         selectedDefaults.push({ label: "Waitlisted", ...waitlistedDefault });
       if (includeRejected)
         selectedDefaults.push({ label: "Rejected", ...rejectedDefault });
+      const availableDefaults = selectedDefaults.filter(
+        (item) => item.subject.trim() && item.content.trim(),
+      );
 
-      if (selectedDefaults.length === 1) {
+      if (availableDefaults.length === 1) {
         return {
-          subject: selectedDefaults[0].subject,
-          content: selectedDefaults[0].content,
+          subject: availableDefaults[0].subject,
+          content: availableDefaults[0].content,
         };
       }
 
-      if (selectedDefaults.length > 1) {
+      if (availableDefaults.length > 1) {
         return {
           subject: "Meet attendance update",
-          content: selectedDefaults
+          content: availableDefaults
             .map((item) => `${item.label} attendees:\n${item.content}`)
             .join("\n\n"),
         };
