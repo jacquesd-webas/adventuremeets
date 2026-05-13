@@ -43,18 +43,18 @@ export function defaultPendingAction(
   switch (statusId) {
     case MeetStatusEnum.Draft:
     case MeetStatusEnum.Postponed:
-      if (isOrganizer) return MeetActionsEnum.Edit;
+      if (canManageMeet) return MeetActionsEnum.Edit;
       return null;
     case MeetStatusEnum.Published:
     case MeetStatusEnum.Open:
     case MeetStatusEnum.Cancelled:
-      if (isOrganizer) return MeetActionsEnum.Attendees;
+      if (canManageMeet) return MeetActionsEnum.Attendees;
       return MeetActionsEnum.Details;
     case MeetStatusEnum.Closed:
       if (canManageMeet && isSameMeetDayOrLater(meet)) {
         return MeetActionsEnum.Checkin;
       }
-      if (isOrganizer) return MeetActionsEnum.Attendees;
+      if (canManageMeet) return MeetActionsEnum.Attendees;
       return MeetActionsEnum.Details;
     case MeetStatusEnum.Completed:
       return MeetActionsEnum.Details;

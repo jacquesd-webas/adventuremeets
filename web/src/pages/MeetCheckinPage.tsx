@@ -58,8 +58,17 @@ function MeetCheckinPage() {
     id: string;
     name: string;
   } | null>(null);
+  const [isAdminUnlockEnabled, setIsAdminUnlockEnabled] = useState(false);
+  const isAdminForMeet = Boolean(
+    user?.organizations &&
+      meet?.organizationId &&
+      user.organizations[meet.organizationId] === "admin",
+  );
   const isReadOnly = Boolean(
-    user?.id && meet?.organizerId && user.id !== meet.organizerId,
+    meet?.organizerId &&
+      user?.id &&
+      user.id !== meet.organizerId &&
+      !(isAdminForMeet && isAdminUnlockEnabled),
   );
 
   const attendeeList = useMemo(
@@ -180,7 +189,16 @@ function MeetCheckinPage() {
             ) : null}
           </Box>
           <Stack direction="row" spacing={0.5} alignItems="center">
-            {isReadOnly ? <LockedMeet /> : null}
+            {user?.id && meet?.organizerId && user.id !== meet.organizerId ? (
+              <LockedMeet
+                canUnlock={isAdminForMeet}
+                onUnlock={
+                  isAdminForMeet
+                    ? () => setIsAdminUnlockEnabled(true)
+                    : undefined
+                }
+              />
+            ) : null}
             <IconButton aria-label="Close check-in" onClick={handleClose}>
               <CloseIcon />
             </IconButton>

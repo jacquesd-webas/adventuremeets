@@ -50,6 +50,20 @@ function renderCreateMeetModal() {
   );
 }
 
+function renderCreateMeetModalAsAdmin() {
+  return render(
+    <MemoryRouter initialEntries={["/plan"]}>
+      <CreateMeetModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        meetId="meet-1"
+        canManageMeet
+      />
+    </MemoryRouter>,
+  );
+}
+
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>(
     "react-router-dom",
@@ -155,6 +169,33 @@ describe("CreateMeetModal edit mode", () => {
     expect(
       screen.getByDisplayValue(String(expected.waitlistSize)),
     ).toBeInTheDocument();
+  });
+
+  it("shows a lock for an org admin and lets them unlock the meet", async () => {
+    currentMeetFixture = {
+      ...meetFixture,
+      organizerId: "someone-else",
+    };
+    const user = userEvent.setup();
+
+    renderCreateMeetModalAsAdmin();
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    const saveAndContinue = screen.getByRole("button", {
+      name: "Save & Continue",
+    });
+    expect(screen.getByLabelText("Unlock meet")).toBeInTheDocument();
+    expect(saveAndContinue).toBeDisabled();
+
+    await user.click(screen.getByLabelText("Unlock meet"));
+
+    expect(screen.getByLabelText("Unlock meet")).toBeInTheDocument();
+    expect(saveAndContinue).toBeEnabled();
   });
 
   it("passes reconfirmAttendees when saving a postponed meet", async () => {

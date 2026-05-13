@@ -217,7 +217,11 @@ export class MeetAttendeesController {
       );
     }
 
-    if (dto.status === "checked-in" && user.id !== meet.organizerId) {
+    if (
+      dto.status === "checked-in" &&
+      !this.authService.hasRole(user, meet.organizationId!, "admin") &&
+      user.id !== meet.organizerId
+    ) {
       throw new ForbiddenException(
         "You cannot check in attendees for a meet you do not organize",
       );

@@ -92,6 +92,7 @@ export function CreateMeetModal({
   const [helpBannerState, setHelpBannerState] = useState<
     Record<number, boolean>
   >({});
+  const [isAdminUnlockEnabled, setIsAdminUnlockEnabled] = useState(false);
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const previewRestoreAppliedRef = useRef(false);
@@ -123,12 +124,16 @@ export function CreateMeetModal({
 
     return Boolean(
       isOrganizer ||
-      (user?.id &&
-        fetchedMeet?.organizerId &&
-        fetchedMeet.organizerId === user.id),
+        (user?.id &&
+          fetchedMeet?.organizerId &&
+          fetchedMeet.organizerId === user.id),
     );
   }, [fetchedMeet?.organizerId, isEditing, isOrganizer, user?.id]);
-  const isMeetLocked = isEditing && !isOrganizerForEditingMeet;
+  const canUnlockEditingMeet = Boolean(
+    isEditing && !isOrganizerForEditingMeet && canManageMeet,
+  );
+  const canManageEditingMeet = isOrganizerForEditingMeet || isAdminUnlockEnabled;
+  const isMeetLocked = isEditing && !canManageEditingMeet;
 
   const syncImagesToState = useCallback((images: MeetImage[]) => {
     const primaryImage = images.find((image) => image.isPrimary) ?? images[0];
@@ -147,6 +152,7 @@ export function CreateMeetModal({
     if (!open) {
       setActiveStep(0);
       setHelpBannerState({});
+      setIsAdminUnlockEnabled(false);
       previewRestoreAppliedRef.current = false;
     }
   }, [open]);
@@ -891,7 +897,16 @@ export function CreateMeetModal({
                   <HelpOutlineIcon />
                 </IconButton>
               </Tooltip>
-              {isMeetLocked ? <LockedMeet canUnlock={canManageMeet} /> : null}
+              {isEditing && !isOrganizerForEditingMeet ? (
+                <LockedMeet
+                  canUnlock={canUnlockEditingMeet}
+                  onUnlock={
+                    canUnlockEditingMeet
+                      ? () => setIsAdminUnlockEnabled(true)
+                      : undefined
+                  }
+                />
+              ) : null}
 
               <IconButton
                 onClick={() => setShowSteps((prev) => !prev)}

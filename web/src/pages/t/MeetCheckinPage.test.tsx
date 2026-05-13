@@ -4,9 +4,12 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 import MeetCheckinPage from "../MeetCheckinPage";
 
+let mockMeet = { organizerId: "organizer-1" };
+let mockUser = { id: "organizer-1" };
+
 vi.mock("../../hooks/useFetchMeet", () => ({
   useFetchMeet: () => ({
-    data: { organizerId: "organizer-1" },
+    data: mockMeet,
   }),
 }));
 
@@ -32,11 +35,16 @@ vi.mock("../../hooks/useCheckinAttendees", () => ({
 
 vi.mock("../../context/authContext", () => ({
   useAuth: () => ({
-    user: { id: "organizer-1" },
+    user: mockUser,
   }),
 }));
 
 describe("MeetCheckinPage", () => {
+  beforeEach(() => {
+    mockMeet = { organizerId: "organizer-1" };
+    mockUser = { id: "organizer-1" };
+  });
+
   it("returns to the dashboard when closing in tests", async () => {
     const user = userEvent.setup();
 
@@ -100,5 +108,29 @@ describe("MeetCheckinPage", () => {
     await user.click(screen.getByRole("button", { name: "Finish Check-In" }));
 
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();
+  });
+
+  it("shows an unlock control for an org admin who did not organize the meet", async () => {
+    mockMeet = {
+      organizerId: "organizer-1",
+      organizationId: "org-1",
+    };
+    mockUser = {
+      id: "admin-1",
+      organizations: { "org-1": "admin" },
+    };
+
+    render(
+      <MemoryRouter
+        initialEntries={["/meet/meet-1/checkin"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText("Unlock meet")).toBeInTheDocument();
   });
 });

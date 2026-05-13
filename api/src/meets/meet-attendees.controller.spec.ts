@@ -439,12 +439,40 @@ describe("MeetAttendeesController", () => {
       ...meet,
       organizerId: "user-2",
     });
-    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer",
+    );
 
     await expect(
       controller.update("meet-1", "attendee-1", dto, user),
     ).rejects.toThrow(
       "You cannot check in attendees for a meet you do not organize",
+    );
+  });
+
+  it("allows check-in updates from an admin who is not the meet organizer", async () => {
+    const dto = { status: "checked-in" };
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer" || role === "admin",
+    );
+    (meetsService.updateAttendee as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-1", status: "checked-in" },
+    });
+
+    await expect(
+      controller.update("meet-1", "attendee-1", dto, user),
+    ).resolves.toEqual({
+      attendee: { id: "attendee-1", status: "checked-in" },
+    });
+
+    expect(meetsService.updateAttendee).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+      dto,
     );
   });
 

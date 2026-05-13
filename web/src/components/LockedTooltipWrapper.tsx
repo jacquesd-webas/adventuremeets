@@ -11,7 +11,7 @@ export function LockedTooltipWrapper({
   children,
 }: LockedTooltipWrapperProps) {
   const title = isReadOnly
-    ? "Meet is locked because you are not the organizer"
+    ? "Meet is locked because you are not the organizer. Admins can unlock the meet from the toolbar."
     : "";
 
   return (

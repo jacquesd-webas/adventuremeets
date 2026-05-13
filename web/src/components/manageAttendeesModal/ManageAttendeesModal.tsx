@@ -83,7 +83,8 @@ export function ManageAttendeesModal({
     useNotifyAttendee();
   const { enqueueSnackbar } = useSnackbar();
   const api = useApi();
-  const canManageAttendees = Boolean(canManageMeet ?? isOrganizer);
+  const isOrganizerForMeet = Boolean(isOrganizer);
+  const canUnlockAttendees = Boolean(!isOrganizerForMeet && canManageMeet);
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
     null,
   );
@@ -99,6 +100,7 @@ export function ManageAttendeesModal({
     Attendee[]
   >([]);
   const [isNotifyingBeforeClose, setIsNotifyingBeforeClose] = useState(false);
+  const [isAdminUnlockEnabled, setIsAdminUnlockEnabled] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageAttendeeIds, setMessageAttendeeIds] = useState<
     string[] | undefined
@@ -137,6 +139,7 @@ export function ManageAttendeesModal({
   const [detailView, setDetailView] = useState<"responses" | "messages">(
     "responses",
   );
+  const canManageAttendees = isOrganizerForMeet || isAdminUnlockEnabled;
   const { data: attendeeMessages } = useFetchAttendeeMessages(
     meetId,
     selectedAttendeeId,
@@ -150,6 +153,7 @@ export function ManageAttendeesModal({
   useEffect(() => {
     if (!open) {
       setSelectedAttendeeId(null);
+      setIsAdminUnlockEnabled(false);
       return;
     }
     const selectedIsValid = attendees.some(
@@ -962,8 +966,15 @@ export function ManageAttendeesModal({
       >
         <span>Manage attendees</span>
         <Stack direction="row" spacing={0.5} alignItems="center">
-          {!canManageAttendees ? (
-            <LockedMeet canUnlock={canManageAttendees} />
+          {!isOrganizerForMeet ? (
+            <LockedMeet
+              canUnlock={canUnlockAttendees}
+              onUnlock={
+                canUnlockAttendees
+                  ? () => setIsAdminUnlockEnabled(true)
+                  : undefined
+              }
+            />
           ) : null}
           <Tooltip title="Download attendees">
             <IconButton

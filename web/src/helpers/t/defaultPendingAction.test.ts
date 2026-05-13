@@ -62,4 +62,26 @@ describe("defaultPendingAction", () => {
       ),
     ).toBe(MeetActionsEnum.Details);
   });
+
+  it("defaults draft meets to edit for admins who can manage the meet", () => {
+    expect(
+      defaultPendingAction(
+        MeetStatusEnum.Draft,
+        false,
+        { startTime: "2026-05-01T18:00:00.000Z" },
+        { canManageMeet: true },
+      ),
+    ).toBe(MeetActionsEnum.Edit);
+  });
+
+  it("defaults open meets to attendees for admins who can manage the meet", () => {
+    expect(
+      defaultPendingAction(
+        MeetStatusEnum.Open,
+        false,
+        { startTime: "2026-05-01T18:00:00.000Z" },
+        { canManageMeet: true },
+      ),
+    ).toBe(MeetActionsEnum.Attendees);
+  });
 });
