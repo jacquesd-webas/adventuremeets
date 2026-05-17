@@ -165,9 +165,14 @@ function MeetCheckinPage() {
         height: isMobile ? "100vh" : "calc(100vh - 64px)",
         display: "flex",
         flexDirection: "column",
+        overflow: "hidden",
       }}
     >
-      <Stack spacing={2}>
+      <Stack
+        spacing={2}
+        data-testid="meet-checkin-layout"
+        sx={{ flex: 1, minHeight: 0 }}
+      >
         <Box
           sx={{
             px: isMobile ? 2 : 0,
@@ -229,10 +234,11 @@ function MeetCheckinPage() {
           </Box>
         ) : null}
         <Paper
+          data-testid="meet-checkin-scroll-container"
           variant="outlined"
           sx={{
             p: 1,
-            flex: isMobile ? 1 : "initial",
+            flex: 1,
             borderRadius: isMobile ? 0 : 1,
             overflowY: "auto",
             minHeight: 0,

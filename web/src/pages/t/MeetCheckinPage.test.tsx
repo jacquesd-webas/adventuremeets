@@ -40,9 +40,26 @@ vi.mock("../../context/authContext", () => ({
 }));
 
 describe("MeetCheckinPage", () => {
+  const setMobileMatchMedia = (matches: boolean) => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    });
+  };
+
   beforeEach(() => {
     mockMeet = { organizerId: "organizer-1" };
     mockUser = { id: "organizer-1" };
+    setMobileMatchMedia(false);
   });
 
   it("returns to the dashboard when closing in tests", async () => {
@@ -132,5 +149,30 @@ describe("MeetCheckinPage", () => {
     );
 
     expect(screen.getByLabelText("Unlock meet")).toBeInTheDocument();
+  });
+
+  it("keeps the attendee list in its own scroll container on mobile", () => {
+    setMobileMatchMedia(true);
+
+    render(
+      <MemoryRouter
+        initialEntries={["/meet/meet-1/checkin"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("meet-checkin-layout")).toHaveStyle({
+      flex: "1",
+      minHeight: "0",
+    });
+    expect(screen.getByTestId("meet-checkin-scroll-container")).toHaveStyle({
+      flex: "1",
+      overflowY: "auto",
+      minHeight: "0",
+    });
   });
 });
