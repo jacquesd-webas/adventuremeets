@@ -33,8 +33,15 @@ function groupWallItems(wallItems: WallItem[]) {
   wallItems.forEach((item) => {
     const previousGroup = groups[groups.length - 1];
     const previousItem = previousGroup?.items[previousGroup.items.length - 1];
+    const itemAuthorKey = item.createdBy || item.attendeeId || item.authorName;
+    const previousAuthorKey =
+      previousItem?.createdBy || previousItem?.attendeeId || previousItem?.authorName;
     const canAppendToPhotoGroup =
-      item.url && previousItem?.url && previousGroup?.items.length > 0;
+      item.url &&
+      previousItem?.url &&
+      previousGroup?.items.length > 0 &&
+      Boolean(itemAuthorKey) &&
+      itemAuthorKey === previousAuthorKey;
 
     if (canAppendToPhotoGroup) {
       previousGroup.items.push(item);

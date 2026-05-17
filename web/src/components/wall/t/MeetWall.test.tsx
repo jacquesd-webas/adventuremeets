@@ -546,6 +546,7 @@ describe("MeetWall", () => {
         {
           id: "wall-1",
           meetId: "meet-1",
+          attendeeId: "attendee-1",
           url: "https://cdn.example.com/photo-1.jpg",
           authorName: "Alice",
           createdAt: "2026-04-29T08:00:00.000Z",
@@ -557,6 +558,7 @@ describe("MeetWall", () => {
         {
           id: "wall-2",
           meetId: "meet-1",
+          attendeeId: "attendee-1",
           url: "https://cdn.example.com/photo-2.jpg",
           authorName: "Alice",
           createdAt: "2026-04-29T07:59:00.000Z",
@@ -575,6 +577,45 @@ describe("MeetWall", () => {
 
     expect(screen.getAllByAltText("Meet wall post")).toHaveLength(2);
     expect(screen.getAllByTestId("meet-wall-card")).toHaveLength(1);
+  });
+
+  it("renders consecutive photo posts from different attendees in separate wall cards", () => {
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          attendeeId: "attendee-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T08:00:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "O",
+        },
+        {
+          id: "wall-2",
+          meetId: "meet-1",
+          attendeeId: "attendee-2",
+          url: "https://cdn.example.com/photo-2.jpg",
+          authorName: "Bob",
+          createdAt: "2026-04-29T07:59:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "W",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(screen.getAllByAltText("Meet wall post")).toHaveLength(2);
+    expect(screen.getAllByTestId("meet-wall-card")).toHaveLength(2);
   });
 
   it("renders five grouped photos without hiding any behind a placeholder", () => {

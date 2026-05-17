@@ -1,6 +1,8 @@
 export type WallItem = {
   id: string;
   meetId: string;
+  createdBy?: string;
+  attendeeId?: string;
   authorName?: string;
   comment?: string;
   stars?: number;
