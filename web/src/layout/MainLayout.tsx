@@ -294,7 +294,7 @@ function MainLayout() {
       sx={{
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
+        height: "100dvh",
         overflow: "hidden",
       }}
     >
@@ -592,6 +592,7 @@ function MainLayout() {
         disableGutters={isMobile}
         sx={{
           flex: 1,
+          minHeight: 0,
           overflowY: "auto",
           overscrollBehavior: "contain",
           py: isMobile ? 1 : 3,
