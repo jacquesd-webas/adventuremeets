@@ -558,8 +558,9 @@ export class OrganizationsService {
     const email = payload.email.trim().toLowerCase();
     const createdAt = now.toISOString();
     const expiresAt = expiresAtDate.toISOString();
-    const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173")
-      .replace(/\/+$/, "");
+    const frontendBase = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
 
     const maxAttempts = 5;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -599,9 +600,7 @@ export class OrganizationsService {
               err?.message || err
             }`,
           );
-          throw new InternalServerErrorException(
-            "Unable to send invite email",
-          );
+          throw new InternalServerErrorException("Unable to send invite email");
         }
         return {
           id: row.id,
@@ -762,7 +761,10 @@ export class OrganizationsService {
     }));
   }
 
-  async declineInvite(inviteId: string, userEmail: string): Promise<InviteLinkDto> {
+  async declineInvite(
+    inviteId: string,
+    userEmail: string,
+  ): Promise<InviteLinkDto> {
     const trx = await this.database.getClient().transaction();
     try {
       const normalizedEmail = userEmail.trim().toLowerCase();
@@ -819,6 +821,20 @@ export class OrganizationsService {
       await trx.rollback();
       throw err;
     }
+  }
+
+  async canOrganizationShareMeets(orgId: string) {
+    const organization = await this.database
+      .getClient()("organizations")
+      .where({ id: orgId })
+      .select("can_view_all_meets")
+      .first();
+
+    if (!organization) {
+      throw new NotFoundException("Organization not found");
+    }
+
+    return Boolean(organization.can_view_all_meets);
   }
 
   private toMinimalOrganizationDto(row: any): OrganizationMinimalDto {

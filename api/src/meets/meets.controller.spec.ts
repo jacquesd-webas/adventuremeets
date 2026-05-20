@@ -7,13 +7,40 @@ import {
 const workbookState: {
   rows: Record<string, any>[];
   columns: Record<string, any>[];
+  uploadRows: Array<Array<any>>;
 } = {
   rows: [],
   columns: [],
+  uploadRows: [],
 };
+
+const createMockCell = (value: any) => ({
+  text: value == null ? "" : String(value),
+  value,
+});
+
+const createMockRow = (values: any[]) => ({
+  eachCell: (callback: (cell: any, colNumber: number) => void) => {
+    values.forEach((value, index) => {
+      callback(createMockCell(value), index + 1);
+    });
+  },
+  getCell: (colNumber: number) => createMockCell(values[colNumber - 1]),
+});
+
+const createMockWorksheet = (rows: Array<Array<any>>) => ({
+  getRow: (rowNumber: number) => createMockRow(rows[rowNumber - 1] || []),
+  eachRow: (callback: (row: any, rowNumber: number) => void) => {
+    rows.forEach((rowValues, index) => {
+      callback(createMockRow(rowValues), index + 1);
+    });
+  },
+});
 
 jest.mock("exceljs", () => ({
   Workbook: class MockWorkbook {
+    worksheets: any[] = [];
+
     addWorksheet() {
       workbookState.rows = [];
       workbookState.columns = [];
@@ -31,6 +58,12 @@ jest.mock("exceljs", () => ({
     }
 
     xlsx = {
+      load: jest.fn().mockImplementation(async () => {
+        this.worksheets =
+          workbookState.uploadRows.length > 0
+            ? [createMockWorksheet(workbookState.uploadRows)]
+            : [];
+      }),
       writeBuffer: jest.fn().mockResolvedValue(Buffer.from("xlsx")),
     };
   },
@@ -42,14 +75,17 @@ import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
 import { DatabaseService } from "../database/database.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
+import { OrganizationsService } from "../organizations/organizations.service";
 
 describe("MeetsController", () => {
   let controller: MeetsController;
 
   const meetsService = {
+    findAll: jest.fn(),
     findOne: jest.fn(),
     listImages: jest.fn(),
     addImage: jest.fn(),
+    addInvitedAttendees: jest.fn(),
     updateImage: jest.fn(),
     updateStatus: jest.fn(),
     remove: jest.fn(),
@@ -68,6 +104,10 @@ describe("MeetsController", () => {
     saveMessage: jest.fn(),
   } as unknown as EmailService;
 
+  const organizationService = {
+    canOrganizationShareMeets: jest.fn(),
+  } as unknown as OrganizationsService;
+
   const db = {
     getClient: jest.fn(),
   } as unknown as DatabaseService;
@@ -81,6 +121,13 @@ describe("MeetsController", () => {
     id: "organizer-1",
     email: "organizer@example.com",
     organizations: { "org-1": "organizer" },
+    pendingInvites: [],
+  };
+
+  const memberUser: UserProfile = {
+    id: "member-1",
+    email: "member@example.com",
+    organizations: { "org-1": "member" },
     pendingInvites: [],
   };
 
@@ -99,14 +146,17 @@ describe("MeetsController", () => {
   };
 
   const setRoles = ({
+    member = false,
     organizer = false,
     admin = false,
   }: {
+    member?: boolean;
     organizer?: boolean;
     admin?: boolean;
   }) => {
     (authService.hasRole as jest.Mock).mockImplementation(
       (_currentUser, _organizationId, role) => {
+        if (role === "member") return member || organizer || admin;
         if (role === "organizer") return organizer;
         if (role === "admin") return admin;
         return false;
@@ -118,8 +168,10 @@ describe("MeetsController", () => {
     jest.clearAllMocks();
     workbookState.rows = [];
     workbookState.columns = [];
+    workbookState.uploadRows = [];
     controller = new MeetsController(
       meetsService,
+      organizationService,
       emailService,
       db,
       authService,
@@ -177,6 +229,158 @@ describe("MeetsController", () => {
 
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('forces scope to "my" for members when the organization does not share meets', async () => {
+    (
+      organizationService.canOrganizationShareMeets as jest.Mock
+    ).mockResolvedValue(false);
+    (meetsService.findAll as jest.Mock).mockResolvedValue({
+      items: [],
+      total: 0,
+    });
+    setRoles({ member: true });
+
+    await expect(
+      controller.findAll(
+        "all",
+        "all",
+        "1",
+        "20",
+        "org-1",
+        undefined,
+        undefined,
+        undefined,
+        memberUser,
+      ),
+    ).resolves.toEqual({
+      items: [],
+      total: 0,
+    });
+
+    expect(organizationService.canOrganizationShareMeets).toHaveBeenCalledWith(
+      "org-1",
+    );
+    expect(meetsService.findAll).toHaveBeenCalledWith(
+      "all",
+      1,
+      20,
+      ["org-1"],
+      false,
+      "member-1",
+      null,
+      null,
+      null,
+      "my",
+    );
+  });
+
+  it("preserves requested scope for members when the organization shares meets", async () => {
+    (
+      organizationService.canOrganizationShareMeets as jest.Mock
+    ).mockResolvedValue(true);
+    (meetsService.findAll as jest.Mock).mockResolvedValue({
+      items: [],
+      total: 0,
+    });
+    setRoles({ member: true });
+
+    await controller.findAll(
+      "all",
+      "all",
+      "1",
+      "20",
+      "org-1",
+      undefined,
+      undefined,
+      undefined,
+      memberUser,
+    );
+
+    expect(meetsService.findAll).toHaveBeenCalledWith(
+      "all",
+      1,
+      20,
+      ["org-1"],
+      false,
+      "member-1",
+      null,
+      null,
+      null,
+      "all",
+    );
+  });
+
+  it("does not check organization sharing for organizers when listing meets", async () => {
+    (meetsService.findAll as jest.Mock).mockResolvedValue({
+      items: [],
+      total: 0,
+    });
+    setRoles({ organizer: true });
+
+    await controller.findAll(
+      "all",
+      "all",
+      "1",
+      "20",
+      "org-1",
+      undefined,
+      undefined,
+      undefined,
+      user,
+    );
+
+    expect(
+      organizationService.canOrganizationShareMeets,
+    ).not.toHaveBeenCalled();
+    expect(meetsService.findAll).toHaveBeenCalledWith(
+      "all",
+      1,
+      20,
+      ["org-1"],
+      true,
+      "organizer-1",
+      null,
+      null,
+      null,
+      "all",
+    );
+  });
+
+  it("allows a member to fetch meet details when the organization allows viewing all meets", async () => {
+    (
+      organizationService.canOrganizationShareMeets as jest.Mock
+    ).mockResolvedValue(true);
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      statusId: 4,
+      isHidden: true,
+      myAttendeeStatus: null,
+    });
+    setRoles({ member: true });
+
+    await expect(controller.findOne("meet-1", memberUser)).resolves.toEqual(
+      expect.objectContaining({
+        id: "meet-1",
+      }),
+    );
+  });
+
+  it("rejects a member from fetching hidden non-public meet details when view-all is disabled", async () => {
+    (
+      organizationService.canOrganizationShareMeets as jest.Mock
+    ).mockResolvedValue(false);
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      statusId: 4,
+      isHidden: true,
+      myAttendeeStatus: null,
+    });
+    setRoles({ member: true });
+
+    await expect(
+      controller.findOne("meet-1", memberUser),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -243,11 +447,7 @@ describe("MeetsController", () => {
     });
 
     await expect(
-      controller.updateStatus(
-        "meet-1",
-        { statusId: 4 },
-        "worker-secret",
-      ),
+      controller.updateStatus("meet-1", { statusId: 4 }, "worker-secret"),
     ).resolves.toEqual({
       id: "meet-1",
       status_id: 4,
@@ -284,11 +484,9 @@ describe("MeetsController", () => {
       image: { id: "image-1", isPrimary: true },
     });
 
-    expect(meetsService.updateImage).toHaveBeenCalledWith(
-      "meet-1",
-      "image-1",
-      { isPrimary: true },
-    );
+    expect(meetsService.updateImage).toHaveBeenCalledWith("meet-1", "image-1", {
+      isPrimary: true,
+    });
   });
 
   it("resets confirmed attendees to invited when reconfirmAttendees is true", async () => {
@@ -333,9 +531,10 @@ describe("MeetsController", () => {
     });
 
     expect(meetsService.updateStatus).toHaveBeenCalledWith("meet-1", 2);
-    expect(
-      meetsService.resetConfirmedAttendeesToInvited,
-    ).toHaveBeenCalledWith("meet-1", "organizer-1");
+    expect(meetsService.resetConfirmedAttendeesToInvited).toHaveBeenCalledWith(
+      "meet-1",
+      "organizer-1",
+    );
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "member@example.com",
@@ -431,11 +630,11 @@ describe("MeetsController", () => {
     (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
 
     await expect(
-      controller.createReport(
-        "meet-1",
-        user,
-        { sendEmail: true, downloadReport: false, isFinalReport: true },
-      ),
+      controller.createReport("meet-1", user, {
+        sendEmail: true,
+        downloadReport: false,
+        isFinalReport: true,
+      }),
     ).resolves.toEqual({
       status: "sent",
       to: "organizer@example.com",
@@ -485,11 +684,11 @@ describe("MeetsController", () => {
     setRoles({ organizer: true });
     (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
 
-    await controller.createReport(
-      "meet-1",
-      user,
-      { sendEmail: true, downloadReport: false, isFinalReport: false },
-    );
+    await controller.createReport("meet-1", user, {
+      sendEmail: true,
+      downloadReport: false,
+      isFinalReport: false,
+    });
 
     expect(workbookState.rows).toEqual([
       expect.objectContaining({
@@ -501,11 +700,10 @@ describe("MeetsController", () => {
 
   it("rejects report generation when no delivery method is selected", async () => {
     await expect(
-      controller.createReport(
-        "meet-1",
-        user,
-        { sendEmail: false, downloadReport: false },
-      ),
+      controller.createReport("meet-1", user, {
+        sendEmail: false,
+        downloadReport: false,
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -545,5 +743,150 @@ describe("MeetsController", () => {
       "meet-1",
       ["attendee-1", "attendee-2"],
     );
+  });
+
+  it("maps extra upload columns to matching meta field labels and field keys", async () => {
+    workbookState.uploadRows = [
+      [
+        "Name",
+        "Email",
+        "Phone",
+        "Fitness Level",
+        "dietary requirements",
+        "Q3",
+        "Ignored Column",
+      ],
+      [
+        "Alex",
+        "alex@example.com",
+        "+27123456789",
+        "Strong",
+        "Vegetarian",
+        "Sam 0821234567",
+        "unused",
+      ],
+    ];
+
+    const metaDefinitionsBuilder = {
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue([
+        {
+          id: "meta-1",
+          field_key: "fitness_level",
+          label: "Fitness Level",
+          position: 1,
+        },
+        {
+          id: "meta-2",
+          field_key: "dietary_requirements",
+          label: "Dietary Requirements",
+          position: 2,
+        },
+        {
+          id: "meta-3",
+          field_key: "emergency_contact",
+          label: "Emergency Contact",
+          position: 3,
+        },
+      ]),
+    };
+    const client: any = (table: string) => {
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    };
+
+    (db.getClient as jest.Mock).mockReturnValue(client);
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.addInvitedAttendees as jest.Mock).mockResolvedValue({
+      created: 1,
+      skipped: 0,
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.uploadAttendees(
+        "meet-1",
+        { buffer: Buffer.from("xlsx") },
+        user,
+      ),
+    ).resolves.toEqual({
+      created: 1,
+      skipped: 0,
+    });
+
+    expect(meetsService.addInvitedAttendees).toHaveBeenCalledWith("meet-1", [
+      {
+        name: "Alex",
+        email: "alex@example.com",
+        phone: "+27123456789",
+        metaValues: [
+          { definitionId: "meta-3", value: "Sam 0821234567" },
+          { definitionId: "meta-1", value: "Strong" },
+          { definitionId: "meta-2", value: "Vegetarian" },
+        ],
+      },
+    ]);
+  });
+
+  it("matches upload headings case-insensitively", async () => {
+    workbookState.uploadRows = [
+      ["NAME", "eMaIl", "pHoNe", "FITNESS LEVEL", "DiEtArY_ReQuIrEmEnTs"],
+      ["Jamie", "jamie@example.com", "+27129876543", "Easy", "Vegan"],
+    ];
+
+    const metaDefinitionsBuilder = {
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue([
+        {
+          id: "meta-1",
+          field_key: "fitness_level",
+          label: "Fitness Level",
+          position: 1,
+        },
+        {
+          id: "meta-2",
+          field_key: "dietary_requirements",
+          label: "Dietary Requirements",
+          position: 2,
+        },
+      ]),
+    };
+    const client: any = (table: string) => {
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    };
+
+    (db.getClient as jest.Mock).mockReturnValue(client);
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.addInvitedAttendees as jest.Mock).mockResolvedValue({
+      created: 1,
+      skipped: 0,
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.uploadAttendees(
+        "meet-1",
+        { buffer: Buffer.from("xlsx") },
+        user,
+      ),
+    ).resolves.toEqual({
+      created: 1,
+      skipped: 0,
+    });
+
+    expect(meetsService.addInvitedAttendees).toHaveBeenCalledWith("meet-1", [
+      {
+        name: "Jamie",
+        email: "jamie@example.com",
+        phone: "+27129876543",
+        metaValues: [
+          { definitionId: "meta-1", value: "Easy" },
+          { definitionId: "meta-2", value: "Vegan" },
+        ],
+      },
+    ]);
   });
 });

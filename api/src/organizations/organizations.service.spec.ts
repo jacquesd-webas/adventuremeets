@@ -28,6 +28,62 @@ const createTransaction = (builders: Record<string, any>) => {
 describe("OrganizationsService", () => {
   const emailService = {} as EmailService;
 
+  it("returns whether the organization allows members to view all meets", async () => {
+    const organizationsBuilder = buildBuilder();
+    organizationsBuilder.first.mockResolvedValue({
+      can_view_all_meets: true,
+    });
+
+    const client: any = (table: string) => {
+      if (table === "organizations") return organizationsBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const service = new OrganizationsService(db, emailService);
+
+    await expect(service.canOrganizationShareMeets("org-1")).resolves.toBe(
+      true,
+    );
+    expect(organizationsBuilder.where).toHaveBeenCalledWith({ id: "org-1" });
+  });
+
+  it("returns false when the organization does not allow members to view all meets", async () => {
+    const organizationsBuilder = buildBuilder();
+    organizationsBuilder.first.mockResolvedValue({
+      can_view_all_meets: false,
+    });
+
+    const client: any = (table: string) => {
+      if (table === "organizations") return organizationsBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const service = new OrganizationsService(db, emailService);
+
+    await expect(service.canOrganizationShareMeets("org-1")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("throws when checking meet sharing for a missing organization", async () => {
+    const organizationsBuilder = buildBuilder();
+    organizationsBuilder.first.mockResolvedValue(undefined);
+
+    const client: any = (table: string) => {
+      if (table === "organizations") return organizationsBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const service = new OrganizationsService(db, emailService);
+
+    await expect(service.canOrganizationShareMeets("org-1")).rejects.toThrow(
+      new NotFoundException("Organization not found"),
+    );
+  });
+
   it("creates an invite link with a normalized email and sends the register URL", async () => {
     process.env.FRONTEND_URL = "http://localhost:5173/";
 

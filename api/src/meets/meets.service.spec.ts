@@ -12,6 +12,7 @@ const buildBuilder = () => {
   builder.join = jest.fn().mockReturnValue(builder);
   builder.leftJoin = jest.fn().mockReturnValue(builder);
   builder.where = jest.fn().mockReturnValue(builder);
+  builder.whereNot = jest.fn().mockReturnValue(builder);
   builder.orWhere = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
   builder.andWhereNot = jest.fn().mockReturnValue(builder);
@@ -352,6 +353,42 @@ describe("MeetsService", () => {
     );
   });
 
+  it("shows all non-draft meets to members when the organization allows it", async () => {
+    const organizationsBuilder = buildBuilder();
+    organizationsBuilder.select.mockResolvedValue([
+      { id: "org-1", can_view_all_meets: true },
+    ]);
+
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.limit.mockReturnValue(meetsBuilder);
+    meetsBuilder.offset.mockResolvedValue([]);
+
+    const totalBuilder = buildBuilder();
+    totalBuilder.count.mockReturnValue(totalBuilder);
+    totalBuilder.then = (resolve: (value: { count: string }[]) => void) =>
+      resolve([{ count: "0" }]);
+
+    const client: any = (table: string) => {
+      if (table === "organizations") return organizationsBuilder;
+      if (table === "meets as m") return meetsBuilder;
+      if (table === "meets") return totalBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await service.findAll("all", 1, 20, ["org-1"], false, "user-1");
+
+    expect(organizationsBuilder.whereIn).toHaveBeenCalledWith("id", ["org-1"]);
+    expect(meetsBuilder.where).toHaveBeenCalledWith("m.status_id", "!=", 1);
+    expect(totalBuilder.where).toHaveBeenCalledWith("status_id", "!=", 1);
+    expect(meetsBuilder.where).not.toHaveBeenCalledWith("m.is_hidden", false);
+    expect(totalBuilder.where).not.toHaveBeenCalledWith("is_hidden", false);
+  });
+
   it("rejects duplicate adult attendee inserts with a conflict error", async () => {
     const meetBuilder = buildBuilder();
     meetBuilder.first.mockResolvedValue({
@@ -509,6 +546,69 @@ describe("MeetsService", () => {
     await expect(
       service.attendeeHasMissingFields("meet-1", "attendee-1"),
     ).resolves.toBe(true);
+  });
+
+  it("skips duplicate invited attendees by name, email, and phone", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.select.mockResolvedValue([
+      {
+        name: "Existing Person",
+        email: "existing@example.com",
+        phone: "+27110000000",
+      },
+    ]);
+    attendeeBuilder.first.mockResolvedValue({ max: 4 });
+    attendeeBuilder.insert.mockResolvedValue([{ id: "attendee-new-1" }]);
+
+    const metaValuesBuilder = buildBuilder();
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_meta_values") return metaValuesBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.addInvitedAttendees("meet-1", [
+        {
+          name: "Existing Person",
+          email: "EXISTING@example.com",
+          phone: "+27110000000",
+        },
+        {
+          name: "New Person",
+          email: "new@example.com",
+          phone: "+27220000000",
+        },
+        {
+          name: " new person ",
+          email: "NEW@example.com",
+          phone: "+27220000000",
+        },
+      ]),
+    ).resolves.toEqual({
+      created: 1,
+      skipped: 2,
+    });
+
+    expect(attendeeBuilder.insert).toHaveBeenCalledTimes(1);
+    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meet_id: "meet-1",
+        name: "New Person",
+        email: "new@example.com",
+        phone: "+27220000000",
+        status: "invited",
+        sequence: 5,
+      }),
+      ["id"],
+    );
+    expect(metaValuesBuilder.insert).not.toHaveBeenCalled();
   });
 
   it("lists meet images with the primary image first", async () => {
@@ -865,7 +965,9 @@ describe("MeetsService", () => {
       if (table === "wall_item") return wallItemBuilder;
       return buildBuilder();
     };
-    client.transaction = jest.fn(async (callback: any) => callback(transactionClient));
+    client.transaction = jest.fn(async (callback: any) =>
+      callback(transactionClient),
+    );
 
     const db = { getClient: () => client } as unknown as DatabaseService;
     const minio = {} as MinioService;
@@ -986,7 +1088,11 @@ describe("MeetsService", () => {
     likesBuilder.first.mockResolvedValue(undefined);
     likesBuilder.insert.mockResolvedValue([{ id: "like-1" }]);
     likesBuilder.select.mockResolvedValue([
-      { wall_item_id: "wall-1", attendee_id: "attendee-1", reaction: "dislike" },
+      {
+        wall_item_id: "wall-1",
+        attendee_id: "attendee-1",
+        reaction: "dislike",
+      },
       { wall_item_id: "wall-1", user_id: "user-2", reaction: "like" },
     ]);
 

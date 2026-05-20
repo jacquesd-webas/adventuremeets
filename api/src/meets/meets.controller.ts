@@ -41,6 +41,7 @@ import { UserProfile } from "../users/dto/user-profile.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { DatabaseService } from "../database/database.service";
+import { OrganizationsService } from "../organizations/organizations.service";
 import * as ExcelJS from "exceljs";
 import { MEET_STATUS } from "./constants/meet-status.enum";
 
@@ -51,6 +52,7 @@ export class MeetsController {
 
   constructor(
     private readonly meetsService: MeetsService,
+    private readonly organizationService: OrganizationsService,
     private readonly emailService: EmailService,
     private readonly db: DatabaseService,
     private readonly authService: AuthService,
@@ -127,16 +129,27 @@ export class MeetsController {
     }
 
     let normalizedView = String(view || "all").toLowerCase();
+
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.max(
       1,
       Math.min(200, parseInt(limit as string, 10) || 20),
     );
+
     const isOrganizer = this.authService.hasRole(
       user,
       organizationId,
       "organizer",
     );
+
+    // Force scope to "my" if just a member and org does not share all meets
+    if (!isOrganizer) {
+      const canOrganizationShareMeets =
+        await this.organizationService.canOrganizationShareMeets(
+          organizationId,
+        );
+      if (!canOrganizationShareMeets) scope = "my";
+    }
 
     const meets = await this.meetsService.findAll(
       normalizedView,
@@ -166,6 +179,26 @@ export class MeetsController {
     }
     if (!this.authService.hasRole(user, meet.organizationId!, "member")) {
       throw new NotFoundException("Meet not found in your organizations");
+    }
+    const canManageMeet =
+      this.authService.hasRole(user, meet.organizationId!, "organizer") ||
+      this.authService.hasRole(user, meet.organizationId!, "admin");
+    if (!canManageMeet) {
+      const canViewAllMeets =
+        await this.organizationService.canOrganizationShareMeets(
+          meet.organizationId!,
+        );
+      const isPublicMeet =
+        meet.statusId === MEET_STATUS.Published ||
+        meet.statusId === MEET_STATUS.Open;
+      const isAttending = Boolean(meet.myAttendeeStatus);
+      const canViewMeet =
+        (canViewAllMeets && meet.statusId !== MEET_STATUS.Draft) ||
+        (!meet.isHidden && (isPublicMeet || isAttending));
+
+      if (!canViewMeet) {
+        throw new NotFoundException("Meet not found in your organizations");
+      }
     }
     return meet;
   }
@@ -803,12 +836,17 @@ export class MeetsController {
       throw new BadRequestException("No worksheet found in the uploaded file");
     }
 
+    const normalizeColumnKey = (value: string) =>
+      value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "");
+
     const headerRow = worksheet.getRow(1);
     const headerMap = new Map<string, number>();
     headerRow.eachCell((cell, colNumber) => {
-      const key = String(cell.text || cell.value || "")
-        .trim()
-        .toLowerCase();
+      const rawKey = String(cell.text || cell.value || "");
+      const key = normalizeColumnKey(rawKey);
       if (key) headerMap.set(key, colNumber);
     });
 
@@ -828,14 +866,37 @@ export class MeetsController {
       .select("id", "field_key", "label", "position");
 
     const questionColumns = new Map<number, string>();
+    const assignedDefinitionIds = new Set<string>();
     headerMap.forEach((col, key) => {
-      const match = key.match(/^q(\\d+)$/);
+      const match = key.match(/^q(\d+)$/);
       if (!match) return;
       const index = Number(match[1]) - 1;
       const definition = metaDefinitions[index];
       if (definition) {
         questionColumns.set(col, definition.id);
+        assignedDefinitionIds.add(definition.id);
       }
+    });
+
+    const metaDefinitionByKey = new Map<string, string>();
+    metaDefinitions.forEach((definition) => {
+      const labelKey = normalizeColumnKey(definition.label || "");
+      const fieldKey = normalizeColumnKey(definition.field_key || "");
+      if (labelKey && !metaDefinitionByKey.has(labelKey)) {
+        metaDefinitionByKey.set(labelKey, definition.id);
+      }
+      if (fieldKey && !metaDefinitionByKey.has(fieldKey)) {
+        metaDefinitionByKey.set(fieldKey, definition.id);
+      }
+    });
+
+    headerMap.forEach((col, key) => {
+      if (key === "name" || key === "email" || key === "phone") return;
+      if (/^q\d+$/.test(key)) return;
+      const definitionId = metaDefinitionByKey.get(key);
+      if (!definitionId || assignedDefinitionIds.has(definitionId)) return;
+      questionColumns.set(col, definitionId);
+      assignedDefinitionIds.add(definitionId);
     });
 
     const getCellText = (row: any, col: number) => {
@@ -890,11 +951,11 @@ export class MeetsController {
       throw new BadRequestException("No valid attendee rows found to upload.");
     }
 
-    const { created } = await this.meetsService.addInvitedAttendees(
+    const { created, skipped } = await this.meetsService.addInvitedAttendees(
       id,
       attendees,
     );
-    return { created, skipped: 0 };
+    return { created, skipped };
   }
 
   @Post(":id/report")

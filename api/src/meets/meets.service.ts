@@ -32,6 +32,17 @@ export class MeetsService {
     private readonly minio: MinioService,
   ) {}
 
+  private buildAttendeeIdentityKey(attendee: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }) {
+    const name = attendee.name?.trim().toLowerCase() ?? "";
+    const email = attendee.email?.trim().toLowerCase() ?? "";
+    const phone = attendee.phone?.trim() ?? "";
+    return `${name}::${email}::${phone}`;
+  }
+
   private isAttendeeDuplicateError(error: any) {
     return (
       error?.code === "23505" &&
@@ -91,6 +102,17 @@ export class MeetsService {
     search: string | null = null,
     scope: "all" | "my" | null = null,
   ) {
+    let memberCanViewAllMeets = false;
+    if (!isOrganizer && organizationIds.length > 0) {
+      const organizations = await this.db
+        .getClient()("organizations")
+        .whereIn("id", organizationIds)
+        .select("id", "can_view_all_meets");
+      memberCanViewAllMeets = organizations.some(
+        (organization: any) => organization.can_view_all_meets,
+      );
+    }
+
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
       .select("meet_id")
@@ -179,7 +201,7 @@ export class MeetsService {
             .andWhere("ma2.user_id", userId!);
         });
       });
-    } else if (!isOrganizer) {
+    } else if (!isOrganizer && !memberCanViewAllMeets) {
       query.where((qb) => {
         qb.whereExists(function () {
           this.select("*")
@@ -224,11 +246,15 @@ export class MeetsService {
       totalQuery.whereNotIn("status_id", [MEET_STATUS.Draft]);
       query.orderBy("start_time", "asc");
     }
+    if (!isOrganizer && memberCanViewAllMeets) {
+      query.where("m.status_id", "!=", MEET_STATUS.Draft);
+      totalQuery.where("status_id", "!=", MEET_STATUS.Draft);
+    }
     if (organizationIds.length > 0) {
       query.whereIn("m.organization_id", organizationIds);
       totalQuery.whereIn("organization_id", organizationIds);
     }
-    if (!isOrganizer) {
+    if (!isOrganizer && !memberCanViewAllMeets) {
       query.where("m.is_hidden", false);
       totalQuery.where("is_hidden", false);
     }
@@ -1115,8 +1141,16 @@ export class MeetsService {
       metaValues?: Array<{ definitionId: string; value: string }>;
     }>,
   ) {
-    if (!attendees.length) return { created: 0 };
-    const createdCount = await this.db.getClient().transaction(async (trx) => {
+    if (!attendees.length) return { created: 0, skipped: 0 };
+    return this.db.getClient().transaction(async (trx) => {
+      const existingAttendees = await trx("meet_attendees")
+        .where({ meet_id: meetId })
+        .select("name", "email", "phone");
+      const seenIdentityKeys = new Set(
+        existingAttendees.map((attendee: any) =>
+          this.buildAttendeeIdentityKey(attendee),
+        ),
+      );
       const sequenceRow = await trx("meet_attendees")
         .where({ meet_id: meetId })
         .max("sequence as max")
@@ -1132,7 +1166,15 @@ export class MeetsService {
         meta_definition_id: string;
         value: string;
       }> = [];
+      let created = 0;
+      let skipped = 0;
       for (const attendee of attendees) {
+        const identityKey = this.buildAttendeeIdentityKey(attendee);
+        if (seenIdentityKeys.has(identityKey)) {
+          skipped += 1;
+          continue;
+        }
+        seenIdentityKeys.add(identityKey);
         const [row] = await trx("meet_attendees").insert(
           {
             meet_id: meetId,
@@ -1147,6 +1189,7 @@ export class MeetsService {
           ["id"],
         );
         nextSequence += 1;
+        created += 1;
         if (attendee.metaValues?.length) {
           attendee.metaValues
             .filter(
@@ -1168,9 +1211,8 @@ export class MeetsService {
       if (metaRecords.length) {
         await trx("meet_meta_values").insert(metaRecords);
       }
-      return attendees.length;
+      return { created, skipped };
     });
-    return { created: createdCount };
   }
 
   async updateAttendee(
@@ -1545,15 +1587,17 @@ export class MeetsService {
         .where({ id: existing.id })
         .update({ reaction });
     } else {
-      await this.db.getClient()("wall_item_likes").insert(
-        {
-          wall_item_id: wallItemId,
-          user_id: attendeeId ? null : userId ?? null,
-          attendee_id: attendeeId ?? null,
-          reaction,
-        },
-        ["id"],
-      );
+      await this.db
+        .getClient()("wall_item_likes")
+        .insert(
+          {
+            wall_item_id: wallItemId,
+            user_id: attendeeId ? null : (userId ?? null),
+            attendee_id: attendeeId ?? null,
+            reaction,
+          },
+          ["id"],
+        );
     }
 
     return this.getWallItem(meetId, wallItemId, actor);
@@ -1770,9 +1814,7 @@ export class MeetsService {
     likes: Array<Record<string, any>> = [],
     actor?: { userId?: string; attendeeId?: string | null },
   ): WallItemDto {
-    const itemLikes = likes.filter(
-      (like) => like.wall_item_id === wallItem.id,
-    );
+    const itemLikes = likes.filter((like) => like.wall_item_id === wallItem.id);
     const attendeeReaction = actor?.attendeeId
       ? itemLikes.find((like) => like.attendee_id === actor.attendeeId)
       : undefined;
@@ -1781,11 +1823,15 @@ export class MeetsService {
       (actor?.userId
         ? itemLikes.find((like) => like.user_id === actor.userId)
         : undefined);
-    const likeCount = itemLikes.filter((like) => like.reaction === "like").length;
+    const likeCount = itemLikes.filter(
+      (like) => like.reaction === "like",
+    ).length;
     const dislikeCount = itemLikes.filter(
       (like) => like.reaction === "dislike",
     ).length;
-    const heartCount = itemLikes.filter((like) => like.reaction === "heart").length;
+    const heartCount = itemLikes.filter(
+      (like) => like.reaction === "heart",
+    ).length;
 
     return {
       id: wallItem.id,
