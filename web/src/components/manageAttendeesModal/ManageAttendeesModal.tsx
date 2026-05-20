@@ -986,7 +986,10 @@ export function ManageAttendeesModal({
               <FileDownloadOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <AttendeeUploadButton meetId={meetId} disabled={!meetId} />
+          <AttendeeUploadButton
+            meetId={meetId}
+            disabled={!meetId || !canManageAttendees}
+          />
           <IconButton
             onClick={handleRequestClose}
             aria-label="Close attendees modal"

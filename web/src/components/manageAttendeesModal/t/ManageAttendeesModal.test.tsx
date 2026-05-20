@@ -304,4 +304,31 @@ describe("ManageAttendeesModal", () => {
       attendeeIds: ["rejected-1"],
     });
   });
+
+  it("disables attendee uploads until a non-organizer unlocks the meet", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          canManageMeet
+        />
+      </QueryClientProvider>,
+    );
+
+    const uploadButton = screen.getByRole("button", {
+      name: "Upload attendees",
+    });
+    expect(uploadButton).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.click(screen.getByLabelText("Unlock meet"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Upload attendees" }),
+      ).not.toHaveAttribute("aria-disabled");
+    });
+  });
 });
