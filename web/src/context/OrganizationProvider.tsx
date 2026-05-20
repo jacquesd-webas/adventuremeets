@@ -1,9 +1,4 @@
-import {
-  ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useAuth } from "./authContext";
 import {
   OrganizationContext,
@@ -93,7 +88,7 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
       organization?.name,
       currentOrganizationRole,
       setCurrentOrganizationId,
-    ]
+    ],
   );
 
   return (
