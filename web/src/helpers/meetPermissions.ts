@@ -10,6 +10,8 @@ export function getMeetPermissions({
   organizerId,
 }: MeetPermissionsInput) {
   const isAdmin = currentOrganizationRole === "admin";
+  const isOrganizer = currentOrganizationRole === "organizer";
+  const isMember = currentOrganizationRole === "member";
   const isOrganizerForMeet = Boolean(
     currentUserId && organizerId && currentUserId === organizerId,
   );
@@ -17,9 +19,6 @@ export function getMeetPermissions({
   return {
     isOrganizerForMeet,
     canManageMeet: isAdmin || isOrganizerForMeet,
-    canViewMeet:
-      currentOrganizationRole === "organizer" &&
-      !isOrganizerForMeet &&
-      !isAdmin,
+    canViewMeet: isAdmin || isOrganizer || isMember,
   };
 }

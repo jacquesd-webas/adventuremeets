@@ -132,7 +132,7 @@ function ListPage() {
         hideable: false,
         headerAlign: "right",
         align: "right",
-        renderCell: (params: GridRenderCellParams) => (
+        renderCell: (params: GridRenderCellParams) =>
           (() => {
             const { canManageMeet, canViewMeet } = getMeetPermissions({
               currentUserId: user?.id,
@@ -142,7 +142,11 @@ function ListPage() {
 
             return (
               <Box
-                sx={{ display: "flex", justifyContent: "flex-end", width: "100%" }}
+                sx={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  width: "100%",
+                }}
                 onClick={(event) => event.stopPropagation()}
               >
                 <MeetActionsMenu
@@ -158,8 +162,7 @@ function ListPage() {
                 />
               </Box>
             );
-          })()
-        ),
+          })(),
       },
     ],
     [currentOrganizationRole, setPendingAction, setSelectedMeetId, user?.id],
@@ -365,7 +368,7 @@ function ListPage() {
               </Typography>
             </Paper>
           )}
-          {meets.map((meet) => (
+          {meets.map((meet) =>
             (() => {
               const { canManageMeet, canViewMeet } = getMeetPermissions({
                 currentUserId: user?.id,
@@ -443,9 +446,13 @@ function ListPage() {
                   </Stack>
                 </Paper>
               );
-            })()
-          ))}
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            })(),
+          )}
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+          >
             <Button
               variant="outlined"
               onClick={() =>
