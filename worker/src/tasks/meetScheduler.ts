@@ -86,8 +86,11 @@ async function openScheduledMeets(db: Knex) {
 async function closeOpenMeets(db: Knex) {
   const ids = await db("meets")
     .where({ status_id: STATUS.Open })
-    .whereNotNull("closing_date")
-    .where("closing_date", "<=", db.fn.now())
+    .where((queryBuilder) => {
+      queryBuilder
+        .where("closing_date", "<=", db.fn.now())
+        .orWhere("start_time", "<=", db.fn.now());
+    })
     .pluck<string>("id");
   return updateStatusViaApi(ids, STATUS.Closed);
 }

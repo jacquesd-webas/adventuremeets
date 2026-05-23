@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const buildMockDb = (pluckResults: string[][]) => {
   const builder: any = {
     where: vi.fn().mockReturnThis(),
+    orWhere: vi.fn().mockReturnThis(),
     whereNotNull: vi.fn().mockReturnThis(),
     whereIn: vi.fn().mockReturnThis(),
     whereRaw: vi.fn().mockReturnThis(),
@@ -123,6 +124,47 @@ describe("runMeetScheduler", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://api.test/api/v1/meets/m3/status",
+      expect.objectContaining({
+        method: "PATCH",
+      }),
+    );
+  });
+
+  it("closes open meets when either the closing date or start date has passed", async () => {
+    vi.resetModules();
+    const { db, builder } = buildMockDb([[], ["m2"], []]);
+    const knexModule = await import("knex");
+    (knexModule.default as any).mockReturnValue(db);
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: vi.fn() });
+    (global as any).fetch = fetchMock;
+
+    const { runMeetScheduler } = await import("./meetScheduler");
+    await runMeetScheduler();
+
+    const groupedWhereCall = builder.where.mock.calls.find(
+      ([firstArg]) => typeof firstArg === "function",
+    );
+    expect(groupedWhereCall).toBeTruthy();
+
+    const nestedBuilder = {
+      where: vi.fn().mockReturnThis(),
+      orWhere: vi.fn().mockReturnThis(),
+    };
+    groupedWhereCall?.[0](nestedBuilder);
+
+    expect(nestedBuilder.where).toHaveBeenCalledWith(
+      "closing_date",
+      "<=",
+      "now",
+    );
+    expect(nestedBuilder.orWhere).toHaveBeenCalledWith(
+      "start_time",
+      "<=",
+      "now",
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api.test/api/v1/meets/m2/status",
       expect.objectContaining({
         method: "PATCH",
       }),
