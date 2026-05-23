@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  NotFoundException,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { MeetWallController } from "./meet-wall.controller";
 import { MeetsService } from "./meets.service";
 import { AuthService } from "../auth/auth.service";
@@ -45,9 +41,9 @@ describe("MeetWallController", () => {
     controller = new MeetWallController(meetsService, authService);
   });
 
-  it("rejects unauthenticated wall listing", async () => {
+  it("returns not found for anonymous wall listing without an attendee id", async () => {
     await expect(controller.list("meet-1")).rejects.toBeInstanceOf(
-      UnauthorizedException,
+      NotFoundException,
     );
   });
 
@@ -90,17 +86,21 @@ describe("MeetWallController", () => {
     });
   });
 
+  it("returns not found for anonymous wall listing with an invalid attendee id", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeById as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      controller.list("meet-1", "attendee-1"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it("rejects favourite updates for non-organizers", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (authService.hasRole as jest.Mock).mockReturnValue(false);
 
     await expect(
-      controller.updateFavourite(
-        "meet-1",
-        "wall-1",
-        { favourite: 2 },
-        user,
-      ),
+      controller.updateFavourite("meet-1", "wall-1", { favourite: 2 }, user),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -148,10 +148,10 @@ describe("MeetWallController", () => {
       ],
     });
 
-    expect(meetsService.orderWallItemFavourites).toHaveBeenCalledWith("meet-1", [
-      "wall-2",
-      "wall-1",
-    ]);
+    expect(meetsService.orderWallItemFavourites).toHaveBeenCalledWith(
+      "meet-1",
+      ["wall-2", "wall-1"],
+    );
   });
 
   it("allows a logged-in organization member to react to a wall item", async () => {
@@ -249,7 +249,12 @@ describe("MeetWallController", () => {
     });
 
     await expect(
-      controller.create("meet-1", { comment: "Great session" }, undefined, user),
+      controller.create(
+        "meet-1",
+        { comment: "Great session" },
+        undefined,
+        user,
+      ),
     ).resolves.toEqual({
       wallItem: { id: "wall-1" },
     });
@@ -329,12 +334,7 @@ describe("MeetWallController", () => {
     (authService.hasRole as jest.Mock).mockReturnValue(false);
 
     await expect(
-      controller.updateReaction(
-        "meet-1",
-        "wall-1",
-        { reaction: "like" },
-        user,
-      ),
+      controller.updateReaction("meet-1", "wall-1", { reaction: "like" }, user),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -356,11 +356,9 @@ describe("MeetWallController", () => {
       deleted: true,
     });
 
-    await expect(controller.remove("meet-1", "wall-1", user)).resolves.toEqual(
-      {
-        deleted: true,
-      },
-    );
+    await expect(controller.remove("meet-1", "wall-1", user)).resolves.toEqual({
+      deleted: true,
+    });
 
     expect(meetsService.removeWallItem).toHaveBeenCalledWith(
       "meet-1",
@@ -371,8 +369,8 @@ describe("MeetWallController", () => {
   it("throws when the meet does not exist", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(null);
 
-    await expect(controller.list("meet-1", undefined, user)).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      controller.list("meet-1", undefined, user),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

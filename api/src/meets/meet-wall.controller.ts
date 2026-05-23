@@ -13,6 +13,7 @@ import {
   UnauthorizedException,
   UploadedFile,
   UseInterceptors,
+  UseGuards,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
@@ -20,6 +21,8 @@ import { MeetsService } from "./meets.service";
 import { User } from "../auth/decorators/user.decorator";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuthService } from "../auth/auth.service";
+import { Public } from "../auth/decorators/public.decorator";
+import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 import { CreateWallItemDto } from "./dto/create-wall-item.dto";
 import { OrderWallItemFavouritesDto } from "./dto/order-wall-item-favourites.dto";
 import { UpdateWallItemReactionDto } from "./dto/update-wall-item-reaction.dto";
@@ -33,6 +36,8 @@ export class MeetWallController {
     private readonly authService: AuthService,
   ) {}
 
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Post()
   @UseInterceptors(FileInterceptor("file"))
   async create(
@@ -57,6 +62,8 @@ export class MeetWallController {
     });
   }
 
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Get()
   async list(
     @Param("meetId") meetId: string,
@@ -65,6 +72,9 @@ export class MeetWallController {
   ) {
     const context = await this.getWallContext(meetId, user, attendeeId);
     if (!context.isMember && !context.attendee) {
+      if (!user) {
+        throw new NotFoundException("Meet attendee not found");
+      }
       throw new ForbiddenException(
         "You do not have permission to view the wall for this meet",
       );
@@ -117,6 +127,8 @@ export class MeetWallController {
     );
   }
 
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Patch(":wallItemId/reaction")
   async updateReaction(
     @Param("meetId") meetId: string,
@@ -166,7 +178,7 @@ export class MeetWallController {
     attendeeId?: string,
   ) {
     if (!user && !attendeeId) {
-      throw new UnauthorizedException();
+      throw new NotFoundException("Meet attendee not found");
     }
     const meet = await this.getMeetOrThrow(meetId);
 
