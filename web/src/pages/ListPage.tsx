@@ -487,6 +487,7 @@ function ListPage() {
         meetId={selectedMeetId}
         canViewMeet={selectedMeetPermissions.canViewMeet}
         canManageMeet={selectedMeetPermissions.canManageMeet}
+        isOrganizer={selectedMeetPermissions.isOrganizerForMeet}
         pendingAction={pendingAction || undefined}
         setPendingAction={setPendingAction}
         setSelectedMeetId={setSelectedMeetId}

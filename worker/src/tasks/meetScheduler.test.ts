@@ -142,9 +142,10 @@ describe("runMeetScheduler", () => {
     const { runMeetScheduler } = await import("./meetScheduler");
     await runMeetScheduler();
 
-    const groupedWhereCall = builder.where.mock.calls.find(
-      ([firstArg]) => typeof firstArg === "function",
-    );
+    const groupedWhereCall = builder.where.mock.calls.find((call: unknown[]) => {
+      const [firstArg] = call;
+      return typeof firstArg === "function";
+    });
     expect(groupedWhereCall).toBeTruthy();
 
     const nestedBuilder = {
