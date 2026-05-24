@@ -148,4 +148,42 @@ describe("MessageModal", () => {
       });
     });
   });
+
+  it("includes checked-in and attended attendees in the confirmed group send", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+            { id: "checked-in-1", status: AttendeeStatusEnum.CheckedIn },
+            { id: "attended-1", status: AttendeeStatusEnum.Attended },
+            { id: "waitlisted-1", status: AttendeeStatusEnum.Waitlisted },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "Hello" },
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Body" },
+    });
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenCalledWith({
+        meetId: "m1",
+        subject: "Hello",
+        text: "Body",
+        attendeeIds: ["confirmed-1", "checked-in-1", "attended-1"],
+        markNotified: false,
+        includeStatusUrl: true,
+      });
+    });
+  });
 });

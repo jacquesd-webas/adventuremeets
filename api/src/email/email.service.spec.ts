@@ -67,3 +67,49 @@ describe("EmailService.saveMessage", () => {
     );
   });
 });
+
+describe("EmailService.sendEmail", () => {
+  it("succeeds only when SMTP accepts every intended recipient", async () => {
+    const service = new EmailService({} as any);
+    const sendMail = jest.fn().mockResolvedValue({
+      accepted: ["alex@example.com"],
+      rejected: [],
+    });
+
+    (service as any).transporter = { sendMail };
+
+    await expect(
+      service.sendEmail({
+        to: "alex@example.com",
+        subject: "Subject",
+        text: "Body",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "alex@example.com",
+        subject: "Subject",
+        text: "Body",
+      }),
+    );
+  });
+
+  it("throws when SMTP does not accept the intended recipient", async () => {
+    const service = new EmailService({} as any);
+    const sendMail = jest.fn().mockResolvedValue({
+      accepted: [],
+      rejected: ["alex@example.com"],
+    });
+
+    (service as any).transporter = { sendMail };
+
+    await expect(
+      service.sendEmail({
+        to: "alex@example.com",
+        subject: "Subject",
+        text: "Body",
+      }),
+    ).rejects.toThrow("SMTP did not accept recipient(s): alex@example.com");
+  });
+});

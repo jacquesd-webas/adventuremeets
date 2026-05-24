@@ -40,6 +40,14 @@ type MessageModalProps = {
   includeStatusUrl?: boolean;
 };
 
+function isConfirmedAttendeeStatus(status?: string) {
+  return (
+    status === AttendeeStatusEnum.Confirmed ||
+    status === AttendeeStatusEnum.CheckedIn ||
+    status === AttendeeStatusEnum.Attended
+  );
+}
+
 export function MessageModal({
   open,
   onClose,
@@ -152,8 +160,7 @@ export function MessageModal({
     }
     return attendees.filter((att) => {
       const status = att.status as AttendeeStatusEnum;
-      if (includeConfirmed && status === AttendeeStatusEnum.Confirmed)
-        return true;
+      if (includeConfirmed && isConfirmedAttendeeStatus(status)) return true;
       if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
         return true;
       if (includeRejected && status === AttendeeStatusEnum.Rejected)
@@ -212,7 +219,7 @@ export function MessageModal({
         : (attendees || [])
             .filter((att) => {
               const status = att.status as AttendeeStatusEnum;
-              if (includeConfirmed && status === AttendeeStatusEnum.Confirmed)
+              if (includeConfirmed && isConfirmedAttendeeStatus(status))
                 return true;
               if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
                 return true;

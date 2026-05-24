@@ -174,6 +174,39 @@ export class EmailService {
         Array.isArray(to) ? to.join(",") : to
       } subject="${subject}"`
     );
-    await this.transporter.sendMail(mailOptions);
+    const info = await this.transporter.sendMail(mailOptions);
+    const expectedRecipients = this.normalizeRecipientList(to);
+    const acceptedRecipients = this.normalizeRecipientList(
+      ((info as any)?.accepted ?? []) as Array<string | { address?: string }>,
+    );
+
+    const missingRecipients = expectedRecipients.filter(
+      (recipient) => !acceptedRecipients.includes(recipient),
+    );
+
+    if (missingRecipients.length > 0) {
+      throw new Error(
+        `SMTP did not accept recipient(s): ${missingRecipients.join(", ")}`,
+      );
+    }
+  }
+
+  private normalizeRecipientList(
+    recipients: Array<string | { address?: string }> | string,
+  ) {
+    const values = Array.isArray(recipients) ? recipients : [recipients];
+    return values
+      .flatMap((value) => {
+        if (typeof value === "string") {
+          return value
+            .split(",")
+            .map((part) => part.trim().toLowerCase())
+            .filter(Boolean);
+        }
+
+        const address = value?.address?.trim().toLowerCase();
+        return address ? [address] : [];
+      })
+      .filter(Boolean);
   }
 }
