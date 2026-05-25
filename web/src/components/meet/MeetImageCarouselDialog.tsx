@@ -11,7 +11,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { useRef } from "react";
+import { ReactNode, useRef } from "react";
 import MeetImage from "../../types/MeetImageModel";
 
 type MeetImageCarouselDialogProps = {
@@ -21,6 +21,7 @@ type MeetImageCarouselDialogProps = {
   initialIndex?: number;
   onClose: () => void;
   onIndexChange: (index: number) => void;
+  renderActionSlot?: (image: MeetImage, index: number) => ReactNode;
 };
 
 export function MeetImageCarouselDialog({
@@ -30,6 +31,7 @@ export function MeetImageCarouselDialog({
   initialIndex = 0,
   onClose,
   onIndexChange,
+  renderActionSlot,
 }: MeetImageCarouselDialogProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -112,13 +114,16 @@ export function MeetImageCarouselDialog({
             <Typography variant="h6" fontWeight={700}>
               {title || "Meet images"}
             </Typography>
-            <IconButton
-              onClick={onClose}
-              aria-label="Close image carousel"
-              sx={{ color: "#fff" }}
-            >
-              <CloseIcon />
-            </IconButton>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              {renderActionSlot ? renderActionSlot(activeImage, activeIndex) : null}
+              <IconButton
+                onClick={onClose}
+                aria-label="Close image carousel"
+                sx={{ color: "#fff" }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Stack>
           </Stack>
           <Stack
             direction={isMobile ? "column" : "row"}

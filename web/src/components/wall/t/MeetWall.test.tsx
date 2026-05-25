@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MeetWall } from "../MeetWall";
 
@@ -181,6 +181,179 @@ describe("MeetWall", () => {
     expect(
       screen.getByAltText("Meet feedback photos image 1"),
     ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Download photo",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("allows the organiser to favourite the active photo from the carousel", async () => {
+    const user = userEvent.setup();
+    updateWallItemFavouriteAsync.mockResolvedValue({
+      wallItem: { id: "wall-1", favourite: 1 },
+    });
+
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "organizer-1" },
+      isLoading: false,
+      isAuthenticated: true,
+      meUpdatedAt: 0,
+      refreshSession: vi.fn(),
+      logout: vi.fn(),
+    } as any);
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    await user.click(screen.getByAltText("Meet wall post"));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Favourite",
+      }),
+    );
+
+    expect(updateWallItemFavouriteAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      wallItemId: "wall-1",
+      favourite: 1,
+    });
+  });
+
+  it("does not show the favourite control on the panel for combined photo groups", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "organizer-1" },
+      isLoading: false,
+      isAuthenticated: true,
+      meUpdatedAt: 0,
+      refreshSession: vi.fn(),
+      logout: vi.fn(),
+    } as any);
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 2,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+        {
+          id: "wall-2",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-2.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T07:59:00.000Z",
+          aspect: "W",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(screen.queryByLabelText("Favourite 2")).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByAltText("Meet wall post")[0]);
+
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Favourite 2",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the favourite post first with favourite photos attached, then the rest in normal order", () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "organizer-1" },
+      isLoading: false,
+      isAuthenticated: true,
+      meUpdatedAt: 0,
+      refreshSession: vi.fn(),
+      logout: vi.fn(),
+    } as any);
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-normal-post",
+          meetId: "meet-1",
+          comment: "Normal post",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:10:00.000Z",
+        },
+        {
+          id: "wall-fav-photo-1",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/fav-photo-1.jpg",
+          authorName: "Alice",
+          favourite: 2,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+        {
+          id: "wall-fav-post",
+          meetId: "meet-1",
+          comment: "Featured recap",
+          favourite: 3,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T07:59:00.000Z",
+        },
+        {
+          id: "wall-fav-photo-2",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/fav-photo-2.jpg",
+          authorName: "Alice",
+          favourite: 1,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T07:58:00.000Z",
+          aspect: "W",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    const cards = screen.getAllByTestId("meet-wall-card");
+    expect(within(cards[0]).getByText("Featured recap")).toBeInTheDocument();
+    expect(within(cards[0]).getAllByAltText("Meet wall post")).toHaveLength(2);
+    expect(within(cards[1]).getByText("Normal post")).toBeInTheDocument();
   });
 
   it("renders an empty state when there are no wall items", () => {

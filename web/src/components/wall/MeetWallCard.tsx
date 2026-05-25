@@ -26,6 +26,13 @@ export function MeetWallCard({
   onLike,
   onDislike,
 }: MeetWallCardProps) {
+  const showFavouriteOnPanel = !(primaryItem.url && photoItems.length > 1);
+  const usesFeaturedFavouriteLayout = !primaryItem.url && photoItems.length > 0;
+  const featuredPhoto = usesFeaturedFavouriteLayout ? photoItems[0] : null;
+  const featuredPhotoThumbnails = usesFeaturedFavouriteLayout
+    ? photoItems.slice(1)
+    : [];
+
   return (
     <Box
       key={groupKey}
@@ -38,7 +45,39 @@ export function MeetWallCard({
         backgroundColor: "background.paper",
       }}
     >
-      {primaryItem.url ? (
+      {featuredPhoto ? (
+        <Stack spacing={1.25} sx={{ pt: 2, px: 2 }}>
+          <Box
+            component="button"
+            type="button"
+            onClick={() => onPhotoClick(featuredPhoto)}
+            sx={{
+              width: "100%",
+              display: "block",
+              p: 0,
+              border: 0,
+              background: "none",
+              cursor: "pointer",
+              borderRadius: 2,
+              overflow: "hidden",
+            }}
+          >
+            <Box
+              component="img"
+              src={featuredPhoto.url}
+              alt="Meet wall post"
+              sx={{
+                width: "100%",
+                maxHeight: 360,
+                display: "block",
+                objectFit: "cover",
+                borderRadius: 2,
+                backgroundColor: "grey.100",
+              }}
+            />
+          </Box>
+        </Stack>
+      ) : photoItems.length > 0 ? (
         <Stack alignItems="center" sx={{ pt: 2, px: 2 }}>
           <MeetPhotos photoItems={photoItems} onPhotoClick={onPhotoClick} />
         </Stack>
@@ -47,9 +86,9 @@ export function MeetWallCard({
         <MeetRating stars={primaryItem.stars} />
         <MeetComment comment={primaryItem.comment} />
         {primaryItem.createdAt ||
-        primaryItem.favourite > 0 ||
+        (showFavouriteOnPanel && primaryItem.favourite > 0) ||
         primaryItem.likesCount > 0 ||
-        onFavourite ||
+        (showFavouriteOnPanel && onFavourite) ||
         onLike ||
         onDislike ? (
           <Stack
@@ -82,7 +121,56 @@ export function MeetWallCard({
             ) : (
               <span />
             )}
-            <MeetWallFavourite item={primaryItem} onFavourite={onFavourite} />
+            {showFavouriteOnPanel ? (
+              <MeetWallFavourite item={primaryItem} onFavourite={onFavourite} />
+            ) : null}
+          </Stack>
+        ) : null}
+        {featuredPhotoThumbnails.length > 0 ? (
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              overflowX: "auto",
+              overflowY: "hidden",
+              pt: 0.5,
+              pb: 0.25,
+            }}
+          >
+            {featuredPhotoThumbnails.map((photoItem) => (
+              <Box
+                key={photoItem.id}
+                component="button"
+                type="button"
+                onClick={() => onPhotoClick(photoItem)}
+                sx={{
+                  width: 92,
+                  height: 68,
+                  flexShrink: 0,
+                  display: "block",
+                  p: 0,
+                  border: 0,
+                  background: "none",
+                  cursor: "pointer",
+                  borderRadius: 1.5,
+                  overflow: "hidden",
+                }}
+              >
+                <Box
+                  component="img"
+                  src={photoItem.url}
+                  alt="Meet wall post"
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    display: "block",
+                    objectFit: "cover",
+                    borderRadius: 1.5,
+                    backgroundColor: "grey.100",
+                  }}
+                />
+              </Box>
+            ))}
           </Stack>
         ) : null}
       </Stack>
