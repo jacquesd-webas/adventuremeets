@@ -53,6 +53,8 @@ function MeetCheckinPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
   const [checkingIn, setCheckingIn] = useState<Record<string, boolean>>({});
+  const [optimisticStatusByAttendeeId, setOptimisticStatusByAttendeeId] =
+    useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [undoTarget, setUndoTarget] = useState<{
     id: string;
@@ -82,7 +84,11 @@ function MeetCheckinPage() {
           "Unnamed attendee",
         email: attendee.email || "",
         phone: attendee.phone || "",
-        status: queuedStatusByAttendeeId[attendee.id] || attendee.status || "",
+        status:
+          optimisticStatusByAttendeeId[attendee.id] ||
+          queuedStatusByAttendeeId[attendee.id] ||
+          attendee.status ||
+          "",
         syncState: failedStatusByAttendeeId[attendee.id]
           ? ("failed" as const)
           : queuedStatusByAttendeeId[attendee.id]
@@ -90,7 +96,12 @@ function MeetCheckinPage() {
             : undefined,
         syncMessage: failedStatusByAttendeeId[attendee.id] || "",
       })),
-    [attendees, failedStatusByAttendeeId, queuedStatusByAttendeeId],
+    [
+      attendees,
+      failedStatusByAttendeeId,
+      optimisticStatusByAttendeeId,
+      queuedStatusByAttendeeId,
+    ],
   );
 
   const filteredAttendees = useMemo(() => {
@@ -111,26 +122,55 @@ function MeetCheckinPage() {
     if (!id || checkingIn[attendeeId]) return;
     const attendee = attendeeList.find((item) => item.id === attendeeId);
     if (attendee?.status === AttendeeStatusEnum.CheckedIn) return;
-    setCheckingIn((prev) => ({ ...prev, [attendeeId]: true }));
+    const trackCheckingIn = !isOffline;
+    setOptimisticStatusByAttendeeId((prev) => ({
+      ...prev,
+      [attendeeId]: AttendeeStatusEnum.CheckedIn,
+    }));
+    if (trackCheckingIn) {
+      setCheckingIn((prev) => ({ ...prev, [attendeeId]: true }));
+    }
     try {
       await checkinAttendeesAsync({ meetId: id, attendeeIds: [attendeeId] });
     } finally {
-      setCheckingIn((prev) => ({ ...prev, [attendeeId]: false }));
+      if (trackCheckingIn) {
+        setCheckingIn((prev) => ({ ...prev, [attendeeId]: false }));
+      }
     }
   };
 
   const handleUndoConfirm = async () => {
     if (isReadOnly) return;
     if (!id || !undoTarget) return;
-    setCheckingIn((prev) => ({ ...prev, [undoTarget.id]: true }));
+    const targetId = undoTarget.id;
+    const trackCheckingIn = !isOffline;
+    setOptimisticStatusByAttendeeId((prev) => ({
+      ...prev,
+      [targetId]: AttendeeStatusEnum.Confirmed,
+    }));
+    if (!trackCheckingIn) {
+      setUndoTarget(null);
+      void checkinAttendeesAsync({
+        meetId: id,
+        attendeeIds: [targetId],
+        status: "confirmed",
+      });
+      return;
+    }
+
+    if (trackCheckingIn) {
+      setCheckingIn((prev) => ({ ...prev, [targetId]: true }));
+    }
     try {
       await checkinAttendeesAsync({
         meetId: id,
-        attendeeIds: [undoTarget.id],
+        attendeeIds: [targetId],
         status: "confirmed",
       });
     } finally {
-      setCheckingIn((prev) => ({ ...prev, [undoTarget.id]: false }));
+      if (trackCheckingIn) {
+        setCheckingIn((prev) => ({ ...prev, [targetId]: false }));
+      }
       setUndoTarget(null);
     }
   };

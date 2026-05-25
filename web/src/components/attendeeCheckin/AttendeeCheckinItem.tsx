@@ -55,10 +55,10 @@ export function AttendeeCheckinItem({
         }}
       >
         <ListItemIcon>
-          {isCheckingIn ? (
-            <CircularProgress size={28} />
-          ) : isChecked ? (
+          {isChecked ? (
             <CheckBoxIcon color="success" sx={{ fontSize: 32 }} />
+          ) : isCheckingIn ? (
+            <CircularProgress size={28} />
           ) : (
             <HelpOutlineIcon color="disabled" sx={{ fontSize: 32 }} />
           )}
