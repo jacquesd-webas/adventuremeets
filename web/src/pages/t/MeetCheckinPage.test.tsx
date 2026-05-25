@@ -213,7 +213,6 @@ describe("MeetCheckinPage", () => {
   });
 
   it("does not set the row checking spinner while offline", async () => {
-    const user = userEvent.setup();
     mockAttendees = [
       {
         id: "attendee-1",
@@ -309,9 +308,9 @@ describe("MeetCheckinPage", () => {
       },
     ];
     mockCheckinState = {
-      checkinAttendeesAsync: vi.fn().mockImplementation(
-        () => new Promise(() => undefined),
-      ),
+      checkinAttendeesAsync: vi
+        .fn()
+        .mockImplementation(() => new Promise(() => undefined)),
       queuedStatusByAttendeeId: {
         "attendee-1": AttendeeStatusEnum.CheckedIn,
       },
@@ -338,9 +337,7 @@ describe("MeetCheckinPage", () => {
     await user.click(screen.getByRole("button", { name: "Undo check-in" }));
 
     await waitFor(() => {
-      expect(
-        screen.queryByText("Undo check-in?"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Undo check-in?")).not.toBeInTheDocument();
     });
     expect(mockCheckinState.checkinAttendeesAsync).toHaveBeenCalledWith({
       meetId: "meet-1",
