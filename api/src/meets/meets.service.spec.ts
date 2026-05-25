@@ -711,6 +711,43 @@ describe("MeetsService", () => {
     );
   });
 
+  it("deletes a meet image and promotes a replacement when needed", async () => {
+    const imageBuilder = buildBuilder();
+    imageBuilder.first
+      .mockResolvedValueOnce({
+        id: "image-1",
+        meet_id: "meet-1",
+        is_primary: true,
+        object_key: "meets/meet-1/primary.jpg",
+      })
+      .mockResolvedValueOnce({
+        id: "image-2",
+      });
+    imageBuilder.del.mockResolvedValue(1);
+
+    const client: any = (table: string) => {
+      if (table === "meet_images") return imageBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {
+      remove: jest.fn().mockResolvedValue(undefined),
+    } as unknown as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(service.removeImage("meet-1", "image-1")).resolves.toEqual({
+      removed: true,
+    });
+
+    expect(imageBuilder.del).toHaveBeenCalled();
+    expect(imageBuilder.update).toHaveBeenCalledWith({ is_primary: true });
+    expect((minio.remove as jest.Mock)).toHaveBeenCalledWith(
+      "meets/meet-1/primary.jpg",
+    );
+  });
+
   it("detects and stores the uploaded image aspect", async () => {
     const imageBuilder = buildBuilder();
     imageBuilder.first.mockResolvedValue({ id: "image-existing" });

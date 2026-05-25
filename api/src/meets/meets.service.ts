@@ -1388,6 +1388,48 @@ export class MeetsService {
     });
   }
 
+  async removeImage(meetId: string, imageId: string) {
+    let objectKeyToRemove: string | undefined;
+
+    const result = await this.db.getClient().transaction(async (trx) => {
+      const existing = await trx("meet_images")
+        .where({ meet_id: meetId, id: imageId })
+        .first("*");
+
+      if (!existing) {
+        throw new NotFoundException("Meet image not found");
+      }
+
+      objectKeyToRemove = existing.object_key ?? undefined;
+
+      await trx("meet_images").where({ meet_id: meetId, id: imageId }).del();
+
+      if (existing.is_primary) {
+        const replacement = await trx("meet_images")
+          .where({ meet_id: meetId })
+          .orderBy([
+            { column: "created_at", order: "desc" },
+            { column: "id", order: "desc" },
+          ])
+          .first("id");
+
+        if (replacement?.id) {
+          await trx("meet_images")
+            .where({ meet_id: meetId, id: replacement.id })
+            .update({ is_primary: true });
+        }
+      }
+
+      return { removed: true };
+    });
+
+    if (objectKeyToRemove) {
+      await this.minio.remove(objectKeyToRemove);
+    }
+
+    return result;
+  }
+
   async findMeetAttendeeByUser(meetId: string, userId: string) {
     const attendee = await this.db
       .getClient()("meet_attendees")

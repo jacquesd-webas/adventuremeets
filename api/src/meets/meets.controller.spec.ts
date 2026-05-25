@@ -87,6 +87,7 @@ describe("MeetsController", () => {
     addImage: jest.fn(),
     addInvitedAttendees: jest.fn(),
     updateImage: jest.fn(),
+    removeImage: jest.fn(),
     updateStatus: jest.fn(),
     remove: jest.fn(),
     resetConfirmedAttendeesToInvited: jest.fn(),
@@ -487,6 +488,22 @@ describe("MeetsController", () => {
     expect(meetsService.updateImage).toHaveBeenCalledWith("meet-1", "image-1", {
       isPrimary: true,
     });
+  });
+
+  it("deletes an image for an editable meet", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.removeImage as jest.Mock).mockResolvedValue({
+      removed: true,
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.removeImage("meet-1", "image-1", user),
+    ).resolves.toEqual({
+      removed: true,
+    });
+
+    expect(meetsService.removeImage).toHaveBeenCalledWith("meet-1", "image-1");
   });
 
   it("resets confirmed attendees to invited when reconfirmAttendees is true", async () => {
