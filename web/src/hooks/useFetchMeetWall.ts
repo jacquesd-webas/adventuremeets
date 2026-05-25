@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import { WallItem } from "../types/WallItemModel";
 import { meetWallQueryKeys } from "./meetWallQueryKeys";
+import { useAuth } from "../context/authContext";
 
 type MeetWallResponse = {
   wallItems: WallItem[];
@@ -13,8 +14,10 @@ export function useFetchMeetWall(
   enabled = true,
 ) {
   const api = useApi();
+  const { meUpdatedAt } = useAuth();
+  const sessionVersion = attendeeId ? null : meUpdatedAt;
   const query = useQuery({
-    queryKey: meetWallQueryKeys.byMeet(meetId, attendeeId),
+    queryKey: meetWallQueryKeys.byMeet(meetId, attendeeId, sessionVersion),
     enabled: Boolean(enabled && meetId),
     queryFn: async () => {
       if (!meetId) {
