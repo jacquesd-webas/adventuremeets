@@ -77,17 +77,21 @@ function MainLayout() {
   });
 
   const { user, meUpdatedAt, logout } = useAuth();
+
   const {
     currentOrganizationId,
     currentOrganizationName,
     organizationIds,
     currentOrganizationRole,
   } = useCurrentOrganization();
+
   const { data: organization } = useFetchOrganization(
     currentOrganizationId || undefined,
   );
+
   const [profileOpen, setProfileOpen] = useState(false);
   const { mode, setMode } = useThemeMode();
+
   const isAdmin = Boolean(
     user?.organizations && Object.values(user.organizations).includes("admin"),
   );
@@ -348,7 +352,7 @@ function MainLayout() {
               )}
             </Stack>
             <Box sx={{ flexGrow: 1 }} />
-            {organizationIds.length > 1 && (
+            {Boolean(user) && organizationIds.length > 1 && (
               <Button
                 key={`organization-switcher-${meUpdatedAt}`}
                 onClick={() => setOrgModalOpen(true)}
@@ -385,22 +389,26 @@ function MainLayout() {
                 </Typography>
               </Button>
             )}
-            <Tooltip title="Account">
-              <IconButton
-                onClick={handleAvatarClick}
-                size="small"
-                sx={{ ml: 2 }}
-                aria-label="Open account menu"
-                data-testid="account-menu-button"
-              >
-                <Avatar
-                  src={user?.avatarUrl || undefined}
-                  sx={{ width: 36, height: 36 }}
+            {user ? (
+              <Tooltip title="Account">
+                <IconButton
+                  onClick={handleAvatarClick}
+                  size="small"
+                  sx={{ ml: 2 }}
+                  aria-label="Open account menu"
+                  data-testid="account-menu-button"
                 >
-                  {initials}
-                </Avatar>
-              </IconButton>
-            </Tooltip>
+                  <Avatar
+                    src={user?.avatarUrl || undefined}
+                    sx={{ width: 36, height: 36 }}
+                  >
+                    {initials}
+                  </Avatar>
+                </IconButton>
+              </Tooltip>
+            ) : (
+              <Box sx={{ width: 52, height: 36, ml: 2 }} />
+            )}
             {isAdmin && (
               <Menu
                 anchorEl={adminAnchorEl}
@@ -502,11 +510,6 @@ function MainLayout() {
                 )}
               </List>
               <Divider sx={{ my: 1 }} />
-              <Box sx={{ px: 2, pb: 0.5 }}>
-                <Typography variant="overline" color="text.secondary">
-                  Account
-                </Typography>
-              </Box>
               <List>
                 {(canLight || canDark) && (
                   <ListItemButton
@@ -551,22 +554,31 @@ function MainLayout() {
                     />
                   </ListItemButton>
                 )}
-                <ListItemButton
-                  onClick={handleMobileProfile}
-                  data-testid="mobile-profile-menu-item"
-                >
-                  <ListItemIcon>
-                    <PersonOutlineIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText primary="Profile" />
-                </ListItemButton>
-                <ListItemButton onClick={handleMobileLogout}>
-                  <ListItemIcon>
-                    <LogoutIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText primary="Logout" />
-                </ListItemButton>
-                <Divider sx={{ my: 1 }} />
+                {user ? (
+                  <>
+                    <Box sx={{ px: 2, pb: 0.5, pt: 0.5 }}>
+                      <Typography variant="overline" color="text.secondary">
+                        Account
+                      </Typography>
+                    </Box>
+                    <ListItemButton
+                      onClick={handleMobileProfile}
+                      data-testid="mobile-profile-menu-item"
+                    >
+                      <ListItemIcon>
+                        <PersonOutlineIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText primary="Profile" />
+                    </ListItemButton>
+                    <ListItemButton onClick={handleMobileLogout}>
+                      <ListItemIcon>
+                        <LogoutIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText primary="Logout" />
+                    </ListItemButton>
+                    <Divider sx={{ my: 1 }} />
+                  </>
+                ) : null}
                 <ListItemButton
                   onClick={() => handleMobileNavigate("/privacy")}
                 >
@@ -586,7 +598,7 @@ function MainLayout() {
           </Drawer>
         </AppBar>
       )}
-      {!isMobile && accountMenu}
+      {!isMobile && user ? accountMenu : null}
       <Container
         maxWidth={isMobile ? false : "lg"}
         disableGutters={isMobile}
@@ -642,11 +654,11 @@ function MainLayout() {
         />
       )}
       <ChooseOrganizationModal
-        open={orgModalOpen || !currentOrganizationId}
+        open={Boolean(user) && (orgModalOpen || !currentOrganizationId)}
         onClose={() => setOrgModalOpen(false)}
-        disableClose={!currentOrganizationId}
+        disableClose={Boolean(user) && !currentOrganizationId}
       />
-      <PendingInvitePromptModal pendingInvites={pendingInvites} />
+      {user ? <PendingInvitePromptModal pendingInvites={pendingInvites} /> : null}
     </Box>
   );
 }

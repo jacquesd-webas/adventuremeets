@@ -22,8 +22,8 @@ import { RequireAuth } from "./components/auth/RequireAuth";
 function App() {
   return (
     <Routes>
-      <Route element={<RequireAuth />}>
-        <Route element={<MainLayout />}>
+      <Route element={<MainLayout />}>
+        <Route element={<RequireAuth />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/plan" element={<ListPage />} />
           <Route path="/calendar" element={<CalendarPage />} />

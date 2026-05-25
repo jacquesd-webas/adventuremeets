@@ -1,13 +1,19 @@
-export const registerServiceWorker = () => {
-  if (!("serviceWorker" in navigator)) return;
+import { registerSW } from "virtual:pwa-register";
 
-  window.addEventListener("load", () => {
-    (async () => {
-      try {
-        await navigator.serviceWorker.register("/sw.js");
-      } catch (error) {
+export const registerServiceWorker = () => {
+  if (typeof window === "undefined") return;
+
+  try {
+    registerSW({
+      immediate: true,
+      onRegisteredSW(_swUrl, registration) {
+        registration?.update().catch(() => undefined);
+      },
+      onRegisterError(error) {
         console.error("Service worker registration failed", error);
-      }
-    })();
-  });
+      },
+    });
+  } catch (error) {
+    console.error("Service worker bootstrap failed", error);
+  }
 };
