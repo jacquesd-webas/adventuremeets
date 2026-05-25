@@ -28,6 +28,10 @@ type MeetCheckinLocationState = {
   returnTo?: string;
 };
 
+function isCheckedInStatus(status?: string) {
+  return status === AttendeeStatusEnum.CheckedIn;
+}
+
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation() as ReturnType<typeof useLocation> & {
@@ -63,14 +67,14 @@ function MeetCheckinPage() {
   const [isAdminUnlockEnabled, setIsAdminUnlockEnabled] = useState(false);
   const isAdminForMeet = Boolean(
     user?.organizations &&
-      meet?.organizationId &&
-      user.organizations[meet.organizationId] === "admin",
+    meet?.organizationId &&
+    user.organizations[meet.organizationId] === "admin",
   );
   const isReadOnly = Boolean(
     meet?.organizerId &&
-      user?.id &&
-      user.id !== meet.organizerId &&
-      !(isAdminForMeet && isAdminUnlockEnabled),
+    user?.id &&
+    user.id !== meet.organizerId &&
+    !(isAdminForMeet && isAdminUnlockEnabled),
   );
 
   const attendeeList = useMemo(
@@ -299,7 +303,13 @@ function MeetCheckinPage() {
                   key={attendee.id}
                   attendee={attendee}
                   isCheckingIn={Boolean(checkingIn[attendee.id])}
-                  isChecked={attendee.status === AttendeeStatusEnum.CheckedIn}
+                  isChecked={
+                    isCheckedInStatus(
+                      optimisticStatusByAttendeeId[attendee.id],
+                    ) ||
+                    isCheckedInStatus(queuedStatusByAttendeeId[attendee.id]) ||
+                    isCheckedInStatus(attendee.status)
+                  }
                   syncState={attendee.syncState}
                   syncMessage={attendee.syncMessage}
                   showDivider={index < filteredAttendees.length - 1}
