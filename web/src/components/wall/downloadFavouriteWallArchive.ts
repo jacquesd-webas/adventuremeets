@@ -2,11 +2,15 @@ import JSZip from "jszip";
 import { WallItem } from "../../types/WallItemModel";
 
 function sanitizeFileSegment(value: string) {
-  return value
-    .trim()
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
-    .replace(/\s+/g, " ")
-    .replace(/\.+$/, "");
+  const sanitized = Array.from(value.trim(), (character) => {
+    const code = character.charCodeAt(0);
+    const isControlCharacter = code >= 0 && code <= 31;
+    const isReservedCharacter = '<>:"/\\|?*'.includes(character);
+
+    return isControlCharacter || isReservedCharacter ? "-" : character;
+  }).join("");
+
+  return sanitized.replace(/\s+/g, " ").replace(/\.+$/, "");
 }
 
 function toSafeMeetName(meetName?: string) {
