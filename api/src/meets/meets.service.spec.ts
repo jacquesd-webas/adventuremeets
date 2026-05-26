@@ -1040,6 +1040,143 @@ describe("MeetsService", () => {
     expect(listWallItemsSpy).toHaveBeenCalledWith("meet-1");
   });
 
+  it("updates a wall item comment for the original author", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.first
+      .mockResolvedValueOnce({
+        id: "wall-1",
+        meet_id: "meet-1",
+        created_by: "user-1",
+        attendee_id: "attendee-1",
+        comment: "Original comment",
+      })
+      .mockResolvedValueOnce({
+        id: "wall-1",
+        meet_id: "meet-1",
+        created_by: "user-1",
+        attendee_id: "attendee-1",
+        attendee_name: "Alice",
+        comment: "Updated comment",
+        favourite: 0,
+      });
+
+    const likesBuilder = buildBuilder();
+    likesBuilder.select.mockResolvedValue([]);
+
+    const client: any = (table: string) => {
+      if (table === "wall_item" || table === "wall_item as wi") {
+        return wallItemBuilder;
+      }
+      if (table === "wall_item_likes") {
+        return likesBuilder;
+      }
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.updateWallItemComment(
+        "meet-1",
+        "wall-1",
+        "  Updated comment  ",
+        { userId: "user-1", attendeeId: "attendee-1" },
+      ),
+    ).resolves.toEqual({
+      wallItem: expect.objectContaining({
+        id: "wall-1",
+        comment: "Updated comment",
+      }),
+    });
+
+    expect(wallItemBuilder.update).toHaveBeenCalledWith({
+      comment: "Updated comment",
+    });
+  });
+
+  it("rejects wall item comment editing for non-authors", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.first.mockResolvedValue({
+      id: "wall-1",
+      meet_id: "meet-1",
+      created_by: "user-1",
+      attendee_id: "attendee-1",
+      comment: "Original comment",
+    });
+
+    const client: any = (table: string) => {
+      if (table === "wall_item") {
+        return wallItemBuilder;
+      }
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.updateWallItemComment("meet-1", "wall-1", "Updated comment", {
+        userId: "user-2",
+      }),
+    ).rejects.toThrow("You do not have permission to edit this wall item");
+  });
+
+  it("removes a wall item for the original author", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.first.mockResolvedValue({
+      id: "wall-1",
+      meet_id: "meet-1",
+      created_by: "user-1",
+      attendee_id: "attendee-1",
+    });
+    wallItemBuilder.del.mockResolvedValue(1);
+
+    const client: any = (table: string) => {
+      if (table === "wall_item") {
+        return wallItemBuilder;
+      }
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.removeWallItem("meet-1", "wall-1", { userId: "user-1" }),
+    ).resolves.toEqual({
+      deleted: true,
+    });
+  });
+
+  it("rejects wall item deletion for non-authors", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.first.mockResolvedValue({
+      id: "wall-1",
+      meet_id: "meet-1",
+      created_by: "user-1",
+      attendee_id: "attendee-1",
+    });
+
+    const client: any = (table: string) => {
+      if (table === "wall_item") {
+        return wallItemBuilder;
+      }
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.removeWallItem("meet-1", "wall-1", { userId: "user-2" }),
+    ).rejects.toThrow("You do not have permission to remove this wall item");
+  });
+
   it("updates a wall item reaction idempotently and returns the updated reaction", async () => {
     const wallItemBuilder = buildBuilder();
     wallItemBuilder.first

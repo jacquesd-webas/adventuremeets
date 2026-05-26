@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -1559,6 +1560,46 @@ export class MeetsService {
     return { wallItem: this.toWallItemDto(wallItem) };
   }
 
+  async updateWallItemComment(
+    meetId: string,
+    wallItemId: string,
+    comment: string,
+    actor: { userId?: string; attendeeId?: string | null },
+  ) {
+    const trimmedComment = comment?.trim();
+
+    if (!trimmedComment) {
+      throw new BadRequestException("Comment is required");
+    }
+
+    const existingWallItem = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .first();
+
+    if (!existingWallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const canEdit =
+      (Boolean(actor.userId) && existingWallItem.created_by === actor.userId) ||
+      (Boolean(actor.attendeeId) &&
+        existingWallItem.attendee_id === actor.attendeeId);
+
+    if (!canEdit) {
+      throw new ForbiddenException(
+        "You do not have permission to edit this wall item",
+      );
+    }
+
+    await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .update({ comment: trimmedComment });
+
+    return this.getWallItem(meetId, wallItemId, actor);
+  }
+
   async orderWallItemFavourites(meetId: string, wallItemIds: string[]) {
     const existingIds = await this.db
       .getClient()("wall_item")
@@ -1645,15 +1686,35 @@ export class MeetsService {
     return this.getWallItem(meetId, wallItemId, actor);
   }
 
-  async removeWallItem(meetId: string, wallItemId: string) {
-    const deleted = await this.db
+  async removeWallItem(
+    meetId: string,
+    wallItemId: string,
+    actor?: { userId?: string; attendeeId?: string | null; canAdminDelete?: boolean },
+  ) {
+    const wallItem = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .first();
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const canDelete =
+      Boolean(actor?.canAdminDelete) ||
+      (Boolean(actor?.userId) && wallItem.created_by === actor?.userId) ||
+      (Boolean(actor?.attendeeId) && wallItem.attendee_id === actor?.attendeeId);
+
+    if (!canDelete) {
+      throw new ForbiddenException(
+        "You do not have permission to remove this wall item",
+      );
+    }
+
+    await this.db
       .getClient()("wall_item")
       .where({ meet_id: meetId, id: wallItemId })
       .del();
-
-    if (!deleted) {
-      throw new NotFoundException("Wall item not found");
-    }
 
     return { deleted: true };
   }

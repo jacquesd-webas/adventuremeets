@@ -32,6 +32,18 @@ vi.mock("../../../hooks/useUpdateWallItemReaction", () => ({
 
 import { useUpdateWallItemReaction } from "../../../hooks/useUpdateWallItemReaction";
 
+vi.mock("../../../hooks/useUpdateWallItemComment", () => ({
+  useUpdateWallItemComment: vi.fn(),
+}));
+
+import { useUpdateWallItemComment } from "../../../hooks/useUpdateWallItemComment";
+
+vi.mock("../../../hooks/useDeleteWallItem", () => ({
+  useDeleteWallItem: vi.fn(),
+}));
+
+import { useDeleteWallItem } from "../../../hooks/useDeleteWallItem";
+
 vi.mock("../../../hooks/useNotistack", () => ({
   useNotistack: vi.fn(),
 }));
@@ -41,6 +53,8 @@ import { useNotistack } from "../../../hooks/useNotistack";
 const meetWallCommentComposerSpy = vi.fn();
 const updateWallItemFavouriteAsync = vi.fn();
 const updateWallItemReactionAsync = vi.fn();
+const updateWallItemCommentAsync = vi.fn();
+const deleteWallItemAsync = vi.fn();
 const success = vi.fn();
 const error = vi.fn();
 
@@ -74,6 +88,8 @@ describe("MeetWall", () => {
     meetWallCommentComposerSpy.mockReset();
     updateWallItemFavouriteAsync.mockReset();
     updateWallItemReactionAsync.mockReset();
+    updateWallItemCommentAsync.mockReset();
+    deleteWallItemAsync.mockReset();
     success.mockReset();
     error.mockReset();
     vi.mocked(useAuth).mockReturnValue({
@@ -103,6 +119,18 @@ describe("MeetWall", () => {
     vi.mocked(useUpdateWallItemReaction).mockReturnValue({
       updateWallItemReaction: vi.fn(),
       updateWallItemReactionAsync,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useUpdateWallItemComment).mockReturnValue({
+      updateWallItemComment: vi.fn(),
+      updateWallItemCommentAsync,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useDeleteWallItem).mockReturnValue({
+      deleteWallItem: vi.fn(),
+      deleteWallItemAsync,
       isLoading: false,
       error: null,
     } as any);
@@ -198,6 +226,109 @@ describe("MeetWall", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows edit and delete icon actions for a wall comment created by the current user", () => {
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          comment: "Original comment",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(
+      screen.getByRole("button", { name: "Edit comment" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete post" })).toBeInTheDocument();
+  });
+
+  it("allows the original author to edit a wall comment", async () => {
+    const user = userEvent.setup();
+    updateWallItemCommentAsync.mockResolvedValue({
+      wallItem: { id: "wall-1", comment: "Updated comment" },
+    });
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          attendeeId: "attendee-1",
+          comment: "Original comment",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" attendeeId="attendee-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Edit comment" }));
+    await user.clear(screen.getByLabelText("Edit Comment"));
+    await user.type(screen.getByLabelText("Edit Comment"), "Updated comment");
+    await user.click(screen.getByRole("button", { name: "Save Comment" }));
+
+    expect(updateWallItemCommentAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      wallItemId: "wall-1",
+      comment: "Updated comment",
+      attendeeId: "attendee-1",
+    });
+    expect(success).toHaveBeenCalledWith("Comment updated");
+  });
+
+  it("allows the original author to delete a wall post", async () => {
+    const user = userEvent.setup();
+    deleteWallItemAsync.mockResolvedValue({ deleted: true });
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          attendeeId: "attendee-1",
+          comment: "Original comment",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" attendeeId="attendee-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Delete post" }));
+
+    expect(deleteWallItemAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      wallItemId: "wall-1",
+      attendeeId: "attendee-1",
+    });
+    expect(success).toHaveBeenCalledWith("Post deleted");
+  });
+
   it("allows the organiser to favourite the active photo from the carousel", async () => {
     const user = userEvent.setup();
     updateWallItemFavouriteAsync.mockResolvedValue({
@@ -245,6 +376,82 @@ describe("MeetWall", () => {
       wallItemId: "wall-1",
       favourite: 1,
     });
+  });
+
+  it("shows a delete action in the carousel for a photo posted by the current user", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    await user.click(screen.getByAltText("Meet wall post"));
+
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Delete photo",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("allows the original author to delete a photo from the carousel", async () => {
+    const user = userEvent.setup();
+    deleteWallItemAsync.mockResolvedValue({ deleted: true });
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          attendeeId: "attendee-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" attendeeId="attendee-1" />);
+
+    await user.click(screen.getByAltText("Meet wall post"));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Delete photo",
+      }),
+    );
+
+    expect(deleteWallItemAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      wallItemId: "wall-1",
+      attendeeId: "attendee-1",
+    });
+    expect(success).toHaveBeenCalledWith("Post deleted");
   });
 
   it("does not show the favourite control on the panel for combined photo groups", async () => {

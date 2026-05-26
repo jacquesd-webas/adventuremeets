@@ -13,6 +13,7 @@ describe("MeetWallController", () => {
     findMeetAttendeeById: jest.fn(),
     createWallItem: jest.fn(),
     listWallItems: jest.fn(),
+    updateWallItemComment: jest.fn(),
     updateWallItemFavourite: jest.fn(),
     orderWallItemFavourites: jest.fn(),
     updateWallItemReaction: jest.fn(),
@@ -102,6 +103,68 @@ describe("MeetWallController", () => {
     await expect(
       controller.updateFavourite("meet-1", "wall-1", { favourite: 2 }, user),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("allows a logged-in author to edit their wall comment", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeByUser as jest.Mock).mockResolvedValue({
+      id: "attendee-1",
+    });
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+    (meetsService.updateWallItemComment as jest.Mock).mockResolvedValue({
+      wallItem: { id: "wall-1", comment: "Updated comment" },
+    });
+
+    await expect(
+      controller.update(
+        "meet-1",
+        "wall-1",
+        { comment: "Updated comment" },
+        user,
+      ),
+    ).resolves.toEqual({
+      wallItem: { id: "wall-1", comment: "Updated comment" },
+    });
+
+    expect(meetsService.updateWallItemComment).toHaveBeenCalledWith(
+      "meet-1",
+      "wall-1",
+      "Updated comment",
+      {
+        userId: "user-1",
+        attendeeId: "attendee-1",
+      },
+    );
+  });
+
+  it("allows attendee comment editing by attendee id without login", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeById as jest.Mock).mockResolvedValue({
+      id: "attendee-1",
+    });
+    (meetsService.updateWallItemComment as jest.Mock).mockResolvedValue({
+      wallItem: { id: "wall-1", comment: "Updated comment" },
+    });
+
+    await expect(
+      controller.update(
+        "meet-1",
+        "wall-1",
+        { comment: "Updated comment", attendeeId: "attendee-1" },
+      ),
+    ).resolves.toEqual({
+      wallItem: { id: "wall-1", comment: "Updated comment" },
+    });
+
+    expect(meetsService.updateWallItemComment).toHaveBeenCalledWith(
+      "meet-1",
+      "wall-1",
+      "Updated comment",
+      {
+        userId: undefined,
+        attendeeId: "attendee-1",
+      },
+    );
   });
 
   it("allows the meet organiser to mark a wall item as favourite", async () => {
@@ -338,12 +401,18 @@ describe("MeetWallController", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it("rejects wall item deletion for non-admins", async () => {
+  it("rejects wall item deletion for non-authors and non-admins", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeByUser as jest.Mock).mockResolvedValue(null);
     (authService.hasRole as jest.Mock).mockReturnValue(false);
+    (meetsService.removeWallItem as jest.Mock).mockRejectedValue(
+      new ForbiddenException("You do not have permission to remove this wall item"),
+    );
 
-    await expect(controller.remove("meet-1", "wall-1", user)).rejects.toThrow(
-      "You do not have permission to remove wall items for this meet",
+    await expect(
+      controller.remove("meet-1", "wall-1", undefined, user),
+    ).rejects.toThrow(
+      "You do not have permission to remove this wall item",
     );
   });
 
@@ -356,13 +425,73 @@ describe("MeetWallController", () => {
       deleted: true,
     });
 
-    await expect(controller.remove("meet-1", "wall-1", user)).resolves.toEqual({
+    await expect(
+      controller.remove("meet-1", "wall-1", undefined, user),
+    ).resolves.toEqual({
       deleted: true,
     });
 
     expect(meetsService.removeWallItem).toHaveBeenCalledWith(
       "meet-1",
       "wall-1",
+      {
+        userId: "user-1",
+        attendeeId: undefined,
+        canAdminDelete: true,
+      },
+    );
+  });
+
+  it("allows attendee wall item deletion by attendee id without login", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeById as jest.Mock).mockResolvedValue({
+      id: "attendee-1",
+    });
+    (meetsService.removeWallItem as jest.Mock).mockResolvedValue({
+      deleted: true,
+    });
+
+    await expect(
+      controller.remove("meet-1", "wall-1", "attendee-1"),
+    ).resolves.toEqual({
+      deleted: true,
+    });
+
+    expect(meetsService.removeWallItem).toHaveBeenCalledWith(
+      "meet-1",
+      "wall-1",
+      {
+        userId: undefined,
+        attendeeId: "attendee-1",
+        canAdminDelete: false,
+      },
+    );
+  });
+
+  it("allows logged-in authors to remove their own wall items", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findMeetAttendeeByUser as jest.Mock).mockResolvedValue({
+      id: "attendee-1",
+    });
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+    (meetsService.removeWallItem as jest.Mock).mockResolvedValue({
+      deleted: true,
+    });
+
+    await expect(
+      controller.remove("meet-1", "wall-1", undefined, user),
+    ).resolves.toEqual({
+      deleted: true,
+    });
+
+    expect(meetsService.removeWallItem).toHaveBeenCalledWith(
+      "meet-1",
+      "wall-1",
+      {
+        userId: "user-1",
+        attendeeId: "attendee-1",
+        canAdminDelete: false,
+      },
     );
   });
 

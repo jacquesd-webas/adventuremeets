@@ -9,6 +9,7 @@ import {
   Typography,
 } from "@mui/material";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import { useState } from "react";
@@ -18,6 +19,7 @@ import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useNotistack } from "../../hooks/useNotistack";
 import { useUpdateWallItemFavourite } from "../../hooks/useUpdateWallItemFavourite";
 import { useUpdateWallItemReaction } from "../../hooks/useUpdateWallItemReaction";
+import { useDeleteWallItem } from "../../hooks/useDeleteWallItem";
 import { WallItem } from "../../types/WallItemModel";
 import { MeetImageCarouselDialog } from "../meet/MeetImageCarouselDialog";
 import { MeetWallActions } from "./MeetWallActions";
@@ -132,6 +134,8 @@ export function MeetWall({
   const notice = useNotistack();
   const { updateWallItemFavouriteAsync } = useUpdateWallItemFavourite();
   const { updateWallItemReactionAsync } = useUpdateWallItemReaction();
+  const { deleteWallItemAsync, isLoading: isDeletingWallItem } =
+    useDeleteWallItem();
   const { data: wallItems, isLoading, error } = useFetchMeetWall(
     meetId,
     attendeeId,
@@ -253,6 +257,22 @@ export function MeetWall({
     }
   };
 
+  const handleDeleteWallItem = async (item: WallItem) => {
+    try {
+      await deleteWallItemAsync({
+        meetId,
+        wallItemId: item.id,
+        attendeeId,
+      });
+      notice.success("Post deleted");
+      setCarouselOpen(false);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to delete post";
+      notice.error(message);
+    }
+  };
+
   const downloadPhoto = (photoId: string, photoIndex: number) => {
     const item = getWallItemForPhoto(photoId);
     if (!item?.url || typeof document === "undefined") {
@@ -300,6 +320,8 @@ export function MeetWall({
             return (
               <MeetWallCard
                 key={group.key}
+                meetId={meetId}
+                attendeeId={attendeeId}
                 groupKey={group.key}
                 primaryItem={primaryItem}
                 photoItems={photoItems}
@@ -330,6 +352,11 @@ export function MeetWall({
         renderActionSlot={(image, index) => {
           const activeItem = getWallItemForPhoto(image.id);
           const isFavourite = Boolean(activeItem && activeItem.favourite > 0);
+          const canDeleteActivePhoto = Boolean(
+            activeItem &&
+              ((user?.id && activeItem.createdBy === user.id) ||
+                (attendeeId && activeItem.attendeeId === attendeeId)),
+          );
 
           return (
             <Stack direction="row" spacing={0.5} alignItems="center">
@@ -363,6 +390,22 @@ export function MeetWall({
                     </Typography>
                   ) : null}
                 </>
+              ) : null}
+              {activeItem && canDeleteActivePhoto ? (
+                <Tooltip title="Delete photo">
+                  <span>
+                    <IconButton
+                      aria-label="Delete photo"
+                      onClick={() => {
+                        void handleDeleteWallItem(activeItem);
+                      }}
+                      disabled={isDeletingWallItem}
+                      sx={{ color: "#fff" }}
+                    >
+                      <DeleteOutlineIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
               ) : null}
               <Tooltip title="Download photo">
                 <IconButton
