@@ -743,7 +743,7 @@ describe("MeetsService", () => {
 
     expect(imageBuilder.del).toHaveBeenCalled();
     expect(imageBuilder.update).toHaveBeenCalledWith({ is_primary: true });
-    expect((minio.remove as jest.Mock)).toHaveBeenCalledWith(
+    expect(minio.remove as jest.Mock).toHaveBeenCalledWith(
       "meets/meet-1/primary.jpg",
     );
   });
@@ -1129,12 +1129,10 @@ describe("MeetsService", () => {
     const service = new MeetsService(db, minio);
 
     await expect(
-      service.updateWallItemComment(
-        "meet-1",
-        "wall-1",
-        "  Updated comment  ",
-        { userId: "user-1", attendeeId: "attendee-1" },
-      ),
+      service.updateWallItemComment("meet-1", "wall-1", "  Updated comment  ", {
+        userId: "user-1",
+        attendeeId: "attendee-1",
+      }),
     ).resolves.toEqual({
       wallItem: expect.objectContaining({
         id: "wall-1",

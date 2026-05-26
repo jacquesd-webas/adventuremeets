@@ -226,6 +226,47 @@ describe("MeetWall", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the comment from a grouped photo post even when the comment is on an older photo item", () => {
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          attendeeId: "attendee-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:01:00.000Z",
+          aspect: "O",
+        },
+        {
+          id: "wall-2",
+          meetId: "meet-1",
+          attendeeId: "attendee-1",
+          url: "https://cdn.example.com/photo-2.jpg",
+          comment: "Comment travels with the photo post",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(
+      screen.getByText("Comment travels with the photo post"),
+    ).toBeInTheDocument();
+  });
+
   it("shows edit and delete icon actions for a wall comment created by the current user", () => {
     vi.mocked(useFetchMeetWall).mockReturnValue({
       data: [

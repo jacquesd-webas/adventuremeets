@@ -314,7 +314,9 @@ export function MeetWall({
           </Alert>
         ) : (
           groupedWallItems.map((group) => {
-            const primaryItem = group.items[0];
+            const primaryItem =
+              group.items.find((item) => item.comment || item.stars != null) ??
+              group.items[0];
             const photoItems = group.items.filter((item) => item.url);
 
             return (
