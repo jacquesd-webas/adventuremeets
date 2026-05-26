@@ -1935,12 +1935,17 @@ export class MeetsService {
     const heartCount = itemLikes.filter(
       (like) => like.reaction === "heart",
     ).length;
+    const canSeeAttendeeId = Boolean(
+      wallItem.attendee_id &&
+        ((actor?.attendeeId && wallItem.attendee_id === actor.attendeeId) ||
+          (actor?.userId && wallItem.created_by === actor.userId)),
+    );
 
     return {
       id: wallItem.id,
       meetId: wallItem.meet_id,
       createdBy: wallItem.created_by ?? undefined,
-      attendeeId: wallItem.attendee_id ?? undefined,
+      attendeeId: canSeeAttendeeId ? wallItem.attendee_id : null,
       authorName: this.getWallItemAuthorName(wallItem),
       comment: wallItem.comment ?? undefined,
       stars: wallItem.stars != null ? Number(wallItem.stars) : undefined,

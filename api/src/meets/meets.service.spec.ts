@@ -965,6 +965,7 @@ describe("MeetsService", () => {
       wallItems: [
         expect.objectContaining({
           id: "wall-1",
+          attendeeId: null,
           authorName: "Alice",
           likesCount: 2,
           dislikesCount: 1,
@@ -981,6 +982,56 @@ describe("MeetsService", () => {
           heartsCount: 0,
           likedByMe: false,
           stars: 4,
+        }),
+      ],
+    });
+  });
+
+  it("only returns attendeeId on wall items that belong to the current actor", async () => {
+    const wallItemBuilder = buildBuilder();
+    wallItemBuilder.select.mockResolvedValue([
+      {
+        id: "wall-1",
+        meet_id: "meet-1",
+        attendee_id: "attendee-1",
+        attendee_name: "Alice",
+        favourite: 0,
+        created_at: "2026-04-29T08:00:00.000Z",
+      },
+      {
+        id: "wall-2",
+        meet_id: "meet-1",
+        attendee_id: "attendee-2",
+        attendee_name: "Bob",
+        favourite: 0,
+        created_at: "2026-04-29T07:00:00.000Z",
+      },
+    ]);
+
+    const likesBuilder = buildBuilder();
+    likesBuilder.select.mockResolvedValue([]);
+
+    const client: any = (table: string) => {
+      if (table === "wall_item as wi") return wallItemBuilder;
+      if (table === "wall_item_likes") return likesBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.listWallItems("meet-1", { attendeeId: "attendee-1" }),
+    ).resolves.toEqual({
+      wallItems: [
+        expect.objectContaining({
+          id: "wall-1",
+          attendeeId: "attendee-1",
+        }),
+        expect.objectContaining({
+          id: "wall-2",
+          attendeeId: null,
         }),
       ],
     });
