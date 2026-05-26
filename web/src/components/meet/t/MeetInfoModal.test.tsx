@@ -274,8 +274,16 @@ describe("MeetInfoModal", () => {
           meetId: "meet-6",
           url: "https://cdn.example.com/photo.jpg",
           authorName: "Alice",
-          favourite: 1,
+          favourite: 2,
           createdAt: "2026-04-29T07:59:00.000Z",
+        },
+        {
+          id: "wall-photo-earlier",
+          meetId: "meet-6",
+          url: "https://cdn.example.com/photo-earlier.jpg",
+          authorName: "Bob",
+          favourite: 1,
+          createdAt: "2026-04-29T07:58:00.000Z",
         },
       ],
       isLoading: false,
@@ -296,7 +304,10 @@ describe("MeetInfoModal", () => {
     expect(downloadFavouriteWallArchive).toHaveBeenCalledWith({
       meetName: "Sunrise Hike",
       favouritePost: expect.objectContaining({ id: "wall-post" }),
-      favouritePhotos: [expect.objectContaining({ id: "wall-photo" })],
+      favouritePhotos: [
+        expect.objectContaining({ id: "wall-photo-earlier" }),
+        expect.objectContaining({ id: "wall-photo" }),
+      ],
     });
   });
 });

@@ -43,13 +43,13 @@ function getWallItemAuthorKey(item: WallItem) {
 
 function sortFavouriteItems(items: WallItem[]) {
   return [...items].sort((a, b) => {
-    if (b.favourite !== a.favourite) {
-      return b.favourite - a.favourite;
+    if (a.favourite !== b.favourite) {
+      return a.favourite - b.favourite;
     }
 
     const aCreatedAt = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const bCreatedAt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return bCreatedAt - aCreatedAt;
+    return aCreatedAt - bCreatedAt;
   });
 }
 

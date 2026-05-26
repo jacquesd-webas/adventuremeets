@@ -1,4 +1,4 @@
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, Stack, Typography, useMediaQuery, useTheme } from "@mui/material";
 import type { ReactNode } from "react";
 import { WallItem } from "../../types/WallItemModel";
 
@@ -74,10 +74,17 @@ function renderWallPhotoMoreTile(hiddenPhotoCount: number, onClick: () => void) 
 }
 
 export function MeetPhotos({ photoItems, onPhotoClick }: MeetPhotosProps) {
-  const visiblePhotoItems = photoItems.slice(0, 6);
-  const hiddenPhotoCount = Math.max(photoItems.length - 5, 0);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const maxVisiblePhotos = isMobile ? 4 : 6;
+  const visibleWithoutPlaceholder = isMobile ? 3 : 5;
+  const visiblePhotoItems = photoItems.slice(0, maxVisiblePhotos);
+  const hiddenPhotoCount = Math.max(
+    photoItems.length - visibleWithoutPlaceholder,
+    0,
+  );
   const tileNodes: ReactNode[] =
-    photoItems.length > 6
+    photoItems.length > maxVisiblePhotos
       ? [
           renderWallPhotoTile(
             visiblePhotoItems[0],
@@ -91,17 +98,25 @@ export function MeetPhotos({ photoItems, onPhotoClick }: MeetPhotosProps) {
             visiblePhotoItems[2],
             () => onPhotoClick(visiblePhotoItems[2]),
           ),
-          renderWallPhotoTile(
-            visiblePhotoItems[3],
-            () => onPhotoClick(visiblePhotoItems[3]),
-          ),
-          renderWallPhotoTile(
-            visiblePhotoItems[4],
-            () => onPhotoClick(visiblePhotoItems[4]),
-          ),
-          renderWallPhotoMoreTile(hiddenPhotoCount, () =>
-            onPhotoClick(visiblePhotoItems[5]),
-          ),
+          ...(isMobile
+            ? [
+                renderWallPhotoMoreTile(hiddenPhotoCount, () =>
+                  onPhotoClick(visiblePhotoItems[3]),
+                ),
+              ]
+            : [
+                renderWallPhotoTile(
+                  visiblePhotoItems[3],
+                  () => onPhotoClick(visiblePhotoItems[3]),
+                ),
+                renderWallPhotoTile(
+                  visiblePhotoItems[4],
+                  () => onPhotoClick(visiblePhotoItems[4]),
+                ),
+                renderWallPhotoMoreTile(hiddenPhotoCount, () =>
+                  onPhotoClick(visiblePhotoItems[5]),
+                ),
+              ]),
         ]
       : visiblePhotoItems.map((item) =>
           renderWallPhotoTile(item, () => onPhotoClick(item)),
@@ -156,6 +171,28 @@ export function MeetPhotos({ photoItems, onPhotoClick }: MeetPhotosProps) {
         </Box>
         <Box sx={{ minWidth: 0, minHeight: 0 }}>{tileNodes[1]}</Box>
         <Box sx={{ minWidth: 0, minHeight: 0 }}>{tileNodes[2]}</Box>
+      </Box>
+    );
+  }
+
+  if (isMobile && tileNodes.length === 4) {
+    return (
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: PHOTO_GRID_WIDTH,
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gridTemplateRows: "1fr 1fr",
+          gap: `${PHOTO_GRID_GAP}px`,
+          height: PHOTO_GRID_HEIGHT,
+        }}
+      >
+        {tileNodes.map((node, index) => (
+          <Box key={index} sx={{ minWidth: 0, minHeight: 0 }}>
+            {node}
+          </Box>
+        ))}
       </Box>
     );
   }

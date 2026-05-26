@@ -61,6 +61,16 @@ vi.mock("../MeetWallRatingComposer", () => ({
 
 describe("MeetWall", () => {
   beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as any;
     meetWallCommentComposerSpy.mockReset();
     updateWallItemFavouriteAsync.mockReset();
     updateWallItemReactionAsync.mockReset();
@@ -352,7 +362,16 @@ describe("MeetWall", () => {
 
     const cards = screen.getAllByTestId("meet-wall-card");
     expect(within(cards[0]).getByText("Featured recap")).toBeInTheDocument();
-    expect(within(cards[0]).getAllByAltText("Meet wall post")).toHaveLength(2);
+    const featuredPhotos = within(cards[0]).getAllByAltText("Meet wall post");
+    expect(featuredPhotos).toHaveLength(2);
+    expect(featuredPhotos[0]).toHaveAttribute(
+      "src",
+      "https://cdn.example.com/fav-photo-2.jpg",
+    );
+    expect(featuredPhotos[1]).toHaveAttribute(
+      "src",
+      "https://cdn.example.com/fav-photo-1.jpg",
+    );
     expect(within(cards[1]).getByText("Normal post")).toBeInTheDocument();
   });
 
@@ -950,6 +969,87 @@ describe("MeetWall", () => {
     render(<MeetWall meetId="meet-1" />);
 
     expect(screen.getAllByAltText("Meet wall post")).toHaveLength(5);
+    expect(screen.getByText("+2")).toBeInTheDocument();
+  });
+
+  it("caps grouped wall photos at four slots on mobile with a +N placeholder", () => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as any;
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T08:00:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "O",
+        },
+        {
+          id: "wall-2",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-2.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T07:59:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "W",
+        },
+        {
+          id: "wall-3",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-3.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T07:58:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "P",
+        },
+        {
+          id: "wall-4",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-4.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T07:57:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "S",
+        },
+        {
+          id: "wall-5",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-5.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T07:56:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(screen.getAllByAltText("Meet wall post")).toHaveLength(3);
     expect(screen.getByText("+2")).toBeInTheDocument();
   });
 });
