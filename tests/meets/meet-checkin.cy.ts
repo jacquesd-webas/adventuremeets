@@ -57,7 +57,7 @@ describe("Meet check-in", () => {
     cy.logout();
 
     cy.get("@shareLink").then((shareLink) => {
-      cy.wait(20000);
+      cy.wait(11000);
       attendees.forEach((attendee) => {
         cy.visit(shareLink as unknown as string);
         cy.get('input[placeholder="Your name"]').clear().type(attendee.name);
@@ -89,6 +89,9 @@ describe("Meet check-in", () => {
     setAttendeeStatus(rejectedAttendee.name, "Reject");
 
     cy.get('[data-testid="close-attendees-modal"]').click();
+    cy.contains("Notify attendees?").should("be.visible");
+    cy.contains("button", "Later").click();
+    cy.contains("Notify attendees?").should("not.exist");
 
     openMeetRowMenu();
     cy.contains("Close meet").click();

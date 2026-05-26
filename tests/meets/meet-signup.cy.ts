@@ -27,7 +27,7 @@ describe("Meet signup", () => {
 
     cy.get("@shareLink").then((shareLink) => {
       cy.visit(shareLink as unknown as string);
-      cy.wait(20000);
+      cy.wait(11000);
       cy.visit(shareLink as unknown as string);
     });
 
@@ -39,7 +39,7 @@ describe("Meet signup", () => {
     cy.get('input[placeholder="Mobile phone number"]').type(randomPhone2);
     cy.contains("h6", "Dietary notes")
       .closest(".MuiStack-root")
-      .find("input[type=\"text\"]")
+      .find('input[type="text"]')
       .first()
       .type("No nuts");
 

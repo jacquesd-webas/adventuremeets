@@ -38,7 +38,7 @@ describe("Meet signup with Bob including minor and guest", () => {
     cy.intercept("POST", "**/meets/*/attendees").as("createAttendee");
 
     cy.get("@shareLink").then((shareLink) => {
-      cy.wait(20000);
+      cy.wait(11000);
 
       cy.visit(shareLink as unknown as string);
       cy.get('input[placeholder="Your name"]').clear().type(hostAttendee.name);
@@ -53,7 +53,10 @@ describe("Meet signup with Bob including minor and guest", () => {
         .find('input[type="checkbox"]')
         .check({ force: true });
       cy.contains("button", "+ Add guest").click();
-      cy.contains("Guest 1 name").parent().find("input").type(hostAttendee.guestName);
+      cy.contains("Guest 1 name")
+        .parent()
+        .find("input")
+        .type(hostAttendee.guestName);
       cy.contains("button", "Submit application").click();
       cy.contains("Application submitted").should("be.visible");
 
@@ -86,7 +89,9 @@ describe("Meet signup with Bob including minor and guest", () => {
 
     cy.get("@guestLink").then((guestLink) => {
       cy.visit(guestLink as unknown as string);
-      cy.get('input[placeholder="Your name"]').clear().type(hostAttendee.guestName);
+      cy.get('input[placeholder="Your name"]')
+        .clear()
+        .type(hostAttendee.guestName);
       cy.get('input[placeholder="you@example.com"]')
         .clear()
         .type(`guest.${unique}@example.com`);
@@ -122,7 +127,9 @@ describe("Meet signup with Bob including minor and guest", () => {
       .should("be.visible")
       .closest('[role="button"]')
       .within(() => {
-        cy.get(".MuiChip-root").contains(".MuiChip-label", "Guest").should("be.visible");
+        cy.get(".MuiChip-root")
+          .contains(".MuiChip-label", "Guest")
+          .should("be.visible");
       });
 
     cy.contains("button", "Close").click();

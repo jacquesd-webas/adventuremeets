@@ -27,7 +27,7 @@ describe("Meet signup with Bob", () => {
     }));
 
     cy.get("@shareLink").then((shareLink) => {
-      cy.wait(20000);
+      cy.wait(11000);
       attendees.forEach((attendee) => {
         cy.visit(shareLink as unknown as string);
         cy.get('input[placeholder="Your name"]').clear().type(attendee.name);
@@ -55,10 +55,9 @@ describe("Meet signup with Bob", () => {
       .as("createdMeetRow");
     cy.get("@createdMeetRow").should("be.visible");
 
-    cy.get("@createdMeetRow")
-      .within(() => {
-        cy.get('svg[data-testid="MoreVertIcon"]').parent("button").click();
-      });
+    cy.get("@createdMeetRow").within(() => {
+      cy.get('svg[data-testid="MoreVertIcon"]').parent("button").click();
+    });
     cy.contains("Attendees").click();
 
     attendees.forEach((attendee) => {
