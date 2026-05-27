@@ -33,7 +33,7 @@ export class WallItemDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
-  attendeeId?: string;
+  attendeeId?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -1388,6 +1389,48 @@ export class MeetsService {
     });
   }
 
+  async removeImage(meetId: string, imageId: string) {
+    let objectKeyToRemove: string | undefined;
+
+    const result = await this.db.getClient().transaction(async (trx) => {
+      const existing = await trx("meet_images")
+        .where({ meet_id: meetId, id: imageId })
+        .first("*");
+
+      if (!existing) {
+        throw new NotFoundException("Meet image not found");
+      }
+
+      objectKeyToRemove = existing.object_key ?? undefined;
+
+      await trx("meet_images").where({ meet_id: meetId, id: imageId }).del();
+
+      if (existing.is_primary) {
+        const replacement = await trx("meet_images")
+          .where({ meet_id: meetId })
+          .orderBy([
+            { column: "created_at", order: "desc" },
+            { column: "id", order: "desc" },
+          ])
+          .first("id");
+
+        if (replacement?.id) {
+          await trx("meet_images")
+            .where({ meet_id: meetId, id: replacement.id })
+            .update({ is_primary: true });
+        }
+      }
+
+      return { removed: true };
+    });
+
+    if (objectKeyToRemove) {
+      await this.minio.remove(objectKeyToRemove);
+    }
+
+    return result;
+  }
+
   async findMeetAttendeeByUser(meetId: string, userId: string) {
     const attendee = await this.db
       .getClient()("meet_attendees")
@@ -1517,6 +1560,46 @@ export class MeetsService {
     return { wallItem: this.toWallItemDto(wallItem) };
   }
 
+  async updateWallItemComment(
+    meetId: string,
+    wallItemId: string,
+    comment: string,
+    actor: { userId?: string; attendeeId?: string | null },
+  ) {
+    const trimmedComment = comment?.trim();
+
+    if (!trimmedComment) {
+      throw new BadRequestException("Comment is required");
+    }
+
+    const existingWallItem = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .first();
+
+    if (!existingWallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const canEdit =
+      (Boolean(actor.userId) && existingWallItem.created_by === actor.userId) ||
+      (Boolean(actor.attendeeId) &&
+        existingWallItem.attendee_id === actor.attendeeId);
+
+    if (!canEdit) {
+      throw new ForbiddenException(
+        "You do not have permission to edit this wall item",
+      );
+    }
+
+    await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .update({ comment: trimmedComment });
+
+    return this.getWallItem(meetId, wallItemId, actor);
+  }
+
   async orderWallItemFavourites(meetId: string, wallItemIds: string[]) {
     const existingIds = await this.db
       .getClient()("wall_item")
@@ -1603,15 +1686,35 @@ export class MeetsService {
     return this.getWallItem(meetId, wallItemId, actor);
   }
 
-  async removeWallItem(meetId: string, wallItemId: string) {
-    const deleted = await this.db
+  async removeWallItem(
+    meetId: string,
+    wallItemId: string,
+    actor?: { userId?: string; attendeeId?: string | null; canAdminDelete?: boolean },
+  ) {
+    const wallItem = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .first();
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const canDelete =
+      Boolean(actor?.canAdminDelete) ||
+      (Boolean(actor?.userId) && wallItem.created_by === actor?.userId) ||
+      (Boolean(actor?.attendeeId) && wallItem.attendee_id === actor?.attendeeId);
+
+    if (!canDelete) {
+      throw new ForbiddenException(
+        "You do not have permission to remove this wall item",
+      );
+    }
+
+    await this.db
       .getClient()("wall_item")
       .where({ meet_id: meetId, id: wallItemId })
       .del();
-
-    if (!deleted) {
-      throw new NotFoundException("Wall item not found");
-    }
 
     return { deleted: true };
   }
@@ -1832,12 +1935,17 @@ export class MeetsService {
     const heartCount = itemLikes.filter(
       (like) => like.reaction === "heart",
     ).length;
+    const canSeeAttendeeId = Boolean(
+      wallItem.attendee_id &&
+        ((actor?.attendeeId && wallItem.attendee_id === actor.attendeeId) ||
+          (actor?.userId && wallItem.created_by === actor.userId)),
+    );
 
     return {
       id: wallItem.id,
       meetId: wallItem.meet_id,
       createdBy: wallItem.created_by ?? undefined,
-      attendeeId: wallItem.attendee_id ?? undefined,
+      attendeeId: canSeeAttendeeId ? wallItem.attendee_id : null,
       authorName: this.getWallItemAuthorName(wallItem),
       comment: wallItem.comment ?? undefined,
       stars: wallItem.stars != null ? Number(wallItem.stars) : undefined,

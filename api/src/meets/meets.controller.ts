@@ -602,6 +602,22 @@ export class MeetsController {
     return this.meetsService.updateImage(id, imageId, dto);
   }
 
+  @Delete(":id/images/:imageId")
+  async removeImage(
+    @Param("id") id: string,
+    @Param("imageId") imageId: string,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    return this.meetsService.removeImage(id, imageId);
+  }
+
   @Delete(":id")
   async remove(@Param("id") id: string, @User() user?: UserProfile) {
     if (!user) throw new UnauthorizedException();

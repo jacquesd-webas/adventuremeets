@@ -76,7 +76,7 @@ describe("Meet messaging", () => {
     }).as("shareLink");
 
     cy.logout();
-    cy.wait(20000);
+    cy.wait(11000);
 
     cy.get("@shareLink").then((shareLink) => {
       attendees.forEach((attendee) => {

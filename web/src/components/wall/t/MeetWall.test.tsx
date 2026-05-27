@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MeetWall } from "../MeetWall";
 
@@ -32,6 +32,18 @@ vi.mock("../../../hooks/useUpdateWallItemReaction", () => ({
 
 import { useUpdateWallItemReaction } from "../../../hooks/useUpdateWallItemReaction";
 
+vi.mock("../../../hooks/useUpdateWallItemComment", () => ({
+  useUpdateWallItemComment: vi.fn(),
+}));
+
+import { useUpdateWallItemComment } from "../../../hooks/useUpdateWallItemComment";
+
+vi.mock("../../../hooks/useDeleteWallItem", () => ({
+  useDeleteWallItem: vi.fn(),
+}));
+
+import { useDeleteWallItem } from "../../../hooks/useDeleteWallItem";
+
 vi.mock("../../../hooks/useNotistack", () => ({
   useNotistack: vi.fn(),
 }));
@@ -41,6 +53,8 @@ import { useNotistack } from "../../../hooks/useNotistack";
 const meetWallCommentComposerSpy = vi.fn();
 const updateWallItemFavouriteAsync = vi.fn();
 const updateWallItemReactionAsync = vi.fn();
+const updateWallItemCommentAsync = vi.fn();
+const deleteWallItemAsync = vi.fn();
 const success = vi.fn();
 const error = vi.fn();
 
@@ -61,9 +75,21 @@ vi.mock("../MeetWallRatingComposer", () => ({
 
 describe("MeetWall", () => {
   beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as any;
     meetWallCommentComposerSpy.mockReset();
     updateWallItemFavouriteAsync.mockReset();
     updateWallItemReactionAsync.mockReset();
+    updateWallItemCommentAsync.mockReset();
+    deleteWallItemAsync.mockReset();
     success.mockReset();
     error.mockReset();
     vi.mocked(useAuth).mockReturnValue({
@@ -93,6 +119,18 @@ describe("MeetWall", () => {
     vi.mocked(useUpdateWallItemReaction).mockReturnValue({
       updateWallItemReaction: vi.fn(),
       updateWallItemReactionAsync,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useUpdateWallItemComment).mockReturnValue({
+      updateWallItemComment: vi.fn(),
+      updateWallItemCommentAsync,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useDeleteWallItem).mockReturnValue({
+      deleteWallItem: vi.fn(),
+      deleteWallItemAsync,
       isLoading: false,
       error: null,
     } as any);
@@ -181,6 +219,408 @@ describe("MeetWall", () => {
     expect(
       screen.getByAltText("Meet feedback photos image 1"),
     ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Download photo",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the comment from a grouped photo post even when the comment is on an older photo item", () => {
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          attendeeId: "attendee-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:01:00.000Z",
+          aspect: "O",
+        },
+        {
+          id: "wall-2",
+          meetId: "meet-1",
+          attendeeId: "attendee-1",
+          url: "https://cdn.example.com/photo-2.jpg",
+          comment: "Comment travels with the photo post",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(
+      screen.getByText("Comment travels with the photo post"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows edit and delete icon actions for a wall comment created by the current user", () => {
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          comment: "Original comment",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(
+      screen.getByRole("button", { name: "Edit comment" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete post" })).toBeInTheDocument();
+  });
+
+  it("allows the original author to edit a wall comment", async () => {
+    const user = userEvent.setup();
+    updateWallItemCommentAsync.mockResolvedValue({
+      wallItem: { id: "wall-1", comment: "Updated comment" },
+    });
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          attendeeId: "attendee-1",
+          comment: "Original comment",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" attendeeId="attendee-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Edit comment" }));
+    await user.clear(screen.getByLabelText("Edit Comment"));
+    await user.type(screen.getByLabelText("Edit Comment"), "Updated comment");
+    await user.click(screen.getByRole("button", { name: "Save Comment" }));
+
+    expect(updateWallItemCommentAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      wallItemId: "wall-1",
+      comment: "Updated comment",
+      attendeeId: "attendee-1",
+    });
+    expect(success).toHaveBeenCalledWith("Comment updated");
+  });
+
+  it("allows the original author to delete a wall post", async () => {
+    const user = userEvent.setup();
+    deleteWallItemAsync.mockResolvedValue({ deleted: true });
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          attendeeId: "attendee-1",
+          comment: "Original comment",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" attendeeId="attendee-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Delete post" }));
+
+    expect(deleteWallItemAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      wallItemId: "wall-1",
+      attendeeId: "attendee-1",
+    });
+    expect(success).toHaveBeenCalledWith("Post deleted");
+  });
+
+  it("allows the organiser to favourite the active photo from the carousel", async () => {
+    const user = userEvent.setup();
+    updateWallItemFavouriteAsync.mockResolvedValue({
+      wallItem: { id: "wall-1", favourite: 1 },
+    });
+
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "organizer-1" },
+      isLoading: false,
+      isAuthenticated: true,
+      meUpdatedAt: 0,
+      refreshSession: vi.fn(),
+      logout: vi.fn(),
+    } as any);
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    await user.click(screen.getByAltText("Meet wall post"));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Favourite",
+      }),
+    );
+
+    expect(updateWallItemFavouriteAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      wallItemId: "wall-1",
+      favourite: 1,
+    });
+  });
+
+  it("shows a delete action in the carousel for a photo posted by the current user", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    await user.click(screen.getByAltText("Meet wall post"));
+
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Delete photo",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("allows the original author to delete a photo from the carousel", async () => {
+    const user = userEvent.setup();
+    deleteWallItemAsync.mockResolvedValue({ deleted: true });
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          createdBy: "user-1",
+          attendeeId: "attendee-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" attendeeId="attendee-1" />);
+
+    await user.click(screen.getByAltText("Meet wall post"));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Delete photo",
+      }),
+    );
+
+    expect(deleteWallItemAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      wallItemId: "wall-1",
+      attendeeId: "attendee-1",
+    });
+    expect(success).toHaveBeenCalledWith("Post deleted");
+  });
+
+  it("does not show the favourite control on the panel for combined photo groups", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "organizer-1" },
+      isLoading: false,
+      isAuthenticated: true,
+      meUpdatedAt: 0,
+      refreshSession: vi.fn(),
+      logout: vi.fn(),
+    } as any);
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          favourite: 2,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+        {
+          id: "wall-2",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-2.jpg",
+          authorName: "Alice",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T07:59:00.000Z",
+          aspect: "W",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(screen.queryByLabelText("Favourite 2")).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByAltText("Meet wall post")[0]);
+
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Favourite 2",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the favourite post first with favourite photos attached, then the rest in normal order", () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "organizer-1" },
+      isLoading: false,
+      isAuthenticated: true,
+      meUpdatedAt: 0,
+      refreshSession: vi.fn(),
+      logout: vi.fn(),
+    } as any);
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-normal-post",
+          meetId: "meet-1",
+          comment: "Normal post",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:10:00.000Z",
+        },
+        {
+          id: "wall-fav-photo-1",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/fav-photo-1.jpg",
+          authorName: "Alice",
+          favourite: 2,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T08:00:00.000Z",
+          aspect: "O",
+        },
+        {
+          id: "wall-fav-post",
+          meetId: "meet-1",
+          comment: "Featured recap",
+          favourite: 3,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T07:59:00.000Z",
+        },
+        {
+          id: "wall-fav-photo-2",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/fav-photo-2.jpg",
+          authorName: "Alice",
+          favourite: 1,
+          likesCount: 0,
+          likedByMe: false,
+          createdAt: "2026-04-29T07:58:00.000Z",
+          aspect: "W",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    const cards = screen.getAllByTestId("meet-wall-card");
+    expect(within(cards[0]).getByText("Featured recap")).toBeInTheDocument();
+    const featuredPhotos = within(cards[0]).getAllByAltText("Meet wall post");
+    expect(featuredPhotos).toHaveLength(2);
+    expect(featuredPhotos[0]).toHaveAttribute(
+      "src",
+      "https://cdn.example.com/fav-photo-2.jpg",
+    );
+    expect(featuredPhotos[1]).toHaveAttribute(
+      "src",
+      "https://cdn.example.com/fav-photo-1.jpg",
+    );
+    expect(within(cards[1]).getByText("Normal post")).toBeInTheDocument();
   });
 
   it("renders an empty state when there are no wall items", () => {
@@ -777,6 +1217,87 @@ describe("MeetWall", () => {
     render(<MeetWall meetId="meet-1" />);
 
     expect(screen.getAllByAltText("Meet wall post")).toHaveLength(5);
+    expect(screen.getByText("+2")).toBeInTheDocument();
+  });
+
+  it("caps grouped wall photos at four slots on mobile with a +N placeholder", () => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as any;
+
+    vi.mocked(useFetchMeetWall).mockReturnValue({
+      data: [
+        {
+          id: "wall-1",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-1.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T08:00:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "O",
+        },
+        {
+          id: "wall-2",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-2.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T07:59:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "W",
+        },
+        {
+          id: "wall-3",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-3.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T07:58:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "P",
+        },
+        {
+          id: "wall-4",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-4.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T07:57:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "S",
+        },
+        {
+          id: "wall-5",
+          meetId: "meet-1",
+          url: "https://cdn.example.com/photo-5.jpg",
+          authorName: "Alice",
+          createdAt: "2026-04-29T07:56:00.000Z",
+          favourite: 0,
+          likesCount: 0,
+          likedByMe: false,
+          aspect: "O",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<MeetWall meetId="meet-1" />);
+
+    expect(screen.getAllByAltText("Meet wall post")).toHaveLength(3);
     expect(screen.getByText("+2")).toBeInTheDocument();
   });
 });

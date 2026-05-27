@@ -24,6 +24,7 @@ import { AuthService } from "../auth/auth.service";
 import { Public } from "../auth/decorators/public.decorator";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 import { CreateWallItemDto } from "./dto/create-wall-item.dto";
+import { UpdateWallItemCommentDto } from "./dto/update-wall-item-comment.dto";
 import { OrderWallItemFavouritesDto } from "./dto/order-wall-item-favourites.dto";
 import { UpdateWallItemReactionDto } from "./dto/update-wall-item-reaction.dto";
 import { UpdateWallItemFavouriteDto } from "./dto/update-wall-item-favourite.dto";
@@ -129,6 +130,28 @@ export class MeetWallController {
 
   @Public()
   @UseGuards(OptionalJwtAuthGuard)
+  @Patch(":wallItemId")
+  async update(
+    @Param("meetId") meetId: string,
+    @Param("wallItemId") wallItemId: string,
+    @Body() dto: UpdateWallItemCommentDto,
+    @User() user?: UserProfile,
+  ) {
+    const context = await this.getWallContext(meetId, user, dto.attendeeId);
+
+    return this.meetsService.updateWallItemComment(
+      meetId,
+      wallItemId,
+      dto.comment,
+      {
+        userId: user?.id,
+        attendeeId: context.attendee?.id,
+      },
+    );
+  }
+
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Patch(":wallItemId/reaction")
   async updateReaction(
     @Param("meetId") meetId: string,
@@ -155,21 +178,23 @@ export class MeetWallController {
   }
 
   @Delete(":wallItemId")
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   async remove(
     @Param("meetId") meetId: string,
     @Param("wallItemId") wallItemId: string,
+    @Query("attendeeId") attendeeId: string | undefined,
     @User() user?: UserProfile,
   ) {
-    if (!user) throw new UnauthorizedException();
+    const context = await this.getWallContext(meetId, user, attendeeId);
 
-    const meet = await this.getMeetOrThrow(meetId);
-    if (!this.hasOrganizationRole(user, meet.organizationId, "admin")) {
-      throw new ForbiddenException(
-        "You do not have permission to remove wall items for this meet",
-      );
-    }
-
-    return this.meetsService.removeWallItem(meetId, wallItemId);
+    return this.meetsService.removeWallItem(meetId, wallItemId, {
+      userId: user?.id,
+      attendeeId: context.attendee?.id,
+      canAdminDelete: user
+        ? this.hasOrganizationRole(user, context.meet.organizationId, "admin")
+        : false,
+    });
   }
 
   private async getWallContext(

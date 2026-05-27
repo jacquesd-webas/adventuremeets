@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { ImageStep } from "../ImageStep";
 
 const mockUpdateMeetImageAsync = vi.fn(async () => ({}));
+const mockDeleteMeetImageAsync = vi.fn(async () => ({ removed: true }));
 
 let currentImages = [
   {
@@ -45,6 +46,13 @@ vi.mock("../../../hooks/useUpdateMeetImage", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useDeleteMeetImage", () => ({
+  useDeleteMeetImage: () => ({
+    deleteMeetImageAsync: mockDeleteMeetImageAsync,
+    isLoading: false,
+  }),
+}));
+
 vi.mock("../../../hooks/useNotistack", () => ({
   useNotistack: () => ({
     success: vi.fn(),
@@ -74,6 +82,7 @@ describe("ImageStep", () => {
       },
     ];
     mockUpdateMeetImageAsync.mockClear();
+    mockDeleteMeetImageAsync.mockClear();
   });
 
   it("shows all uploaded images and allows selecting the main image", async () => {
@@ -90,7 +99,7 @@ describe("ImageStep", () => {
     expect(screen.getAllByRole("img", { name: "Meet" })).toHaveLength(2);
     expect(screen.getByText("Main image")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Set as main" }));
+    await user.click(screen.getByRole("button", { name: "Set as main image" }));
 
     expect(mockUpdateMeetImageAsync).toHaveBeenCalledWith({
       meetId: "meet-1",
@@ -98,5 +107,18 @@ describe("ImageStep", () => {
       isPrimary: true,
     });
     expect(onImagesChange).toHaveBeenCalledWith(currentImages);
+  });
+
+  it("allows deleting an uploaded image", async () => {
+    const user = userEvent.setup();
+
+    render(<ImageStep meetId="meet-1" onImagesChange={vi.fn()} />);
+
+    await user.click(screen.getAllByRole("button", { name: "Delete image" })[0]);
+
+    expect(mockDeleteMeetImageAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      imageId: "image-1",
+    });
   });
 });

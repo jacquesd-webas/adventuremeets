@@ -9,6 +9,7 @@ import {
 } from "@mui/material";
 import { useFetchMeetImages } from "../../hooks/useFetchMeetImages";
 import { useCreateMeetImage } from "../../hooks/useCreateMeetImage";
+import { useDeleteMeetImage } from "../../hooks/useDeleteMeetImage";
 import { useUpdateMeetImage } from "../../hooks/useUpdateMeetImage";
 import { useNotistack } from "../../hooks/useNotistack";
 import MeetImage from "../../types/MeetImageModel";
@@ -108,6 +109,8 @@ export const ImageStep = ({
     error,
   } = useFetchMeetImages(meetId, Boolean(meetId));
   const { createMeetImageAsync, isLoading: isUploading } = useCreateMeetImage();
+  const { deleteMeetImageAsync, isLoading: isDeletingImage } =
+    useDeleteMeetImage();
   const { updateMeetImageAsync, isLoading: isUpdatingImage } =
     useUpdateMeetImage();
   const { success, error: showError, warn } = useNotistack();
@@ -212,6 +215,24 @@ export const ImageStep = ({
     }
   };
 
+  const handleDeleteImage = async (imageId: string) => {
+    if (!meetId || disabled) {
+      return;
+    }
+
+    try {
+      await deleteMeetImageAsync({
+        meetId,
+        imageId,
+      });
+      success("Image deleted");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete image";
+      showError(message);
+    }
+  };
+
   const hasImages = images.length > 0 || pendingUploads.length > 0;
 
   return (
@@ -276,7 +297,9 @@ export const ImageStep = ({
                 image={image}
                 disabled={disabled}
                 isUpdating={isUpdatingImage}
+                isDeleting={isDeletingImage}
                 onSelectMain={handleSelectMain}
+                onDelete={handleDeleteImage}
               />
             ))}
             {pendingUploads.map((preview) => (

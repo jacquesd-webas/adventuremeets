@@ -51,6 +51,7 @@ import { LockedMeet } from "./LockedMeet";
 import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
 import MeetImage from "../../types/MeetImageModel";
 import { writeCreateMeetPreviewRestore } from "./createMeetPreviewRestore";
+import { buildMeetQuestionFieldKey } from "../../helpers/meetQuestionFieldKey";
 import { useNavigate } from "react-router-dom";
 
 type CreateMeetModalProps = {
@@ -380,7 +381,9 @@ export function CreateMeetModal({
         return {
           metaDefinitions: draft.questions.map((question, index) => ({
             id: question.id,
-            fieldKey: question.fieldKey || question.id || `field_${index + 1}`,
+            fieldKey: draft.organizationId
+              ? buildMeetQuestionFieldKey(draft.organizationId, question.label)
+              : question.fieldKey || question.id || `field_${index + 1}`,
             label: question.label,
             fieldType: question.type,
             required: Boolean(question.required),

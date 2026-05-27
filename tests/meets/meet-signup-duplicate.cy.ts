@@ -28,7 +28,7 @@ describe("Meet signup duplicate", () => {
 
     cy.get("@shareLink").then((shareLink) => {
       cy.visit(shareLink as unknown as string);
-      cy.wait(20000);
+      cy.wait(11000);
       cy.visit(shareLink as unknown as string);
     });
 

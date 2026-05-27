@@ -268,7 +268,7 @@ describe("Create meet flow", () => {
 
     cy.visit("/calendar");
     cy.contains("Calendar").should("be.visible");
-    cy.contains(meetName).should("be.visible");
+    cy.contains(meetName).scrollIntoView().should("be.visible");
 
     cy.visit("/plan");
     cy.contains("Meets").should("be.visible");
@@ -279,7 +279,7 @@ describe("Create meet flow", () => {
 
     cy.get("@shareLink").then((shareLink) => {
       cy.visit(shareLink as unknown as string);
-      cy.wait(20000);
+      cy.wait(11000);
       cy.visit(shareLink as unknown as string);
     });
 
