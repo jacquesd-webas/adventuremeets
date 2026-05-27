@@ -42,6 +42,7 @@ import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { DatabaseService } from "../database/database.service";
 import { OrganizationsService } from "../organizations/organizations.service";
+import { AuditLogService } from "../audit/audit-log.service";
 import * as ExcelJS from "exceljs";
 import { MEET_STATUS } from "./constants/meet-status.enum";
 
@@ -53,10 +54,36 @@ export class MeetsController {
   constructor(
     private readonly meetsService: MeetsService,
     private readonly organizationService: OrganizationsService,
+    private readonly auditLogService: AuditLogService,
     private readonly emailService: EmailService,
     private readonly db: DatabaseService,
     private readonly authService: AuthService,
   ) {}
+
+  private async logMeetAuditAction({
+    orgId,
+    meetId,
+    target,
+    userId,
+    attendeeId,
+    action,
+  }: {
+    orgId?: string | null;
+    meetId?: string | null;
+    target: string;
+    userId?: string | null;
+    attendeeId?: string | null;
+    action: string;
+  }) {
+    await this.auditLogService.addRecord({
+      orgId: orgId ?? "",
+      userId: userId ?? null,
+      attendeeId: attendeeId ?? null,
+      meetId: meetId ?? null,
+      action,
+      target,
+    });
+  }
 
   @Get()
   @ApiQuery({
@@ -246,9 +273,21 @@ export class MeetsController {
     @Param("attendeeId") attendeeId: string,
   ) {
     const meet = await this.meetsService.findOne(code);
-    return this.meetsService.updateAttendee(meet.id, attendeeId, {
-      status: "cancelled",
+    const updated = await this.meetsService.updateAttendee(
+      meet.id,
+      attendeeId,
+      {
+        status: "cancelled",
+      },
+    );
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      attendeeId,
+      action: "withdrew from",
     });
+    return updated;
   }
 
   @Public()
@@ -267,6 +306,15 @@ export class MeetsController {
         resetCancelledToPending: true,
       },
     );
+
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      attendeeId,
+      action: "updated application for",
+    });
+
     if (dto.status === "confirmed") {
       const hasMissingFields = await this.meetsService.attendeeHasMissingFields(
         meet.id,
@@ -300,11 +348,19 @@ export class MeetsController {
       );
     }
 
-    return await this.meetsService.create({
+    const created = await this.meetsService.create({
       ...dto,
       organizerId: dto.organizerId || user.id,
       organizationId: dto.organizationId,
     });
+    await this.logMeetAuditAction({
+      orgId: dto.organizationId,
+      meetId: created.id,
+      target: `meet ${created.name ?? dto.name ?? "meet"}`,
+      userId: user.id,
+      action: "created",
+    });
+    return created;
   }
 
   @Post(":id/clone")
@@ -324,10 +380,18 @@ export class MeetsController {
       );
     }
 
-    return this.meetsService.clone(id, {
+    const cloned = await this.meetsService.clone(id, {
       ...dto,
       organizerId: user.id,
     });
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: cloned.id,
+      target: `meet ${cloned.name ?? dto.name ?? meet.name ?? "meet"}`,
+      userId: user.id,
+      action: "cloned",
+    });
+    return cloned;
   }
 
   @Patch(":id")
@@ -343,7 +407,15 @@ export class MeetsController {
 
     this.assertCanModifyExistingMeet(user, meet, "update");
 
-    return this.meetsService.update(id, dto);
+    const updated = await this.meetsService.update(id, dto);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${updated.name ?? dto.name ?? meet.name ?? "meet"}`,
+      userId: user.id,
+      action: "edited",
+    });
+    return updated;
   }
 
   @Patch(":id/status")
@@ -360,11 +432,8 @@ export class MeetsController {
   ) {
     // Shortcut the entire process as worker API can do anything
     if (apiKey && apiKey === process.env.WORKER_API_KEY) {
-      const meet =
-        dto.notifyAttendees || dto.reconfirmAttendees
-          ? await this.meetsService.findOne(id)
-          : null;
-      if ((dto.notifyAttendees || dto.reconfirmAttendees) && !meet) {
+      const meet = await this.meetsService.findOne(id);
+      if (!meet) {
         throw new NotFoundException("Meet not found");
       }
       const attendeesToReconfirm = dto.reconfirmAttendees
@@ -382,6 +451,13 @@ export class MeetsController {
       if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
         await this.notifyAttendeesOfStatus(meet!);
       }
+      await this.auditLogService.addRecord({
+        orgId: meet.organizationId ?? "",
+        meetId: meet.id,
+        description: `Worker changed status of ${meet.name ? meet.name : "meet"} to ${
+          MEET_STATUS[dto.statusId] ?? `Status ${dto.statusId}`
+        }`,
+      });
       return updated;
     }
 
@@ -398,6 +474,15 @@ export class MeetsController {
       : [];
 
     const updated = await this.meetsService.updateStatus(id, dto.statusId);
+    await this.auditLogService.addRecord({
+      orgId: meet.organizationId ?? "",
+      userId: user.id,
+      meetId: meet.id,
+      action: "changed status of",
+      target: `meet ${meet.name || "meet"} to ${
+        MEET_STATUS[dto.statusId] ?? `Status ${dto.statusId}`
+      }`,
+    });
     if (dto.reconfirmAttendees) {
       await this.meetsService.resetConfirmedAttendeesToInvited(
         id,
@@ -570,7 +655,15 @@ export class MeetsController {
     if (!file.mimetype?.startsWith("image/")) {
       throw new BadRequestException("Only image uploads are allowed");
     }
-    return this.meetsService.addImage(id, file, dto);
+    const image = await this.meetsService.addImage(id, file, dto);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "added image to",
+    });
+    return image;
   }
 
   @Get(":id/images")
@@ -599,7 +692,15 @@ export class MeetsController {
 
     this.assertCanModifyExistingMeet(user, meet, "update");
 
-    return this.meetsService.updateImage(id, imageId, dto);
+    const updated = await this.meetsService.updateImage(id, imageId, dto);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "updated image for",
+    });
+    return updated;
   }
 
   @Delete(":id/images/:imageId")
@@ -615,7 +716,15 @@ export class MeetsController {
 
     this.assertCanModifyExistingMeet(user, meet, "update");
 
-    return this.meetsService.removeImage(id, imageId);
+    const result = await this.meetsService.removeImage(id, imageId);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "removed image from",
+    });
+    return result;
   }
 
   @Delete(":id")
@@ -628,7 +737,15 @@ export class MeetsController {
     this.assertCanModifyExistingMeet(user, meet, "delete");
 
     if (meet.statusId === MEET_STATUS.Draft) {
-      return this.meetsService.remove(id);
+      const result = await this.meetsService.remove(id);
+      await this.logMeetAuditAction({
+        orgId: meet.organizationId,
+        meetId: meet.id,
+        target: `meet ${meet.name || "meet"}`,
+        userId: user.id,
+        action: "deleted",
+      });
+      return result;
     } else {
       throw new BadRequestException(
         "Only meets in Draft status can be deleted",
@@ -780,6 +897,13 @@ export class MeetsController {
     if (body.markNotified !== false) {
       await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
     }
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "messaged attendees for",
+    });
     return { status: "sent", count: recipients.size };
   }
 
@@ -823,6 +947,13 @@ export class MeetsController {
     this.assertCanModifyExistingMeet(user, meet, "update");
 
     await this.meetsService.markAttendeeMessageRead(id, messageId);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "marked message read for",
+    });
     return { status: "ok" };
   }
 
@@ -971,6 +1102,13 @@ export class MeetsController {
       id,
       attendees,
     );
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "uploaded attendees for",
+    });
     return { created, skipped };
   }
 
@@ -1074,6 +1212,14 @@ export class MeetsController {
         meetId: meet.id,
       });
     }
+
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "created report for",
+    });
 
     if (downloadReport && res) {
       res.set({

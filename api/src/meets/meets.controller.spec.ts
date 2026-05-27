@@ -76,13 +76,17 @@ import { EmailService } from "../email/email.service";
 import { DatabaseService } from "../database/database.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { OrganizationsService } from "../organizations/organizations.service";
+import { AuditLogService } from "../audit/audit-log.service";
 
 describe("MeetsController", () => {
   let controller: MeetsController;
 
   const meetsService = {
+    create: jest.fn(),
+    clone: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
+    update: jest.fn(),
     listImages: jest.fn(),
     addImage: jest.fn(),
     addInvitedAttendees: jest.fn(),
@@ -95,6 +99,7 @@ describe("MeetsController", () => {
     updateAttendeesNotified: jest.fn(),
     updateAttendee: jest.fn(),
     attendeeHasMissingFields: jest.fn(),
+    markAttendeeMessageRead: jest.fn(),
     getAttendeeContactById: jest.fn(),
     getOrganizerEmail: jest.fn(),
     getReportData: jest.fn(),
@@ -109,6 +114,10 @@ describe("MeetsController", () => {
     canOrganizationShareMeets: jest.fn(),
   } as unknown as OrganizationsService;
 
+  const auditLogService = {
+    addRecord: jest.fn(),
+  } as unknown as AuditLogService;
+
   const db = {
     getClient: jest.fn(),
   } as unknown as DatabaseService;
@@ -121,6 +130,8 @@ describe("MeetsController", () => {
   const user: UserProfile = {
     id: "organizer-1",
     email: "organizer@example.com",
+    firstName: "Sally",
+    lastName: "Jones",
     organizations: { "org-1": "organizer" },
     pendingInvites: [],
   };
@@ -173,6 +184,7 @@ describe("MeetsController", () => {
     controller = new MeetsController(
       meetsService,
       organizationService,
+      auditLogService,
       emailService,
       db,
       authService,
@@ -223,6 +235,14 @@ describe("MeetsController", () => {
       id: "meet-1",
       status_id: 2,
     });
+
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      meetId: "meet-1",
+      action: "changed status of",
+      target: "meet Sunrise Hike to Published",
+    });
   });
 
   it("throws when updating a missing meet", async () => {
@@ -231,6 +251,106 @@ describe("MeetsController", () => {
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("creates a meet and writes an audit log", async () => {
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue(["org-1"]);
+    setRoles({ organizer: true });
+    (meetsService.create as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      name: "Sunrise Hike",
+    });
+
+    await expect(
+      controller.create({ name: "Sunrise Hike", organizationId: "org-1" } as any, user),
+    ).resolves.toEqual({
+      id: "meet-1",
+      name: "Sunrise Hike",
+    });
+
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "created",
+      target: "meet Sunrise Hike",
+    });
+  });
+
+  it("clones a meet and writes an audit log", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.clone as jest.Mock).mockResolvedValue({
+      id: "meet-2",
+      name: "Sunrise Hike Copy",
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.clone("meet-1", { name: "Sunrise Hike Copy" }, user),
+    ).resolves.toEqual({
+      id: "meet-2",
+      name: "Sunrise Hike Copy",
+    });
+
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-2",
+      action: "cloned",
+      target: "meet Sunrise Hike Copy",
+    });
+  });
+
+  it("updates a meet and writes an audit log", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.update as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      name: "Updated Hike",
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.update("meet-1", { name: "Updated Hike" } as any, user),
+    ).resolves.toEqual({
+      id: "meet-1",
+      name: "Updated Hike",
+    });
+
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "edited",
+      target: "meet Updated Hike",
+    });
+  });
+
+  it("writes an audit log for worker-driven status changes", async () => {
+    process.env.WORKER_API_KEY = "worker-secret";
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      statusId: 3,
+    });
+    (meetsService.updateStatus as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      status_id: 4,
+    });
+
+    await expect(
+      controller.updateStatus("meet-1", { statusId: 4 }, "worker-secret"),
+    ).resolves.toEqual({
+      id: "meet-1",
+      status_id: 4,
+    });
+
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      meetId: "meet-1",
+      description: "Worker changed status of Sunrise Hike to Closed",
+    });
   });
 
   it('forces scope to "my" for members when the organization does not share meets', async () => {
@@ -472,6 +592,34 @@ describe("MeetsController", () => {
     expect(meetsService.listImages).toHaveBeenCalledWith("meet-1");
   });
 
+  it("adds an image for an editable meet and writes an audit log", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.addImage as jest.Mock).mockResolvedValue({
+      image: { id: "image-1", url: "https://cdn/img.jpg" },
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.addImage(
+        "meet-1",
+        { mimetype: "image/png" },
+        { isPrimary: true } as any,
+        user,
+      ),
+    ).resolves.toEqual({
+      image: { id: "image-1", url: "https://cdn/img.jpg" },
+    });
+
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "added image to",
+      target: "meet Sunrise Hike",
+    });
+  });
+
   it("updates the main image for an editable meet", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (meetsService.updateImage as jest.Mock).mockResolvedValue({
@@ -487,6 +635,14 @@ describe("MeetsController", () => {
 
     expect(meetsService.updateImage).toHaveBeenCalledWith("meet-1", "image-1", {
       isPrimary: true,
+    });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "updated image for",
+      target: "meet Sunrise Hike",
     });
   });
 
@@ -504,6 +660,14 @@ describe("MeetsController", () => {
     });
 
     expect(meetsService.removeImage).toHaveBeenCalledWith("meet-1", "image-1");
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "removed image from",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("resets confirmed attendees to invited when reconfirmAttendees is true", async () => {
@@ -585,6 +749,29 @@ describe("MeetsController", () => {
     );
   });
 
+  it("deletes a draft meet for the organizer", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      statusId: 1,
+    });
+    (meetsService.remove as jest.Mock).mockResolvedValue({ deleted: true });
+    setRoles({ organizer: true });
+
+    await expect(controller.remove("meet-1", user)).resolves.toEqual({
+      deleted: true,
+    });
+
+    expect(meetsService.remove).toHaveBeenCalledWith("meet-1");
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "deleted",
+      target: "meet Sunrise Hike",
+    });
+  });
+
   it("returns hasMissingFields when confirming an attendee by code", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (meetsService.updateAttendee as jest.Mock).mockResolvedValue({
@@ -613,6 +800,14 @@ describe("MeetsController", () => {
       "meet-1",
       "attendee-1",
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: null,
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "updated application for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("creates a final report that maps confirmed attendees to no-show", async () => {
@@ -677,6 +872,14 @@ describe("MeetsController", () => {
         ],
       }),
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "created report for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("creates an interim report without remapping confirmed attendees", async () => {
@@ -760,6 +963,14 @@ describe("MeetsController", () => {
       "meet-1",
       ["attendee-1", "attendee-2"],
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "messaged attendees for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("maps extra upload columns to matching meta field labels and field keys", async () => {
@@ -844,6 +1055,14 @@ describe("MeetsController", () => {
         ],
       },
     ]);
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "uploaded attendees for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("matches upload headings case-insensitively", async () => {
@@ -905,5 +1124,32 @@ describe("MeetsController", () => {
         ],
       },
     ]);
+  });
+
+  it("marks a message as read and writes an audit log", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.markAttendeeMessageRead as jest.Mock).mockResolvedValue(
+      undefined,
+    );
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.markMessageRead("meet-1", "message-1", user),
+    ).resolves.toEqual({
+      status: "ok",
+    });
+
+    expect(meetsService.markAttendeeMessageRead).toHaveBeenCalledWith(
+      "meet-1",
+      "message-1",
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "marked message read for",
+      target: "meet Sunrise Hike",
+    });
   });
 });

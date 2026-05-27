@@ -8,6 +8,7 @@ import { UsersController } from "./users.controller";
 import { UsersService } from "./users.service";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "./dto/user-profile.dto";
+import { AuditLogService } from "../audit/audit-log.service";
 
 describe("UsersController", () => {
   let controller: UsersController;
@@ -32,6 +33,10 @@ describe("UsersController", () => {
     hasRole: jest.fn(),
   } as unknown as AuthService;
 
+  const auditLogService = {
+    addRecord: jest.fn(),
+  } as unknown as AuditLogService;
+
   const adminUser: UserProfile = {
     id: "admin-1",
     email: "admin@example.com",
@@ -48,7 +53,7 @@ describe("UsersController", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new UsersController(usersService, authService);
+    controller = new UsersController(usersService, authService, auditLogService);
   });
 
   it("returns the caller's own ICE info", async () => {
@@ -78,6 +83,14 @@ describe("UsersController", () => {
     ).resolves.toEqual({
       iceInfo: { iceMedicalHistory: "Asthma" },
     });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "member-1",
+      attendeeId: null,
+      meetId: null,
+      action: "updated",
+      target: "ice info",
+    });
   });
 
   it("copies the caller's meta values from an attendee submission", async () => {
@@ -102,6 +115,14 @@ describe("UsersController", () => {
       "meet-1",
       "5f4da8b4-b217-4fd0-99aa-bf10f1ef5a1e",
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "member-1",
+      attendeeId: "5f4da8b4-b217-4fd0-99aa-bf10f1ef5a1e",
+      meetId: "meet-1",
+      action: "saved",
+      target: "signup answers",
+    });
   });
 
   it("rejects unauthenticated remember-my-answers copying", async () => {
@@ -133,6 +154,14 @@ describe("UsersController", () => {
         id: "member-1",
         avatarUrl: "https://cdn.example.com/avatar.jpg",
       },
+    });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "member-1",
+      attendeeId: null,
+      meetId: null,
+      action: "updated",
+      target: "avatar",
     });
   });
 
@@ -206,6 +235,14 @@ describe("UsersController", () => {
       email: "new@example.com",
       organizationId: "org-1",
     });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      attendeeId: null,
+      meetId: null,
+      action: "created",
+      target: "user",
+    });
   });
 
   it("allows users to update their own profile without organizationId", async () => {
@@ -272,6 +309,14 @@ describe("UsersController", () => {
     ).resolves.toEqual({
       metaValues: [{ key: "gear", value: "Helmet" }],
     });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "member-1",
+      attendeeId: null,
+      meetId: null,
+      action: "saved",
+      target: "user meta values",
+    });
   });
 
   it("rejects delete when the target user does not exist", async () => {
@@ -294,5 +339,13 @@ describe("UsersController", () => {
       deleted: true,
     });
     expect(usersService.remove).toHaveBeenCalledWith("user-2");
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      attendeeId: null,
+      meetId: null,
+      action: "deleted",
+      target: "user",
+    });
   });
 });

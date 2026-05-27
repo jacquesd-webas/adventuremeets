@@ -25,6 +25,7 @@ import { renderEmailTemplate } from "../email/email.templates";
 import { EmailTemplateName } from "../email/email.types";
 import type { Request } from "express";
 import { UsersService } from "../users/users.service";
+import { AuditLogService } from "../audit/audit-log.service";
 
 @ApiTags("Meet Attendees")
 @Controller("meets/:meetId/attendees")
@@ -34,6 +35,7 @@ export class MeetAttendeesController {
     private readonly authService: AuthService,
     private readonly emailService: EmailService,
     private readonly usersService: UsersService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   @Get()
@@ -181,6 +183,13 @@ export class MeetAttendeesController {
         await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
       }
     }
+    await this.auditLogService.addRecord({
+      orgId: meet.organizationId ?? "",
+      attendeeId: attendee.id,
+      meetId: meet.id,
+      action: "signed up for",
+      target: `meet ${meet.name || "meet"}`,
+    });
     return { attendee };
   }
 
@@ -227,7 +236,17 @@ export class MeetAttendeesController {
       );
     }
 
-    return this.meetsService.updateAttendee(meetId, attendeeId, dto);
+    const attendee = await this.meetsService.updateAttendee(meetId, attendeeId, dto);
+    await this.auditLogService.addRecord({
+      orgId: meet.organizationId ?? "",
+      userId: user.id,
+      attendeeId,
+      meetId: meet.id,
+      action: "updated attendee for",
+      target: `meet ${meet.name || "meet"}`,
+    });
+
+    return attendee;
   }
 
   @Get(":attendeeId/ice")
@@ -304,7 +323,16 @@ export class MeetAttendeesController {
         "You are not an organizer in this organization",
       );
     }
-    return this.meetsService.removeAttendee(meetId, attendeeId);
+    const result = await this.meetsService.removeAttendee(meetId, attendeeId);
+    await this.auditLogService.addRecord({
+      orgId: meet.organizationId ?? "",
+      userId: user.id,
+      attendeeId,
+      meetId: meet.id,
+      action: "removed attendee from",
+      target: `meet ${meet.name || "meet"}`,
+    });
+    return result;
   }
 
   private isMeetAccessDay(

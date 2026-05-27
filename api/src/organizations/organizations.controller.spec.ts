@@ -7,6 +7,7 @@ import { OrganizationsService } from "./organizations.service";
 import { AuthService } from "../auth/auth.service";
 import { DatabaseService } from "../database/database.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
+import { AuditLogService } from "../audit/audit-log.service";
 
 describe("OrganizationsController", () => {
   let controller: OrganizationsController;
@@ -39,6 +40,10 @@ describe("OrganizationsController", () => {
     getClient: jest.fn(),
   } as unknown as DatabaseService;
 
+  const auditLogService = {
+    addRecord: jest.fn(),
+  } as unknown as AuditLogService;
+
   const adminUser: UserProfile = {
     id: "admin-1",
     email: "admin@example.com",
@@ -59,6 +64,7 @@ describe("OrganizationsController", () => {
       organizationsService,
       authService,
       db,
+      auditLogService,
     );
   });
 
@@ -105,6 +111,12 @@ describe("OrganizationsController", () => {
       "member@example.com",
     );
     expect(cleanupSpy).toHaveBeenCalledWith("member-1", "org-1");
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "member-1",
+      action: "accepted",
+      target: "organization invite",
+    });
   });
 
   it("still returns the accepted invite when private-organization cleanup fails", async () => {
@@ -163,6 +175,12 @@ describe("OrganizationsController", () => {
       "invite-1",
       "member@example.com",
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "member-1",
+      action: "declined",
+      target: "organization invite",
+    });
   });
 
   it("returns an empty list when the caller has no organization memberships", async () => {
@@ -339,6 +357,12 @@ describe("OrganizationsController", () => {
     ).resolves.toEqual({
       template: { id: "template-1", name: "New Template" },
     });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      action: "created",
+      target: "organization template New Template",
+    });
   });
 
   it("updates templates for admins", async () => {
@@ -385,6 +409,12 @@ describe("OrganizationsController", () => {
     ).resolves.toEqual({
       organization: { id: "org-1", name: "Updated Org" },
     });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      action: "updated",
+      target: "organization Updated Org",
+    });
   });
 
   it("lists invites for admins", async () => {
@@ -424,5 +454,11 @@ describe("OrganizationsController", () => {
       { email: "new@example.com", roleId: 4 },
       "admin-1",
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      action: "created",
+      target: "organization invite",
+    });
   });
 });

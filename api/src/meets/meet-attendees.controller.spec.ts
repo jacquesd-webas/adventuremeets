@@ -19,6 +19,7 @@ import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { UsersService } from "../users/users.service";
+import { AuditLogService } from "../audit/audit-log.service";
 
 describe("MeetAttendeesController", () => {
   let controller: MeetAttendeesController;
@@ -48,6 +49,10 @@ describe("MeetAttendeesController", () => {
   const usersService = {
     findIceInfoByUserId: jest.fn(),
   } as unknown as UsersService;
+
+  const auditLogService = {
+    addRecord: jest.fn(),
+  } as unknown as AuditLogService;
 
   const user: UserProfile = {
     id: "user-1",
@@ -88,6 +93,7 @@ describe("MeetAttendeesController", () => {
       authService,
       emailService,
       usersService,
+      auditLogService,
     );
   });
 
@@ -317,6 +323,13 @@ describe("MeetAttendeesController", () => {
       "meet-1",
       ["attendee-1"],
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "signed up for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("does not set respondedAt for plain signup acknowledgements without auto-placement", async () => {
@@ -431,6 +444,14 @@ describe("MeetAttendeesController", () => {
       "attendee-1",
       dto,
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "user-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "updated attendee for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("rejects check-in updates from another organizer in the same organization", async () => {
@@ -532,6 +553,14 @@ describe("MeetAttendeesController", () => {
       "meet-1",
       "attendee-1",
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "user-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "removed attendee from",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("allows attendee removal by another organizer in the same organization", async () => {

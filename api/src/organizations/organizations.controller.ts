@@ -25,6 +25,7 @@ import { Public } from "../auth/decorators/public.decorator";
 import { UseGuards } from "@nestjs/common";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 import { DatabaseService } from "../database/database.service";
+import { AuditLogService } from "../audit/audit-log.service";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -36,6 +37,7 @@ export class OrganizationsController {
     private readonly organizationsService: OrganizationsService,
     private readonly authService: AuthService,
     private readonly db: DatabaseService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   @Get()
@@ -75,6 +77,13 @@ export class OrganizationsController {
       );
     }
 
+    await this.auditLogService.addRecord({
+      orgId: invite.organizationId,
+      userId: user.id,
+      action: "accepted",
+      target: "organization invite",
+    });
+
     return { invite };
   }
 
@@ -89,6 +98,12 @@ export class OrganizationsController {
       inviteId,
       user.email,
     );
+    await this.auditLogService.addRecord({
+      orgId: invite.organizationId,
+      userId: user.id,
+      action: "declined",
+      target: "organization invite",
+    });
     return { invite };
   }
 
@@ -187,6 +202,12 @@ export class OrganizationsController {
       userId,
       body,
     );
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "updated",
+      target: "organization member",
+    });
     return { member };
   }
 
@@ -269,6 +290,12 @@ export class OrganizationsController {
     }
 
     const template = await this.organizationsService.createTemplate(id, body);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "created",
+      target: `organization template ${template.name || "template"}`,
+    });
     return { template };
   }
 
@@ -292,6 +319,12 @@ export class OrganizationsController {
       templateId,
       body,
     );
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "updated",
+      target: `organization template ${template.name || "template"}`,
+    });
     return { template };
   }
 
@@ -308,7 +341,14 @@ export class OrganizationsController {
         "You are not an administrator for this organization",
       );
     }
-    return await this.organizationsService.deleteTemplate(id, templateId);
+    const result = await this.organizationsService.deleteTemplate(id, templateId);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "deleted",
+      target: "organization template",
+    });
+    return result;
   }
 
   @Patch(":id")
@@ -325,6 +365,12 @@ export class OrganizationsController {
       );
     }
     const organization = await this.organizationsService.update(id, dto);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "updated",
+      target: `organization ${organization.name || "organization"}`,
+    });
     return { organization };
   }
 
@@ -364,6 +410,12 @@ export class OrganizationsController {
       body,
       user.id,
     );
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "created",
+      target: "organization invite",
+    });
     return { invite };
   }
 }

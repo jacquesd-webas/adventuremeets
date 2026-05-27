@@ -11,6 +11,7 @@ import { MeetShareController } from "./meet-share.controller";
 import { MeetWallController } from "./meet-wall.controller";
 import { UsersModule } from "../users/users.module";
 import { OrganizationsModule } from "../organizations/organizations.module";
+import { AuditLogModule } from "../audit/audit-log.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { OrganizationsModule } from "../organizations/organizations.module";
     AuthModule,
     UsersModule,
     OrganizationsModule,
+    AuditLogModule,
   ],
   controllers: [
     MeetsController,

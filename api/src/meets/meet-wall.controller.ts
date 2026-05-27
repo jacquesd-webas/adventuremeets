@@ -28,6 +28,7 @@ import { UpdateWallItemCommentDto } from "./dto/update-wall-item-comment.dto";
 import { OrderWallItemFavouritesDto } from "./dto/order-wall-item-favourites.dto";
 import { UpdateWallItemReactionDto } from "./dto/update-wall-item-reaction.dto";
 import { UpdateWallItemFavouriteDto } from "./dto/update-wall-item-favourite.dto";
+import { AuditLogService } from "../audit/audit-log.service";
 
 @ApiTags("Meet Wall")
 @Controller("meets/:meetId/wall")
@@ -35,6 +36,7 @@ export class MeetWallController {
   constructor(
     private readonly meetsService: MeetsService,
     private readonly authService: AuthService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   @Public()
@@ -57,10 +59,19 @@ export class MeetWallController {
       throw new BadRequestException("Only image uploads are allowed");
     }
 
-    return this.meetsService.createWallItem(meetId, dto, file, {
+    const result = await this.meetsService.createWallItem(meetId, dto, file, {
       userId: user?.id,
       attendeeId: context.attendee?.id,
     });
+    await this.auditLogService.addRecord({
+      orgId: context.meet.organizationId ?? "",
+      userId: user?.id,
+      attendeeId: context.attendee?.id,
+      meetId: context.meet.id,
+      action: file ? "posted photo to" : "posted to",
+      target: `meet wall for ${context.meet.name || "meet"}`,
+    });
+    return result;
   }
 
   @Public()
@@ -102,7 +113,18 @@ export class MeetWallController {
       );
     }
 
-    return this.meetsService.orderWallItemFavourites(meetId, dto.wallItemIds);
+    const result = await this.meetsService.orderWallItemFavourites(
+      meetId,
+      dto.wallItemIds,
+    );
+    await this.auditLogService.addRecord({
+      orgId: meet.organizationId ?? "",
+      userId: user.id,
+      meetId: meet.id,
+      action: "reordered favourites for",
+      target: `meet wall for ${meet.name || "meet"}`,
+    });
+    return result;
   }
 
   @Patch(":wallItemId/favourite")
@@ -121,11 +143,19 @@ export class MeetWallController {
       );
     }
 
-    return this.meetsService.updateWallItemFavourite(
+    const result = await this.meetsService.updateWallItemFavourite(
       meetId,
       wallItemId,
       dto.favourite,
     );
+    await this.auditLogService.addRecord({
+      orgId: meet.organizationId ?? "",
+      userId: user.id,
+      meetId: meet.id,
+      action: "updated favourite for",
+      target: `meet wall for ${meet.name || "meet"}`,
+    });
+    return result;
   }
 
   @Public()
@@ -139,7 +169,7 @@ export class MeetWallController {
   ) {
     const context = await this.getWallContext(meetId, user, dto.attendeeId);
 
-    return this.meetsService.updateWallItemComment(
+    const result = await this.meetsService.updateWallItemComment(
       meetId,
       wallItemId,
       dto.comment,
@@ -148,6 +178,15 @@ export class MeetWallController {
         attendeeId: context.attendee?.id,
       },
     );
+    await this.auditLogService.addRecord({
+      orgId: context.meet.organizationId ?? "",
+      userId: user?.id,
+      attendeeId: context.attendee?.id,
+      meetId: context.meet.id,
+      action: "edited",
+      target: `meet wall for ${context.meet.name || "meet"}`,
+    });
+    return result;
   }
 
   @Public()
@@ -166,7 +205,7 @@ export class MeetWallController {
       );
     }
 
-    return this.meetsService.updateWallItemReaction(
+    const result = await this.meetsService.updateWallItemReaction(
       meetId,
       wallItemId,
       {
@@ -175,6 +214,15 @@ export class MeetWallController {
       },
       dto.reaction,
     );
+    await this.auditLogService.addRecord({
+      orgId: context.meet.organizationId ?? "",
+      userId: user?.id,
+      attendeeId: context.attendee?.id,
+      meetId: context.meet.id,
+      action: "reacted to",
+      target: `meet wall for ${context.meet.name || "meet"}`,
+    });
+    return result;
   }
 
   @Delete(":wallItemId")
@@ -188,13 +236,22 @@ export class MeetWallController {
   ) {
     const context = await this.getWallContext(meetId, user, attendeeId);
 
-    return this.meetsService.removeWallItem(meetId, wallItemId, {
+    const result = await this.meetsService.removeWallItem(meetId, wallItemId, {
       userId: user?.id,
       attendeeId: context.attendee?.id,
       canAdminDelete: user
         ? this.hasOrganizationRole(user, context.meet.organizationId, "admin")
         : false,
     });
+    await this.auditLogService.addRecord({
+      orgId: context.meet.organizationId ?? "",
+      userId: user?.id,
+      attendeeId: context.attendee?.id,
+      meetId: context.meet.id,
+      action: "deleted",
+      target: `meet wall for ${context.meet.name || "meet"}`,
+    });
+    return result;
   }
 
   private async getWallContext(
