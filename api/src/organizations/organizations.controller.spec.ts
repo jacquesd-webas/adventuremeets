@@ -309,18 +309,28 @@ describe("OrganizationsController", () => {
     );
   });
 
-  it("gets a single template for admins", async () => {
-    (authService.hasRole as jest.Mock).mockReturnValue(true);
+  it("gets a single template for organizers", async () => {
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer",
+    );
     (organizationsService.findTemplateById as jest.Mock).mockResolvedValue({
       id: "template-1",
       name: "Default",
     });
 
     await expect(
-      controller.findTemplate("org-1", "template-1", adminUser),
+      controller.findTemplate("org-1", "template-1", memberUser),
     ).resolves.toEqual({
       template: { id: "template-1", name: "Default" },
     });
+  });
+
+  it("rejects single template fetch for non-organizers", async () => {
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.findTemplate("org-1", "template-1", memberUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it("creates templates for admins", async () => {
