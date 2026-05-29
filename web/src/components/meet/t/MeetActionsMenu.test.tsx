@@ -54,7 +54,7 @@ describe("MeetActionsMenu", () => {
     expect(screen.getByText("Meet details")).toBeInTheDocument();
     expect(screen.getByText("Preview")).toBeInTheDocument();
     expect(screen.getByText("Copy link")).toBeInTheDocument();
-    expect(screen.getByText("Attendees")).toBeInTheDocument();
+    expect(screen.queryByText("Attendees")).not.toBeInTheDocument();
     expect(screen.getByText("Create a copy").closest("li")).toHaveAttribute(
       "aria-disabled",
       "true",

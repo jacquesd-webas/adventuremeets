@@ -235,7 +235,13 @@ export function MeetActionsMenu({
               <ListItemText>Meet details</ListItemText>
             </MenuItem>
           )}
-          {shouldShow(MeetActionsEnum.Attendees, statusId, isUpcoming, startTime) && (
+          {canManageMeet &&
+            shouldShow(
+              MeetActionsEnum.Attendees,
+              statusId,
+              isUpcoming,
+              startTime,
+            ) && (
             <MenuItem
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Attendees)
