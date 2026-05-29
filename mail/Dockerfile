@@ -9,7 +9,7 @@ COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN chmod +x /usr/local/bin/mailhook /usr/local/bin/entrypoint.sh
 
-ENV MAILHOOK_URL="http://api:8000/incoming"
+ENV MAILHOOK_URL="http://api:8000/api/v1/incoming"
 
 EXPOSE 25
 
