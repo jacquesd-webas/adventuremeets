@@ -4,10 +4,12 @@ set -euo pipefail
 RECIPIENT=""
 SENDER=""
 CLIENT=""
+MAILHOOK_URL=""
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --url=*) MAILHOOK_URL="${1#*=}"; shift ;;
     --recipient=*) RECIPIENT="${1#*=}"; shift ;;
     --sender=*) SENDER="${1#*=}"; shift ;;
     --client_address=*) CLIENT="${1#*=}"; shift ;;
@@ -30,7 +32,7 @@ cat > "$TMP"
 
 # Call adventuremeets API (public endpoint)
 if [[ -z "${MAILHOOK_URL:-}" ]]; then
-  echo "MAILHOOK_URL must be set" >&2
+  echo "MAILHOOK_URL must be provided to mailhook" >&2
   exit 1
 fi
 
