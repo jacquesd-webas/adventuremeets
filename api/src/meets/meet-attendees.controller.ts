@@ -47,12 +47,7 @@ export class MeetAttendeesController {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(meetId);
-
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You are not an organizer in this organization",
-      );
-    }
+    this.assertCanAccessMeetAttendees(user, meet);
     return await this.meetsService.listAttendees(meetId, filter);
   }
 
@@ -219,24 +214,13 @@ export class MeetAttendeesController {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(meetId);
+    this.assertCanAccessMeetAttendees(user, meet);
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You are not an organizer in this organization",
-      );
-    }
-
-    if (
-      dto.status === "checked-in" &&
-      !this.authService.hasRole(user, meet.organizationId!, "admin") &&
-      user.id !== meet.organizerId
-    ) {
-      throw new ForbiddenException(
-        "You cannot check in attendees for a meet you do not organize",
-      );
-    }
-
-    const attendee = await this.meetsService.updateAttendee(meetId, attendeeId, dto);
+    const attendee = await this.meetsService.updateAttendee(
+      meetId,
+      attendeeId,
+      dto,
+    );
     await this.auditLogService.addRecord({
       orgId: meet.organizationId ?? "",
       userId: user.id,
@@ -294,12 +278,7 @@ export class MeetAttendeesController {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(meetId);
-
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You are not an organizer in this organization",
-      );
-    }
+    this.assertCanAccessMeetAttendees(user, meet);
 
     const history = await this.meetsService.listAttendeeHistory(
       meetId,
@@ -317,12 +296,8 @@ export class MeetAttendeesController {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(meetId);
+    this.assertCanAccessMeetAttendees(user, meet);
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You are not an organizer in this organization",
-      );
-    }
     const result = await this.meetsService.removeAttendee(meetId, attendeeId);
     await this.auditLogService.addRecord({
       orgId: meet.organizationId ?? "",
@@ -333,6 +308,25 @@ export class MeetAttendeesController {
       target: `meet ${meet.name || "meet"}`,
     });
     return result;
+  }
+
+  private assertCanAccessMeetAttendees(
+    user: UserProfile,
+    meet: { organizationId?: string | null; organizerId?: string | null },
+  ) {
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        "You are not an organizer in this organization",
+      );
+    }
+    if (
+      !this.authService.hasRole(user, meet.organizationId!, "admin") &&
+      user.id !== meet.organizerId
+    ) {
+      throw new ForbiddenException(
+        "You cannot access attendees for a meet you do not organize",
+      );
+    }
   }
 
   private isMeetAccessDay(

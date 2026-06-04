@@ -246,6 +246,12 @@ describe("ManageAttendeesModal", () => {
   it("groups close notifications by attendee status", async () => {
     mockAttendees = [
       {
+        id: "invited-1",
+        name: "Invited Person",
+        status: AttendeeStatusEnum.Invited,
+        email: "invited@example.com",
+      },
+      {
         id: "confirmed-1",
         name: "Confirmed Person",
         status: AttendeeStatusEnum.Confirmed,
@@ -282,27 +288,61 @@ describe("ManageAttendeesModal", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Notify now" }));
 
     await waitFor(() => {
-      expect(notifyAttendeeAsync).toHaveBeenCalledTimes(3);
+      expect(notifyAttendeeAsync).toHaveBeenCalledTimes(4);
     });
 
     expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(1, {
+      meetId: "m1",
+      subject: "Invitation: River Hike",
+      text: "You have been invited to join this meet. Please open your meet link to confirm or update your attendance.",
+      attendeeIds: ["invited-1"],
+    });
+    expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(2, {
       meetId: "m1",
       subject: "Confirmed: River Hike",
       text: "Confirmed custom body",
       attendeeIds: ["confirmed-1"],
     });
-    expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(2, {
+    expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(3, {
       meetId: "m1",
       subject: "Waitlist: River Hike",
       text: "Waitlisted custom body",
       attendeeIds: ["waitlisted-1"],
     });
-    expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(3, {
+    expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(4, {
       meetId: "m1",
       subject: "Update: River Hike",
       text: "Rejected custom body",
       attendeeIds: ["rejected-1"],
     });
+  });
+
+  it("shows the notify dialog for invited attendees who have not been notified", async () => {
+    mockAttendees = [
+      {
+        id: "invited-1",
+        name: "Invited Person",
+        status: AttendeeStatusEnum.Invited,
+        email: "invited@example.com",
+      },
+    ];
+
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("close-attendees-modal"));
+
+    expect(await screen.findByText("Notify attendees?")).toBeInTheDocument();
   });
 
   it("disables attendee uploads until a non-organizer unlocks the meet", async () => {

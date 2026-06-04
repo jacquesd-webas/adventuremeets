@@ -9,6 +9,9 @@ type DefaultMessageOptions = {
 };
 
 const createMessageContent = (status: AttendeeStatusEnum) => {
+  if (status === AttendeeStatusEnum.Invited) {
+    return "You have been invited to join this meet. Please open your meet link to confirm or update your attendance.";
+  }
   if (status === AttendeeStatusEnum.Confirmed) {
     return "Your attendance has been confirmed for the meet. Looking forward to seeing you there!";
   }
@@ -36,6 +39,14 @@ export function useDefaultMessage(
           ? `Confirmed: ${options.meetName}`
           : "Meet attendance confirmed",
         content: options?.confirmMessage?.trim() || createMessageContent(status),
+      };
+    }
+    if (status === AttendeeStatusEnum.Invited) {
+      return {
+        subject: options?.meetName
+          ? `Invitation: ${options.meetName}`
+          : "Meet invitation",
+        content: createMessageContent(status),
       };
     }
     if (status === AttendeeStatusEnum.Waitlisted) {

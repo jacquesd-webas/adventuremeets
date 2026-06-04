@@ -1,7 +1,11 @@
 import { MeetsService } from "./meets.service";
 import { DatabaseService } from "../database/database.service";
 import { MinioService } from "../storage/minio.service";
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 
 const buildBuilder = () => {
   const builder: any = {};
@@ -87,6 +91,8 @@ describe("MeetsService", () => {
       waitlistSize: 5,
       statusId: 2,
       allowGuests: true,
+      allowSelfCheckin: true,
+      allowWalkins: true,
       maxGuests: 2,
       currencyId: 1,
       costCents: 1234,
@@ -105,6 +111,8 @@ describe("MeetsService", () => {
     expect(insertArg.waitlist_size).toBe(5);
     expect(insertArg.status_id).toBe(2);
     expect(insertArg.allow_guests).toBe(true);
+    expect(insertArg.allow_self_checkin).toBe(true);
+    expect(insertArg.allow_walkins).toBe(true);
     expect(insertArg.max_guests).toBe(2);
     expect(insertArg.currency_id).toBe(1);
     expect(insertArg.cost_cents).toBe(123400);
@@ -186,6 +194,8 @@ describe("MeetsService", () => {
       cost_cents: 2500,
       deposit_cents: 1000,
       allow_guests: true,
+      allow_self_checkin: true,
+      allow_walkins: true,
       max_guests: 2,
       created_at: "2026-04-01T00:00:00Z",
       updated_at: "2026-04-02T00:00:00Z",
@@ -208,6 +218,7 @@ describe("MeetsService", () => {
           config: { includeInReports: true },
         },
       ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ field_key: "fitness" }])
       .mockResolvedValueOnce([{ id: "meta-2", field_key: "fitness" }]);
 
@@ -609,6 +620,135 @@ describe("MeetsService", () => {
       ["id"],
     );
     expect(metaValuesBuilder.insert).not.toHaveBeenCalled();
+  });
+
+  it("preserves existing meet meta definition ids when editing questions", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.update.mockResolvedValue([{ id: "meet-1" }]);
+
+    const metaDefinitionsBuilder = buildBuilder();
+    metaDefinitionsBuilder.select.mockResolvedValue([
+      { id: "meta-1", field_key: "fitness" },
+      { id: "meta-2", field_key: "dietary" },
+    ]);
+    metaDefinitionsBuilder.update.mockResolvedValue([]);
+    metaDefinitionsBuilder.insert.mockResolvedValue([]);
+    metaDefinitionsBuilder.del.mockResolvedValue(1);
+
+    const client: any = (table: string) => {
+      if (table === "meets") return meetsBuilder;
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+    client.raw = jest.fn(() => "raw");
+    client.fn = { now: jest.fn(() => "now") };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await service.update("meet-1", {
+      metaDefinitions: [
+        {
+          id: "meta-1",
+          fieldKey: "fitness",
+          label: "Fitness",
+          fieldType: "text",
+          required: true,
+        },
+        {
+          fieldKey: "pace",
+          label: "Pace",
+          fieldType: "select",
+          required: false,
+          config: { options: ["Slow", "Fast"] },
+        },
+      ],
+    } as any);
+
+    expect(metaDefinitionsBuilder.whereIn).toHaveBeenCalledWith("id", [
+      "meta-2",
+    ]);
+    expect(metaDefinitionsBuilder.del).toHaveBeenCalled();
+    expect(metaDefinitionsBuilder.update).toHaveBeenNthCalledWith(1, {
+      field_key: "tmp_sync_meta-1",
+      updated_at: "now",
+    });
+    expect(metaDefinitionsBuilder.update).toHaveBeenNthCalledWith(2, {
+      field_key: "fitness",
+      label: "Fitness",
+      field_type: "text",
+      required: true,
+      position: 0,
+      config: {},
+      updated_at: "now",
+    });
+    expect(metaDefinitionsBuilder.insert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        meet_id: "meet-1",
+        field_key: "pace",
+        label: "Pace",
+        field_type: "select",
+        required: false,
+        position: 1,
+        config: { options: ["Slow", "Fast"] },
+      }),
+    ]);
+  });
+
+  it("returns a user-friendly error when removing a question that already has answers", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.update.mockResolvedValue([{ id: "meet-1" }]);
+
+    const metaDefinitionsBuilder = buildBuilder();
+    metaDefinitionsBuilder.select.mockResolvedValue([
+      { id: "meta-1", field_key: "fitness" },
+      { id: "meta-2", field_key: "dietary" },
+    ]);
+
+    const metaValuesBuilder = buildBuilder();
+    metaValuesBuilder.first.mockResolvedValue({
+      meta_definition_id: "meta-2",
+    });
+
+    const client: any = (table: string) => {
+      if (table === "meets") return meetsBuilder;
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      if (table === "meet_meta_values") return metaValuesBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+    client.raw = jest.fn(() => "raw");
+    client.fn = { now: jest.fn(() => "now") };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.update("meet-1", {
+        metaDefinitions: [
+          {
+            id: "meta-1",
+            fieldKey: "fitness",
+            label: "Fitness",
+            fieldType: "text",
+            required: true,
+          },
+        ],
+      } as any),
+    ).rejects.toThrow(
+      new BadRequestException(
+        "You cannot remove a meet question that already has attendee answers.",
+      ),
+    );
+
+    expect(metaValuesBuilder.whereIn).toHaveBeenCalledWith(
+      "meta_definition_id",
+      ["meta-2"],
+    );
+    expect(metaDefinitionsBuilder.del).not.toHaveBeenCalled();
   });
 
   it("lists meet images with the primary image first", async () => {

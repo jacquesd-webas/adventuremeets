@@ -1757,6 +1757,8 @@ export class MeetsService {
       auto_placement: dto.autoPlacement,
       auto_promote_waitlist: dto.autoPromoteWaitlist,
       allow_guests: dto.allowGuests,
+      allow_self_checkin: dto.allowSelfCheckin,
+      allow_walkins: dto.allowWalkins,
       max_guests: dto.maxGuests,
       is_virtual: dto.isVirtual,
       confirm_message: dto.confirmMessage,
@@ -1854,6 +1856,8 @@ export class MeetsService {
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,
+      allowSelfCheckin: meet.allow_self_checkin ?? undefined,
+      allowWalkins: meet.allow_walkins ?? undefined,
       maxGuests: meet.max_guests ?? undefined,
       isVirtual: meet.is_virtual ?? undefined,
       confirmMessage: meet.confirm_message ?? undefined,
@@ -2041,6 +2045,7 @@ export class MeetsService {
   ) {
     const cleaned = metaDefinitions
       .map((definition, index) => ({
+        id: definition.id,
         meet_id: meetId,
         field_key: definition.fieldKey || `field_${index + 1}`,
         label: definition.label,
@@ -2050,10 +2055,135 @@ export class MeetsService {
         config: definition.config ?? {},
       }))
       .filter((definition) => definition.label);
+    const updatedAtValue = trx.fn?.now ? trx.fn.now() : new Date().toISOString();
 
-    await trx("meet_meta_definitions").where({ meet_id: meetId }).del();
-    if (cleaned.length > 0) {
-      await trx("meet_meta_definitions").insert(cleaned);
+    const existing = (await trx("meet_meta_definitions")
+      .where({ meet_id: meetId })
+      .select("id", "field_key")) as Array<{
+      id: string;
+      field_key: string;
+    }>;
+
+    const existingById = new Map(
+      existing.map((definition) => [
+        definition.id,
+        definition,
+      ]),
+    );
+    const existingByFieldKey = new Map(
+      existing.map((definition) => [
+        definition.field_key,
+        definition,
+      ]),
+    );
+
+    const matchedExistingIds = new Set<string>();
+    const updates: Array<{
+      id: string;
+      field_key: string;
+      label: string;
+      field_type: string;
+      required: boolean;
+      position: number;
+      config: Record<string, any>;
+    }> = [];
+    const inserts: Array<{
+      meet_id: string;
+      field_key: string;
+      label: string;
+      field_type: string;
+      required: boolean;
+      position: number;
+      config: Record<string, any>;
+    }> = [];
+
+    cleaned.forEach((definition) => {
+      const matchedById =
+        definition.id && existingById.has(definition.id)
+          ? existingById.get(definition.id)
+          : undefined;
+      const matchedByFieldKey =
+        !matchedById && existingByFieldKey.has(definition.field_key)
+          ? existingByFieldKey.get(definition.field_key)
+          : undefined;
+      const matched =
+        matchedById ??
+        (matchedByFieldKey &&
+        !matchedExistingIds.has(matchedByFieldKey.id)
+          ? matchedByFieldKey
+          : undefined);
+
+      if (matched) {
+        matchedExistingIds.add(matched.id);
+        updates.push({
+          id: matched.id,
+          field_key: definition.field_key,
+          label: definition.label,
+          field_type: definition.field_type,
+          required: definition.required,
+          position: definition.position,
+          config: definition.config,
+        });
+        return;
+      }
+
+      inserts.push({
+        meet_id: definition.meet_id,
+        field_key: definition.field_key,
+        label: definition.label,
+        field_type: definition.field_type,
+        required: definition.required,
+        position: definition.position,
+        config: definition.config,
+      });
+    });
+
+    const idsToDelete = existing
+      .filter((definition) => !matchedExistingIds.has(definition.id))
+      .map((definition) => definition.id);
+
+    if (idsToDelete.length > 0) {
+      const answeredMetaDefinition = await trx("meet_meta_values")
+        .whereIn("meta_definition_id", idsToDelete)
+        .first("meta_definition_id");
+
+      if (answeredMetaDefinition) {
+        throw new BadRequestException(
+          "You cannot remove a meet question that already has attendee answers.",
+        );
+      }
+
+      await trx("meet_meta_definitions")
+        .where({ meet_id: meetId })
+        .whereIn("id", idsToDelete)
+        .del();
+    }
+
+    for (const definition of updates) {
+      await trx("meet_meta_definitions")
+        .where({ meet_id: meetId, id: definition.id })
+        .update({
+          field_key: `tmp_sync_${definition.id}`,
+          updated_at: updatedAtValue,
+        });
+    }
+
+    for (const definition of updates) {
+      await trx("meet_meta_definitions")
+        .where({ meet_id: meetId, id: definition.id })
+        .update({
+          field_key: definition.field_key,
+          label: definition.label,
+          field_type: definition.field_type,
+          required: definition.required,
+          position: definition.position,
+          config: definition.config,
+          updated_at: updatedAtValue,
+        });
+    }
+
+    if (inserts.length > 0) {
+      await trx("meet_meta_definitions").insert(inserts);
     }
   }
 

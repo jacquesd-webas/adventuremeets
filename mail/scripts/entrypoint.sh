@@ -93,10 +93,15 @@ if [ -n "${RELAYHOST:-}" ]; then
   postconf -e "relayhost = ${RELAYHOST}"
 fi
 
+if [ -z "${MAILHOOK_URL:-}" ]; then
+  echo "MAILHOOK_URL must be set" >&2
+  exit 1
+fi
+
 if ! grep -q "^mailhook" /etc/postfix/master.cf; then
-  cat >> /etc/postfix/master.cf <<'EOF'
+  cat >> /etc/postfix/master.cf <<EOF
 mailhook unix - n n - - pipe
-  flags=Rq user=mailhook argv=/usr/local/bin/mailhook --recipient=${recipient} --sender=${sender} --client_address=${client_address}
+  flags=Rq user=mailhook argv=/usr/local/bin/mailhook --url=${MAILHOOK_URL} --recipient=\${recipient} --sender=\${sender} --client_address=\${client_address}
 EOF
 fi
 

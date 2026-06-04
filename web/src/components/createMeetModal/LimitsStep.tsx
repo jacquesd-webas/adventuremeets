@@ -185,6 +185,52 @@ export const LimitsStep = ({
             />
           </LabeledField>
         )}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={state.allowSelfCheckin}
+              disabled={disabled}
+              onChange={(e) =>
+                setState((prev) => ({
+                  ...prev,
+                  allowSelfCheckin: e.target.checked,
+                  allowWalkins: e.target.checked ? prev.allowWalkins : false,
+                }))
+              }
+            />
+          }
+          label="Allow self check-in"
+        />
+        {isHelpEnabled ? (
+          <Typography variant="caption" color="text.secondary">
+            Show a self check-in QR code on the check-in page so attendees can
+            open the meet from their own devices.
+          </Typography>
+        ) : null}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={state.allowWalkins}
+              disabled={disabled}
+              onChange={(e) =>
+                setState((prev) => ({
+                  ...prev,
+                  allowWalkins: e.target.checked,
+                  allowSelfCheckin: e.target.checked
+                    ? true
+                    : prev.allowSelfCheckin,
+                }))
+              }
+            />
+          }
+          label="Allow walk-ins"
+        />
+        {isHelpEnabled ? (
+          <Typography variant="caption" color="text.secondary">
+            Allow people on-site to self check in even if they were not already
+            on the attendee list. This automatically enables self check-in.
+          </Typography>
+        ) : null}
       </Stack>
     </Stack>
     {isHelpEnabled && !isHelpBannerDismissed ? (

@@ -5,7 +5,7 @@ import { vi } from "vitest";
 import MeetCheckinPage from "../MeetCheckinPage";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 
-let mockMeet = { organizerId: "organizer-1" };
+let mockMeet: Record<string, any> = { organizerId: "organizer-1" };
 let mockUser = { id: "organizer-1" };
 let mockAttendees: Array<{
   id: string;
@@ -63,6 +63,12 @@ vi.mock("../../components/attendeeCheckin/AttendeeCheckinItem", () => ({
       </div>
     );
   },
+}));
+
+vi.mock("qrcode.react", () => ({
+  QRCodeSVG: ({ value }: { value: string }) => (
+    <div data-testid="checkin-qr-code" data-value={value} />
+  ),
 }));
 
 describe("MeetCheckinPage", () => {
@@ -210,6 +216,61 @@ describe("MeetCheckinPage", () => {
       overflowY: "auto",
       minHeight: "0",
     });
+  });
+
+  it("shows the list without self check-in actions when self check-in is disabled", () => {
+    render(
+      <MemoryRouter
+        initialEntries={["/meet/meet-1/checkin"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.queryByLabelText("Show self check-in QR code"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Walk-ins enabled")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("meet-checkin-scroll-container"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows self check-in actions next to search when enabled", async () => {
+    const user = userEvent.setup();
+    mockMeet = {
+      organizerId: "organizer-1",
+      shareCode: "share-123",
+      allowSelfCheckin: true,
+      allowWalkins: true,
+    };
+
+    render(
+      <MemoryRouter
+        initialEntries={["/meet/meet-1/checkin"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByLabelText("Show self check-in QR code"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Walk-ins enabled")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Show self check-in QR code"));
+
+    expect(screen.getByText("Self check-in QR code")).toBeInTheDocument();
+    expect(screen.getByTestId("checkin-qr-code")).toHaveAttribute(
+      "data-value",
+      `${window.location.origin}/meets/share-123?self-checkin`,
+    );
   });
 
   it("does not set the row checking spinner while offline", async () => {

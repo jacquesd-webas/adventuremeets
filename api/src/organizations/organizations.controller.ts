@@ -262,9 +262,9 @@ export class OrganizationsController {
   ) {
     if (!user) throw new UnauthorizedException();
 
-    if (!this.authService.hasRole(user, id, "admin")) {
+    if (!this.authService.hasRole(user, id, "organizer")) {
       throw new ForbiddenException(
-        "You are not an administrator for this organization",
+        "You are not an organizer for this organization",
       );
     }
 
