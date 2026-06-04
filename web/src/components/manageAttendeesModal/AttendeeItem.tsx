@@ -142,7 +142,14 @@ export function AttendeeItem({
           ) : null}
         </Box>
       ) : (
-        <Avatar sx={{ width: 32, height: 32, mr: 1.5, bgcolor: "action.hover" }}>
+        <Avatar
+          sx={{
+            width: 32,
+            height: 32,
+            mr: 1.5,
+            bgcolor: isNotified ? "grey.400" : "action.hover",
+          }}
+        >
           ?
         </Avatar>
       )}
@@ -150,6 +157,20 @@ export function AttendeeItem({
         primary={
           <Stack direction="row" spacing={1} alignItems="center">
             <Box component="span">{label}</Box>
+            {isInvited ? (
+              <Chip
+                label="Invited"
+                color="info"
+                variant="outlined"
+                size="small"
+                sx={{
+                  height: 16,
+                  fontSize: 9,
+                  px: 0.5,
+                  "& .MuiChip-label": { px: 0.5, lineHeight: 1 },
+                }}
+              />
+            ) : null}
             {showGuestChip ? (
               <Chip
                 label="Guest"

@@ -125,15 +125,16 @@ export function CreateMeetModal({
 
     return Boolean(
       isOrganizer ||
-        (user?.id &&
-          fetchedMeet?.organizerId &&
-          fetchedMeet.organizerId === user.id),
+      (user?.id &&
+        fetchedMeet?.organizerId &&
+        fetchedMeet.organizerId === user.id),
     );
   }, [fetchedMeet?.organizerId, isEditing, isOrganizer, user?.id]);
   const canUnlockEditingMeet = Boolean(
     isEditing && !isOrganizerForEditingMeet && canManageMeet,
   );
-  const canManageEditingMeet = isOrganizerForEditingMeet || isAdminUnlockEnabled;
+  const canManageEditingMeet =
+    isOrganizerForEditingMeet || isAdminUnlockEnabled;
   const isMeetLocked = isEditing && !canManageEditingMeet;
 
   const syncImagesToState = useCallback((images: MeetImage[]) => {
@@ -270,7 +271,9 @@ export function CreateMeetModal({
     const hasLimits =
       Number(state.capacity) > 0 ||
       Boolean(state.openingDate) ||
-      Boolean(state.closingDate);
+      Boolean(state.closingDate) ||
+      state.allowSelfCheckin ||
+      state.allowWalkins;
     const hasCost =
       state.costCents !== "" && !Number.isNaN(Number(state.costCents));
     const hasResponse =
@@ -305,6 +308,8 @@ export function CreateMeetModal({
     state.closingDate,
     state.capacity,
     state.waitlistSize,
+    state.allowSelfCheckin,
+    state.allowWalkins,
     state.costCents,
     state.approvedResponse,
     state.rejectResponse,
@@ -412,6 +417,8 @@ export function CreateMeetModal({
           autoPlacement: draft.autoApprove,
           autoPromoteWaitlist: draft.autoCloseWaitlist,
           allowGuests: draft.allowGuests,
+          allowSelfCheckin: draft.allowSelfCheckin,
+          allowWalkins: draft.allowWalkins,
           maxGuests:
             draft.maxGuests === "" ? undefined : Number(draft.maxGuests),
         };

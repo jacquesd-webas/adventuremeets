@@ -141,6 +141,16 @@ export class CreateMeetDto {
   @IsBoolean()
   allowGuests?: boolean;
 
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  allowSelfCheckin?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  allowWalkins?: boolean;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()

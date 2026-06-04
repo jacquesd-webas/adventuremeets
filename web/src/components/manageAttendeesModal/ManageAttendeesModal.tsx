@@ -258,6 +258,12 @@ export function ManageAttendeesModal({
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
   });
+  const invitedMessage = useDefaultMessage(AttendeeStatusEnum.Invited, {
+    meetName: meet?.name,
+    confirmMessage: meet?.confirmMessage,
+    waitlistMessage: meet?.waitlistMessage,
+    rejectMessage: meet?.rejectMessage,
+  });
   const waitlistMessage = useDefaultMessage(AttendeeStatusEnum.Waitlisted, {
     meetName: meet?.name,
     confirmMessage: meet?.confirmMessage,
@@ -271,6 +277,9 @@ export function ManageAttendeesModal({
     rejectMessage: meet?.rejectMessage,
   });
   const getDefaultMessageForStatus = (status: AttendeeStatusEnum) => {
+    if (status === AttendeeStatusEnum.Invited) {
+      return invitedMessage;
+    }
     if (status === AttendeeStatusEnum.Confirmed) {
       return confirmedMessage;
     }
@@ -376,12 +385,7 @@ export function ManageAttendeesModal({
   const getUnnotifiedAttendees = () =>
     attendees.filter((attendee) => {
       const status = attendee.status as AttendeeStatusEnum | undefined;
-      if (
-        !status ||
-        status === AttendeeStatusEnum.Pending ||
-        status === AttendeeStatusEnum.Invited
-      )
-        return false;
+      if (!status || status === AttendeeStatusEnum.Pending) return false;
       return !attendee.respondedAt;
     });
 
@@ -424,8 +428,14 @@ export function ManageAttendeesModal({
         Partial<Record<AttendeeStatusEnum, string[]>>
       >((acc, attendee) => {
         const rawStatus = attendee.status as AttendeeStatusEnum | undefined;
-        // We only care about Confirmed/Rejected/Waitlisted for messaging purposes
+        // We only care about Invited/Confirmed/Rejected/Waitlisted for messaging purposes
         // any other message can be safely ignored
+        if (rawStatus === AttendeeStatusEnum.Invited) {
+          return {
+            ...acc,
+            [rawStatus]: [...(acc[rawStatus] || []), attendee.id],
+          };
+        }
         if (
           rawStatus !== AttendeeStatusEnum.Confirmed &&
           rawStatus !== AttendeeStatusEnum.Rejected &&

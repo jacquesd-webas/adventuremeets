@@ -40,6 +40,8 @@ export type Meet = {
   autoPlacement?: boolean;
   autoPromoteWaitlist?: boolean;
   allowGuests?: boolean;
+  allowSelfCheckin?: boolean;
+  allowWalkins?: boolean;
   maxGuests?: number;
   isVirtual?: boolean;
   shareCode?: string;

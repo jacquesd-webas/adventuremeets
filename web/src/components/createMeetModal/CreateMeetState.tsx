@@ -42,6 +42,8 @@ export type CreateMeetState = {
   autoApprove: boolean;
   autoCloseWaitlist: boolean;
   allowGuests: boolean;
+  allowSelfCheckin: boolean;
+  allowWalkins: boolean;
   maxGuests: number | string;
   currency: string;
   costCents: number | string;
@@ -82,6 +84,8 @@ export const initialState: CreateMeetState = {
   autoApprove: false,
   autoCloseWaitlist: false,
   allowGuests: false,
+  allowSelfCheckin: false,
+  allowWalkins: false,
   maxGuests: "",
   currency: "ZAR",
   costCents: "",
@@ -145,6 +149,8 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     autoApprove: meet.autoPlacement ?? true,
     autoCloseWaitlist: meet.autoPromoteWaitlist ?? false,
     allowGuests: meet.allowGuests ?? false,
+    allowSelfCheckin: meet.allowSelfCheckin ?? false,
+    allowWalkins: meet.allowWalkins ?? false,
     maxGuests: toNumberOrEmpty(meet.maxGuests),
     currency: meet.currencyCode ?? initialState.currency,
     costCents: toCurrencyUnits(meet.costCents),

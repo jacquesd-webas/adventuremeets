@@ -129,6 +129,14 @@ export class MeetDto {
   allowGuests?: boolean;
 
   @ApiPropertyOptional()
+  @IsBoolean()
+  allowSelfCheckin?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  allowWalkins?: boolean;
+
+  @ApiPropertyOptional()
   @IsNumber()
   maxGuests?: number;
 

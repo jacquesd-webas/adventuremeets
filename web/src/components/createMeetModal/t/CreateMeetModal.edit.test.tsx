@@ -27,6 +27,8 @@ const meetFixture = {
   autoPlacement: true,
   autoPromoteWaitlist: true,
   allowGuests: true,
+  allowSelfCheckin: true,
+  allowWalkins: true,
   maxGuests: 2,
   statusId: 1,
   shareCode: "camping-share",
@@ -169,6 +171,51 @@ describe("CreateMeetModal edit mode", () => {
     expect(
       screen.getByDisplayValue(String(expected.waitlistSize)),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Allow self check-in" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Allow walk-ins" }),
+    ).toBeChecked();
+  });
+
+  it("automatically enables self check-in when walk-ins are enabled", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      allowSelfCheckin: false,
+      allowWalkins: false,
+    };
+
+    renderCreateMeetModal();
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Limits"));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Allow walk-ins" }),
+    );
+
+    expect(
+      screen.getByRole("checkbox", { name: "Allow self check-in" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Allow walk-ins" }),
+    ).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowSelfCheckin: true,
+        allowWalkins: true,
+      }),
+      "meet-1",
+    );
   });
 
   it("shows a lock for an org admin and lets them unlock the meet", async () => {

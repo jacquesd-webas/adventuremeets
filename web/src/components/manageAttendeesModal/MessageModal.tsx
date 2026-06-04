@@ -70,6 +70,7 @@ export function MessageModal({
   const [error, setError] = useState<string | null>(null);
   const [markAsNotified, setMarkAsNotified] = useState(false);
   const [includeConfirmed, setIncludeConfirmed] = useState(true);
+  const [includeInvited, setIncludeInvited] = useState(false);
   const [includeWaitlisted, setIncludeWaitlisted] = useState(false);
   const [includeRejected, setIncludeRejected] = useState(false);
 
@@ -97,6 +98,10 @@ export function MessageModal({
     attendeeStatus,
     defaultMessageOptions,
   );
+  const invitedDefault = useDefaultMessage(
+    AttendeeStatusEnum.Invited,
+    defaultMessageOptions,
+  );
   const confirmedDefault = useDefaultMessage(
     AttendeeStatusEnum.Confirmed,
     defaultMessageOptions,
@@ -116,6 +121,8 @@ export function MessageModal({
       }
 
       const selectedDefaults = [];
+      if (includeInvited)
+        selectedDefaults.push({ label: "Invited", ...invitedDefault });
       if (includeConfirmed)
         selectedDefaults.push({ label: "Confirmed", ...confirmedDefault });
       if (includeWaitlisted)
@@ -145,14 +152,25 @@ export function MessageModal({
       return { subject: "", content: "" };
     }, [
       attendeeIds,
+      includeInvited,
       includeConfirmed,
       includeRejected,
       includeWaitlisted,
       singleAttendeeDefault,
+      invitedDefault,
       confirmedDefault,
       waitlistedDefault,
       rejectedDefault,
     ]);
+  const hasInvitedAttendees = useMemo(
+    () =>
+      Boolean(
+        attendees?.some(
+          (attendee) => attendee.status === AttendeeStatusEnum.Invited,
+        ),
+      ),
+    [attendees],
+  );
   const selectedAttendees = useMemo(() => {
     if (!attendees?.length) return [];
     if (attendeeIds && attendeeIds.length) {
@@ -160,6 +178,7 @@ export function MessageModal({
     }
     return attendees.filter((att) => {
       const status = att.status as AttendeeStatusEnum;
+      if (includeInvited && status === AttendeeStatusEnum.Invited) return true;
       if (includeConfirmed && isConfirmedAttendeeStatus(status)) return true;
       if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
         return true;
@@ -170,6 +189,7 @@ export function MessageModal({
   }, [
     attendees,
     attendeeIds,
+    includeInvited,
     includeConfirmed,
     includeWaitlisted,
     includeRejected,
@@ -189,6 +209,7 @@ export function MessageModal({
     attendeeStatus,
     defaultAutoSubject,
     defaultAutoContent,
+    includeInvited,
     includeConfirmed,
     includeWaitlisted,
     includeRejected,
@@ -204,6 +225,7 @@ export function MessageModal({
     setError(null);
     setMarkAsNotified(false);
     setIncludeConfirmed(true);
+    setIncludeInvited(false);
     setIncludeWaitlisted(false);
     setIncludeRejected(false);
   };
@@ -219,6 +241,8 @@ export function MessageModal({
         : (attendees || [])
             .filter((att) => {
               const status = att.status as AttendeeStatusEnum;
+              if (includeInvited && status === AttendeeStatusEnum.Invited)
+                return true;
               if (includeConfirmed && isConfirmedAttendeeStatus(status))
                 return true;
               if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
@@ -234,6 +258,7 @@ export function MessageModal({
     }
     if (
       (!attendeeIds || attendeeIds.length === 0) &&
+      !includeInvited &&
       !includeConfirmed &&
       !includeWaitlisted &&
       !includeRejected
@@ -334,6 +359,17 @@ export function MessageModal({
           />
           {!attendeeIds && (
             <Stack direction="column" spacing={1}>
+              {hasInvitedAttendees ? (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={includeInvited}
+                      onChange={(e) => setIncludeInvited(e.target.checked)}
+                    />
+                  }
+                  label="Send to invited attendees"
+                />
+              ) : null}
               <FormControlLabel
                 control={
                   <Switch
@@ -392,6 +428,7 @@ export function MessageModal({
           disabled={
             isLoading ||
             (!attendeeIds &&
+              !includeInvited &&
               !includeConfirmed &&
               !includeWaitlisted &&
               !includeRejected)

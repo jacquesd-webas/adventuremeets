@@ -5,19 +5,26 @@ import {
   Box,
   Button,
   Container,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   IconButton,
   List,
   Paper,
   Stack,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import { QRCodeSVG } from "qrcode.react";
 import { useFetchMeetAttendees } from "../hooks/useFetchMeetAttendees";
 import { useCheckinAttendees } from "../hooks/useCheckinAttendees";
 import { useFetchMeet } from "../hooks/useFetchMeet";
 import { useAuth } from "../context/authContext";
 import CloseIcon from "@mui/icons-material/Close";
+import DirectionsWalkIcon from "@mui/icons-material/DirectionsWalk";
+import QrCode2Icon from "@mui/icons-material/QrCode2";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 import { AttendeeCheckinItem } from "../components/attendeeCheckin/AttendeeCheckinItem";
@@ -60,11 +67,14 @@ function MeetCheckinPage() {
   const [optimisticStatusByAttendeeId, setOptimisticStatusByAttendeeId] =
     useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState("");
+  const [isQrDialogOpen, setIsQrDialogOpen] = useState(false);
   const [undoTarget, setUndoTarget] = useState<{
     id: string;
     name: string;
   } | null>(null);
   const [isAdminUnlockEnabled, setIsAdminUnlockEnabled] = useState(false);
+  const isSelfCheckinEnabled = Boolean(meet?.allowSelfCheckin);
+  const areWalkinsEnabled = Boolean(meet?.allowWalkins);
   const isAdminForMeet = Boolean(
     user?.organizations &&
     meet?.organizationId &&
@@ -120,6 +130,11 @@ function MeetCheckinPage() {
       );
     });
   }, [attendeeList, searchTerm]);
+
+  const selfCheckinUrl = useMemo(() => {
+    if (!meet?.shareCode || typeof window === "undefined") return "";
+    return `${window.location.origin}/meets/${meet.shareCode}?self-checkin`;
+  }, [meet?.shareCode]);
 
   const handleCheckin = async (attendeeId: string) => {
     if (isReadOnly) return;
@@ -254,11 +269,40 @@ function MeetCheckinPage() {
           </Stack>
         </Box>
         <Box sx={{ px: isMobile ? 2 : 0 }}>
-          <CheckinSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            onClear={() => setSearchTerm("")}
-          />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <CheckinSearch
+                value={searchTerm}
+                onChange={setSearchTerm}
+                onClear={() => setSearchTerm("")}
+              />
+            </Box>
+            {areWalkinsEnabled ? (
+              <Tooltip title="Walk-ins enabled">
+                <Box
+                  aria-label="Walk-ins enabled"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "text.secondary",
+                  }}
+                >
+                  <DirectionsWalkIcon />
+                </Box>
+              </Tooltip>
+            ) : null}
+            {isSelfCheckinEnabled ? (
+              <Tooltip title="Show self check-in QR code">
+                <IconButton
+                  aria-label="Show self check-in QR code"
+                  onClick={() => setIsQrDialogOpen(true)}
+                >
+                  <QrCode2Icon />
+                </IconButton>
+              </Tooltip>
+            ) : null}
+          </Stack>
         </Box>
         {isOffline || pendingCount > 0 || failedCount > 0 || isOfflineData ? (
           <Box sx={{ px: isMobile ? 2 : 0 }}>
@@ -341,6 +385,42 @@ function MeetCheckinPage() {
         onClose={() => setUndoTarget(null)}
         onConfirm={handleUndoConfirm}
       />
+      <Dialog
+        open={isQrDialogOpen}
+        onClose={() => setIsQrDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Self check-in QR code</DialogTitle>
+        <DialogContent>
+          <Stack
+            spacing={2}
+            alignItems="center"
+            textAlign="center"
+            sx={{ py: 1 }}
+          >
+            {selfCheckinUrl ? (
+              <>
+                <QRCodeSVG value={selfCheckinUrl} size={280} includeMargin />
+                <Typography variant="body2" color="text.secondary">
+                  Scan to open the meet signup page in self check-in mode.
+                </Typography>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ wordBreak: "break-all" }}
+                >
+                  {selfCheckinUrl}
+                </Typography>
+              </>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Self check-in link is not available for this meet yet.
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+      </Dialog>
     </Container>
   );
 }
