@@ -39,6 +39,20 @@ export class MeetMetaDefinitionDto {
   config?: Record<string, any>;
 }
 
+export class MeetAttendeePreviewDto {
+  @ApiProperty()
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty()
+  @IsString()
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  avatarUrl?: string;
+}
+
 export class MeetDto {
   @ApiProperty()
   @IsUUID()
@@ -250,6 +264,9 @@ export class MeetDto {
   @ApiPropertyOptional()
   @IsString()
   myAttendeeStatus?: string;
+
+  @ApiPropertyOptional({ type: [MeetAttendeePreviewDto] })
+  attendingAttendees?: MeetAttendeePreviewDto[];
 
   @ApiPropertyOptional({ type: [MeetMetaDefinitionDto] })
   metaDefinitions?: MeetMetaDefinitionDto[];

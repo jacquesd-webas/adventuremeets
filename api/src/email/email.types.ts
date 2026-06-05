@@ -49,6 +49,7 @@ export type MeetMessageTemplateVars = {
   attendeeName?: string;
   statusUrl?: string;
   includeStatusUrl?: boolean;
+  isGroupedMessage?: boolean;
   organizerName?: string;
   organizerEmail?: string;
   messageBody: string;

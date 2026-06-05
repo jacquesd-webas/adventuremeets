@@ -172,6 +172,144 @@ describe("MeetsService", () => {
     ]);
   });
 
+  it("returns attending attendee previews only for logged-in attendees who are going", async () => {
+    const meetRow = {
+      id: "meet-1",
+      name: "Meet",
+      organizer_id: "org-1",
+      organization_id: "org-2",
+      status_id: 2,
+      my_attendee_status: "confirmed",
+    };
+
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue(meetRow);
+
+    const attendeeCountsBuilder = buildBuilder();
+
+    const attendingAttendeesBuilder = buildBuilder();
+    attendingAttendeesBuilder.select.mockResolvedValue([
+      {
+        id: "attendee-1",
+        name: "Guest Person",
+        first_name: null,
+        last_name: null,
+        avatar_url: null,
+      },
+      {
+        id: "attendee-2",
+        name: null,
+        first_name: "Alice",
+        last_name: "Walker",
+        avatar_url: "https://cdn.example.com/alice.jpg",
+      },
+    ]);
+
+    const imageBuilder = buildBuilder();
+    imageBuilder.select.mockResolvedValue([]);
+
+    const metaBuilder = buildBuilder();
+    metaBuilder.select = jest.fn().mockResolvedValue([]);
+
+    let meetAttendeesCalls = 0;
+    const client: any = (table: string) => {
+      if (table === "meets as m") return meetBuilder;
+      if (table === "meet_images") return imageBuilder;
+      if (table === "meet_meta_definitions") return metaBuilder;
+      if (table === "meet_attendees") {
+        meetAttendeesCalls += 1;
+        return meetAttendeesCalls === 1
+          ? attendeeCountsBuilder
+          : attendingAttendeesBuilder;
+      }
+      if (table === "meet_attendees as ma") return attendingAttendeesBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const result = await service.findOne("meet-1", "user-1");
+
+    expect(result.attendingAttendees).toEqual([
+      { id: "attendee-1", name: "Guest Person", avatarUrl: undefined },
+      {
+        id: "attendee-2",
+        name: "Alice Walker",
+        avatarUrl: "https://cdn.example.com/alice.jpg",
+      },
+    ]);
+  });
+
+  it("returns attending attendee previews on attendee status only for attendees who are going", async () => {
+    const meetRow = {
+      id: "meet-1",
+      name: "Meet",
+      organizer_id: "org-1",
+      organization_id: "org-2",
+      status_id: 2,
+    };
+
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue(meetRow);
+
+    const attendeeCountsBuilder = buildBuilder();
+
+    const statusAttendeeBuilder = buildBuilder();
+    statusAttendeeBuilder.first.mockResolvedValue({
+      id: "attendee-1",
+      status: "checked-in",
+    });
+
+    const attendingAttendeesBuilder = buildBuilder();
+    attendingAttendeesBuilder.select.mockResolvedValue([
+      {
+        id: "attendee-1",
+        name: "Alice Walker",
+        first_name: null,
+        last_name: null,
+        avatar_url: "https://cdn.example.com/alice.jpg",
+      },
+    ]);
+
+    const imageBuilder = buildBuilder();
+    imageBuilder.select.mockResolvedValue([]);
+
+    const metaBuilder = buildBuilder();
+    metaBuilder.select = jest.fn().mockResolvedValue([]);
+
+    let meetAttendeesCalls = 0;
+    const client: any = (table: string) => {
+      if (table === "meets as m") return meetBuilder;
+      if (table === "meet_images") return imageBuilder;
+      if (table === "meet_meta_definitions") return metaBuilder;
+      if (table === "meet_attendees") {
+        meetAttendeesCalls += 1;
+        if (meetAttendeesCalls === 1) return attendeeCountsBuilder;
+        return statusAttendeeBuilder;
+      }
+      if (table === "meet_attendees as ma") return attendingAttendeesBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const result = await service.findAttendeeStatus("meet-1", "attendee-1");
+
+    expect(result.attendingAttendees).toEqual([
+      {
+        id: "attendee-1",
+        name: "Alice Walker",
+        avatarUrl: "https://cdn.example.com/alice.jpg",
+      },
+    ]);
+  });
+
   it("clones a meet as a draft without carrying over dates", async () => {
     const sourceMeet = {
       id: "meet-1",

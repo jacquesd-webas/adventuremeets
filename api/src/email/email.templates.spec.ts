@@ -88,7 +88,32 @@ describe("renderEmailTemplate", () => {
       "Please bring &lt;headlamp&gt;<br/>Reply if needed.",
     );
     expect(result.html).not.toContain("View your application");
-    expect(result.html).toContain("Robin &amp; Co");
+    expect(result.text).toContain(
+      "If you need to reply, contact Robin &amp; Co at robin@example.com.",
+    );
+    expect(result.html).toContain(
+      "If you need to reply, contact Robin &amp; Co at",
+    );
+  });
+
+  it("renders grouped meet messages with the organiser-direct reply wording", () => {
+    const result = renderEmailTemplate("meet-message", {
+      meetName: "Night Trail",
+      attendeeName: "everyone",
+      includeStatusUrl: false,
+      isGroupedMessage: true,
+      organizerName: "Robin & Co",
+      organizerEmail: "robin@example.com",
+      messageBody: "Please bring <headlamp>\nReply if needed.",
+    });
+
+    expect(result.text).toContain(
+      "If you need to reach the organiser directly, you may reply to robin@example.com.",
+    );
+    expect(result.html).toContain(
+      "If you need to reach the organiser directly, you may reply to",
+    );
+    expect(result.html).not.toContain("contact Robin &amp; Co at");
   });
 
   it("linkifies urls, email addresses and phone numbers inside the html message body", () => {

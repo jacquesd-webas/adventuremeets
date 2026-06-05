@@ -414,7 +414,16 @@ export class MeetsService {
       ...meet,
       image_url: images[0]?.url ?? meet.image_url ?? undefined,
     };
-    return this.toMeetDto(meetWithImage, metaDefinitions, images);
+    const attendingAttendees =
+      userId && this.isGoingAttendeeStatus(meet.my_attendee_status)
+        ? await this.listAttendingAttendeePreviews(meet.id)
+        : undefined;
+    return this.toMeetDto(
+      meetWithImage,
+      metaDefinitions,
+      images,
+      attendingAttendees,
+    );
   }
 
   async create(dto: CreateMeetDto) {
@@ -620,7 +629,13 @@ export class MeetsService {
     if (!attendee) {
       throw new NotFoundException("Attendee not found");
     }
-    return { attendee: this.toAttendeeDto(attendee) };
+    const attendingAttendees = this.isGoingAttendeeStatus(attendee.status)
+      ? await this.listAttendingAttendeePreviews(meet.id)
+      : undefined;
+    return {
+      attendee: this.toAttendeeDto(attendee),
+      attendingAttendees,
+    };
   }
 
   async findAttendeeForEdit(idOrCode: string, attendeeId: string) {
@@ -1817,6 +1832,38 @@ export class MeetsService {
     return Math.round((amount + Number.EPSILON) * 100);
   }
 
+  private isGoingAttendeeStatus(status?: string | null) {
+    return ["confirmed", "checked-in", "attended"].includes(status ?? "");
+  }
+
+  private async listAttendingAttendeePreviews(meetId: string) {
+    const attendees = await this.db
+      .getClient()("meet_attendees as ma")
+      .leftJoin("users as u", "u.id", "ma.user_id")
+      .where("ma.meet_id", meetId)
+      .whereIn("ma.status", ["confirmed", "checked-in", "attended"])
+      .orderBy([
+        { column: "ma.sequence", order: "asc" },
+        { column: "ma.created_at", order: "asc" },
+      ])
+      .select(
+        "ma.id",
+        "ma.name",
+        "u.first_name",
+        "u.last_name",
+        "u.avatar_url",
+      );
+
+    return attendees.map((attendee: any) => ({
+      id: attendee.id,
+      name:
+        attendee.name?.trim() ||
+        [attendee.first_name, attendee.last_name].filter(Boolean).join(" ") ||
+        "Attendee",
+      avatarUrl: attendee.avatar_url ?? undefined,
+    }));
+  }
+
   private generateShareCode(length: number) {
     const chars = MeetsService.shareCodeChars;
     const bytes = randomBytes(length);
@@ -1831,6 +1878,11 @@ export class MeetsService {
     meet: Record<string, any>,
     metaDefinitions: Record<string, any>[],
     images: Record<string, any>[] = [],
+    attendingAttendees?: Array<{
+      id: string;
+      name: string;
+      avatarUrl?: string;
+    }>,
   ): MeetDto {
     const resolvedImages = Array.isArray(images) ? images : [];
 
@@ -1889,6 +1941,7 @@ export class MeetsService {
       useMap: meet.use_map ?? meet.useMap ?? undefined,
       isHidden: meet.is_hidden ?? undefined,
       myAttendeeStatus: meet.my_attendee_status ?? undefined,
+      attendingAttendees,
       metaDefinitions: metaDefinitions.map((definition) => ({
         id: definition.id,
         fieldKey: definition.field_key,

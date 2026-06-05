@@ -959,6 +959,14 @@ describe("MeetsController", () => {
       count: 2,
     });
 
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "alex@example.com",
+        attendeeId: "attendee-1",
+        meetId: "meet-1",
+        replyTo: "meet+meet-1@example.com",
+      }),
+    );
     expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
       "meet-1",
       ["attendee-1", "attendee-2"],
@@ -971,6 +979,52 @@ describe("MeetsController", () => {
       action: "messaged attendees for",
       target: "meet Sunrise Hike",
     });
+  });
+
+  it("can send a grouped attendee message", async () => {
+    process.env.MAIL_DOMAIN = "example.com";
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    setRoles({ organizer: true });
+    (meetsService.getAttendeeContactById as jest.Mock).mockImplementation(
+      async (attendeeId: string) => ({
+        id: attendeeId,
+        name: attendeeId === "attendee-1" ? "Alex" : "Jamie",
+        email:
+          attendeeId === "attendee-1"
+            ? "alex@example.com"
+            : "jamie@example.com",
+      }),
+    );
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+    (emailService.saveMessage as jest.Mock).mockResolvedValue(undefined);
+
+    await expect(
+      controller.messageAttendees(
+        "meet-1",
+        {
+          subject: "Bring snacks",
+          text: "Shared note.",
+          attendeeIds: ["attendee-1", "attendee-2"],
+          sendAsGroup: true,
+        },
+        user,
+      ),
+    ).resolves.toEqual({
+      status: "sent",
+      count: 2,
+    });
+
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["alex@example.com", "jamie@example.com"],
+        replyTo: "meet+meet-1@example.com",
+      }),
+    );
+    expect(emailService.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["alex@example.com", "jamie@example.com"],
+      }),
+    );
   });
 
   it("maps extra upload columns to matching meta field labels and field keys", async () => {

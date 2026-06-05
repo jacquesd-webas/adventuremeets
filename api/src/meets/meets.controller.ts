@@ -765,6 +765,7 @@ export class MeetsController {
         html: { type: "string" },
         markNotified: { type: "boolean" },
         includeStatusUrl: { type: "boolean" },
+        sendAsGroup: { type: "boolean" },
       },
       required: ["subject"],
     },
@@ -779,6 +780,7 @@ export class MeetsController {
       attendeeIds?: string[];
       markNotified?: boolean;
       includeStatusUrl?: boolean;
+      sendAsGroup?: boolean;
     },
     @User() user?: UserProfile,
   ) {
@@ -828,37 +830,62 @@ export class MeetsController {
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
     // Send all the emails (just skip any nulls it's fine)
-    const includeStatusUrl = body.includeStatusUrl !== false;
-    await Promise.all(
-      Array.from(recipients.entries()).map(async ([attendeeId, email]) => {
-        const attendee =
-          await this.meetsService.getAttendeeContactById(attendeeId);
-        const statusUrl = includeStatusUrl
-          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
-          : "";
-        const attendeeName =
-          attendee?.name || attendee?.email || attendee?.phone || "there";
-        const organizerName = meet.organizerName || "the organizer";
-        const organizerEmail = meet.organizerEmail || "";
-        const { text, html } = renderEmailTemplate("meet-message", {
-          meetName: meet.name,
-          attendeeName,
-          statusUrl,
-          includeStatusUrl,
-          organizerName,
-          organizerEmail,
-          messageBody: body.text ?? body.html ?? "",
-        });
-        return this.emailService.sendEmail({
-          to: email,
-          subject: body.subject,
-          text,
-          html,
-          meetId: meet.id,
-          attendeeId,
-        });
-      }),
-    );
+    const organizerName = meet.organizerName || "the organizer";
+    const organizerEmail = meet.organizerEmail || "";
+    const includeStatusUrl =
+      body.sendAsGroup === true ? false : body.includeStatusUrl !== false;
+    const meetReplyTo = `meet+${meet.id}@${process.env.MAIL_DOMAIN}`;
+
+    if (body.sendAsGroup) {
+      const { text, html } = renderEmailTemplate("meet-message", {
+        meetName: meet.name,
+        attendeeName: "everyone",
+        statusUrl: "",
+        includeStatusUrl: false,
+        isGroupedMessage: true,
+        organizerName,
+        organizerEmail,
+        messageBody: body.text ?? body.html ?? "",
+      });
+
+      await this.emailService.sendEmail({
+        to: Array.from(recipients.values()),
+        subject: body.subject,
+        text,
+        html,
+        replyTo: meetReplyTo,
+      });
+    } else {
+      await Promise.all(
+        Array.from(recipients.entries()).map(async ([attendeeId, email]) => {
+          const attendee =
+            await this.meetsService.getAttendeeContactById(attendeeId);
+          const statusUrl = includeStatusUrl
+            ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
+            : "";
+          const attendeeName =
+            attendee?.name || attendee?.email || attendee?.phone || "there";
+          const { text, html } = renderEmailTemplate("meet-message", {
+            meetName: meet.name,
+            attendeeName,
+            statusUrl,
+            includeStatusUrl,
+            organizerName,
+            organizerEmail,
+            messageBody: body.text ?? body.html ?? "",
+          });
+          return this.emailService.sendEmail({
+            to: email,
+            subject: body.subject,
+            text,
+            html,
+            meetId: meet.id,
+            attendeeId,
+            replyTo: meetReplyTo,
+          });
+        }),
+      );
+    }
 
     await Promise.all(
       Array.from(recipients.keys()).map(async (attendeeId) => {
@@ -884,7 +911,9 @@ export class MeetsController {
           .split("View your application status:")[0]
           .trim();
         await this.emailService.saveMessage({
-          to: recipients.get(attendeeId)!,
+          to: body.sendAsGroup
+            ? Array.from(recipients.values())
+            : recipients.get(attendeeId)!,
           subject: body.subject,
           text: textWithoutStatus,
           html: "",

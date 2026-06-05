@@ -366,6 +366,8 @@ export function renderEmailTemplate(
     const flags = {
       ifStatusUrl: includeStatusUrl && Boolean(varsMap.statusUrl),
       ifOrganizerEmail: Boolean(varsMap.organizerEmail),
+      ifGroupedMessage: Boolean(messageVars.isGroupedMessage),
+      ifDirectMessage: !messageVars.isGroupedMessage,
     };
     const subject = `Message about ${varsMap.meetName}`;
     const text = renderTemplate("meet-message", "txt", varsMap, flags);
