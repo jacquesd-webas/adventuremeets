@@ -158,6 +158,8 @@ describe("MeetSignupSheet", () => {
   beforeEach(() => {
     addAttendeeAsync.mockClear();
     mockedMeet.statusId = 3;
+    mockedMeet.requireEmail = undefined;
+    mockedMeet.requirePhone = undefined;
   });
 
   it("autofills the signed-in user's identity, phone, and saved autofill answers", async () => {
@@ -208,6 +210,31 @@ describe("MeetSignupSheet", () => {
     expect(
       screen.getByRole("checkbox", { name: /bringing extra water/i }),
     ).not.toBeChecked();
+  });
+
+  it("hides email and phone when the meet does not require them", async () => {
+    mockedMeet.requireEmail = false;
+    mockedMeet.requirePhone = false;
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Phone")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("alice@example.com")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("5550004444")).not.toBeInTheDocument();
   });
 
   it("shows meet not found for draft meets when preview is not enabled", async () => {

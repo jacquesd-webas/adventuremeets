@@ -111,7 +111,8 @@ describe("MeetsService", () => {
     expect(insertArg.waitlist_size).toBe(5);
     expect(insertArg.status_id).toBe(2);
     expect(insertArg.allow_guests).toBe(true);
-    expect(insertArg.allow_self_checkin).toBe(true);
+    expect(typeof insertArg.checkin_pin).toBe("string");
+    expect(insertArg.checkin_pin).toHaveLength(6);
     expect(insertArg.allow_walkins).toBe(true);
     expect(insertArg.max_guests).toBe(2);
     expect(insertArg.currency_id).toBe(1);
@@ -332,7 +333,7 @@ describe("MeetsService", () => {
       cost_cents: 2500,
       deposit_cents: 1000,
       allow_guests: true,
-      allow_self_checkin: true,
+      checkin_pin: "ABC123",
       allow_walkins: true,
       max_guests: 2,
       created_at: "2026-04-01T00:00:00Z",
@@ -419,6 +420,8 @@ describe("MeetsService", () => {
     expect(clonedInsertArg.scheduled_date).toBeNull();
     expect(clonedInsertArg.confirm_date).toBeNull();
     expect(clonedInsertArg.share_code).not.toBe(sourceMeet.share_code);
+    expect(clonedInsertArg.checkin_pin).not.toBe(sourceMeet.checkin_pin);
+    expect(clonedInsertArg.checkin_pin).toHaveLength(6);
 
     const clonedMetaInsertArg = metaDefinitionsBuilder.insert.mock.calls[0][0];
     expect(clonedMetaInsertArg).toEqual([
@@ -762,6 +765,7 @@ describe("MeetsService", () => {
 
   it("preserves existing meet meta definition ids when editing questions", async () => {
     const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue({ id: "meet-1", checkin_pin: null });
     meetsBuilder.update.mockResolvedValue([{ id: "meet-1" }]);
 
     const metaDefinitionsBuilder = buildBuilder();
@@ -837,6 +841,7 @@ describe("MeetsService", () => {
 
   it("returns a user-friendly error when removing a question that already has answers", async () => {
     const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue({ id: "meet-1", checkin_pin: null });
     meetsBuilder.update.mockResolvedValue([{ id: "meet-1" }]);
 
     const metaDefinitionsBuilder = buildBuilder();

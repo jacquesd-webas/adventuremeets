@@ -436,7 +436,11 @@ export class MeetsService {
     const shareCode = this.generateShareCode(12);
     const created = await this.db.getClient().transaction(async (trx) => {
       const [meet] = await trx("meets").insert(
-        this.toDbRecord({ ...dto, currencyId, statusId, shareCode }, now),
+        this.toDbRecord(
+          { ...dto, currencyId, statusId, shareCode },
+          null,
+          now,
+        ),
         ["*"],
       );
       if (dto.metaDefinitions) {
@@ -486,6 +490,7 @@ export class MeetsService {
         name: dto?.name?.trim() || sourceMeet.name,
         organizer_id: dto?.organizerId || sourceMeet.organizer_id,
         share_code: shareCode,
+        checkin_pin: sourceMeet.checkin_pin ? this.generateCheckinPin() : null,
         status_id: MEET_STATUS.Draft,
         start_time: null,
         end_time: null,
@@ -543,13 +548,17 @@ export class MeetsService {
       dto.currencyCode,
     );
     const updated = await this.db.getClient().transaction(async (trx) => {
-      const updatedRows = (await trx("meets")
-        .where({ id })
-        .update(this.toDbRecord({ ...dto, currencyId }), ["*"])) as unknown;
-      const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
-      if (!meet) {
+      const existingMeet = await trx("meets").where({ id }).first("*");
+      if (!existingMeet) {
         throw new NotFoundException("Meet not found");
       }
+      const updatedRows = (await trx("meets")
+        .where({ id })
+        .update(
+          this.toDbRecord({ ...dto, currencyId }, existingMeet),
+          ["*"],
+        )) as unknown;
+      const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, id, dto.metaDefinitions);
       }
@@ -1747,6 +1756,7 @@ export class MeetsService {
 
   private toDbRecord(
     dto: Partial<CreateMeetDto> & { shareCode?: string },
+    existingMeet?: Record<string, any> | null,
     now?: string,
   ) {
     const record: any = {
@@ -1772,7 +1782,10 @@ export class MeetsService {
       auto_placement: dto.autoPlacement,
       auto_promote_waitlist: dto.autoPromoteWaitlist,
       allow_guests: dto.allowGuests,
-      allow_self_checkin: dto.allowSelfCheckin,
+      checkin_pin: this.resolveCheckinPin(
+        dto.allowSelfCheckin,
+        existingMeet?.checkin_pin,
+      ),
       allow_walkins: dto.allowWalkins,
       require_email: dto.requireEmail,
       require_phone: dto.requirePhone,
@@ -1878,6 +1891,23 @@ export class MeetsService {
     return result;
   }
 
+  private generateCheckinPin() {
+    return this.generateShareCode(6);
+  }
+
+  private resolveCheckinPin(
+    allowSelfCheckin?: boolean,
+    existingCheckinPin?: string | null,
+  ) {
+    if (allowSelfCheckin === undefined) {
+      return undefined;
+    }
+    if (!allowSelfCheckin) {
+      return null;
+    }
+    return existingCheckinPin || this.generateCheckinPin();
+  }
+
   private toMeetDto(
     meet: Record<string, any>,
     metaDefinitions: Record<string, any>[],
@@ -1912,7 +1942,8 @@ export class MeetsService {
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,
-      allowSelfCheckin: meet.allow_self_checkin ?? undefined,
+      allowSelfCheckin:
+        meet.checkin_pin === undefined ? undefined : Boolean(meet.checkin_pin),
       allowWalkins: meet.allow_walkins ?? undefined,
       requireEmail: meet.require_email ?? undefined,
       requirePhone: meet.require_phone ?? undefined,

@@ -117,6 +117,9 @@ export function MeetSignupFormFields({
   setPhoneCountry,
   setPhoneLocal,
 }: MeetSignupFormFieldsProps) {
+  const showEmailField = meet?.requireEmail !== false;
+  const showPhoneField = meet?.requirePhone !== false;
+
   return (
     <Stack spacing={2} mt={2}>
       <Stack spacing={0.5}>
@@ -223,44 +226,48 @@ export function MeetSignupFormFields({
         ) : null}
       </Stack>
 
-      <LabeledField
-        label={isMinor ? "Parent or Guardian Email" : "Email"}
-        required
-      >
-        <EmailField
+      {showEmailField ? (
+        <LabeledField
+          label={isMinor ? "Parent or Guardian Email" : "Email"}
           required
-          value={email}
-          onChange={(value) => setField("email", value)}
-          onBlur={onEmailBlur}
-          error={Boolean(emailError)}
-          helperText={emailError || undefined}
-          hideLabel
-          disabled={disableIdentityFields}
-        />
-      </LabeledField>
-      <LabeledField
-        label={isMinor ? "Parent or Guardian Phone" : "Phone"}
-        required
-      >
-        <InternationalPhoneField
+        >
+          <EmailField
+            required
+            value={email}
+            onChange={(value) => setField("email", value)}
+            onBlur={onEmailBlur}
+            error={Boolean(emailError)}
+            helperText={emailError || undefined}
+            hideLabel
+            disabled={disableIdentityFields}
+          />
+        </LabeledField>
+      ) : null}
+      {showPhoneField ? (
+        <LabeledField
+          label={isMinor ? "Parent or Guardian Phone" : "Phone"}
           required
-          country={phoneCountry}
-          local={phoneLocal}
-          onCountryChange={(value) => {
-            setPhoneCountry(value);
-            setField("phone", buildInternationalPhone(value, phoneLocal));
-          }}
-          onLocalChange={(value) => {
-            setPhoneLocal(value);
-            setField("phone", buildInternationalPhone(phoneCountry, value));
-          }}
-          onBlur={onPhoneBlur}
-          error={Boolean(phoneError)}
-          helperText={phoneError || undefined}
-          hideLabel
-          disabled={disablePhone}
-        />
-      </LabeledField>
+        >
+          <InternationalPhoneField
+            required
+            country={phoneCountry}
+            local={phoneLocal}
+            onCountryChange={(value) => {
+              setPhoneCountry(value);
+              setField("phone", buildInternationalPhone(value, phoneLocal));
+            }}
+            onLocalChange={(value) => {
+              setPhoneLocal(value);
+              setField("phone", buildInternationalPhone(phoneCountry, value));
+            }}
+            onBlur={onPhoneBlur}
+            error={Boolean(phoneError)}
+            helperText={phoneError || undefined}
+            hideLabel
+            disabled={disablePhone}
+          />
+        </LabeledField>
+      ) : null}
       <GuestSwitchField
         allowGuests={Boolean(meet.allowGuests)}
         disabled={disableGuests}

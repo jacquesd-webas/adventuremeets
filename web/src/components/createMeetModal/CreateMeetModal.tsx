@@ -268,11 +268,7 @@ export function CreateMeetModal({
     const hasTime = Boolean(state.startTime && state.endTime);
     const hasIndemnity = Boolean(state.indemnityAccepted);
     const hasQuestion = state.questions.length > 0;
-    const hasRequiredFields =
-      state.requireEmail ||
-      state.requirePhone ||
-      state.requireOrg1 ||
-      state.requireOrg2;
+    const hasRequiredFields = state.requireOrg1 || state.requireOrg2;
     const hasLimits =
       Number(state.capacity) > 0 ||
       Boolean(state.openingDate) ||

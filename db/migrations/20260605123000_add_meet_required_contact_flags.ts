@@ -5,11 +5,11 @@ export async function up(knex: Knex): Promise<void> {
     table
       .boolean("require_email")
       .notNullable()
-      .defaultTo(false);
+      .defaultTo(true);
     table
       .boolean("require_phone")
       .notNullable()
-      .defaultTo(false);
+      .defaultTo(true);
     table
       .boolean("require_org1")
       .notNullable()

@@ -525,6 +525,8 @@ function MeetSignupSheet() {
 
   const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
   const isDraftMeet = meet?.statusId === MeetStatusEnum.Draft;
+  const showEmailField = meet?.requireEmail !== false;
+  const showPhoneField = meet?.requirePhone !== false;
   const closeButtonLabel = isPreview
     ? previewSource === "editor"
       ? "Back to editing"
@@ -604,11 +606,11 @@ function MeetSignupSheet() {
   const isSubmitDisabled =
     !isOpenMeet ||
     !fullName.trim() ||
-    !email.trim() ||
-    !phoneLocal.trim() ||
+    (showEmailField && !email.trim()) ||
+    (showPhoneField && !phoneLocal.trim()) ||
     Boolean(nameError) ||
-    Boolean(emailError) ||
-    Boolean(phoneError) ||
+    (showEmailField && Boolean(emailError)) ||
+    (showPhoneField && Boolean(phoneError)) ||
     requiredMetaMissing ||
     Boolean(meet?.hasIndemnity && !indemnityAccepted);
 
@@ -617,6 +619,10 @@ function MeetSignupSheet() {
   };
 
   const handleEmailBlur = () => {
+    if (!showEmailField) {
+      setEmailError(null);
+      return;
+    }
     const formatError = validateEmail(email);
     setEmailError(formatError);
     if (!formatError && !isMinor) {
@@ -625,6 +631,10 @@ function MeetSignupSheet() {
   };
 
   const handlePhoneBlur = () => {
+    if (!showPhoneField) {
+      setPhoneError(null);
+      return;
+    }
     const error = validatePhone(phoneLocal);
     setPhoneError(error);
     if (!error && !isMinor) {
@@ -636,8 +646,10 @@ function MeetSignupSheet() {
     if (!meet) return;
     if (isEditing) return;
     if (isMinor) return;
-    const trimmedEmail = isMinor ? "" : email.trim();
-    const trimmedPhone = buildInternationalPhone(phoneCountry, phoneLocal);
+    const trimmedEmail = showEmailField && !isMinor ? email.trim() : "";
+    const trimmedPhone = showPhoneField
+      ? buildInternationalPhone(phoneCountry, phoneLocal)
+      : "";
     if (!trimmedEmail && !trimmedPhone) return;
     if (
       lastCheckedContact &&
@@ -699,12 +711,16 @@ function MeetSignupSheet() {
       }
     }
     const metaPayload = buildMetaPayload();
+    const submittedEmail = showEmailField ? email : "";
+    const submittedPhone = showPhoneField
+      ? buildInternationalPhone(phoneCountry, phoneLocal)
+      : "";
     const res = await addAttendeeAsync({
       meetId: meet.id,
       userId: isAuthenticated ? user?.id : undefined,
       name: fullName,
-      email,
-      phone: fullPhone,
+      email: submittedEmail,
+      phone: submittedPhone,
       guestOf: guestOf || undefined,
       isMinor: isMinor,
       GuardianName: isMinor ? guardianName || undefined : undefined,
@@ -720,11 +736,13 @@ function MeetSignupSheet() {
 
   const handleUpdate = async () => {
     if (!meet || !existingAttendee) return;
-    const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
+    const fullPhone = showPhoneField
+      ? buildInternationalPhone(phoneCountry, phoneLocal)
+      : "";
     const metaPayload = buildMetaPayload();
     const payload = {
       name: fullName,
-      email,
+      email: showEmailField ? email : "",
       phone: fullPhone,
       isMinor: isMinor,
       GuardianName: isMinor ? guardianName || undefined : undefined,
