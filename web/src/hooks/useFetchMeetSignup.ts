@@ -89,6 +89,15 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     checkedInCount: apiMeet.checkedInCount ?? null,
     isHidden: apiMeet.isHidden ?? null,
     myAttendeeStatus: apiMeet.myAttendeeStatus ?? null,
+    attendingAttendees: (
+      apiMeet.attendingAttendees ??
+      apiMeet.attending_attendees ??
+      []
+    ).map((attendee: any) => ({
+      id: attendee.id,
+      name: attendee.name,
+      avatarUrl: attendee.avatarUrl ?? attendee.avatar_url ?? null,
+    })),
     metaDefinitions: (
       apiMeet.metaDefinitions ||
       apiMeet.meta_definitions ||

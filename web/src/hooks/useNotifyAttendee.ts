@@ -9,6 +9,7 @@ export type NotifyAttendeePayload = {
   attendeeIds?: string[];
   markNotified?: boolean;
   includeStatusUrl?: boolean;
+  sendAsGroup?: boolean;
 };
 
 export function useNotifyAttendee() {

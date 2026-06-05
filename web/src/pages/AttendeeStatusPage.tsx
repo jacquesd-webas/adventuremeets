@@ -22,6 +22,7 @@ import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
 import { MeetStatusEnum } from "../types/MeetStatusEnum";
 import { MeetWall } from "../components/wall/MeetWall";
+import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 
 export default function AttendeeStatusPage() {
   const { code, attendeeId } = useParams<{
@@ -106,6 +107,11 @@ export default function AttendeeStatusPage() {
   const shouldShowMeetWall =
     meet.statusId === MeetStatusEnum.Completed ||
     (meet.statusId === MeetStatusEnum.Closed && meetHasStarted);
+  const shouldShowAttendingAttendees = [
+    AttendeeStatusEnum.Confirmed,
+    AttendeeStatusEnum.CheckedIn,
+    AttendeeStatusEnum.Attended,
+  ].includes(attendeeStatusData?.attendee?.status ?? AttendeeStatusEnum.Pending);
 
   return (
     <Box sx={{ height: "100vh", position: "relative" }}>
@@ -135,6 +141,11 @@ export default function AttendeeStatusPage() {
               meet={meet}
               isPreview={false}
               maxDescriptionLines={meet.imageUrl ? 6 : 9}
+              attendingAttendees={
+                shouldShowAttendingAttendees
+                  ? attendeeStatusData?.attendingAttendees
+                  : []
+              }
               showUserAction={false}
               actionSlot={
                 <IconButton

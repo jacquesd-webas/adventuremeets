@@ -63,4 +63,19 @@ describe("MeetInfoDeets", () => {
       screen.queryByRole("button", { name: /old cave/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("renders mini attendee avatars beside the applied count", () => {
+    render(
+      <MeetInfoDeets
+        meet={makeMeet()}
+        attendingAttendees={[
+          { id: "attendee-1", name: "Alice Walker" },
+          { id: "attendee-2", name: "Bob Smith" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("AW")).toBeInTheDocument();
+    expect(screen.getByText("BS")).toBeInTheDocument();
+  });
 });

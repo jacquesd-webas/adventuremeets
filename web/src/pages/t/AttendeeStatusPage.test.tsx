@@ -24,7 +24,18 @@ vi.mock("../../helpers/organizationTheme", () => ({
 }));
 
 vi.mock("../../components/meet/MeetInfoSummary", () => ({
-  MeetInfoSummary: ({ meet }: { meet: { name: string } }) => <div>{meet.name}</div>,
+  MeetInfoSummary: ({
+    meet,
+    attendingAttendees,
+  }: {
+    meet: { name: string };
+    attendingAttendees?: Array<{ id: string }>;
+  }) => (
+    <div>
+      {meet.name}
+      <span>attending {attendingAttendees?.length ?? 0}</span>
+    </div>
+  ),
 }));
 
 vi.mock("../../components/attendeeStatus/AttendeeStatusAlert", () => ({
@@ -78,7 +89,11 @@ function renderPage() {
 describe("AttendeeStatusPage", () => {
   beforeEach(() => {
     vi.mocked(useFetchMeetAttendeeStatus).mockReturnValue({
-      data: { attendee: { id: "attendee-1", status: "confirmed" } },
+      data: {
+        attendee: { id: "attendee-1", status: "confirmed" },
+        attendingAttendees: [{ id: "attendee-2", name: "Alice Walker" }],
+      },
+      attendingAttendees: [{ id: "attendee-2", name: "Alice Walker" }],
       isLoading: false,
       error: null,
       refetch: vi.fn(),
@@ -137,5 +152,23 @@ describe("AttendeeStatusPage", () => {
     renderPage();
 
     expect(screen.queryByText("meet wall meet-3")).not.toBeInTheDocument();
+  });
+
+  it("passes attending attendee previews to the summary for confirmed attendees", () => {
+    vi.mocked(useFetchMeetSignup).mockReturnValue({
+      data: {
+        id: "meet-4",
+        name: "Confirmed Meet",
+        statusId: MeetStatusEnum.Open,
+        startTime: "2099-04-20T08:00:00.000Z",
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("attending 1")).toBeInTheDocument();
   });
 });

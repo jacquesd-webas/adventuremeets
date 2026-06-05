@@ -1,3 +1,9 @@
+export type MeetAttendeePreview = {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+};
+
 export type Meet = {
   id: string;
   name: string;
@@ -62,6 +68,7 @@ export type Meet = {
   checkedInCount?: number;
   isHidden?: boolean;
   myAttendeeStatus?: string;
+  attendingAttendees?: MeetAttendeePreview[];
   metaDefinitions?: Array<{
     id: string;
     fieldKey: string;

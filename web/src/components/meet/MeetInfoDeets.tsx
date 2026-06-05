@@ -16,16 +16,19 @@ import {
 } from "@mui/material";
 import { useMemo, useState } from "react";
 import { getLocationLabel, getMeetTimeLabel } from "../../helpers/meetTime";
-import Meet from "../../types/MeetModel";
+import Meet, { MeetAttendeePreview } from "../../types/MeetModel";
+import { MeetAttendeeAvatars } from "./MeetAttendeeAvatars";
 
 type MeetInfoDeetsProps = {
   meet: Meet;
   layout?: "vertical" | "horizontal";
+  attendingAttendees?: MeetAttendeePreview[];
 };
 
 export function MeetInfoDeets({
   meet,
   layout = "vertical",
+  attendingAttendees = [],
 }: MeetInfoDeetsProps) {
   const [isMapOpen, setIsMapOpen] = useState(false);
   const isHorizontal = layout === "horizontal";
@@ -92,16 +95,18 @@ export function MeetInfoDeets({
             <Typography variant="body2">{locationLabel}</Typography>
           )}
         </Stack>
-        {typeof meet.capacity === "number" && (
-          <Stack direction="row" spacing={1} alignItems="center">
-            <GroupOutlinedIcon fontSize="small" color="disabled" />
+        <Stack direction="row" spacing={1} alignItems="center">
+          <GroupOutlinedIcon fontSize="small" color="disabled" />
+          {attendingAttendees?.length == 0 && (
             <Typography variant="body2">
-              {meet.capacity === 0
+              {!meet?.capacity
                 ? `${meet.attendeeCount ?? 0} Applied`
                 : `${meet.attendeeCount ?? 0} Applied (limit ${meet.capacity})`}
             </Typography>
-          </Stack>
-        )}
+          )}
+          <MeetAttendeeAvatars attendees={attendingAttendees} />
+        </Stack>
+
         {costLabel && (
           <Stack direction="row" spacing={1} alignItems="center">
             <AttachMoneyOutlinedIcon fontSize="small" color="disabled" />
