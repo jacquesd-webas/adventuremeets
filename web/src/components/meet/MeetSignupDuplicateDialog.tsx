@@ -31,7 +31,7 @@ export function MeetSignupDuplicateDialog({
         <Typography color="text.secondary">
           You have already signed up for this meet. If you wish to make changes
           to your application, please use the link e-mailed to you. Alternately,
-          you may contact the organizer directly to update or remove your
+          you may contact the organiser directly to update or remove your
           application.
         </Typography>
       </DialogContent>

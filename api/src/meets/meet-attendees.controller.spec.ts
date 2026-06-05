@@ -140,9 +140,9 @@ describe("MeetAttendeesController", () => {
       (_user, _orgId, role) => role === "organizer",
     );
 
-    await expect(
-      controller.list("meet-1", "confirmed", user),
-    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+    await expect(controller.list("meet-1", "confirmed", user)).rejects.toThrow(
+      "You cannot access attendees for a meet you do not organize",
+    );
   });
 
   it("allows attendee listing for admins on another organizer's meet", async () => {
@@ -234,7 +234,9 @@ describe("MeetAttendeesController", () => {
 
     await expect(
       controller.getHistory("meet-1", "attendee-1", user),
-    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+    ).rejects.toThrow(
+      "You cannot access attendees for a meet you do not organize",
+    );
   });
 
   it("allows attendee history access for admins on another organizer's meet", async () => {
@@ -528,7 +530,9 @@ describe("MeetAttendeesController", () => {
 
     await expect(
       controller.update("meet-1", "attendee-1", dto, user),
-    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+    ).rejects.toThrow(
+      "You cannot access attendees for a meet you do not organize",
+    );
   });
 
   it("allows attendee updates from an admin who is not the meet organizer", async () => {
@@ -610,7 +614,9 @@ describe("MeetAttendeesController", () => {
 
     await expect(
       controller.remove("meet-1", "attendee-1", user),
-    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+    ).rejects.toThrow(
+      "You cannot access attendees for a meet you do not organize",
+    );
   });
 
   it("allows attendee removal by an admin on another organizer's meet", async () => {

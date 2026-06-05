@@ -29,6 +29,10 @@ const meetFixture = {
   allowGuests: true,
   allowSelfCheckin: true,
   allowWalkins: true,
+  requireEmail: true,
+  requirePhone: true,
+  requireOrg1: false,
+  requireOrg2: true,
   maxGuests: 2,
   statusId: 1,
   shareCode: "camping-share",
@@ -98,6 +102,21 @@ vi.mock("../../../hooks/useFetchMeet", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useFetchOrganizationTemplates", () => ({
+  useFetchOrganizationTemplates: () => ({
+    data: [],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useFetchOrganizationTemplate", () => ({
+  useFetchOrganizationTemplate: () => ({
+    data: null,
+    isLoading: false,
+  }),
+}));
+
 vi.mock("../../../hooks/useFetchOrganizers", () => ({
   useFetchOrganizers: () => ({
     data: [{ id: "organizer-1", firstName: "Alice", lastName: "Jones" }],
@@ -161,6 +180,15 @@ describe("CreateMeetModal edit mode", () => {
     expect(screen.getByDisplayValue(expected.startTime)).toBeInTheDocument();
     expect(screen.getByDisplayValue(expected.endTime)).toBeInTheDocument();
 
+    await user.click(screen.getByText("Questions"));
+
+    expect(
+      screen.getByRole("checkbox", { name: "E-mail address" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Phone number" }),
+    ).toBeChecked();
+
     await user.click(screen.getByText("Limits"));
 
     expect(screen.getByDisplayValue(expected.openingDate)).toBeInTheDocument();
@@ -213,6 +241,40 @@ describe("CreateMeetModal edit mode", () => {
       expect.objectContaining({
         allowSelfCheckin: true,
         allowWalkins: true,
+      }),
+      "meet-1",
+    );
+  });
+
+  it("saves required attendee field flags from the questions step", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      requireEmail: false,
+      requirePhone: false,
+      requireOrg1: false,
+      requireOrg2: false,
+    };
+
+    renderCreateMeetModal();
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Questions"));
+    await user.click(screen.getByRole("checkbox", { name: "E-mail address" }));
+    await user.click(screen.getByRole("checkbox", { name: "Phone number" }));
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requireEmail: true,
+        requirePhone: true,
+        requireOrg1: false,
+        requireOrg2: false,
       }),
       "meet-1",
     );

@@ -162,7 +162,17 @@ export function FinishStep({
         >
           <Box sx={{ width: "100%", maxWidth: 760 }}>
             <HelpBanner
-              message="This final step gives you the share link attendees will use. If the meet still has missing required information, fix those issues first and then come back here."
+              message={
+                <>
+                  This is the final step before you publish you meet. Here you
+                  can preview what your meet will look to applicants.
+                  <br />
+                  <br />
+                  Fix any issues you see before you publish the meet. Then use
+                  the link to advertise your meet using whatever method you
+                  like.
+                </>
+              }
               onDismiss={onDismissHelpBanner || (() => undefined)}
             />
           </Box>

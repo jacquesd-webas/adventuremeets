@@ -1,4 +1,6 @@
 import { Box, Stack, TextField, Typography } from "@mui/material";
+import { AttendeeStatusEnum } from "../../types/AttendeeStatusEnum";
+import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
@@ -11,9 +13,20 @@ export const ResponsesStep = ({
   isHelpEnabled = false,
   isHelpBannerDismissed = false,
   onDismissHelpBanner,
-}: StepProps) => (
-  <Box sx={{ position: "relative" }}>
-    <Stack spacing={2}>
+}: StepProps) => {
+  const confirmDefault = useDefaultMessage(AttendeeStatusEnum.Confirmed, {
+    meetName: state.name,
+  });
+  const rejectDefault = useDefaultMessage(AttendeeStatusEnum.Rejected, {
+    meetName: state.name,
+  });
+  const waitlistDefault = useDefaultMessage(AttendeeStatusEnum.Waitlisted, {
+    meetName: state.name,
+  });
+
+  return (
+    <Box sx={{ position: "relative" }}>
+      <Stack spacing={2}>
       <LabeledField
         label="Approved response"
         labelAction={
@@ -39,7 +52,7 @@ export const ResponsesStep = ({
         }
       >
         <TextField
-          placeholder="Message sent to approved attendees"
+          placeholder={confirmDefault.content}
           value={state.approvedResponse}
           onChange={(e) =>
             setState((prev) => ({ ...prev, approvedResponse: e.target.value }))
@@ -57,7 +70,7 @@ export const ResponsesStep = ({
       </LabeledField>
       <LabeledField label="Reject response">
         <TextField
-          placeholder="Message sent to rejected applicants"
+          placeholder={rejectDefault.content}
           value={state.rejectResponse}
           onChange={(e) =>
             setState((prev) => ({ ...prev, rejectResponse: e.target.value }))
@@ -75,7 +88,7 @@ export const ResponsesStep = ({
       </LabeledField>
       <LabeledField label="Waitlist response">
         <TextField
-          placeholder="Message sent to people on the waitlist"
+          placeholder={waitlistDefault.content}
           value={state.waitlistResponse}
           onChange={(e) =>
             setState((prev) => ({ ...prev, waitlistResponse: e.target.value }))
@@ -114,11 +127,23 @@ export const ResponsesStep = ({
       >
         <Box sx={{ width: "100%", maxWidth: 760 }}>
           <HelpBanner
-            message="These are the messages attendees receive after you or the system decides their outcome. You can customize them to give attendees more information about the meet, or keep then short or even blank for a minimal approach. If your organisation has templates you can use them here."
+            message={
+              <>
+                These are the messages attendees receive after you or the system
+                decides their outcome. You can customize them to give attendees
+                more information about the meet, or keep then short or even
+                blank to use the defaults.
+                <br />
+                <br />
+                If your organisation has templates for default responses you can
+                use them here.
+              </>
+            }
             onDismiss={onDismissHelpBanner || (() => undefined)}
           />
         </Box>
       </Box>
     ) : null}
-  </Box>
-);
+    </Box>
+  );
+};

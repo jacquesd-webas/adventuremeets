@@ -68,6 +68,10 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     allowSelfCheckin:
       apiMeet.allowSelfCheckin ?? apiMeet.allow_self_checkin ?? null,
     allowWalkins: apiMeet.allowWalkins ?? apiMeet.allow_walkins ?? null,
+    requireEmail: apiMeet.requireEmail ?? apiMeet.require_email ?? null,
+    requirePhone: apiMeet.requirePhone ?? apiMeet.require_phone ?? null,
+    requireOrg1: apiMeet.requireOrg1 ?? apiMeet.require_org1 ?? null,
+    requireOrg2: apiMeet.requireOrg2 ?? apiMeet.require_org2 ?? null,
     maxGuests: apiMeet.maxGuests ?? null,
     isVirtual: apiMeet.isVirtual ?? null,
     shareCode: apiMeet.shareCode ?? null,

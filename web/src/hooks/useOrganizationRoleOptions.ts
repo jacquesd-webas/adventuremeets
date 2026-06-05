@@ -9,7 +9,7 @@ export type OrganizationRoleOption = {
 
 const ROLE_OPTIONS: OrganizationRoleOption[] = [
   { id: 2, name: "admin", label: "Admin" },
-  { id: 3, name: "organizer", label: "Organizer" },
+  { id: 3, name: "organizer", label: "Organiser" },
   { id: 4, name: "member", label: "Member" },
 ];
 
@@ -27,7 +27,10 @@ export function useOrganizationRoleOptions() {
     return filtered.map((role) => ({
       id: role.id,
       name: role.name,
-      label: role.name.charAt(0).toUpperCase() + role.name.slice(1),
+      label:
+        role.name === "organizer"
+          ? "Organiser"
+          : role.name.charAt(0).toUpperCase() + role.name.slice(1),
     }));
   }, [roles]);
 

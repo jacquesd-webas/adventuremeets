@@ -204,7 +204,7 @@ export const LimitsStep = ({
         {isHelpEnabled ? (
           <Typography variant="caption" color="text.secondary">
             Show a self check-in QR code on the check-in page so attendees can
-            open the meet from their own devices.
+            use their own devices.
           </Typography>
         ) : null}
         <FormControlLabel
@@ -249,7 +249,24 @@ export const LimitsStep = ({
       >
         <Box sx={{ width: "100%", maxWidth: 760 }}>
           <HelpBanner
-            message="You can use limits to control when people can apply, how many spots are available, whether a waitlist should exist, and whether guests can be invited. If you do not set any dates or limits the meet will be open to unlimited applications until it starts. You can edit all of these settings later if needed."
+            message={
+              <>
+                You can use limits to control when people can apply, how many
+                spots are available, whether a waitlist should exist, and a few
+                other meet controls.
+                <br />
+                <br />
+                <strong>
+                  If you do not set an opening date the meet will be open to
+                  application as soon as you publish.
+                </strong>{" "}
+                <br />
+                <br />
+                You can come back and edit all these setting later, but bear in
+                mind that once applications are in it may impact attendees who
+                have already been approved.
+              </>
+            }
             onDismiss={onDismissHelpBanner || (() => undefined)}
           />
         </Box>

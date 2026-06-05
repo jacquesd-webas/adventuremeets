@@ -151,6 +151,26 @@ export class CreateMeetDto {
   @IsBoolean()
   allowWalkins?: boolean;
 
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requireEmail?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requirePhone?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requireOrg1?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requireOrg2?: boolean;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()

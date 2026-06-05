@@ -344,7 +344,7 @@ export class MeetsController {
     }
     if (!this.authService.hasRole(user, dto.organizationId, "organizer")) {
       throw new ForbiddenException(
-        "Cannot create a meet for an organization you do not belong to as an organizer",
+        "Cannot create a meet for an organisation you do not belong to as an organiser",
       );
     }
 
@@ -376,7 +376,7 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot clone a meet for an organization you do not belong to as an organizer",
+        "Cannot clone a meet for an organisation you do not belong to as an organiser",
       );
     }
 
@@ -522,7 +522,7 @@ export class MeetsController {
         const statusUrl = meet.shareCode
           ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
           : "";
-        const organizerName = meet.organizerName || "the organizer";
+        const organizerName = meet.organizerName || "the organiser";
         const organizerEmail = meet.organizerEmail || "";
         const attendeeName =
           attendee.name || attendee.email || attendee.phone || "there";
@@ -595,7 +595,7 @@ export class MeetsController {
         const statusUrl = meet.shareCode
           ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
           : "";
-        const organizerName = meet.organizerName || "the organizer";
+        const organizerName = meet.organizerName || "the organiser";
         const organizerEmail = meet.organizerEmail || "";
         const attendeeName =
           attendee.name || attendee.email || attendee.phone || "there";
@@ -830,7 +830,7 @@ export class MeetsController {
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
     // Send all the emails (just skip any nulls it's fine)
-    const organizerName = meet.organizerName || "the organizer";
+    const organizerName = meet.organizerName || "the organiser";
     const organizerEmail = meet.organizerEmail || "";
     const includeStatusUrl =
       body.sendAsGroup === true ? false : body.includeStatusUrl !== false;
@@ -896,7 +896,7 @@ export class MeetsController {
           : "";
         const attendeeName =
           attendee?.name || attendee?.email || attendee?.phone || "there";
-        const organizerName = meet.organizerName || "the organizer";
+        const organizerName = meet.organizerName || "the organiser";
         const organizerEmail = meet.organizerEmail || "";
         const { text } = renderEmailTemplate("meet-message", {
           meetName: meet.name,
@@ -1278,7 +1278,7 @@ export class MeetsController {
       user.id !== meet.organizerId
     ) {
       throw new ForbiddenException(
-        `Cannot ${action} a meet you are not the organizer of`,
+        `Cannot ${action} a meet you are not the organiser of`,
       );
     }
   }

@@ -313,7 +313,22 @@ export const TimeAndLocationStep = ({
         >
           <Box sx={{ width: "100%", maxWidth: 760 }}>
             <HelpBanner
-              message="You need to set a time for your meet and optionally a location. Your location will be shown on the meet so you can either be specific or give a general area and then communicate the exact meeting point later. Similary, the time can be specific or just the date if you have not decided exactly when to start."
+              message={
+                <>
+                  You will need to set a date your meet and optionally a time
+                  and location.
+                  <br />
+                  <br />
+                  Your location will be shown on the meet so you can either be
+                  specific or give a general area if you don't want randoms who
+                  were not approved appearing. In this case you will need to
+                  communicate the actual meeting point and time to the approved
+                  applicants.
+                  <br />
+                  <br /> Similary, the time can be specific or just the date if
+                  you have not decided exactly when to start.
+                </>
+              }
               onDismiss={onDismissHelpBanner || (() => undefined)}
             />
           </Box>

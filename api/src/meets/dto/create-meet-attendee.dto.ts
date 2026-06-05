@@ -46,13 +46,13 @@ export class CreateMeetAttendeeDto {
   name?: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((o) => !o.userId)
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   phone?: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((o) => !o.userId)
+  @IsOptional()
   @IsEmail()
   email?: string;
 

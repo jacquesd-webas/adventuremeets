@@ -147,7 +147,7 @@ vi.mock("../../../hooks/useOrganizationRoleOptions", () => ({
   useOrganizationRoleOptions: () => ({
     roleOptions: [
       { id: 2, name: "admin", label: "Admin" },
-      { id: 3, name: "organizer", label: "Organizer" },
+      { id: 3, name: "organizer", label: "Organiser" },
       { id: 4, name: "member", label: "Member" },
     ],
     defaultRoleId: 4,
@@ -204,7 +204,7 @@ describe("ProfileModal", () => {
     expect(
       screen.getByText("Allow regular users to join with invite link"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Save organization")).toBeInTheDocument();
+    expect(screen.getByText("Save organisation")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Invites" }));
     expect(
@@ -251,7 +251,7 @@ describe("ProfileModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("hides organisation invite link textbox when organization is private", async () => {
+  it("hides organisation invite link textbox when organisation is private", async () => {
     mockedOrganization = {
       id: "org-1",
       name: "Adventure Meets",
@@ -270,7 +270,7 @@ describe("ProfileModal", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides the invite link textbox in invites when organization is private", async () => {
+  it("hides the invite link textbox in invites when organisation is private", async () => {
     mockedOrganization = {
       id: "org-1",
       name: "Adventure Meets",

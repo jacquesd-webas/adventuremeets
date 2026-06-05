@@ -64,7 +64,9 @@ function formatMessageBodyHtml(value: string) {
         matchText,
       )}</a>`;
     } else if (lower.startsWith("http") || lower.startsWith("www.")) {
-      const href = lower.startsWith("http") ? matchText : `https://${matchText}`;
+      const href = lower.startsWith("http")
+        ? matchText
+        : `https://${matchText}`;
       html += `<a href="${escapeHtml(href)}">${escapeHtml(matchText)}</a>`;
     } else {
       const telValue = matchText.replace(/[^\d+]/g, "");
@@ -455,7 +457,7 @@ function getMeetTemplateContext(
   const greetingName = vars.attendeeName || "there";
   const statusUrl =
     options.includeStatusUrl === false ? "" : (vars.statusUrl ?? "");
-  const organizerName = vars.organizerName || "the organizer";
+  const organizerName = vars.organizerName || "the organiser";
   const organizerEmail = vars.organizerEmail || "";
   const locationLine = vars.location || "TBC";
   const messageBodyTemplate =

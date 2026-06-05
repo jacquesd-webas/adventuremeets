@@ -52,7 +52,7 @@ export const IndemnityStep = ({
             }
             helperText={
               isHelpEnabled
-                ? "Use this to record the wording attendees must accept before joining the meet. You can start from a template if your organization already has one."
+                ? "Use this to record the wording attendees must accept before joining the meet. You can start from a template if your organisation already has one."
                 : undefined
             }
             disabled={disabled || disableIndemnityText}
@@ -109,7 +109,23 @@ export const IndemnityStep = ({
         >
           <Box sx={{ width: "100%", maxWidth: 760 }}>
             <HelpBanner
-              message="Some meets may require attendees to accept specific indemnity wording as part of their application. It could be a liability waiver or just terms and conditions. Use this section to specify the wording and whether accepting it is mandatory. Once the meet is opened you won't be able to change the indemnity text for legal reasons, so make sure it's all set before opening."
+              message={
+                <>
+                  Some meets may require attendees to accept specific indemnity
+                  wording as part of their application. It could be a liability
+                  waiver or just terms and conditions. Use this section to
+                  specify the wording and whether accepting it is mandatory.
+                  <br />
+                  <br />
+                  Once the meet is open for applications you won't be able to
+                  change the indemnity text for legal reasons, so make sure to
+                  preview and make sure it's all correct before opening.
+                  <br />
+                  <br />
+                  Again, if your organisation has a standard indemnity it can be
+                  imported here.
+                </>
+              }
               onDismiss={onDismissHelpBanner || (() => undefined)}
             />
           </Box>

@@ -245,7 +245,7 @@ export class MeetAttendeesController {
 
     if (!meet || user.id !== meet.organizerId) {
       throw new ForbiddenException(
-        "Only the meet organizer can access ICE information",
+        "Only the meet organiser can access ICE information",
       );
     }
 

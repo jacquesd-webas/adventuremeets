@@ -151,6 +151,22 @@ export class MeetDto {
   allowWalkins?: boolean;
 
   @ApiPropertyOptional()
+  @IsBoolean()
+  requireEmail?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requirePhone?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requireOrg1?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requireOrg2?: boolean;
+
+  @ApiPropertyOptional()
   @IsNumber()
   maxGuests?: number;
 

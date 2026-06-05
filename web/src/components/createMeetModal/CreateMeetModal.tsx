@@ -268,6 +268,11 @@ export function CreateMeetModal({
     const hasTime = Boolean(state.startTime && state.endTime);
     const hasIndemnity = Boolean(state.indemnityAccepted);
     const hasQuestion = state.questions.length > 0;
+    const hasRequiredFields =
+      state.requireEmail ||
+      state.requirePhone ||
+      state.requireOrg1 ||
+      state.requireOrg2;
     const hasLimits =
       Number(state.capacity) > 0 ||
       Boolean(state.openingDate) ||
@@ -288,7 +293,7 @@ export function CreateMeetModal({
     if (hasBasic) completed.push(1);
     if (hasTime) completed.push(2);
     if (hasIndemnity) completed.push(3);
-    if (hasQuestion) completed.push(4);
+    if (hasQuestion || hasRequiredFields) completed.push(4);
     if (hasLimits) completed.push(5);
     if (hasCost) completed.push(6);
     if (hasResponse) completed.push(7);
@@ -304,6 +309,10 @@ export function CreateMeetModal({
     state.endTime,
     state.indemnityAccepted,
     state.questions,
+    state.requireEmail,
+    state.requirePhone,
+    state.requireOrg1,
+    state.requireOrg2,
     state.openingDate,
     state.closingDate,
     state.capacity,
@@ -384,6 +393,10 @@ export function CreateMeetModal({
         };
       case 3:
         return {
+          requireEmail: draft.requireEmail,
+          requirePhone: draft.requirePhone,
+          requireOrg1: draft.requireOrg1,
+          requireOrg2: draft.requireOrg2,
           metaDefinitions: draft.questions.map((question, index) => ({
             id: question.id,
             fieldKey: draft.organizationId

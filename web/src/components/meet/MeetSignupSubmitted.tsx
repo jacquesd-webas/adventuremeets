@@ -160,7 +160,7 @@ export function MeetSignupSubmitted({
           </Typography>
           <Typography color="text.secondary">
             Your application has been submitted. You will be notified by the
-            organizer when meet attendance has been finalized.
+            organiser when meet attendance has been finalized.
           </Typography>
           {canRememberAnswers ? (
             <FormControlLabel

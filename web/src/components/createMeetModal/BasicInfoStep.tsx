@@ -1,4 +1,5 @@
 import { Box, Stack, TextField } from "@mui/material";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { LabeledField } from "./LabeledField";
 import { StepProps, getFieldError } from "./CreateMeetState";
 import { UserSelect, UserOption } from "./UserSelect";
@@ -78,7 +79,7 @@ export const BasicInfoStep = ({
             disabled={disabled}
           />
         </LabeledField>
-        <LabeledField label="Organizer" required>
+        <LabeledField label="Organiser" required>
           <UserSelect
             value={state.organizerId}
             onChange={(value) =>
@@ -90,7 +91,7 @@ export const BasicInfoStep = ({
             helperText={
               organizerError ||
               (isHelpEnabled
-                ? "Usually this is just you, but if you're admin you can select another organizer to lead the meet."
+                ? "Usually this is just you, but if you're admin you can select another organiser to lead the meet."
                 : undefined)
             }
             disabled={disabled}
@@ -113,7 +114,24 @@ export const BasicInfoStep = ({
         >
           <Box sx={{ width: "100%", maxWidth: 760 }}>
             <HelpBanner
-              message="The name and description you provide here will be visible to everyone who views the meet. You can save and then come back later to edit this information until you're happy with how it looks on the preview. For best results try to keep your description to about 2 or 3 short paragraphs."
+              message={
+                <>
+                  This is your basic meet information. The name and description
+                  you provide here will be visible to everyone who views the
+                  meet.
+                  <br />
+                  <br />
+                  You can save and then come back later to edit this information
+                  until you're happy with how it looks on the preview. For best
+                  results try to keep your description to about 2 or 3 short
+                  paragraphs.
+                  <br />
+                  <br />
+                  If this help is annoying you, you can toggle it on and off
+                  using the icon at the top that looks like this:{" "}
+                  <HelpOutlineIcon sx={{ fontSize: "15px" }} />
+                </>
+              }
               onDismiss={onDismissHelpBanner || (() => undefined)}
             />
           </Box>

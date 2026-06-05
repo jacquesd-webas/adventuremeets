@@ -16,17 +16,17 @@ const createMessageContent = (status: AttendeeStatusEnum) => {
     return "Your attendance has been confirmed for the meet. Looking forward to seeing you there!";
   }
   if (status === AttendeeStatusEnum.Waitlisted) {
-    return "You have been waitlisted for the meet. If a spot opens up, the organizer will notify you.";
+    return "You have been waitlisted for the meet. If a spot opens up, the organiser will notify you.";
   }
   if (status === AttendeeStatusEnum.Rejected) {
-    return "Unfortunately, the meet organizer has not been able to accept your application. This is usually due to capacity limits being reached.";
+    return "Unfortunately, the meet organiser has not been able to accept your application. This is usually due to capacity limits being reached.";
   }
   return "";
 };
 
 export function useDefaultMessage(
   status?: AttendeeStatusEnum | null,
-  options?: DefaultMessageOptions
+  options?: DefaultMessageOptions,
 ) {
   return useMemo(() => {
     if (!status) {
@@ -38,7 +38,8 @@ export function useDefaultMessage(
         subject: options?.meetName
           ? `Confirmed: ${options.meetName}`
           : "Meet attendance confirmed",
-        content: options?.confirmMessage?.trim() || createMessageContent(status),
+        content:
+          options?.confirmMessage?.trim() || createMessageContent(status),
       };
     }
     if (status === AttendeeStatusEnum.Invited) {

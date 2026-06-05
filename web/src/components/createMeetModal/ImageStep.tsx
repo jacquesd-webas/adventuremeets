@@ -359,7 +359,14 @@ export const ImageStep = ({
         >
           <Box sx={{ width: "100%", maxWidth: 760 }}>
             <HelpBanner
-              message="Images help your meet stand out. You can upload photos and other information about to meet to make it more attractive and chose a main image that will be used in previews across the app."
+              message={
+                <>
+                  Images help your meet stand out. You can upload photos and
+                  other images about to meet to make it more attractive and
+                  chose a main image that will be used in previews across the
+                  app.
+                </>
+              }
               onDismiss={onDismissHelpBanner || (() => undefined)}
             />
           </Box>

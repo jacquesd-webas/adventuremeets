@@ -144,11 +144,88 @@ export const QuestionsStep = ({
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
           <i>
-            The form will already have{" "}
-            <strong>Name, Email, and Phone number</strong>. You can add more
-            questions using the buttons above or import them from a template.
+            The form will already have <strong>Name</strong>. Use the switches
+            below to mark the standard attendee fields as required, then add any
+            extra questions using the buttons above or import them from a
+            template.
           </i>
         </Typography>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack spacing={1.25}>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Standard fields
+            </Typography>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              }}
+            >
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={state.requireEmail}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        requireEmail: e.target.checked,
+                      }))
+                    }
+                  />
+                }
+                label="E-mail address"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={state.requirePhone}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        requirePhone: e.target.checked,
+                      }))
+                    }
+                  />
+                }
+                label="Phone number"
+              />
+              {/* TODO: These will be added later
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={state.requireOrg1}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        requireOrg1: e.target.checked,
+                      }))
+                    }
+                  />
+                }
+                label="Custom field 1"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={state.requireOrg2}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        requireOrg2: e.target.checked,
+                      }))
+                    }
+                  />
+                }
+                label="Custom field 2"
+              />*/}
+            </Box>
+          </Stack>
+        </Paper>
         {isHelpEnabled ? (
           <Typography variant="body2" color="text.secondary">
             Use text for open answers, select for one choice from a list, switch
@@ -272,7 +349,7 @@ export const QuestionsStep = ({
                 {isHelpEnabled ? (
                   <Typography variant="body2" color="text.secondary">
                     Required means the attendee must answer before submitting.
-                    Include in reports means organizers can use this answer in
+                    Include in reports means organisers can use this answer in
                     exports and reporting later.
                   </Typography>
                 ) : null}
@@ -297,7 +374,23 @@ export const QuestionsStep = ({
         >
           <Box sx={{ width: "100%", maxWidth: 760 }}>
             <HelpBanner
-              message="Name, email and phone number questions are included by default. Use this section to add any additional questions you want attendees to answer as part of their application. You can also import questions from a template if your organization has some set up already. If you use the imported templates this will help attendees to auto-fill their answers in future meets."
+              message={
+                <>
+                  Here you can add questions you want attendees to answer as
+                  part of their application.
+                  <br />
+                  <br />
+                  The form will always include Name, and it is recommended to
+                  have email and phone as well to enable you to communicate with
+                  attendees.
+                  <br />
+                  <br />
+                  You can also import questions from a template if your
+                  organisation has some set up already. If you use the templates
+                  it helps with consistency which allows attendees to auto-fill
+                  their answers in future meets.
+                </>
+              }
               onDismiss={onDismissHelpBanner || (() => undefined)}
             />
           </Box>

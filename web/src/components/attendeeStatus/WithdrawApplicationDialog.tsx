@@ -29,7 +29,7 @@ export function WithdrawApplicationDialog({
   const withdrawDescription = useMemo(() => {
     switch (attendeeStatus) {
       case "confirmed":
-        return "The organizer has already confirmed your application. Withdrawing may cause inconvenience, so be sure to also contact the organizer to let them know.";
+        return "The organiser has already confirmed your application. Withdrawing may cause inconvenience, so be sure to also contact the organiser to let them know.";
       case "waitlisted":
         return "Withdrawing will remove you from the waitlist.";
       case "pending":

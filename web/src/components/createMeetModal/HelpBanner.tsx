@@ -1,7 +1,8 @@
 import { Alert, Button, Stack } from "@mui/material";
+import { ReactNode } from "react";
 
 type HelpBannerProps = {
-  message: string;
+  message: string | ReactNode;
   onDismiss: () => void;
 };
 

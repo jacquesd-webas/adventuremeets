@@ -101,7 +101,16 @@ export const CostsStep = ({
       >
         <Box sx={{ width: "100%", maxWidth: 760 }}>
           <HelpBanner
-            message="You can use this section to set a cost fot the meet. This is informational only and will not be used to process any payments. You can keep track of who has paid when reviewing applications and mark them as paid manually."
+            message={
+              <>
+                You can use this section to set a cost fot the meet. This is
+                informational only and will not be used to process any payments.
+                <br />
+                <br />
+                This will enable the buttons which will allow you can keep track
+                of who has paid when reviewing applications.
+              </>
+            }
             onDismiss={onDismissHelpBanner || (() => undefined)}
           />
         </Box>

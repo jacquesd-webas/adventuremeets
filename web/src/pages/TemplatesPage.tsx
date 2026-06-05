@@ -95,7 +95,7 @@ function TemplatesPage() {
             {title}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Templates available for this organization.
+            Templates available for this organisation.
           </Typography>
         </Box>
         <Button

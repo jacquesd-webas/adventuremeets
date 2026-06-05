@@ -177,7 +177,7 @@ export function MyOrganization() {
         sx={actionButtonSx}
         startIcon={orgSaved ? <CheckCircleIcon fontSize="small" /> : undefined}
       >
-        {orgSaved ? "Saved" : "Save organization"}
+        {orgSaved ? "Saved" : "Save organisation"}
       </Button>
     </Stack>
   );

@@ -151,7 +151,7 @@ export function ProfileAutoFill() {
       </Box>
       {metaLoading || userMetaLoading ? (
         <Typography variant="body2" color="text.secondary">
-          Loading organization questions...
+          Loading organisation questions...
         </Typography>
       ) : metaError || userMetaError ? (
         <Alert severity="error">{metaError || userMetaError}</Alert>
@@ -229,7 +229,7 @@ export function ProfileAutoFill() {
         </Stack>
       ) : (
         <Typography variant="body2" color="text.secondary">
-          No organization questions found.
+          No organisation questions found.
         </Typography>
       )}
       <Box sx={{ flexGrow: 1 }} />

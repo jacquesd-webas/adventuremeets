@@ -215,7 +215,7 @@ describe("MeetsController", () => {
 
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
-    ).rejects.toThrow("Cannot update a meet you are not the organizer of");
+    ).rejects.toThrow("Cannot update a meet you are not the organiser of");
   });
 
   it("allows status updates from an admin who is not the organizer", async () => {
@@ -745,7 +745,7 @@ describe("MeetsController", () => {
     setRoles({ organizer: true, admin: false });
 
     await expect(controller.remove("meet-1", user)).rejects.toThrow(
-      "Cannot delete a meet you are not the organizer of",
+      "Cannot delete a meet you are not the organiser of",
     );
   });
 
