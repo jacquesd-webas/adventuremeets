@@ -120,7 +120,7 @@ export default function AttendeeStatusPage() {
         disableGutters={isMobile}
         sx={{
           py: isMobile ? 0 : 6,
-          pt: isMobile ? 2 : 6,
+          pt: isMobile ? 0 : 6,
           minHeight: "100vh",
           height: "100%",
           overflowY: "auto",
@@ -131,6 +131,7 @@ export default function AttendeeStatusPage() {
           variant="outlined"
           sx={{
             p: isMobile ? 2 : 3,
+            height: "100%",
             minHeight: "100%",
             borderRadius: isMobile ? 0 : 2,
             boxShadow: isMobile ? "none" : undefined,
