@@ -85,7 +85,14 @@ export function FinishStep({
     }
 
     return `${dateLabel} • ${timeLabel}`;
-  }, [state.endTime, state.endTimeTbc, state.startTime, state.startTimeTbc]);
+  }, [
+    state.endTime,
+    state.endTimeTbc,
+    state.name,
+    state.organizerId,
+    state.startTime,
+    state.startTimeTbc,
+  ]);
 
   const handleCopy = async () => {
     if (!shareUrl || typeof navigator === "undefined") return;

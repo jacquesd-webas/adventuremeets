@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MessageModal } from "../MessageModal";
 import AttendeeStatusEnum from "../../../types/AttendeeStatusEnum";
@@ -36,6 +42,7 @@ describe("MessageModal", () => {
   beforeEach(() => {
     enqueueSnackbar.mockClear();
     notifyAttendeeAsync.mockClear();
+    notifyAttendeeAsync.mockResolvedValue(undefined);
   });
 
   it("validates required fields", () => {
@@ -226,11 +233,29 @@ describe("MessageModal", () => {
     fireEvent.click(screen.getByText("Send"));
 
     await waitFor(() => {
-      expect(notifyAttendeeAsync).toHaveBeenCalledWith({
+      expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(1, {
         meetId: "m1",
         subject: "Hello",
         text: "Body",
-        attendeeIds: ["confirmed-1", "checked-in-1", "attended-1"],
+        attendeeIds: ["confirmed-1"],
+        markNotified: false,
+        includeStatusUrl: true,
+        sendAsGroup: false,
+      });
+      expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(2, {
+        meetId: "m1",
+        subject: "Hello",
+        text: "Body",
+        attendeeIds: ["checked-in-1"],
+        markNotified: false,
+        includeStatusUrl: true,
+        sendAsGroup: false,
+      });
+      expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(3, {
+        meetId: "m1",
+        subject: "Hello",
+        text: "Body",
+        attendeeIds: ["attended-1"],
         markNotified: false,
         includeStatusUrl: true,
         sendAsGroup: false,
@@ -367,6 +392,100 @@ describe("MessageModal", () => {
         includeStatusUrl: true,
         sendAsGroup: true,
       });
+    });
+  });
+
+  it("splits bulk auto messages by attendee status", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "invited-1", status: AttendeeStatusEnum.Invited },
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+            { id: "waitlisted-1", status: AttendeeStatusEnum.Waitlisted },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Invited" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Waitlisted" }));
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(1, {
+        meetId: "m1",
+        subject: "Invitation: Meet",
+        text: "Invitation body",
+        attendeeIds: ["invited-1"],
+        markNotified: true,
+        includeStatusUrl: true,
+        sendAsGroup: false,
+      });
+      expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(2, {
+        meetId: "m1",
+        subject: "Auto subject",
+        text: "Auto body",
+        attendeeIds: ["confirmed-1"],
+        markNotified: true,
+        includeStatusUrl: true,
+        sendAsGroup: false,
+      });
+      expect(notifyAttendeeAsync).toHaveBeenNthCalledWith(3, {
+        meetId: "m1",
+        subject: "Auto subject",
+        text: "Auto body",
+        attendeeIds: ["waitlisted-1"],
+        markNotified: true,
+        includeStatusUrl: true,
+        sendAsGroup: false,
+      });
+    });
+  });
+
+  it("shows progress while sending multiple messages", async () => {
+    const queryClient = new QueryClient();
+    let resolveSend: (() => void) | null = null;
+    notifyAttendeeAsync.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSend = resolve;
+        }),
+    );
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+            { id: "confirmed-2", status: AttendeeStatusEnum.Confirmed },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "Hello" },
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Body" },
+    });
+    fireEvent.click(screen.getByText("Send"));
+
+    expect(screen.getByText("Sending messages")).toBeInTheDocument();
+    expect(
+      screen.getByText((content) => /Sent [01] of 2 messages/.test(content)),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      resolveSend?.();
     });
   });
 
