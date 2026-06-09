@@ -84,6 +84,7 @@ export function CreateMeetModal({
   const [pendingClose, setPendingClose] = useState(false);
   const [meetId, setMeetId] = useState<string | null>(null);
   const [shareCode, setShareCode] = useState<string | null>(null);
+  const [checkinPin, setCheckinPin] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isLoadingMeet, setIsLoadingMeet] = useState(false);
@@ -197,6 +198,7 @@ export function CreateMeetModal({
     if (!meetIdProp) {
       setMeetId(null);
       setShareCode(null);
+      setCheckinPin(null);
       const localeCurrency = getLocaleDefaults().currencyCode;
       const fresh = {
         ...initialState,
@@ -220,6 +222,11 @@ export function CreateMeetModal({
       setShareCode(
         (fetchedMeet as any).shareCode ??
           (fetchedMeet as any).share_code ??
+          null,
+      );
+      setCheckinPin(
+        (fetchedMeet as any).checkinPin ??
+          (fetchedMeet as any).checkin_pin ??
           null,
       );
       setFieldErrors([]);
@@ -462,6 +469,9 @@ export function CreateMeetModal({
     }
     if (result?.shareCode || result?.share_code) {
       setShareCode(result.shareCode ?? result.share_code ?? null);
+    }
+    if ("checkinPin" in result || "checkin_pin" in result) {
+      setCheckinPin(result.checkinPin ?? result.checkin_pin ?? null);
     }
     if (result?.statusId) {
       setState((prev) => ({
@@ -804,6 +814,7 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={finalErrors}
             shareCode={shareCode}
+            checkinPin={checkinPin}
             disabled={isMeetLocked}
             isEditing={isEditing}
             onPreview={handlePreview}

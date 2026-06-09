@@ -12,9 +12,13 @@ import { useMemo, useState } from "react";
 import { StepProps } from "./CreateMeetState";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { HelpBanner } from "./HelpBanner";
+import { getMeetDateLabel, getMeetTimeLabel } from "../../helpers/meetTime";
+import { openMeetPosterPrintWindow } from "./openMeetPosterPrintWindow";
+import Meet from "../../types/MeetModel";
 
 type FinishStepProps = StepProps & {
   shareCode?: string | null;
+  checkinPin?: string | null;
   isEditing?: boolean;
   onPreview?: () => void;
 };
@@ -24,6 +28,7 @@ export function FinishStep({
   setState,
   errors = [],
   shareCode,
+  checkinPin,
   disabled = false,
   isEditing = false,
   onPreview,
@@ -53,11 +58,62 @@ export function FinishStep({
     return `${window.location.origin}/meets/${shareCode}?${params.toString()}`;
   }, [shareCode]);
 
+  const selfCheckinUrl = useMemo(() => {
+    if (!shareCode || !checkinPin) return "";
+    const params = new URLSearchParams({ pin: checkinPin });
+    if (typeof window === "undefined") {
+      return `/meets/${shareCode}/checkin?${params.toString()}`;
+    }
+    return `${window.location.origin}/meets/${shareCode}/checkin?${params.toString()}`;
+  }, [checkinPin, shareCode]);
+
+  const posterSubtitle = useMemo(() => {
+    const posterMeet: Meet = {
+      id: "poster-preview",
+      name: state.name || "Meet",
+      organizerId: state.organizerId || "poster-organizer",
+      startTime: state.startTime,
+      endTime: state.endTime,
+      startTimeTbc: state.startTimeTbc,
+      endTimeTbc: state.endTimeTbc,
+    };
+    const dateLabel = getMeetDateLabel(posterMeet);
+    const timeLabel = getMeetTimeLabel(posterMeet);
+
+    if (!timeLabel || timeLabel === "TBC") {
+      return dateLabel;
+    }
+
+    return `${dateLabel} • ${timeLabel}`;
+  }, [state.endTime, state.endTimeTbc, state.startTime, state.startTimeTbc]);
+
   const handleCopy = async () => {
     if (!shareUrl || typeof navigator === "undefined") return;
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handlePrintSignupPoster = () => {
+    if (!shareUrl) return;
+    openMeetPosterPrintWindow({
+      title: state.name || "Meet signup",
+      subtitle: posterSubtitle,
+      qrUrl: shareUrl,
+      imageUrl: state.imagePreview || undefined,
+      footerLabel: "Meet signup",
+    });
+  };
+
+  const handlePrintSelfCheckinPoster = () => {
+    if (!selfCheckinUrl) return;
+    openMeetPosterPrintWindow({
+      title: state.name || "Meet self check-in",
+      subtitle: posterSubtitle,
+      qrUrl: selfCheckinUrl,
+      imageUrl: state.imagePreview || undefined,
+      footerLabel: "Self check-in",
+    });
   };
 
   return (
@@ -104,7 +160,13 @@ export function FinishStep({
               InputProps={{ readOnly: true }}
               inputProps={{ "data-testid": "share-link-input" }}
             />
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <Stack
+              direction="row"
+              spacing={1}
+              useFlexGap
+              flexWrap="wrap"
+              alignItems="center"
+            >
               <Button
                 variant="outlined"
                 onClick={onPreview}
@@ -112,6 +174,22 @@ export function FinishStep({
               >
                 Preview
               </Button>
+              <Button
+                variant="outlined"
+                onClick={handlePrintSignupPoster}
+                disabled={!shareUrl}
+              >
+                Sign-up Poster
+              </Button>
+              {state.allowSelfCheckin ? (
+                <Button
+                  variant="outlined"
+                  onClick={handlePrintSelfCheckinPoster}
+                  disabled={!selfCheckinUrl}
+                >
+                  Check-in Poster
+                </Button>
+              ) : null}
               <Button
                 variant="contained"
                 onClick={handleCopy}

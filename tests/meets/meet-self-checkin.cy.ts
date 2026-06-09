@@ -1,12 +1,12 @@
 export {};
 
 describe("Meet self check-in", () => {
-  it("lets an accepted attendee self check in from the public check-in link", () => {
+  it("allows an accepted attendee to self check in from the public QR link", () => {
     const unique = Date.now();
-    const meetName = `Self Checkin Meet ${unique}`;
+    const meetName = `Bob Self Checkin Meet ${unique}`;
     const attendee = {
-      name: `Self Checkin Attendee ${unique}`,
-      email: `self.checkin.${unique}@example.com`,
+      name: `Attendee ${unique}`,
+      email: `attendee.selfcheckin.${unique}@example.com`,
       phone: `555${Math.floor(1000000 + Math.random() * 9000000)}`,
     };
 
@@ -60,6 +60,7 @@ describe("Meet self check-in", () => {
     cy.get('[data-testid="close-attendees-modal"]').click();
     cy.contains("Notify attendees?").should("be.visible");
     cy.contains("button", "Later").click();
+    cy.contains("Notify attendees?").should("not.exist");
 
     openMeetRowMenu();
     cy.contains("Close meet").click();
@@ -71,9 +72,11 @@ describe("Meet self check-in", () => {
     cy.contains("Self check-in QR code").should("be.visible");
     cy.contains("/meets/")
       .invoke("text")
-      .then((selfCheckinUrl) => {
-        cy.wrap(selfCheckinUrl.trim()).as("selfCheckinUrl");
+      .then((url) => {
+        cy.wrap(url.trim()).as("selfCheckinUrl");
       });
+
+    cy.logout();
 
     cy.get("@selfCheckinUrl").then((selfCheckinUrl) => {
       cy.visit(String(selfCheckinUrl));
@@ -82,10 +85,14 @@ describe("Meet self check-in", () => {
     cy.contains(`${meetName} - Check-in`).should("be.visible");
     cy.get('input[placeholder="Your name"]').clear().type(attendee.name);
     cy.get('input[placeholder="you@example.com"]').clear().type(attendee.email);
+    cy.get('input[placeholder="Mobile phone number"]')
+      .clear()
+      .type(attendee.phone);
 
     cy.contains("Found a match, ready to check in.").should("be.visible");
     cy.contains("button", "Check in").should("be.enabled").click();
 
     cy.url().should("match", /\/meets\/[^/]+\/[^/]+$/);
+    cy.contains(meetName).should("be.visible");
   });
 });

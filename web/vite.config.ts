@@ -9,6 +9,14 @@ export default defineConfig(({ mode }) => {
   const apiOrigin = apiBase.endsWith("/api/v1")
     ? apiBase.slice(0, -"/api/v1".length)
     : apiBase;
+  const minioPublicUrl = String(
+    env.VITE_MINIO_PUBLIC_URL || env.MINIO_PUBLIC_URL || "",
+  ).replace(/\/+$/, "");
+  const minioTarget =
+    minioPublicUrl ||
+    `${
+      env.MINIO_USE_SSL === "true" ? "https" : "http"
+    }://${env.MINIO_ENDPOINT || "localhost"}:${env.MINIO_PORT || "9000"}`;
 
   const proxyTarget = apiOrigin || "http://localhost:8080";
 
@@ -99,6 +107,10 @@ export default defineConfig(({ mode }) => {
         },
         "/share": {
           target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/meet-images": {
+          target: minioTarget,
           changeOrigin: true,
         },
       },

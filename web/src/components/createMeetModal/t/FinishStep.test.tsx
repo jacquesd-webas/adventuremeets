@@ -2,6 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { FinishStep } from "../FinishStep";
 import { initialState } from "../CreateMeetState";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
+import { openMeetPosterPrintWindow } from "../openMeetPosterPrintWindow";
+
+vi.mock("../openMeetPosterPrintWindow", () => ({
+  openMeetPosterPrintWindow: vi.fn(),
+}));
 
 describe("FinishStep", () => {
   afterEach(() => {
@@ -84,5 +89,64 @@ describe("FinishStep", () => {
     fireEvent.click(screen.getByRole("button", { name: /preview/i }));
 
     expect(onPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it("prints the signup poster with the meet signup URL", () => {
+    render(
+      <FinishStep
+        state={{
+          ...initialState,
+          name: "Poster Meet",
+          startTime: "2026-06-12T08:00",
+          endTime: "2026-06-12T12:00",
+          imagePreview: "https://example.com/poster.jpg",
+        }}
+        setState={vi.fn()}
+        errors={[]}
+        shareCode="share-code-1"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /sign-up poster/i }),
+    );
+
+    expect(openMeetPosterPrintWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Poster Meet",
+        qrUrl: `${window.location.origin}/meets/share-code-1`,
+        imageUrl: "https://example.com/poster.jpg",
+        footerLabel: "Meet signup",
+      }),
+    );
+  });
+
+  it("shows and prints the self check-in poster when self check-in is available", () => {
+    render(
+      <FinishStep
+        state={{
+          ...initialState,
+          name: "Poster Meet",
+          startTime: "2026-06-12T08:00",
+          endTime: "2026-06-12T12:00",
+          allowSelfCheckin: true,
+        }}
+        setState={vi.fn()}
+        errors={[]}
+        shareCode="share-code-1"
+        checkinPin="PIN123"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /check-in poster/i }),
+    );
+
+    expect(openMeetPosterPrintWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        qrUrl: `${window.location.origin}/meets/share-code-1/checkin?pin=PIN123`,
+        footerLabel: "Self check-in",
+      }),
+    );
   });
 });
