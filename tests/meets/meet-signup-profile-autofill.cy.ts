@@ -51,7 +51,7 @@ describe("Meet signup profile autofill", () => {
     cy.contains("label", "Allow regular users to join with invite link")
       .find('input[type="checkbox"]')
       .check({ force: true });
-    cy.contains("button", "Save organization").click();
+    cy.contains("button", "Save organisation").click();
     cy.closeProfileModal();
 
     cy.createMinimalMeet({

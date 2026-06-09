@@ -27,7 +27,7 @@ describe("Invite to organisation", () => {
       .find("input")
       .clear()
       .type(inviterOrgName);
-    cy.contains("button", "Save organization").click();
+    cy.contains("button", "Save organisation").click();
     cy.contains("button", "Saved").should("be.visible");
 
     cy.get('[data-testid="profile-modal"]').contains("Invites").click();

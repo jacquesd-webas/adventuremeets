@@ -25,7 +25,7 @@ describe("Create template", () => {
       .parent()
       .find('input[type="checkbox"]')
       .check({ force: true });
-    cy.contains("button", "Save organization").click();
+    cy.contains("button", "Save organisation").click();
 
     cy.contains("label", "Invite link")
       .parent()

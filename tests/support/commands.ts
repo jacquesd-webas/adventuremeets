@@ -21,6 +21,8 @@ type CreateMinimalMeetOptions = {
   questions?: CreateMinimalMeetQuestion[];
   allowGuests?: boolean;
   maxGuests?: number;
+  allowSelfCheckin?: boolean;
+  allowWalkins?: boolean;
 };
 
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -152,6 +154,15 @@ Cypress.Commands.add("createMinimalMeet", (options: CreateMinimalMeetOptions) =>
     cy.get('input[placeholder="How many guests per attendee?"]')
       .clear()
       .type(String(options.maxGuests ?? 1));
+  }
+  if (options.allowWalkins) {
+    cy.contains("label", "Allow walk-ins")
+      .find('input[type="checkbox"]')
+      .check({ force: true });
+  } else if (options.allowSelfCheckin) {
+    cy.contains("label", "Allow self check-in")
+      .find('input[type="checkbox"]')
+      .check({ force: true });
   }
   cy.contains("button", "Save & Continue").click();
 

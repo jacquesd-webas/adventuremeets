@@ -64,7 +64,7 @@ describe("Create meet flow", () => {
     )
       .clear()
       .type(
-        "By attending this meet, you acknowledge the inherent risks of outdoor activities and agree to take reasonable precautions. You accept full responsibility for your safety and agree to follow organizer instructions.",
+        "By attending this meet, you acknowledge the inherent risks of outdoor activities and agree to take reasonable precautions. You accept full responsibility for your safety and agree to follow organiser instructions.",
         { delay: 0 },
       );
     cy.contains("label", "Require attendees to accept indemnity")
@@ -103,22 +103,36 @@ describe("Create meet flow", () => {
     cy.get('[data-testid="deposit-input"]').type("15");
     cy.contains("button", "Save & Continue").click();
 
-    cy.get('textarea[placeholder="Message sent to approved attendees"]')
-      .clear()
+    cy.get('[data-testid="approved-response-field"]')
+      .find("textarea")
+      .filter(":visible")
+      .first()
+      .type("{selectall}{backspace}", {
+        force: true,
+        scrollBehavior: false,
+      })
       .type("You are approved and we are excited to see you at the meet!", {
         delay: 0,
+        force: true,
+        scrollBehavior: false,
       });
-    cy.get('textarea[placeholder="Message sent to rejected applicants"]')
-      .clear()
+    cy.get('[data-testid="reject-response-field"]')
+      .find("textarea")
+      .filter(":visible")
+      .first()
+      .clear({ scrollBehavior: false })
       .type(
         "Thanks for applying. Unfortunately we cannot accommodate you this time.",
-        { delay: 0 },
+        { delay: 0, scrollBehavior: false },
       );
-    cy.get('textarea[placeholder="Message sent to people on the waitlist"]')
-      .clear()
+    cy.get('[data-testid="waitlist-response-field"]')
+      .find("textarea")
+      .filter(":visible")
+      .first()
+      .clear({ scrollBehavior: false })
       .type(
         "You are currently on the waitlist. We will notify you if a spot opens.",
-        { delay: 0 },
+        { delay: 0, scrollBehavior: false },
       );
     cy.contains("button", "Save & Continue").click();
 
@@ -176,7 +190,7 @@ describe("Create meet flow", () => {
       'textarea[placeholder="Paste or write indemnity text attendees must accept"]',
     ).should(
       "have.value",
-      "By attending this meet, you acknowledge the inherent risks of outdoor activities and agree to take reasonable precautions. You accept full responsibility for your safety and agree to follow organizer instructions.",
+      "By attending this meet, you acknowledge the inherent risks of outdoor activities and agree to take reasonable precautions. You accept full responsibility for your safety and agree to follow organiser instructions.",
     );
     cy.contains("label", "Require attendees to accept indemnity")
       .find('input[type="checkbox"]')
@@ -222,22 +236,30 @@ describe("Create meet flow", () => {
     cy.get('[data-testid="deposit-input"]').should("have.value", "15");
     cy.contains("button", "Save & Continue").click();
 
-    cy.get('textarea[placeholder="Message sent to approved attendees"]').should(
-      "have.value",
-      "You are approved and we are excited to see you at the meet!",
-    );
-    cy.get(
-      'textarea[placeholder="Message sent to rejected applicants"]',
-    ).should(
-      "have.value",
-      "Thanks for applying. Unfortunately we cannot accommodate you this time.",
-    );
-    cy.get(
-      'textarea[placeholder="Message sent to people on the waitlist"]',
-    ).should(
-      "have.value",
-      "You are currently on the waitlist. We will notify you if a spot opens.",
-    );
+    cy.get('[data-testid="approved-response-field"]')
+      .find("textarea")
+      .filter(":visible")
+      .first()
+      .should(
+        "have.value",
+        "You are approved and we are excited to see you at the meet!",
+      );
+    cy.get('[data-testid="reject-response-field"]')
+      .find("textarea")
+      .filter(":visible")
+      .first()
+      .should(
+        "have.value",
+        "Thanks for applying. Unfortunately we cannot accommodate you this time.",
+      );
+    cy.get('[data-testid="waitlist-response-field"]')
+      .find("textarea")
+      .filter(":visible")
+      .first()
+      .should(
+        "have.value",
+        "You are currently on the waitlist. We will notify you if a spot opens.",
+      );
     cy.contains("button", "Save & Continue").click();
 
     // skip image
