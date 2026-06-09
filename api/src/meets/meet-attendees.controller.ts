@@ -55,10 +55,11 @@ export class MeetAttendeesController {
   @Get("check")
   check(
     @Param("meetId") meetId: string,
+    @Query("name") name?: string,
     @Query("email") email?: string,
     @Query("phone") phone?: string,
   ) {
-    return this.meetsService.findAttendeeByContact(meetId, email, phone, {
+    return this.meetsService.findAttendeeByContact(meetId, email, phone, name, {
       includeInvited: false,
     });
   }

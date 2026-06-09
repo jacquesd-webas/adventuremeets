@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEmail,
   IsInt,
+  Length,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -105,4 +106,10 @@ export class CreateMeetAttendeeDto {
   @IsOptional()
   @IsString()
   autoPlacement?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(6, 6)
+  checkinPin?: string;
 }

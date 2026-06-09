@@ -24,6 +24,7 @@ const buildBuilder = () => {
   builder.whereNotIn = jest.fn().mockReturnValue(builder);
   builder.whereNotNull = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
+  builder.orWhereRaw = jest.fn().mockReturnValue(builder);
   builder.orderByRaw = jest.fn().mockReturnValue(builder);
   builder.orderBy = jest.fn().mockReturnValue(builder);
   builder.modify = jest.fn().mockReturnValue(builder);
@@ -576,6 +577,48 @@ describe("MeetsService", () => {
     ).rejects.toThrow(ConflictException);
   });
 
+  it("creates a checked-in attendee when a valid check-in pin is supplied", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      capacity: null,
+      waitlist_size: 0,
+      auto_placement: false,
+      checkin_pin: "PIN123",
+    });
+
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({ max: 0 });
+    attendeeBuilder.insert.mockResolvedValue([
+      { id: "attendee-1", status: "checked-in" },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await service.addAttendee("meet-1", {
+      name: "Walk In",
+      checkinPin: "PIN123",
+    });
+
+    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meet_id: "meet-1",
+        name: "Walk In",
+        status: "checked-in",
+      }),
+      ["*"],
+    );
+  });
+
   it("rejects duplicate adult attendee updates with a conflict error", async () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.update.mockRejectedValue({
@@ -761,6 +804,51 @@ describe("MeetsService", () => {
       ["id"],
     );
     expect(metaValuesBuilder.insert).not.toHaveBeenCalled();
+  });
+
+  it("matches attendees by name and sorts unchecked matches before checked-in ones", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.select.mockResolvedValue([
+      {
+        id: "attendee-checked",
+        meet_id: "meet-1",
+        name: "Sam Trail",
+        email: null,
+        phone: null,
+        status: "checked-in",
+      },
+      {
+        id: "attendee-confirmed",
+        meet_id: "meet-1",
+        name: "Sam Trail",
+        email: null,
+        phone: null,
+        status: "confirmed",
+      },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const result = await service.findAttendeeByContact(
+      "meet-1",
+      undefined,
+      undefined,
+      "Sam Trail",
+      { includeInvited: false },
+    );
+
+    expect(result.attendee?.id).toBe("attendee-confirmed");
+    expect(result.attendees?.map((attendee) => attendee.id)).toEqual([
+      "attendee-confirmed",
+      "attendee-checked",
+    ]);
   });
 
   it("preserves existing meet meta definition ids when editing questions", async () => {

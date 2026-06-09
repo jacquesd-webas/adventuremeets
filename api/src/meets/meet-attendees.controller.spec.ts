@@ -293,16 +293,23 @@ describe("MeetAttendeesController", () => {
   it("checks duplicates without including invited attendees", async () => {
     (meetsService.findAttendeeByContact as jest.Mock).mockResolvedValue({
       attendee: null,
+      attendees: [],
     });
 
     await expect(
-      controller.check("meet-1", "person@example.com", "+27123456789"),
-    ).resolves.toEqual({ attendee: null });
+      controller.check(
+        "meet-1",
+        "Person Example",
+        "person@example.com",
+        "+27123456789",
+      ),
+    ).resolves.toEqual({ attendee: null, attendees: [] });
 
     expect(meetsService.findAttendeeByContact).toHaveBeenCalledWith(
       "meet-1",
       "person@example.com",
       "+27123456789",
+      "Person Example",
       { includeInvited: false },
     );
   });

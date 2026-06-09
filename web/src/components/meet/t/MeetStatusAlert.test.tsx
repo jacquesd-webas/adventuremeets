@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { MeetStatusAlert } from "../MeetStatusAlert";
 import { MeetStatusEnum } from "../../../types/MeetStatusEnum";
@@ -12,6 +13,18 @@ vi.mock("react-router-dom", async () => {
   );
   return {
     ...actual,
+    MemoryRouter: ({
+      future,
+      ...props
+    }: React.ComponentProps<typeof actual.MemoryRouter>) =>
+      React.createElement(actual.MemoryRouter, {
+        ...props,
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+          ...future,
+        },
+      }),
     useNavigate: () => navigate,
   };
 });

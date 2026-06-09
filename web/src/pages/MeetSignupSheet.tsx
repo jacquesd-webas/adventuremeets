@@ -115,6 +115,7 @@ function MeetSignupSheet() {
   const previewSource = searchParams.get("previewSource");
   const previewReturnTo = searchParams.get("returnTo");
   const guestOf = searchParams.get("guestOf");
+  const checkinPin = searchParams.get("pin")?.trim() || "";
   const action = searchParams.get("action");
   const editAttendeeId = attendeeIdParam || searchParams.get("attendeeId");
   const isEditing =
@@ -525,6 +526,10 @@ function MeetSignupSheet() {
 
   const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
   const isDraftMeet = meet?.statusId === MeetStatusEnum.Draft;
+  const hasValidCheckinPin = Boolean(
+    checkinPin && meet?.checkinPin && checkinPin === meet.checkinPin,
+  );
+  const canSubmitSignup = isOpenMeet || hasValidCheckinPin;
   const showEmailField = meet?.requireEmail !== false;
   const showPhoneField = meet?.requirePhone !== false;
   const closeButtonLabel = isPreview
@@ -604,7 +609,7 @@ function MeetSignupSheet() {
   });
 
   const isSubmitDisabled =
-    !isOpenMeet ||
+    !canSubmitSignup ||
     !fullName.trim() ||
     (showEmailField && !email.trim()) ||
     (showPhoneField && !phoneLocal.trim()) ||
@@ -729,6 +734,7 @@ function MeetSignupSheet() {
       indemnityAccepted: indemnityAccepted,
       indemnityMinors: "",
       metaValues: metaPayload,
+      checkinPin: checkinPin || undefined,
     });
     setSubmittedAttendeeId(res?.attendee?.id ?? null);
     setSubmitted(true);
@@ -842,13 +848,13 @@ function MeetSignupSheet() {
                   </Stack>
                 }
               />
-              {!isPreview && meet && (
+              {!isPreview && meet && !hasValidCheckinPin && (
                 <MeetStatusAlert
                   statusId={meet.statusId}
                   openingDate={meet.openingDate}
                 />
               )}
-              {(isOpenMeet || isPreview) && (
+              {(canSubmitSignup || isPreview) && (
                 <MeetSignupFormFields
                   meet={meet}
                   fullName={fullName}

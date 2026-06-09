@@ -436,11 +436,7 @@ export class MeetsService {
     const shareCode = this.generateShareCode(12);
     const created = await this.db.getClient().transaction(async (trx) => {
       const [meet] = await trx("meets").insert(
-        this.toDbRecord(
-          { ...dto, currencyId, statusId, shareCode },
-          null,
-          now,
-        ),
+        this.toDbRecord({ ...dto, currencyId, statusId, shareCode }, null, now),
         ["*"],
       );
       if (dto.metaDefinitions) {
@@ -554,10 +550,9 @@ export class MeetsService {
       }
       const updatedRows = (await trx("meets")
         .where({ id })
-        .update(
-          this.toDbRecord({ ...dto, currencyId }, existingMeet),
-          ["*"],
-        )) as unknown;
+        .update(this.toDbRecord({ ...dto, currencyId }, existingMeet), [
+          "*",
+        ])) as unknown;
       const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, id, dto.metaDefinitions);
@@ -841,30 +836,95 @@ export class MeetsService {
     meetId: string,
     email?: string,
     phone?: string,
+    name?: string,
     options?: { includeInvited?: boolean },
   ) {
-    if (!email && !phone) {
-      throw new BadRequestException("Email or phone is required");
+    const normalizedEmail = email?.trim().toLowerCase() || "";
+    const normalizedPhone = phone?.trim() || "";
+    const normalizedName =
+      name?.trim().toLowerCase().replace(/\s+/g, " ") || "";
+
+    if (!normalizedEmail && !normalizedPhone && !normalizedName) {
+      throw new BadRequestException("Name, email, or phone is required");
     }
+
     const query = this.db
       .getClient()("meet_attendees")
       .where({ meet_id: meetId });
     if (options?.includeInvited === false) {
       query.andWhereNot("status", "invited");
     }
-    if (email && phone) {
-      query.andWhere((builder) => {
-        builder
-          .whereRaw("lower(email) = ?", [email.toLowerCase()])
-          .orWhere({ phone });
-      });
-    } else if (email) {
-      query.andWhereRaw("lower(email) = ?", [email.toLowerCase()]);
-    } else if (phone) {
-      query.andWhere({ phone });
-    }
-    const attendee = await query.first();
-    return { attendee: attendee ? this.toAttendeeDto(attendee) : null };
+
+    query.andWhere((builder) => {
+      let hasClause = false;
+
+      if (normalizedEmail) {
+        builder.whereRaw("lower(email) = ?", [normalizedEmail]);
+        hasClause = true;
+      }
+
+      if (normalizedPhone) {
+        if (hasClause) {
+          builder.orWhere({ phone: normalizedPhone });
+        } else {
+          builder.where({ phone: normalizedPhone });
+          hasClause = true;
+        }
+      }
+
+      if (normalizedName) {
+        const nameSql =
+          "regexp_replace(lower(coalesce(name, '')), '\\s+', ' ', 'g') = ?";
+        if (hasClause) {
+          builder.orWhereRaw(nameSql, [normalizedName]);
+        } else {
+          builder.whereRaw(nameSql, [normalizedName]);
+        }
+      }
+    });
+
+    const attendees = await query.select("*");
+    const matchedAttendees = attendees
+      .map((attendee: Record<string, any>) => {
+        const attendeeName =
+          attendee.name?.trim().toLowerCase().replace(/\s+/g, " ") || "";
+        const attendeeEmail = attendee.email?.trim().toLowerCase() || "";
+        const attendeePhone = attendee.phone?.trim() || "";
+        const emailMatch = Boolean(
+          normalizedEmail && attendeeEmail === normalizedEmail,
+        );
+        const phoneMatch = Boolean(
+          normalizedPhone && attendeePhone === normalizedPhone,
+        );
+        const nameMatch = Boolean(
+          normalizedName && attendeeName === normalizedName,
+        );
+        const status = attendee.status ?? "";
+        const isAlreadyCheckedIn = ["checked-in", "attended"].includes(status);
+        const score =
+          (emailMatch ? 4 : 0) + (phoneMatch ? 4 : 0) + (nameMatch ? 1 : 0);
+
+        return {
+          attendee,
+          score,
+          isAlreadyCheckedIn,
+        };
+      })
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        if (left.isAlreadyCheckedIn !== right.isAlreadyCheckedIn) {
+          return left.isAlreadyCheckedIn ? 1 : -1;
+        }
+        return 0;
+      })
+      .map(({ attendee }) => this.toAttendeeDto(attendee));
+
+    return {
+      attendee: matchedAttendees[0] ?? null,
+      attendees: matchedAttendees,
+    };
   }
 
   async findPreviousAnswers(
@@ -908,12 +968,24 @@ export class MeetsService {
   ) {
     try {
       const created = await this.db.getClient().transaction(async (trx) => {
+        const meet = await trx("meets")
+          .where({ id: meetId })
+          .first("capacity", "waitlist_size", "auto_placement", "checkin_pin");
+        if (!meet) {
+          throw new NotFoundException("Meet not found");
+        }
+
         const guardianName =
           dto.GuardianName ?? (dto as any).guardianName ?? null;
         const acceptedByName =
           dto.isMinor && guardianName ? guardianName : (dto.name ?? null);
         const contactEmail = dto.email?.trim() || undefined;
         const contactPhone = dto.phone?.trim() || undefined;
+        const shouldCheckInOnSignup = Boolean(
+          dto.checkinPin &&
+          meet.checkin_pin &&
+          dto.checkinPin.trim() === meet.checkin_pin,
+        );
 
         if (contactEmail || contactPhone) {
           const invitedQuery = trx("meet_attendees")
@@ -972,7 +1044,7 @@ export class MeetsService {
                   guardian_name: guardianName,
                   indemnity_accepted: dto.indemnityAccepted ?? null,
                   indemnity_minors: dto.indemnityMinors ?? null,
-                  status: "confirmed",
+                  status: shouldCheckInOnSignup ? "checked-in" : "confirmed",
                   updated_at: new Date().toISOString(),
                 },
                 ["*"],
@@ -1024,18 +1096,16 @@ export class MeetsService {
           }
         }
 
-        // Lock the meet row so capacity/waitlist decisions are race-safe.
-        const meet = await trx("meets")
-          .where({ id: meetId })
-          .forUpdate()
-          .first("capacity", "waitlist_size", "auto_placement");
-        if (!meet) {
-          throw new NotFoundException("Meet not found");
-        }
-
-        let status: "pending" | "confirmed" | "waitlisted" | "rejected" =
-          "pending";
-        if (meet.auto_placement !== false) {
+        let status:
+          | "pending"
+          | "confirmed"
+          | "waitlisted"
+          | "rejected"
+          | "checked-in" = "pending";
+        if (shouldCheckInOnSignup) {
+          status = "checked-in";
+        } else if (meet.auto_placement !== false) {
+          await trx("meets").where({ id: meetId }).forUpdate().first("id");
           status = await this.computeAutoPlacementStatus(trx, meetId, meet);
         }
 
@@ -1713,7 +1783,11 @@ export class MeetsService {
   async removeWallItem(
     meetId: string,
     wallItemId: string,
-    actor?: { userId?: string; attendeeId?: string | null; canAdminDelete?: boolean },
+    actor?: {
+      userId?: string;
+      attendeeId?: string | null;
+      canAdminDelete?: boolean;
+    },
   ) {
     const wallItem = await this.db
       .getClient()("wall_item")
@@ -1727,7 +1801,8 @@ export class MeetsService {
     const canDelete =
       Boolean(actor?.canAdminDelete) ||
       (Boolean(actor?.userId) && wallItem.created_by === actor?.userId) ||
-      (Boolean(actor?.attendeeId) && wallItem.attendee_id === actor?.attendeeId);
+      (Boolean(actor?.attendeeId) &&
+        wallItem.attendee_id === actor?.attendeeId);
 
     if (!canDelete) {
       throw new ForbiddenException(
@@ -2034,8 +2109,8 @@ export class MeetsService {
     ).length;
     const canSeeAttendeeId = Boolean(
       wallItem.attendee_id &&
-        ((actor?.attendeeId && wallItem.attendee_id === actor.attendeeId) ||
-          (actor?.userId && wallItem.created_by === actor.userId)),
+      ((actor?.attendeeId && wallItem.attendee_id === actor.attendeeId) ||
+        (actor?.userId && wallItem.created_by === actor.userId)),
     );
 
     return {
@@ -2148,7 +2223,9 @@ export class MeetsService {
         config: definition.config ?? {},
       }))
       .filter((definition) => definition.label);
-    const updatedAtValue = trx.fn?.now ? trx.fn.now() : new Date().toISOString();
+    const updatedAtValue = trx.fn?.now
+      ? trx.fn.now()
+      : new Date().toISOString();
 
     const existing = (await trx("meet_meta_definitions")
       .where({ meet_id: meetId })
@@ -2158,16 +2235,10 @@ export class MeetsService {
     }>;
 
     const existingById = new Map(
-      existing.map((definition) => [
-        definition.id,
-        definition,
-      ]),
+      existing.map((definition) => [definition.id, definition]),
     );
     const existingByFieldKey = new Map(
-      existing.map((definition) => [
-        definition.field_key,
-        definition,
-      ]),
+      existing.map((definition) => [definition.field_key, definition]),
     );
 
     const matchedExistingIds = new Set<string>();
@@ -2201,8 +2272,7 @@ export class MeetsService {
           : undefined;
       const matched =
         matchedById ??
-        (matchedByFieldKey &&
-        !matchedExistingIds.has(matchedByFieldKey.id)
+        (matchedByFieldKey && !matchedExistingIds.has(matchedByFieldKey.id)
           ? matchedByFieldKey
           : undefined);
 

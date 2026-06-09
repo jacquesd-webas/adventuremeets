@@ -16,6 +16,7 @@ export type AddAttendeePayload = {
   indemnityMinors?: string;
   metaValues?: { definitionId: string; value: string }[];
   captchaToken?: string;
+  checkinPin?: string;
 };
 
 type AddAttendeeResponse = {

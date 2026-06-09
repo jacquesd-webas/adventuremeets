@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { CreateMeetModal } from "../CreateMeetModal";
 import { mapMeetToState, toIsoWithOffset } from "../CreateMeetState";
@@ -76,6 +77,18 @@ vi.mock("react-router-dom", async () => {
   );
   return {
     ...actual,
+    MemoryRouter: ({
+      future,
+      ...props
+    }: React.ComponentProps<typeof actual.MemoryRouter>) =>
+      React.createElement(actual.MemoryRouter, {
+        ...props,
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+          ...future,
+        },
+      }),
     useNavigate: () => navigate,
   };
 });
@@ -119,7 +132,10 @@ vi.mock("../../../hooks/useFetchOrganizationTemplate", () => ({
 
 vi.mock("../../../hooks/useFetchOrganizers", () => ({
   useFetchOrganizers: () => ({
-    data: [{ id: "organizer-1", firstName: "Alice", lastName: "Jones" }],
+    data: [
+      { id: "organizer-1", firstName: "Alice", lastName: "Jones" },
+      { id: "someone-else", firstName: "Sam", lastName: "Taylor" },
+    ],
   }),
 }));
 
