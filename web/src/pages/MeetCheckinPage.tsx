@@ -133,8 +133,12 @@ function MeetCheckinPage() {
 
   const selfCheckinUrl = useMemo(() => {
     if (!meet?.shareCode || typeof window === "undefined") return "";
-    return `${window.location.origin}/meets/${meet.shareCode}?self-checkin`;
-  }, [meet?.shareCode]);
+    const params = new URLSearchParams();
+    if (meet?.checkinPin) {
+      params.set("pin", meet.checkinPin);
+    }
+    return `${window.location.origin}/meets/${meet.shareCode}/checkin?${params.toString()}`;
+  }, [meet?.checkinPin, meet?.shareCode]);
 
   const handleCheckin = async (attendeeId: string) => {
     if (isReadOnly) return;

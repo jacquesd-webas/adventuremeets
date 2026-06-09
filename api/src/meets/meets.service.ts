@@ -1944,6 +1944,7 @@ export class MeetsService {
       allowGuests: meet.allow_guests ?? undefined,
       allowSelfCheckin:
         meet.checkin_pin === undefined ? undefined : Boolean(meet.checkin_pin),
+      checkinPin: meet.checkin_pin ?? undefined,
       allowWalkins: meet.allow_walkins ?? undefined,
       requireEmail: meet.require_email ?? undefined,
       requirePhone: meet.require_phone ?? undefined,

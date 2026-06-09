@@ -47,6 +47,7 @@ export type Meet = {
   autoPromoteWaitlist?: boolean;
   allowGuests?: boolean;
   allowSelfCheckin?: boolean;
+  checkinPin?: string;
   allowWalkins?: boolean;
   requireEmail?: boolean;
   requirePhone?: boolean;

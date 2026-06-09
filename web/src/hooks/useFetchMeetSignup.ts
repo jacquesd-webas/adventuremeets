@@ -67,6 +67,7 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     allowGuests: apiMeet.allowGuests ?? null,
     allowSelfCheckin:
       apiMeet.allowSelfCheckin ?? apiMeet.allow_self_checkin ?? null,
+    checkinPin: apiMeet.checkinPin ?? apiMeet.checkin_pin ?? null,
     allowWalkins: apiMeet.allowWalkins ?? apiMeet.allow_walkins ?? null,
     requireEmail: apiMeet.requireEmail ?? apiMeet.require_email ?? null,
     requirePhone: apiMeet.requirePhone ?? apiMeet.require_phone ?? null,

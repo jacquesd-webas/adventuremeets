@@ -7,6 +7,7 @@ import ListPage from "./pages/ListPage";
 import CalendarPage from "./pages/CalendarPage";
 import MeetSignupSheet from "./pages/MeetSignupSheet";
 import MeetCheckinPage from "./pages/MeetCheckinPage";
+import MeetSelfCheckinPage from "./pages/MeetSelfCheckinPage";
 import AttendeeStatusPage from "./pages/AttendeeStatusPage";
 import OrganisationsPage from "./pages/OrganisationsPage";
 import MembersPage from "./pages/MembersPage";
@@ -40,6 +41,7 @@ function App() {
         </Route>
       </Route>
       <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+      <Route path="/meets/:code/checkin" element={<MeetSelfCheckinPage />} />
       <Route path="/meets/:code/:attendeeId" element={<AttendeeStatusPage />} />
       <Route path="/meets/:code" element={<MeetSignupSheet />} />
       <Route path="/share/:code" element={<MeetSignupSheet />} />

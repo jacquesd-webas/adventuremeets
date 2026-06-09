@@ -244,6 +244,7 @@ describe("MeetCheckinPage", () => {
     mockMeet = {
       organizerId: "organizer-1",
       shareCode: "share-123",
+      checkinPin: "ABC123",
       allowSelfCheckin: true,
       allowWalkins: true,
     };
@@ -269,7 +270,7 @@ describe("MeetCheckinPage", () => {
     expect(screen.getByText("Self check-in QR code")).toBeInTheDocument();
     expect(screen.getByTestId("checkin-qr-code")).toHaveAttribute(
       "data-value",
-      `${window.location.origin}/meets/share-123?self-checkin`,
+      `${window.location.origin}/meets/share-123/checkin?pin=ABC123`,
     );
   });
 

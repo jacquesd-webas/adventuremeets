@@ -147,6 +147,10 @@ export class MeetDto {
   allowSelfCheckin?: boolean;
 
   @ApiPropertyOptional()
+  @IsString()
+  checkinPin?: string;
+
+  @ApiPropertyOptional()
   @IsBoolean()
   allowWalkins?: boolean;
 
