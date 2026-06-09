@@ -4,6 +4,7 @@ import {
   IconButton,
   Paper,
   Stack,
+  Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -16,13 +17,18 @@ import { useFetchMeetAttendeeStatus } from "../hooks/useFetchMeetAttendeeStatus"
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { FullPageSpinner } from "../components/FullPageSpinner";
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
 import { MeetStatusEnum } from "../types/MeetStatusEnum";
-import { MeetWall } from "../components/wall/MeetWall";
 import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
+
+const MeetWall = lazy(() =>
+  import("../components/wall/MeetWall").then((module) => ({
+    default: module.default ?? module.MeetWall,
+  })),
+);
 
 export default function AttendeeStatusPage() {
   const { code, attendeeId } = useParams<{
@@ -161,10 +167,16 @@ export default function AttendeeStatusPage() {
             />
 
             {shouldShowMeetWall ? (
-              <MeetWall
-                meetId={meet.id}
-                attendeeId={attendeeStatusData?.attendee.id}
-              />
+              <Suspense
+                fallback={
+                  <Typography color="text.secondary">Loading meet wall...</Typography>
+                }
+              >
+                <MeetWall
+                  meetId={meet.id}
+                  attendeeId={attendeeStatusData?.attendee.id}
+                />
+              </Suspense>
             ) : (
               <AttendeeStatusActions
                 meet={meet}

@@ -44,9 +44,15 @@ vi.mock("../MeetStatusAlert", () => ({
   MeetStatusAlert: () => <div>status alert</div>,
 }));
 
-vi.mock("../../wall/MeetWall", () => ({
-  MeetWall: ({ meetId }: { meetId: string }) => <div>meet wall {meetId}</div>,
-}));
+vi.mock("../../wall/MeetWall", () => {
+  const MockMeetWall = ({ meetId }: { meetId: string }) => (
+    <div>meet wall {meetId}</div>
+  );
+  return {
+    default: MockMeetWall,
+    MeetWall: MockMeetWall,
+  };
+});
 
 import { useFetchMeet } from "../../../hooks/useFetchMeet";
 import { useFetchMeetWall } from "../../../hooks/useFetchMeetWall";
@@ -84,7 +90,7 @@ describe("MeetInfoModal", () => {
     vi.mocked(downloadFavouriteWallArchive).mockReset();
   });
 
-  it("renders the meet wall for completed meets", () => {
+  it("renders the meet wall for completed meets", async () => {
     vi.mocked(useFetchMeet).mockReturnValue({
       data: {
         id: "meet-1",
@@ -106,7 +112,7 @@ describe("MeetInfoModal", () => {
     );
 
     expect(screen.getByText("Completed Meet")).toBeInTheDocument();
-    expect(screen.getByText("meet wall meet-1")).toBeInTheDocument();
+    expect(await screen.findByText("meet wall meet-1")).toBeInTheDocument();
     expect(screen.queryByText("status alert")).not.toBeInTheDocument();
   });
 
@@ -135,7 +141,7 @@ describe("MeetInfoModal", () => {
     expect(screen.queryByText("meet wall meet-2")).not.toBeInTheDocument();
   });
 
-  it("renders the meet wall for closed meets after the start time", () => {
+  it("renders the meet wall for closed meets after the start time", async () => {
     vi.mocked(useFetchMeet).mockReturnValue({
       data: {
         id: "meet-3",
@@ -157,7 +163,7 @@ describe("MeetInfoModal", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("meet wall meet-3")).toBeInTheDocument();
+    expect(await screen.findByText("meet wall meet-3")).toBeInTheDocument();
     expect(screen.queryByText("status alert")).not.toBeInTheDocument();
   });
 

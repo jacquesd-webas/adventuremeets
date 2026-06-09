@@ -10,9 +10,8 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { MeetInfoSummary } from "./MeetInfoSummary";
-import { MeetWall } from "../wall/MeetWall";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useFetchMeetWall } from "../../hooks/useFetchMeetWall";
 import { useNotistack } from "../../hooks/useNotistack";
@@ -21,6 +20,12 @@ import { MeetStatusAlert } from "./MeetStatusAlert";
 import { MeetStatusEnum } from "../../types/MeetStatusEnum";
 import { downloadFavouriteWallArchive } from "../wall/downloadFavouriteWallArchive";
 import { WallItem } from "../../types/WallItemModel";
+
+const MeetWall = lazy(() =>
+  import("../wall/MeetWall").then((module) => ({
+    default: module.default ?? module.MeetWall,
+  })),
+);
 
 type MeetInfoModalProps = {
   open: boolean;
@@ -151,7 +156,13 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
           ) : null}
           {meet ? (
             shouldShowMeetWall ? (
-              <MeetWall meetId={meet.id} />
+              <Suspense
+                fallback={
+                  <Typography color="text.secondary">Loading meet wall...</Typography>
+                }
+              >
+                <MeetWall meetId={meet.id} />
+              </Suspense>
             ) : (
               <MeetStatusAlert
                 meetId={meet.id}
