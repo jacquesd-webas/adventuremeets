@@ -52,6 +52,7 @@ export const ResponsesStep = ({
         }
       >
         <TextField
+          data-testid="approved-response-field"
           placeholder={confirmDefault.content}
           value={state.approvedResponse}
           onChange={(e) =>
@@ -70,6 +71,7 @@ export const ResponsesStep = ({
       </LabeledField>
       <LabeledField label="Reject response">
         <TextField
+          data-testid="reject-response-field"
           placeholder={rejectDefault.content}
           value={state.rejectResponse}
           onChange={(e) =>
@@ -88,6 +90,7 @@ export const ResponsesStep = ({
       </LabeledField>
       <LabeledField label="Waitlist response">
         <TextField
+          data-testid="waitlist-response-field"
           placeholder={waitlistDefault.content}
           value={state.waitlistResponse}
           onChange={(e) =>
