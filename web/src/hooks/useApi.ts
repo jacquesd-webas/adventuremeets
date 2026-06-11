@@ -18,6 +18,8 @@ class ApiError extends Error {
   }
 }
 
+let refreshInFlightPromise: Promise<string | null> | null = null;
+
 async function readErrorMessage(res: Response): Promise<string> {
   const bodyText = await res.text();
   if (!bodyText) {
@@ -70,24 +72,36 @@ export function useApi(options: ApiOptions = {}) {
   };
 
   async function refreshToken(): Promise<string | null> {
+    if (refreshInFlightPromise) {
+      return refreshInFlightPromise;
+    }
+
     const refreshTokenValue = getRefreshToken();
     if (!refreshTokenValue) return null;
-    const res = await fetch(`${baseUrl}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: refreshTokenValue }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (
-      data?.accessToken &&
-      data?.refreshToken &&
-      typeof window !== "undefined"
-    ) {
-      window.localStorage.setItem("accessToken", data.accessToken);
-      window.localStorage.setItem("refreshToken", data.refreshToken);
+    refreshInFlightPromise = (async () => {
+      const res = await fetch(`${baseUrl}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: refreshTokenValue }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (
+        data?.accessToken &&
+        data?.refreshToken &&
+        typeof window !== "undefined"
+      ) {
+        window.localStorage.setItem("accessToken", data.accessToken);
+        window.localStorage.setItem("refreshToken", data.refreshToken);
+      }
+      return data?.accessToken || null;
+    })();
+
+    try {
+      return await refreshInFlightPromise;
+    } finally {
+      refreshInFlightPromise = null;
     }
-    return data?.accessToken || null;
   }
 
   const buildHeaders = (

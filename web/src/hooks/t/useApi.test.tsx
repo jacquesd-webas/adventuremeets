@@ -67,12 +67,14 @@ describe("useApi", () => {
   });
 
   it("surfaces the API message for anonymous 401 responses", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      jsonResponse(
-        { message: "Incorrect email or password" },
-        { status: 401 },
-      ),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { message: "Incorrect email or password" },
+          { status: 401 },
+        ),
+      );
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -89,5 +91,39 @@ describe("useApi", () => {
       message: "Incorrect email or password",
       status: 401,
     });
+  });
+
+  it("deduplicates concurrent refresh requests", async () => {
+    window.localStorage.setItem("accessToken", "old-access");
+    window.localStorage.setItem("refreshToken", "old-refresh");
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 401 }))
+      .mockResolvedValueOnce(new Response("", { status: 401 }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          accessToken: "new-access",
+          refreshToken: "new-refresh",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: "a" }))
+      .mockResolvedValueOnce(jsonResponse({ ok: "b" }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() =>
+      useApi({ baseUrl: "http://localhost:8000" }),
+    );
+
+    await expect(
+      Promise.all([result.current.get("/meets"), result.current.get("/types")]),
+    ).resolves.toEqual([{ ok: "a" }, { ok: "b" }]);
+
+    const refreshCalls = fetchMock.mock.calls.filter(
+      (call) => call[0] === "http://localhost:8000/api/v1/auth/refresh",
+    );
+
+    expect(refreshCalls).toHaveLength(1);
   });
 });
