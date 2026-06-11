@@ -170,6 +170,8 @@ function MeetSignupSheet() {
     indemnityAccepted,
     fullName,
     email,
+    org1Value,
+    org2Value,
     wantsGuests,
     guests,
     metaValues,
@@ -345,6 +347,12 @@ function MeetSignupSheet() {
       setPhoneLocal(parsed.local);
       setField("phone", buildInternationalPhone(parsed.country, parsed.local));
     }
+    if (editAttendee.org1Value) {
+      setField("org1Value", editAttendee.org1Value);
+    }
+    if (editAttendee.org2Value) {
+      setField("org2Value", editAttendee.org2Value);
+    }
     const guestsCount = Number(editAttendee.guests || 0);
     setField("wantsGuests", guestsCount > 0);
     setField(
@@ -495,6 +503,8 @@ function MeetSignupSheet() {
     setField("fullName", "");
     setField("email", "");
     setField("phone", "");
+    setField("org1Value", "");
+    setField("org2Value", "");
     setLastCheckedContact(null);
     setExistingAttendee(null);
     setShowDuplicateModal(false);
@@ -613,6 +623,12 @@ function MeetSignupSheet() {
     !fullName.trim() ||
     (showEmailField && !email.trim()) ||
     (showPhoneField && !phoneLocal.trim()) ||
+    (meet?.requireOrg1 &&
+      organization?.customField1Name &&
+      !org1Value.trim()) ||
+    (meet?.requireOrg2 &&
+      organization?.customField2Name &&
+      !org2Value.trim()) ||
     Boolean(nameError) ||
     (showEmailField && Boolean(emailError)) ||
     (showPhoneField && Boolean(phoneError)) ||
@@ -726,6 +742,8 @@ function MeetSignupSheet() {
       name: fullName,
       email: submittedEmail,
       phone: submittedPhone,
+      org1Value: org1Value || undefined,
+      org2Value: org2Value || undefined,
       guestOf: guestOf || undefined,
       isMinor: isMinor,
       GuardianName: isMinor ? guardianName || undefined : undefined,
@@ -750,6 +768,8 @@ function MeetSignupSheet() {
       name: fullName,
       email: showEmailField ? email : "",
       phone: fullPhone,
+      org1Value: org1Value || undefined,
+      org2Value: org2Value || undefined,
       isMinor: isMinor,
       GuardianName: isMinor ? guardianName || undefined : undefined,
       guests: wantsGuests ? guests.length : 0,
@@ -859,6 +879,7 @@ function MeetSignupSheet() {
                   meet={meet}
                   fullName={fullName}
                   email={email}
+                  organization={organization}
                   phoneCountry={phoneCountry}
                   phoneLocal={phoneLocal}
                   nameError={nameError}
@@ -868,6 +889,8 @@ function MeetSignupSheet() {
                   disablePhone={disablePhone}
                   disableGuests={disableGuests}
                   guardianName={guardianName}
+                  org1Value={org1Value}
+                  org2Value={org2Value}
                   wantsGuests={wantsGuests}
                   guests={guests}
                   metaValues={metaValues}

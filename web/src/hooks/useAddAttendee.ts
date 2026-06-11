@@ -7,6 +7,8 @@ export type AddAttendeePayload = {
   name: string;
   email?: string;
   phone?: string;
+  org1Value?: string;
+  org2Value?: string;
   guestOf?: string;
   isMinor?: boolean;
   GuardianName?: string;

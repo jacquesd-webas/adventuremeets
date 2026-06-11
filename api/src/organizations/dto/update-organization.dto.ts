@@ -21,4 +21,14 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsBoolean()
   isPrivate?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customField1Name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customField2Name?: string;
 }

@@ -41,6 +41,12 @@ const meetFixture = {
 };
 
 let currentMeetFixture = meetFixture;
+let mockedOrganization = {
+  id: "org-1",
+  name: "Adventure Meets",
+  customField1Name: "",
+  customField2Name: "Membership number",
+};
 
 function renderCreateMeetModal() {
   return render(
@@ -72,9 +78,10 @@ function renderCreateMeetModalAsAdmin() {
 }
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom",
-  );
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom",
+    );
   return {
     ...actual,
     MemoryRouter: ({
@@ -112,6 +119,14 @@ vi.mock("../../../hooks/useFetchMeet", () => ({
   useFetchMeet: () => ({
     data: currentMeetFixture,
     isLoading: false,
+  }),
+}));
+
+vi.mock("../../../hooks/useFetchOrganization", () => ({
+  useFetchOrganization: () => ({
+    data: mockedOrganization,
+    isLoading: false,
+    error: null,
   }),
 }));
 
@@ -160,6 +175,12 @@ describe("CreateMeetModal edit mode", () => {
     mockUpdateStatusAsync.mockClear();
     navigate.mockClear();
     currentMeetFixture = meetFixture;
+    mockedOrganization = {
+      id: "org-1",
+      name: "Adventure Meets",
+      customField1Name: "",
+      customField2Name: "Membership number",
+    };
     window.sessionStorage.clear();
   });
 
@@ -204,6 +225,12 @@ describe("CreateMeetModal edit mode", () => {
     expect(
       screen.getByRole("checkbox", { name: "Phone number" }),
     ).toBeChecked();
+    expect(
+      screen.queryByRole("checkbox", { name: "Custom field 1" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Membership number" }),
+    ).toBeChecked();
 
     await user.click(screen.getByText("Limits"));
 
@@ -240,9 +267,7 @@ describe("CreateMeetModal edit mode", () => {
     });
 
     await user.click(screen.getByText("Limits"));
-    await user.click(
-      screen.getByRole("checkbox", { name: "Allow walk-ins" }),
-    );
+    await user.click(screen.getByRole("checkbox", { name: "Allow walk-ins" }));
 
     expect(
       screen.getByRole("checkbox", { name: "Allow self check-in" }),
@@ -271,6 +296,12 @@ describe("CreateMeetModal edit mode", () => {
       requireOrg1: false,
       requireOrg2: false,
     };
+    mockedOrganization = {
+      id: "org-1",
+      name: "Adventure Meets",
+      customField1Name: "Club",
+      customField2Name: "Membership number",
+    };
 
     renderCreateMeetModal();
 
@@ -283,14 +314,18 @@ describe("CreateMeetModal edit mode", () => {
     await user.click(screen.getByText("Questions"));
     await user.click(screen.getByRole("checkbox", { name: "E-mail address" }));
     await user.click(screen.getByRole("checkbox", { name: "Phone number" }));
+    await user.click(screen.getByRole("checkbox", { name: "Club" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Membership number" }),
+    );
     await user.click(screen.getByRole("button", { name: "Save & Continue" }));
 
     expect(mockSave).toHaveBeenCalledWith(
       expect.objectContaining({
         requireEmail: true,
         requirePhone: true,
-        requireOrg1: false,
-        requireOrg2: false,
+        requireOrg1: true,
+        requireOrg2: true,
       }),
       "meet-1",
     );
@@ -420,7 +455,9 @@ describe("CreateMeetModal edit mode", () => {
     await user.click(screen.getByRole("button", { name: /preview/i }));
 
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith("/meets/camping-share?preview=true");
+      expect(navigate).toHaveBeenCalledWith(
+        "/meets/camping-share?preview=true",
+      );
     });
 
     const snapshot = window.sessionStorage.getItem(EDITING_MEET_RESTORE_KEY);

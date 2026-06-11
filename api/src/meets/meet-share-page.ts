@@ -33,7 +33,14 @@ export function buildMeetSharePageHtml(options: {
   const queryString = req.originalUrl.includes("?")
     ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
     : "";
-  const redirectUrl = `${frontendUrl}/meets/${code}${queryString}`;
+  const searchParams = new URLSearchParams(queryString);
+  const omitDescription = searchParams.get("nodesc") === "1";
+  const redirectSearchParams = new URLSearchParams(searchParams);
+  redirectSearchParams.delete("nodesc");
+  const redirectQueryString = redirectSearchParams.toString();
+  const redirectUrl = `${frontendUrl}/meets/${code}${
+    redirectQueryString ? `?${redirectQueryString}` : ""
+  }`;
 
   const title = (meetName || "AdventureMeets").trim();
   const baseDescription =
@@ -43,6 +50,7 @@ export function buildMeetSharePageHtml(options: {
     baseDescription,
     meetStartTime,
     meetTimeZone,
+    omitDescription,
   );
 
   const ogImage = (() => {
@@ -92,8 +100,12 @@ function buildOgDescription(
   description: string,
   startTime?: string | null,
   timeZone?: string | null,
+  omitDescription = false,
 ) {
   const dateLine = formatOgDateLine(startTime, timeZone);
+  if (omitDescription) {
+    return dateLine || "";
+  }
   if (!dateLine) {
     return description;
   }

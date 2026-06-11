@@ -606,6 +606,8 @@ describe("MeetsService", () => {
 
     await service.addAttendee("meet-1", {
       name: "Walk In",
+      org1Value: "Club 42",
+      org2Value: "North",
       checkinPin: "PIN123",
     });
 
@@ -613,6 +615,8 @@ describe("MeetsService", () => {
       expect.objectContaining({
         meet_id: "meet-1",
         name: "Walk In",
+        org1_value: "Club 42",
+        org2_value: "North",
         status: "checked-in",
       }),
       ["*"],

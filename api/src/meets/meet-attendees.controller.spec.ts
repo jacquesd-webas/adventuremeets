@@ -20,6 +20,7 @@ import { renderEmailTemplate } from "../email/email.templates";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { UsersService } from "../users/users.service";
 import { AuditLogService } from "../audit/audit-log.service";
+import { OrganizationsService } from "../organizations/organizations.service";
 
 describe("MeetAttendeesController", () => {
   let controller: MeetAttendeesController;
@@ -53,6 +54,10 @@ describe("MeetAttendeesController", () => {
   const auditLogService = {
     addRecord: jest.fn(),
   } as unknown as AuditLogService;
+
+  const organizationsService = {
+    findLogoUrlById: jest.fn(),
+  } as unknown as OrganizationsService;
 
   const user: UserProfile = {
     id: "user-1",
@@ -94,6 +99,10 @@ describe("MeetAttendeesController", () => {
       emailService,
       usersService,
       auditLogService,
+      organizationsService,
+    );
+    (organizationsService.findLogoUrlById as jest.Mock).mockResolvedValue(
+      "https://cdn.example.com/logos/org-1.webp",
     );
   });
 
@@ -374,6 +383,7 @@ describe("MeetAttendeesController", () => {
       expect.objectContaining({
         meetName: meet.name,
         attendeeName: dto.name,
+        logoUrl: "https://cdn.example.com/logos/org-1.webp",
       }),
     );
     expect(emailService.sendEmail).toHaveBeenCalledWith(
@@ -431,6 +441,7 @@ describe("MeetAttendeesController", () => {
       expect.objectContaining({
         meetName: meet.name,
         attendeeName: dto.name,
+        logoUrl: "https://cdn.example.com/logos/org-1.webp",
       }),
     );
     expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();

@@ -112,6 +112,8 @@ describe("MeetsController", () => {
 
   const organizationService = {
     canOrganizationShareMeets: jest.fn(),
+    findLogoUrlById: jest.fn(),
+    findById: jest.fn(),
   } as unknown as OrganizationsService;
 
   const auditLogService = {
@@ -189,6 +191,15 @@ describe("MeetsController", () => {
       db,
       authService,
     );
+    (organizationService.findLogoUrlById as jest.Mock).mockResolvedValue(
+      "https://cdn.example.com/logos/org-1.webp",
+    );
+    (organizationService.findById as jest.Mock).mockResolvedValue({
+      id: "org-1",
+      name: "Adventure Club",
+      customField1Name: undefined,
+      customField2Name: undefined,
+    });
   });
 
   it("rejects unauthenticated status updates", async () => {
@@ -254,7 +265,9 @@ describe("MeetsController", () => {
   });
 
   it("creates a meet and writes an audit log", async () => {
-    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue(["org-1"]);
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
+      "org-1",
+    ]);
     setRoles({ organizer: true });
     (meetsService.create as jest.Mock).mockResolvedValue({
       id: "meet-1",
@@ -262,7 +275,10 @@ describe("MeetsController", () => {
     });
 
     await expect(
-      controller.create({ name: "Sunrise Hike", organizationId: "org-1" } as any, user),
+      controller.create(
+        { name: "Sunrise Hike", organizationId: "org-1" } as any,
+        user,
+      ),
     ).resolves.toEqual({
       id: "meet-1",
       name: "Sunrise Hike",
@@ -916,6 +932,175 @@ describe("MeetsController", () => {
         status: "confirmed",
       }),
     ]);
+  });
+
+  it("omits paid columns when the meet has no costs configured", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      costCents: undefined,
+      depositCents: undefined,
+    });
+    (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
+      "organizer@example.com",
+    );
+    (meetsService.getReportData as jest.Mock).mockResolvedValue({
+      attendees: [
+        {
+          id: "attendee-1",
+          name: "Alex",
+          email: "alex@example.com",
+          phone: "+27123456789",
+          status: "confirmed",
+          guests: 0,
+          paidDepositAt: "2026-01-01T10:00:00.000Z",
+          paidFullAt: "2026-01-02T10:00:00.000Z",
+          metaValues: [],
+        },
+      ],
+      metaDefinitions: [],
+    });
+    setRoles({ organizer: true });
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+
+    await controller.createReport("meet-1", user, {
+      sendEmail: true,
+      downloadReport: false,
+      isFinalReport: false,
+    });
+
+    expect(workbookState.columns).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ header: "Paid Deposit At" }),
+        expect.objectContaining({ header: "Paid Full At" }),
+      ]),
+    );
+  });
+
+  it("includes named organization fields in report columns and rows", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
+      "organizer@example.com",
+    );
+    (meetsService.getReportData as jest.Mock).mockResolvedValue({
+      attendees: [
+        {
+          id: "attendee-1",
+          name: "Alex",
+          email: "alex@example.com",
+          phone: "+27123456789",
+          status: "confirmed",
+          guests: 0,
+          org1Value: "Trail Crew",
+          org2Value: "Team Red",
+          metaValues: [],
+        },
+      ],
+      metaDefinitions: [],
+    });
+    (organizationService.findById as jest.Mock).mockResolvedValue({
+      id: "org-1",
+      name: "Adventure Club",
+      customField1Name: "Club",
+      customField2Name: "Group",
+    });
+    setRoles({ organizer: true });
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+
+    await controller.createReport("meet-1", user, {
+      sendEmail: true,
+      downloadReport: false,
+      isFinalReport: false,
+    });
+
+    expect(workbookState.columns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ header: "Club", key: "org1Value" }),
+        expect.objectContaining({ header: "Group", key: "org2Value" }),
+      ]),
+    );
+    expect(workbookState.rows).toEqual([
+      expect.objectContaining({
+        name: "Alex",
+        org1Value: "Trail Crew",
+        org2Value: "Team Red",
+      }),
+    ]);
+  });
+
+  it("only includes question columns marked for reports", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
+      "organizer@example.com",
+    );
+    (meetsService.getReportData as jest.Mock).mockResolvedValue({
+      attendees: [
+        {
+          id: "attendee-1",
+          name: "Alex",
+          email: "alex@example.com",
+          phone: "+27123456789",
+          status: "confirmed",
+          guests: 0,
+          metaValues: [
+            {
+              definitionId: "meta-1",
+              value: "Vegetarian",
+            },
+            {
+              definitionId: "meta-2",
+              value: "Should not export",
+            },
+          ],
+        },
+      ],
+      metaDefinitions: [
+        {
+          id: "meta-1",
+          label: "Dietary requirements",
+          config: { includeInReports: true },
+        },
+        {
+          id: "meta-2",
+          label: "Private note",
+          config: { includeInReports: false },
+        },
+      ],
+    });
+    setRoles({ organizer: true });
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+
+    await controller.createReport("meet-1", user, {
+      sendEmail: true,
+      downloadReport: false,
+      isFinalReport: false,
+    });
+
+    expect(workbookState.columns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          header: "Dietary requirements",
+          key: "meta_meta-1",
+        }),
+      ]),
+    );
+    expect(workbookState.columns).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          header: "Private note",
+          key: "meta_meta-2",
+        }),
+      ]),
+    );
+    expect(workbookState.rows).toEqual([
+      expect.objectContaining({
+        name: "Alex",
+        "meta_meta-1": "Vegetarian",
+      }),
+    ]);
+    expect(workbookState.rows[0]).not.toHaveProperty(
+      "meta_meta-2",
+      "Should not export",
+    );
   });
 
   it("rejects report generation when no delivery method is selected", async () => {

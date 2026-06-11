@@ -9,12 +9,16 @@ import {
   Post,
   Delete,
   UnauthorizedException,
+  BadRequestException,
+  UploadedFile,
+  UseInterceptors,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { User } from "../auth/decorators/user.decorator";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { OrganizationsService } from "./organizations.service";
+import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { CreateTemplateDto } from "./dto/create-template.dto";
 import { UpdateTemplateDto } from "./dto/update-template.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
@@ -26,6 +30,7 @@ import { UseGuards } from "@nestjs/common";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 import { DatabaseService } from "../database/database.service";
 import { AuditLogService } from "../audit/audit-log.service";
+import { FileInterceptor } from "@nestjs/platform-express";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -51,6 +56,41 @@ export class OrganizationsController {
     const organizations =
       await this.organizationsService.findAllByIds(organizationIds);
     return { organizations };
+  }
+
+  @Post()
+  async create(
+    @Body() body: CreateOrganizationDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const organization =
+      await this.organizationsService.createPrivateOrganization(
+        body.name,
+        user.id,
+      );
+    await this.auditLogService.addRecord({
+      orgId: organization.id,
+      userId: user.id,
+      action: "created",
+      target: `organization ${organization.name || "organization"}`,
+    });
+    return { organization };
+  }
+
+  @Post(":id/leave")
+  async leave(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    await this.organizationsService.leaveOrganization(id, user.id);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "left",
+      target: "organization",
+    });
+    return { success: true };
   }
 
   @Post("invites/:inviteId/accept")
@@ -113,7 +153,11 @@ export class OrganizationsController {
   ) {
     const client = this.db.getClient();
     const orgRows = await client("organizations as o")
-      .join("user_organization_memberships as uom", "uom.organization_id", "o.id")
+      .join(
+        "user_organization_memberships as uom",
+        "uom.organization_id",
+        "o.id",
+      )
       .where("uom.user_id", userId)
       .andWhere("uom.status", "active")
       .andWhere("o.is_private", true)
@@ -341,7 +385,10 @@ export class OrganizationsController {
         "You are not an administrator for this organization",
       );
     }
-    const result = await this.organizationsService.deleteTemplate(id, templateId);
+    const result = await this.organizationsService.deleteTemplate(
+      id,
+      templateId,
+    );
     await this.auditLogService.addRecord({
       orgId: id,
       userId: user.id,
@@ -370,6 +417,41 @@ export class OrganizationsController {
       userId: user.id,
       action: "updated",
       target: `organization ${organization.name || "organization"}`,
+    });
+    return { organization };
+  }
+
+  @Post(":id/logo")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async uploadLogo(
+    @Param("id") id: string,
+    @UploadedFile() file: any,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization",
+      );
+    }
+    if (!file) {
+      throw new BadRequestException("Organisation logo image file is required");
+    }
+    if (!file.mimetype?.startsWith("image/")) {
+      throw new BadRequestException("Only image uploads are allowed");
+    }
+
+    const organization = await this.organizationsService.uploadLogo(id, file);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "updated",
+      target: "organization logo",
     });
     return { organization };
   }

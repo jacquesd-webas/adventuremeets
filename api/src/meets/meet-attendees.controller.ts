@@ -26,6 +26,7 @@ import { EmailTemplateName } from "../email/email.types";
 import type { Request } from "express";
 import { UsersService } from "../users/users.service";
 import { AuditLogService } from "../audit/audit-log.service";
+import { OrganizationsService } from "../organizations/organizations.service";
 
 @ApiTags("Meet Attendees")
 @Controller("meets/:meetId/attendees")
@@ -36,6 +37,7 @@ export class MeetAttendeesController {
     private readonly emailService: EmailService,
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
+    private readonly organizationsService: OrganizationsService,
   ) {}
 
   @Get()
@@ -96,6 +98,9 @@ export class MeetAttendeesController {
     }
 
     if (dto.email) {
+      const logoUrl = meet.organizationId
+        ? await this.organizationsService.findLogoUrlById(meet.organizationId)
+        : undefined;
       const frontendUrl = (
         process.env.FRONTEND_URL || "http://localhost:5173"
       ).replace(/\/+$/, "");
@@ -140,6 +145,7 @@ export class MeetAttendeesController {
               organizerName: meet.organizerName,
               organizerEmail: meet.organizerEmail,
               messageBody: messageBody,
+              logoUrl,
             })
           : renderEmailTemplate("meet-signup", {
               meetName: meet.name,
@@ -151,6 +157,7 @@ export class MeetAttendeesController {
               statusUrl,
               organizerName: meet.organizerName,
               organizerEmail: meet.organizerEmail,
+              logoUrl,
             });
 
       // Send the e-mail

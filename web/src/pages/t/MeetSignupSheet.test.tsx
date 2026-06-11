@@ -34,6 +34,8 @@ const mockedOrganization = {
   id: "org-1",
   theme: null,
   isPrivate: false,
+  customField1Name: undefined,
+  customField2Name: undefined,
 };
 
 const mockedUser = {
@@ -165,6 +167,10 @@ describe("MeetSignupSheet", () => {
     mockedMeet.checkinPin = undefined;
     mockedMeet.requireEmail = undefined;
     mockedMeet.requirePhone = undefined;
+    mockedMeet.requireOrg1 = undefined;
+    mockedMeet.requireOrg2 = undefined;
+    mockedOrganization.customField1Name = undefined;
+    mockedOrganization.customField2Name = undefined;
   });
 
   it("autofills the signed-in user's identity, phone, and saved autofill answers", async () => {
@@ -242,6 +248,45 @@ describe("MeetSignupSheet", () => {
       screen.queryByDisplayValue("alice@example.com"),
     ).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("5550004444")).not.toBeInTheDocument();
+  });
+
+  it("shows organisation custom fields when required and includes them in the signup payload", async () => {
+    const user = userEvent.setup();
+    mockedMeet.requireOrg1 = true;
+    mockedMeet.requireOrg2 = true;
+    mockedOrganization.customField1Name = "Club";
+    mockedOrganization.customField2Name = "Region";
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText("Club"), "Bushwalkers");
+    await user.type(screen.getByLabelText("Region"), "West");
+    await user.click(
+      screen.getByRole("button", { name: "Submit application" }),
+    );
+
+    await waitFor(() => {
+      expect(addAttendeeAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          meetId: "meet-1",
+          org1Value: "Bushwalkers",
+          org2Value: "West",
+        }),
+      );
+    });
   });
 
   it("passes the check-in pin through when signing up from a self-check-in handoff", async () => {

@@ -26,6 +26,7 @@ import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import ApartmentOutlinedIcon from "@mui/icons-material/ApartmentOutlined";
 import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
 import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import CloseIcon from "@mui/icons-material/Close";
@@ -35,6 +36,10 @@ import {
   ProfileContent,
   ProfileModal,
 } from "../components/profile/ProfileModal";
+import {
+  OrganizationContent,
+  OrganizationModal,
+} from "../components/profile/OrganizationModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
@@ -90,6 +95,7 @@ function MainLayout() {
   );
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [organizationOpen, setOrganizationOpen] = useState(false);
   const { mode, setMode } = useThemeMode();
 
   const isAdmin = Boolean(
@@ -150,6 +156,10 @@ function MainLayout() {
     setProfileOpen(true);
     handleMenuClose();
   };
+  const handleOrganization = () => {
+    setOrganizationOpen(true);
+    handleMenuClose();
+  };
 
   const handleLogout = () => {
     logout();
@@ -160,10 +170,22 @@ function MainLayout() {
     setProfileOpen(true);
     setMobileNavOpen(false);
   };
+  const handleMobileOrganization = () => {
+    setOrganizationOpen(true);
+    setMobileNavOpen(false);
+  };
+  const handleOpenProfileFromOrganization = () => {
+    setOrganizationOpen(false);
+    setProfileOpen(true);
+  };
   const handleMobileLogout = () => {
     logout();
     setMobileNavOpen(false);
     nav("/login", { replace: true });
+  };
+  const handleOpenOrganizationFromProfile = () => {
+    setProfileOpen(false);
+    setOrganizationOpen(true);
   };
 
   const allowedThemeModes = useMemo(
@@ -243,6 +265,17 @@ function MainLayout() {
         </ListItemIcon>
         Profile
       </MenuItem>
+      {isCurrentOrgAdmin ? (
+        <MenuItem
+          onClick={handleOrganization}
+          data-testid="account-organization-menu-item"
+        >
+          <ListItemIcon>
+            <ApartmentOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          Organisation
+        </MenuItem>
+      ) : null}
       <MenuItem onClick={handleLogout}>
         <ListItemIcon>
           <LogoutIcon fontSize="small" />
@@ -570,6 +603,17 @@ function MainLayout() {
                       </ListItemIcon>
                       <ListItemText primary="Profile" />
                     </ListItemButton>
+                    {isCurrentOrgAdmin ? (
+                      <ListItemButton
+                        onClick={handleMobileOrganization}
+                        data-testid="mobile-organization-menu-item"
+                      >
+                        <ListItemIcon>
+                          <ApartmentOutlinedIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText primary="Organisation" />
+                      </ListItemButton>
+                    ) : null}
                     <ListItemButton onClick={handleMobileLogout}>
                       <ListItemIcon>
                         <LogoutIcon fontSize="small" />
@@ -614,51 +658,102 @@ function MainLayout() {
         <Outlet context={{ setMobileHeaderAction }} />
       </Container>
       {isMobile ? (
-        <Drawer
-          anchor="bottom"
-          open={profileOpen}
-          onClose={() => setProfileOpen(false)}
-          data-testid="profile-drawer"
-          PaperProps={{
-            sx: {
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-              maxHeight: "85vh",
-              overflow: "hidden",
-            },
-          }}
-        >
-          <Box sx={{ p: 2, height: "100%", overflowY: "auto" }}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ mb: 1 }}
-            >
-              <Typography variant="h6">Profile</Typography>
-              <IconButton
-                onClick={() => setProfileOpen(false)}
-                size="small"
-                aria-label="Close"
+        <>
+          <Drawer
+            anchor="bottom"
+            open={profileOpen}
+            onClose={() => setProfileOpen(false)}
+            data-testid="profile-drawer"
+            PaperProps={{
+              sx: {
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                maxHeight: "85vh",
+                overflow: "hidden",
+              },
+            }}
+          >
+            <Box sx={{ p: 2, height: "100%", overflowY: "auto" }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
               >
-                <CloseIcon />
-              </IconButton>
-            </Stack>
-            <ProfileContent open={profileOpen} />
-          </Box>
-        </Drawer>
+                <Typography variant="h6">Profile</Typography>
+                <IconButton
+                  onClick={() => setProfileOpen(false)}
+                  size="small"
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Stack>
+              <ProfileContent
+                open={profileOpen}
+                onOpenOrganization={handleOpenOrganizationFromProfile}
+              />
+            </Box>
+          </Drawer>
+          <Drawer
+            anchor="bottom"
+            open={organizationOpen}
+            onClose={() => setOrganizationOpen(false)}
+            data-testid="organization-drawer"
+            PaperProps={{
+              sx: {
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                maxHeight: "85vh",
+                overflow: "hidden",
+              },
+            }}
+          >
+            <Box sx={{ p: 2, height: "100%", overflowY: "auto" }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
+              >
+                <Typography variant="h6">Organisation</Typography>
+                <IconButton
+                  onClick={() => setOrganizationOpen(false)}
+                  size="small"
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Stack>
+              <OrganizationContent
+                open={organizationOpen}
+                onOpenProfile={handleOpenProfileFromOrganization}
+              />
+            </Box>
+          </Drawer>
+        </>
       ) : (
-        <ProfileModal
-          open={profileOpen}
-          onClose={() => setProfileOpen(false)}
-        />
+        <>
+          <ProfileModal
+            open={profileOpen}
+            onClose={() => setProfileOpen(false)}
+            onOpenOrganization={handleOpenOrganizationFromProfile}
+          />
+          <OrganizationModal
+            open={organizationOpen}
+            onClose={() => setOrganizationOpen(false)}
+            onOpenProfile={handleOpenProfileFromOrganization}
+          />
+        </>
       )}
       <ChooseOrganizationModal
         open={Boolean(user) && (orgModalOpen || !currentOrganizationId)}
         onClose={() => setOrgModalOpen(false)}
         disableClose={Boolean(user) && !currentOrganizationId}
       />
-      {user ? <PendingInvitePromptModal pendingInvites={pendingInvites} /> : null}
+      {user ? (
+        <PendingInvitePromptModal pendingInvites={pendingInvites} />
+      ) : null}
     </Box>
   );
 }

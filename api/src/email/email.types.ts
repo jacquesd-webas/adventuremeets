@@ -29,6 +29,7 @@ export type MeetSignupTemplateVars = {
   statusUrl?: string;
   organizerName?: string;
   organizerEmail?: string;
+  logoUrl?: string;
 };
 
 export type MeetStatusTemplateVars = {
@@ -42,6 +43,7 @@ export type MeetStatusTemplateVars = {
   organizerName?: string;
   organizerEmail?: string;
   messageBody?: string;
+  logoUrl?: string;
 };
 
 export type MeetMessageTemplateVars = {
@@ -53,12 +55,14 @@ export type MeetMessageTemplateVars = {
   organizerName?: string;
   organizerEmail?: string;
   messageBody: string;
+  logoUrl?: string;
 };
 
 export type OrganizationInviteTemplateVars = {
   organizationName: string;
   registerUrl?: string;
   expiresAt?: string;
+  logoUrl?: string;
 };
 
 export type MeetTemplateContextVars = {

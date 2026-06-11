@@ -1,7 +1,4 @@
-import {
-  ForbiddenException,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { OrganizationsController } from "./organizations.controller";
 import { OrganizationsService } from "./organizations.service";
 import { AuthService } from "../auth/auth.service";
@@ -14,6 +11,8 @@ describe("OrganizationsController", () => {
 
   const organizationsService = {
     findAllByIds: jest.fn(),
+    createPrivateOrganization: jest.fn(),
+    leaveOrganization: jest.fn(),
     findByIdMinimal: jest.fn(),
     findById: jest.fn(),
     findMembers: jest.fn(),
@@ -25,6 +24,7 @@ describe("OrganizationsController", () => {
     updateTemplate: jest.fn(),
     deleteTemplate: jest.fn(),
     update: jest.fn(),
+    uploadLogo: jest.fn(),
     listInviteLinks: jest.fn(),
     createInviteLink: jest.fn(),
     acceptInvite: jest.fn(),
@@ -190,6 +190,53 @@ describe("OrganizationsController", () => {
     expect(organizationsService.findAllByIds).not.toHaveBeenCalled();
   });
 
+  it("creates a private organization for the signed-in user", async () => {
+    (
+      organizationsService.createPrivateOrganization as jest.Mock
+    ).mockResolvedValue({
+      id: "org-3",
+      name: "New Private Org",
+    });
+
+    await expect(
+      controller.create({ name: "New Private Org" } as any, memberUser),
+    ).resolves.toEqual({
+      organization: { id: "org-3", name: "New Private Org" },
+    });
+
+    expect(organizationsService.createPrivateOrganization).toHaveBeenCalledWith(
+      "New Private Org",
+      "member-1",
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-3",
+      userId: "member-1",
+      action: "created",
+      target: "organization New Private Org",
+    });
+  });
+
+  it("allows a signed-in user to leave an organization", async () => {
+    (organizationsService.leaveOrganization as jest.Mock).mockResolvedValue(
+      undefined,
+    );
+
+    await expect(controller.leave("org-2", memberUser)).resolves.toEqual({
+      success: true,
+    });
+
+    expect(organizationsService.leaveOrganization).toHaveBeenCalledWith(
+      "org-2",
+      "member-1",
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-2",
+      userId: "member-1",
+      action: "left",
+      target: "organization",
+    });
+  });
+
   it("lists organizations for the caller's organization ids", async () => {
     (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
       "org-1",
@@ -320,11 +367,11 @@ describe("OrganizationsController", () => {
       { id: "template-1", name: "Default" },
     ]);
 
-    await expect(controller.findTemplates("org-1", memberUser)).resolves.toEqual(
-      {
-        templates: [{ id: "template-1", name: "Default" }],
-      },
-    );
+    await expect(
+      controller.findTemplates("org-1", memberUser),
+    ).resolves.toEqual({
+      templates: [{ id: "template-1", name: "Default" }],
+    });
   });
 
   it("gets a single template for organizers", async () => {
@@ -424,6 +471,39 @@ describe("OrganizationsController", () => {
       userId: "admin-1",
       action: "updated",
       target: "organization Updated Org",
+    });
+  });
+
+  it("uploads organization logos for admins", async () => {
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (organizationsService.uploadLogo as jest.Mock).mockResolvedValue({
+      id: "org-1",
+      name: "Updated Org",
+      logoUrl: "https://cdn.example.com/logo.webp",
+    });
+
+    await expect(
+      controller.uploadLogo(
+        "org-1",
+        { mimetype: "image/png", buffer: Buffer.from("logo") } as any,
+        adminUser,
+      ),
+    ).resolves.toEqual({
+      organization: {
+        id: "org-1",
+        name: "Updated Org",
+        logoUrl: "https://cdn.example.com/logo.webp",
+      },
+    });
+    expect(organizationsService.uploadLogo).toHaveBeenCalledWith(
+      "org-1",
+      expect.objectContaining({ mimetype: "image/png" }),
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      action: "updated",
+      target: "organization logo",
     });
   });
 

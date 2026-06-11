@@ -45,6 +45,10 @@ export type MeetSignupFormFieldsProps = {
   meet: any;
   fullName: string;
   email: string;
+  organization?: {
+    customField1Name?: string;
+    customField2Name?: string;
+  } | null;
   phoneCountry: string;
   phoneLocal: string;
   nameError?: string | null;
@@ -54,6 +58,8 @@ export type MeetSignupFormFieldsProps = {
   disablePhone: boolean;
   disableGuests: boolean;
   guardianName: string;
+  org1Value: string;
+  org2Value: string;
   wantsGuests: boolean;
   guests: GuestInput[];
   metaValues: Record<string, any>;
@@ -75,10 +81,7 @@ export type MeetSignupFormFieldsProps = {
     key: K,
     value: MeetSignupSheetState[K],
   ) => void;
-  setMetaValue: (
-    key: string,
-    value: string | number | boolean,
-  ) => void;
+  setMetaValue: (key: string, value: string | number | boolean) => void;
   setPhoneCountry: (value: string) => void;
   setPhoneLocal: (value: string) => void;
 };
@@ -87,6 +90,7 @@ export function MeetSignupFormFields({
   meet,
   fullName,
   email,
+  organization,
   phoneCountry,
   phoneLocal,
   nameError,
@@ -96,6 +100,8 @@ export function MeetSignupFormFields({
   disablePhone,
   disableGuests,
   guardianName,
+  org1Value,
+  org2Value,
   wantsGuests,
   guests,
   metaValues,
@@ -119,6 +125,12 @@ export function MeetSignupFormFields({
 }: MeetSignupFormFieldsProps) {
   const showEmailField = meet?.requireEmail !== false;
   const showPhoneField = meet?.requirePhone !== false;
+  const showOrg1Field = Boolean(
+    meet?.requireOrg1 && organization?.customField1Name,
+  );
+  const showOrg2Field = Boolean(
+    meet?.requireOrg2 && organization?.customField2Name,
+  );
 
   return (
     <Stack spacing={2} mt={2}>
@@ -265,6 +277,36 @@ export function MeetSignupFormFields({
             helperText={phoneError || undefined}
             hideLabel
             disabled={disablePhone}
+          />
+        </LabeledField>
+      ) : null}
+      {showOrg1Field ? (
+        <LabeledField
+          label={organization?.customField1Name || "Custom field 1"}
+          required
+        >
+          <TextField
+            inputProps={{
+              "aria-label": organization?.customField1Name || "Custom field 1",
+            }}
+            value={org1Value}
+            onChange={(event) => setField("org1Value", event.target.value)}
+            fullWidth
+          />
+        </LabeledField>
+      ) : null}
+      {showOrg2Field ? (
+        <LabeledField
+          label={organization?.customField2Name || "Custom field 2"}
+          required
+        >
+          <TextField
+            inputProps={{
+              "aria-label": organization?.customField2Name || "Custom field 2",
+            }}
+            value={org2Value}
+            onChange={(event) => setField("org2Value", event.target.value)}
+            fullWidth
           />
         </LabeledField>
       ) : null}

@@ -39,7 +39,8 @@ const loadTemplate = (name: EmailTemplateName, ext: "html" | "txt") => {
 const getFrontendUrl = () =>
   (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
 
-const getLogoUrl = () => `${getFrontendUrl()}/static/adventuremeets-logo.png`;
+const getDefaultLogoUrl = () =>
+  `${getFrontendUrl()}/static/adventuremeets-logo.png`;
 
 const LINKIFY_PATTERN =
   /(\bhttps?:\/\/[^\s]+|\bwww\.[^\s]+|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|\+?\d[\d\s().-]{6,}\d)/gi;
@@ -110,12 +111,12 @@ const renderTemplate = (
   return template.replace(/\n{3,}/g, "\n\n").trim();
 };
 
-function wrapHtml(content: string) {
-  const logoUrl = getLogoUrl();
+function wrapHtml(content: string, logoUrl?: string) {
+  const resolvedLogoUrl = logoUrl || getDefaultLogoUrl();
 
-  const logoBlock = logoUrl
+  const logoBlock = resolvedLogoUrl
     ? `<div style="text-align:center;margin-bottom:24px;">
-        <img src="${logoUrl}" logo" alt="${BRAND_NAME} logo" style="max-width:180px;height:auto;" />
+        <img src="${resolvedLogoUrl}" alt="${BRAND_NAME} logo" style="max-width:180px;height:auto;" />
       </div>`
     : "";
 
@@ -232,7 +233,7 @@ export function renderEmailTemplate(
       escapeAllHtml(varsMap),
       flags,
     );
-    return { subject, text, html: wrapHtml(htmlBody) };
+    return { subject, text, html: wrapHtml(htmlBody, signupVars.logoUrl) };
   }
 
   // Meet confirmation
@@ -261,7 +262,7 @@ export function renderEmailTemplate(
       { ...escapeAllHtml(varsMap), messageBody: varsMap.messageBodyHtml },
       flags,
     );
-    return { subject, text, html: wrapHtml(htmlBody) };
+    return { subject, text, html: wrapHtml(htmlBody, meetVars.logoUrl) };
   }
 
   // Meet reconfirm after postponement
@@ -290,7 +291,7 @@ export function renderEmailTemplate(
       { ...escapeAllHtml(varsMap), messageBody: varsMap.messageBodyHtml },
       flags,
     );
-    return { subject, text, html: wrapHtml(htmlBody) };
+    return { subject, text, html: wrapHtml(htmlBody, meetVars.logoUrl) };
   }
 
   // Meet rejection
@@ -319,7 +320,7 @@ export function renderEmailTemplate(
       { ...escapeAllHtml(varsMap), messageBody: varsMap.messageBodyHtml },
       flags,
     );
-    return { subject, text, html: wrapHtml(htmlBody) };
+    return { subject, text, html: wrapHtml(htmlBody, meetVars.logoUrl) };
   }
 
   // Meet waitlist
@@ -348,7 +349,7 @@ export function renderEmailTemplate(
       { ...varsMap, messageBody: varsMap.messageBodyHtml },
       flags,
     );
-    return { subject, text, html: wrapHtml(htmlBody) };
+    return { subject, text, html: wrapHtml(htmlBody, meetVars.logoUrl) };
   }
 
   // Generic meet message
@@ -379,7 +380,7 @@ export function renderEmailTemplate(
       { ...varsMap, messageBody: varsMap.messageBodyHtml },
       flags,
     );
-    return { subject, text, html: wrapHtml(htmlBody) };
+    return { subject, text, html: wrapHtml(htmlBody, messageVars.logoUrl) };
   }
 
   // Password reset confirmation (no variables needed)
@@ -442,7 +443,7 @@ export function renderEmailTemplate(
       varsMap,
       flags,
     );
-    return { subject, text, html: wrapHtml(htmlBody) };
+    return { subject, text, html: wrapHtml(htmlBody, inviteVars.logoUrl) };
   }
 }
 

@@ -4,8 +4,10 @@ describe("Invite to organisation", () => {
     const password = "Str0ng!Passw0rd2026";
     const inviterEmail = `cypress.org.owner.${unique}@example.com`;
     const inviteeEmail = `cypress.org.member.${unique}@example.com`;
-    const inviterOrgName = `Cypress Invite Org ${unique}`;
-    cy.intercept("POST", "**/api/v1/organizations/*/invites").as("createInvite");
+    const inviterOrgName = `Invite Org ${unique}`;
+    cy.intercept("POST", "**/api/v1/organizations/*/invites").as(
+      "createInvite",
+    );
 
     cy.visit("/register");
     cy.registerWithEmail({
@@ -19,9 +21,11 @@ describe("Invite to organisation", () => {
     cy.url().should("match", /\/$/);
     cy.contains("Dashboard").should("be.visible");
 
-    cy.openProfileModal();
+    cy.get('[data-testid="account-menu-button"]').click();
+    cy.get('[role="menu"]').should("be.visible");
+    cy.contains('[role="menuitem"]', "Organisation").click();
+    cy.get('[data-testid="organization-modal"]').should("be.visible");
 
-    cy.get('[data-testid="profile-modal"]').contains("Organisation").click();
     cy.contains("label", "Organisation name")
       .parent()
       .find("input")
@@ -30,7 +34,7 @@ describe("Invite to organisation", () => {
     cy.contains("button", "Save organisation").click();
     cy.contains("button", "Saved").should("be.visible");
 
-    cy.get('[data-testid="profile-modal"]').contains("Invites").click();
+    cy.get('[data-testid="organization-modal"]').contains("Invites").click();
     cy.contains("label", "Email").parent().find("input").type(inviteeEmail);
     cy.window().then((win) => {
       cy.stub(win.navigator.clipboard, "writeText").as("writeInviteLink");
@@ -38,8 +42,9 @@ describe("Invite to organisation", () => {
     cy.contains("button", "Invite User").click();
     cy.wait("@createInvite").then((interception) => {
       const invite = interception.response?.body?.invite;
-      expect(invite?.token, "invite token from create response").to.be.a("string")
-        .and.not.be.empty;
+      expect(invite?.token, "invite token from create response").to.be.a(
+        "string",
+      ).and.not.be.empty;
       cy.window().then((win) => {
         const inviteLink = `${win.location.origin}/register?invite=${encodeURIComponent(
           invite.token,
@@ -53,7 +58,8 @@ describe("Invite to organisation", () => {
       .should("have.been.called")
       .then(() => undefined);
 
-    cy.closeProfileModal();
+    cy.get('[data-testid="close-organization-modal"]').click();
+    cy.get('[data-testid="organization-modal"]').should("not.exist");
     cy.logout();
     cy.wait(5000);
     cy.get("@inviteLink").then((inviteLink) => {
@@ -85,10 +91,7 @@ describe("Invite to organisation", () => {
     });
 
     cy.openProfileModal();
-    cy.get('[data-testid="profile-modal"]').contains("Organisation").click();
-    cy.contains("label", "Organisation name")
-      .parent()
-      .find("input")
-      .should("have.value", inviterOrgName);
+    cy.get('[data-testid="profile-modal"]').contains("Organisations").click();
+    cy.contains(inviterOrgName).should("be.visible");
   });
 });

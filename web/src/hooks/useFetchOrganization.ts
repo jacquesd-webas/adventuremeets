@@ -8,22 +8,26 @@ export function useFetchOrganization(orgId?: string) {
   const mapOrganization = (org: any): Organization => ({
     id: org.id,
     name: org.name,
+    logoUrl: org.logoUrl ?? org.logo_url ?? undefined,
     isPrivate: org.isPrivate ?? org.is_private ?? undefined,
     theme: org.theme ?? undefined,
-    canViewAllMeets:
-      org.canViewAllMeets ?? org.can_view_all_meets ?? undefined,
+    canViewAllMeets: org.canViewAllMeets ?? org.can_view_all_meets ?? undefined,
+    customField1Name:
+      org.customField1Name ?? org.custom_field1_name ?? undefined,
+    customField2Name:
+      org.customField2Name ?? org.custom_field2_name ?? undefined,
     userCount:
       typeof org.userCount === "number"
         ? org.userCount
         : org.user_count != null
-        ? Number(org.user_count)
-        : undefined,
+          ? Number(org.user_count)
+          : undefined,
     templateCount:
       typeof org.templateCount === "number"
         ? org.templateCount
         : org.template_count != null
-        ? Number(org.template_count)
-        : undefined,
+          ? Number(org.template_count)
+          : undefined,
     createdAt: org.createdAt ?? org.created_at,
     updatedAt: org.updatedAt ?? org.updated_at,
   });
@@ -33,7 +37,7 @@ export function useFetchOrganization(orgId?: string) {
     enabled: Boolean(orgId),
     queryFn: async () => {
       const res = await api.get<{ organization: Organization }>(
-        `/organizations/${orgId}`
+        `/organizations/${orgId}`,
       );
       return res?.organization ? mapOrganization(res.organization) : null;
     },

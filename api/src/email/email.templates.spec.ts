@@ -18,6 +18,7 @@ describe("renderEmailTemplate", () => {
       statusUrl: "https://app.example.com/meets/share-123/attendee-1",
       organizerName: "Taylor <Org>",
       organizerEmail: "taylor@example.com",
+      logoUrl: "https://cdn.example.com/logos/org-1.webp",
     });
 
     expect(result.subject).toBe('You signed up for River <Escape> & "Climb"');
@@ -33,7 +34,7 @@ describe("renderEmailTemplate", () => {
     );
 
     expect(result.html).toContain(
-      '<img src="https://app.example.com/static/adventuremeets-logo.png"',
+      '<img src="https://cdn.example.com/logos/org-1.webp"',
     );
     expect(result.html).toContain("Alex &amp; Sam &lt;Leader&gt;");
     expect(result.html).toContain(
@@ -168,6 +169,17 @@ describe("renderEmailTemplate", () => {
     );
     expect(result.html).toContain(
       'href="https://app.example.com/register/invite-1"',
+    );
+  });
+
+  it("falls back to the AdventureMeets logo when no organization logo is provided", () => {
+    const result = renderEmailTemplate("organization-invite", {
+      organizationName: "Mountain Club",
+      registerUrl: "https://app.example.com/register/invite-1",
+    });
+
+    expect(result.html).toContain(
+      '<img src="https://app.example.com/static/adventuremeets-logo.png"',
     );
   });
 });

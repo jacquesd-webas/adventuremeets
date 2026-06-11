@@ -8,6 +8,8 @@ type UpdatePayload = {
   theme?: string;
   isPrivate?: boolean;
   canViewAllMeets?: boolean;
+  customField1Name?: string;
+  customField2Name?: string;
 };
 
 export function useUpdateOrganization(organizationId?: string | null) {
@@ -23,7 +25,9 @@ export function useUpdateOrganization(organizationId?: string | null) {
           theme: payload.theme,
           isPrivate: payload.isPrivate,
           canViewAllMeets: payload.canViewAllMeets,
-        }
+          customField1Name: payload.customField1Name,
+          customField2Name: payload.customField2Name,
+        },
       );
       return res?.organization;
     },

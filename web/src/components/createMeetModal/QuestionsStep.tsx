@@ -17,6 +17,7 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { QuestionField, StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
 import { HelpBanner } from "./HelpBanner";
+import { useFetchOrganization } from "../../hooks/useFetchOrganization";
 
 export const QuestionsStep = ({
   state,
@@ -28,6 +29,11 @@ export const QuestionsStep = ({
 }: StepProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const { data: organization } = useFetchOrganization(
+    state.organizationId || undefined,
+  );
+  const customField1Label = organization?.customField1Name?.trim() || "";
+  const customField2Label = organization?.customField2Name?.trim() || "";
 
   const addField = (type: QuestionField["type"]) => {
     const newField: QuestionField = {
@@ -192,37 +198,40 @@ export const QuestionsStep = ({
                 }
                 label="Phone number"
               />
-              {/* TODO: These will be added later
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={state.requireOrg1}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      setState((prev) => ({
-                        ...prev,
-                        requireOrg1: e.target.checked,
-                      }))
-                    }
-                  />
-                }
-                label="Custom field 1"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={state.requireOrg2}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      setState((prev) => ({
-                        ...prev,
-                        requireOrg2: e.target.checked,
-                      }))
-                    }
-                  />
-                }
-                label="Custom field 2"
-              />*/}
+              {customField1Label ? (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={state.requireOrg1}
+                      disabled={disabled}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          requireOrg1: e.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label={customField1Label}
+                />
+              ) : null}
+              {customField2Label ? (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={state.requireOrg2}
+                      disabled={disabled}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          requireOrg2: e.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label={customField2Label}
+                />
+              ) : null}
             </Box>
           </Stack>
         </Paper>

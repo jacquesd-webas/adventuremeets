@@ -60,6 +60,11 @@ export class MeetsController {
     private readonly authService: AuthService,
   ) {}
 
+  private async getOrganizationLogoUrl(organizationId?: string | null) {
+    if (!organizationId) return undefined;
+    return this.organizationService.findLogoUrlById(organizationId);
+  }
+
   private async logMeetAuditAction({
     orgId,
     meetId,
@@ -513,6 +518,7 @@ export class MeetsController {
     const frontendUrl = (
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
+    const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
     const notifiedIds: string[] = [];
 
     await Promise.all(
@@ -537,6 +543,7 @@ export class MeetsController {
           statusUrl,
           organizerName,
           organizerEmail,
+          logoUrl,
         });
 
         await this.emailService.sendEmail({
@@ -573,6 +580,7 @@ export class MeetsController {
     const frontendUrl = (
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
+    const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
     const notifiedIds: string[] = [];
     await Promise.all(
       attendees.map(async (attendee: any) => {
@@ -609,6 +617,7 @@ export class MeetsController {
           statusUrl,
           organizerName,
           organizerEmail,
+          logoUrl,
         });
         await this.emailService.sendEmail({
           to: attendee.email,
@@ -830,6 +839,7 @@ export class MeetsController {
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
     // Send all the emails (just skip any nulls it's fine)
+    const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
     const organizerName = meet.organizerName || "the organiser";
     const organizerEmail = meet.organizerEmail || "";
     const includeStatusUrl =
@@ -846,6 +856,7 @@ export class MeetsController {
         organizerName,
         organizerEmail,
         messageBody: body.text ?? body.html ?? "",
+        logoUrl,
       });
 
       await this.emailService.sendEmail({
@@ -873,6 +884,7 @@ export class MeetsController {
             organizerName,
             organizerEmail,
             messageBody: body.text ?? body.html ?? "",
+            logoUrl,
           });
           return this.emailService.sendEmail({
             to: email,
@@ -906,6 +918,7 @@ export class MeetsController {
           organizerName,
           organizerEmail,
           messageBody: body.text ?? body.html ?? "",
+          logoUrl,
         });
         const textWithoutStatus = text
           .split("View your application status:")[0]
@@ -1180,9 +1193,24 @@ export class MeetsController {
 
     const { attendees, metaDefinitions } =
       await this.meetsService.getReportData(meet.id);
+    const organization = meet.organizationId
+      ? ((await this.organizationService.findById(meet.organizationId)) as {
+          customField1Name?: string;
+          customField2Name?: string;
+          custom_field1_name?: string;
+          custom_field2_name?: string;
+        } | null)
+      : null;
+    const customField1Name =
+      organization?.customField1Name ?? organization?.custom_field1_name;
+    const customField2Name =
+      organization?.customField2Name ?? organization?.custom_field2_name;
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Attendees");
+    const hasCosts =
+      (meet.costCents != null && Number(meet.costCents) > 0) ||
+      (meet.depositCents != null && Number(meet.depositCents) > 0);
 
     const baseColumns = [
       { header: "Name", key: "name", width: 24 },
@@ -1190,15 +1218,45 @@ export class MeetsController {
       { header: "Phone", key: "phone", width: 18 },
       { header: "Status", key: "status", width: 14 },
       { header: "Guests", key: "guests", width: 10 },
-      { header: "Paid Deposit At", key: "paidDepositAt", width: 20 },
-      { header: "Paid Full At", key: "paidFullAt", width: 20 },
+      ...(hasCosts
+        ? [
+            { header: "Paid Deposit At", key: "paidDepositAt", width: 20 },
+            { header: "Paid Full At", key: "paidFullAt", width: 20 },
+          ]
+        : []),
     ];
-    const metaColumns = metaDefinitions.map((definition) => ({
+    const organizationFieldColumns = [
+      customField1Name
+        ? {
+            header: customField1Name,
+            key: "org1Value",
+            width: 24,
+          }
+        : null,
+      customField2Name
+        ? {
+            header: customField2Name,
+            key: "org2Value",
+            width: 24,
+          }
+        : null,
+    ].filter(
+      (column): column is { header: string; key: string; width: number } =>
+        Boolean(column),
+    );
+    const reportMetaDefinitions = metaDefinitions.filter((definition: any) =>
+      Boolean(definition.config?.includeInReports),
+    );
+    const metaColumns = reportMetaDefinitions.map((definition) => ({
       header: definition.label,
       key: `meta_${definition.id}`,
       width: 28,
     }));
-    worksheet.columns = [...baseColumns, ...metaColumns];
+    worksheet.columns = [
+      ...baseColumns,
+      ...organizationFieldColumns,
+      ...metaColumns,
+    ];
 
     attendees.forEach((attendee: any) => {
       const row: Record<string, any> = {
@@ -1213,9 +1271,17 @@ export class MeetsController {
         guests: attendee.guests ?? "",
         paidDepositAt: attendee.paidDepositAt ?? "",
         paidFullAt: attendee.paidFullAt ?? "",
+        org1Value: attendee.org1Value ?? "",
+        org2Value: attendee.org2Value ?? "",
       };
       attendee.metaValues?.forEach((meta: any) => {
-        row[`meta_${meta.definitionId}`] = meta.value ?? "";
+        if (
+          reportMetaDefinitions.some(
+            (definition) => definition.id === meta.definitionId,
+          )
+        ) {
+          row[`meta_${meta.definitionId}`] = meta.value ?? "";
+        }
       });
       worksheet.addRow(row);
     });

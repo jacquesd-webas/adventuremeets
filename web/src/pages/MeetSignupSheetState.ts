@@ -7,6 +7,8 @@ export type MeetSignupSheetState = {
   fullName: string;
   email: string;
   phone: string;
+  org1Value: string;
+  org2Value: string;
   wantsGuests: boolean;
   guests: GuestInput[];
   metaValues: Record<string, string | number | boolean | null>;
@@ -20,6 +22,8 @@ const initialState: MeetSignupSheetState = {
   fullName: "",
   email: "",
   phone: "",
+  org1Value: "",
+  org2Value: "",
   wantsGuests: false,
   guests: [],
   metaValues: {},

@@ -59,6 +59,16 @@ export class CreateMeetAttendeeDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  org1Value?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  org2Value?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsInt()
   @Min(0)
   guests?: number;

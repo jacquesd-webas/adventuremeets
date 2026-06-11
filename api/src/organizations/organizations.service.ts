@@ -14,6 +14,9 @@ import { CreateInviteLinkDto } from "./dto/create-invite-link.dto";
 import { InviteLinkDto } from "./dto/invite-link.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import { MinioService } from "../storage/minio.service";
+import sharp = require("sharp");
+import { v4 as uuid } from "uuid";
 
 @Injectable()
 export class OrganizationsService {
@@ -22,6 +25,7 @@ export class OrganizationsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly emailService: EmailService,
+    private readonly minio: MinioService,
   ) {}
 
   private static readonly inviteCodeChars =
@@ -131,6 +135,20 @@ export class OrganizationsService {
     return row.theme;
   }
 
+  async findLogoUrlById(id: string) {
+    const row = await this.database
+      .getClient()("organizations")
+      .where({ id })
+      .select("logo_url")
+      .first();
+
+    if (!row) {
+      throw new NotFoundException("Organization not found");
+    }
+
+    return row.logo_url ?? undefined;
+  }
+
   async findMembers(orgId: string) {
     const rows = await this.database
       .getClient()("users as u")
@@ -231,6 +249,108 @@ export class OrganizationsService {
       throw new NotFoundException("Member not found");
     }
     return this.mapMember(memberRow);
+  }
+
+  async createPrivateOrganization(name: string, userId: string) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw new BadRequestException("Organization name is required");
+    }
+
+    const now = new Date().toISOString();
+    const trx = await this.database.getClient().transaction();
+
+    try {
+      const inserted = await trx("organizations")
+        .insert({
+          name: trimmedName,
+          is_private: true,
+          created_at: now,
+          updated_at: now,
+        })
+        .returning("id");
+
+      const organizationId = Array.isArray(inserted)
+        ? (inserted[0] as any).id
+        : (inserted as any).id;
+
+      await trx("user_organization_memberships").insert({
+        user_id: userId,
+        organization_id: organizationId,
+        role: "admin",
+        role_id: 2,
+        status: "active",
+        created_at: now,
+        updated_at: now,
+      });
+
+      await trx.commit();
+      const row = await this.findById(organizationId);
+      return this.toOrganizationDto(row);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  async leaveOrganization(orgId: string, userId: string) {
+    const client = this.database.getClient();
+    const membership = await client("user_organization_memberships")
+      .where({
+        organization_id: orgId,
+        user_id: userId,
+        status: "active",
+      })
+      .first();
+
+    if (!membership) {
+      throw new NotFoundException("Membership not found");
+    }
+
+    const countRow = await client("user_organization_memberships")
+      .where({
+        user_id: userId,
+        status: "active",
+      })
+      .count<{ count: string }>("organization_id as count")
+      .first();
+    const activeMembershipCount = Number(countRow?.count ?? 0);
+
+    if (activeMembershipCount <= 1) {
+      throw new BadRequestException(
+        "You cannot leave your last active organization",
+      );
+    }
+
+    await client("user_organization_memberships")
+      .where({
+        organization_id: orgId,
+        user_id: userId,
+        status: "active",
+      })
+      .update({
+        status: "inactive",
+        updated_at: new Date().toISOString(),
+      });
+
+    const orgMemberCountRow = await client("user_organization_memberships")
+      .where({
+        organization_id: orgId,
+        status: "active",
+      })
+      .countDistinct<{ count: string }>("user_id as count")
+      .first();
+    const orgMemberCount = Number(orgMemberCountRow?.count ?? 0);
+
+    const meetCountRow = await client("meets")
+      .where({ organization_id: orgId })
+      .count<{ count: string }>("id as count")
+      .first();
+    const meetCount = Number(meetCountRow?.count ?? 0);
+
+    if (orgMemberCount === 0 && meetCount === 0) {
+      await client("organizations").where({ id: orgId }).del();
+    }
   }
 
   async findTemplates(orgId: string) {
@@ -508,6 +628,12 @@ export class OrganizationsService {
     if (dto.isPrivate !== undefined) {
       updates.is_private = dto.isPrivate;
     }
+    if (dto.customField1Name !== undefined) {
+      updates.custom_field1_name = dto.customField1Name.trim() || null;
+    }
+    if (dto.customField2Name !== undefined) {
+      updates.custom_field2_name = dto.customField2Name.trim() || null;
+    }
 
     const updated = await this.database
       .getClient()("organizations")
@@ -521,6 +647,49 @@ export class OrganizationsService {
     return this.toOrganizationDto(row);
   }
 
+  async uploadLogo(id: string, file: any) {
+    const organization = await this.database
+      .getClient()("organizations")
+      .where({ id })
+      .select("id", "name", "logo_object_key")
+      .first();
+
+    if (!organization) {
+      throw new NotFoundException("Organization not found");
+    }
+
+    const normalized = await sharp(file.buffer)
+      .rotate()
+      .resize(512, 512, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    const objectKey = `logos/${id}/${uuid()}.webp`;
+    const uploaded = await this.minio.upload(
+      objectKey,
+      normalized,
+      "image/webp",
+    );
+
+    if (organization.logo_object_key) {
+      await this.minio
+        .remove(organization.logo_object_key)
+        .catch(() => undefined);
+    }
+
+    await this.database.getClient()("organizations").where({ id }).update({
+      logo_object_key: uploaded.objectKey,
+      logo_url: uploaded.url,
+      updated_at: new Date().toISOString(),
+    });
+
+    const row = await this.findById(id);
+    return this.toOrganizationDto(row);
+  }
+
   async createInviteLink(
     orgId: string,
     payload: CreateInviteLinkDto,
@@ -529,7 +698,7 @@ export class OrganizationsService {
     const client = this.database.getClient();
     const organization = await client("organizations")
       .where({ id: orgId })
-      .select("id", "name")
+      .select("id", "name", "logo_url")
       .first();
     if (!organization) {
       throw new NotFoundException("Organization not found");
@@ -585,6 +754,7 @@ export class OrganizationsService {
           organizationName: organization.name || "your organization",
           registerUrl,
           expiresAt,
+          logoUrl: organization.logo_url ?? undefined,
         });
         try {
           await this.emailService.sendEmail({
@@ -865,6 +1035,9 @@ export class OrganizationsService {
       canViewAllMeets: row.can_view_all_meets ?? undefined,
       theme: row.theme ?? undefined,
       isPrivate: row.is_private ?? undefined,
+      logoUrl: row.logo_url ?? undefined,
+      customField1Name: row.custom_field1_name ?? undefined,
+      customField2Name: row.custom_field2_name ?? undefined,
     };
   }
 }

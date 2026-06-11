@@ -27,4 +27,13 @@ export class OrganizationDto {
 
   @ApiPropertyOptional()
   isPrivate?: boolean;
+
+  @ApiPropertyOptional()
+  logoUrl?: string;
+
+  @ApiPropertyOptional()
+  customField1Name?: string;
+
+  @ApiPropertyOptional()
+  customField2Name?: string;
 }
