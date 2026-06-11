@@ -6,19 +6,25 @@ import { MinioService } from "../storage/minio.service";
 
 const buildBuilder = () => {
   const builder: any = {};
+  builder.__resolvedValue = [];
   builder.leftJoin = jest.fn().mockReturnValue(builder);
+  builder.join = jest.fn().mockReturnValue(builder);
   builder.where = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
+  builder.whereRaw = jest.fn().mockReturnValue(builder);
   builder.groupBy = jest.fn().mockReturnValue(builder);
   builder.select = jest.fn().mockReturnValue(builder);
   builder.count = jest.fn().mockReturnValue(builder);
   builder.countDistinct = jest.fn().mockReturnValue(builder);
+  builder.sum = jest.fn().mockReturnValue(builder);
   builder.orderBy = jest.fn().mockReturnValue(builder);
   builder.first = jest.fn();
   builder.insert = jest.fn().mockReturnValue(builder);
   builder.returning = jest.fn();
   builder.update = jest.fn();
   builder.del = jest.fn();
+  builder.then = (onFulfilled: (value: any) => any, onRejected?: (error: any) => any) =>
+    Promise.resolve(builder.__resolvedValue).then(onFulfilled, onRejected);
   return builder;
 };
 
