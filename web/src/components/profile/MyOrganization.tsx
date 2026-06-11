@@ -125,6 +125,7 @@ export function MyOrganization({
         onChange={(e) => setOrgName(e.target.value)}
         fullWidth
         disabled={orgLoading || !isAdmin}
+        InputLabelProps={{ shrink: true }}
       />
       <Stack direction="row" spacing={1} sx={{ width: "100%" }}>
         <TextField

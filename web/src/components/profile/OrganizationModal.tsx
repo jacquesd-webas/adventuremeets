@@ -16,10 +16,12 @@ import {
 import { useState } from "react";
 import { useCurrentOrganization } from "../../context/organizationContext";
 import { OrganizationCreate } from "./OrganizationCreate";
+import { OrganizationFeatures } from "./OrganizationFeatures";
 import { MyOrganization } from "./MyOrganization";
 import { OrganizationFields } from "./OrganizationFields";
 import { OrganizationInvites } from "./OrganizationInvites";
 import { OrganizationPrivacy } from "./OrganizationPrivacy";
+import { OrganizationStats } from "./OrganizationStats";
 
 type OrganizationModalProps = {
   open: boolean;
@@ -34,10 +36,12 @@ type OrganizationContentProps = {
 
 type OrganizationSection =
   | "organization"
-  | "create"
   | "fields"
+  | "stats"
+  | "features"
   | "privacy"
-  | "invites";
+  | "invites"
+  | "create";
 
 export function OrganizationContent({
   open: _open,
@@ -51,10 +55,12 @@ export function OrganizationContent({
 
   const sections = [
     { key: "organization", label: "Theme" },
-    { key: "create", label: "Create" },
     ...(isAdmin ? [{ key: "privacy", label: "Privacy" }] : []),
     ...(isAdmin ? [{ key: "invites", label: "Invites" }] : []),
     ...(isAdmin ? [{ key: "fields", label: "Fields" }] : []),
+    { key: "stats", label: "Stats" },
+    { key: "features", label: "Features" },
+    { key: "create", label: "Create" },
   ] as const satisfies ReadonlyArray<{
     key: OrganizationSection;
     label: string;
@@ -67,10 +73,12 @@ export function OrganizationContent({
           title="Organisation Theme"
           description="Update your organisation name and look and feel."
         />
-        <OrganizationCreate onGoToProfile={onOpenProfile} />
         {isAdmin ? <OrganizationPrivacy /> : null}
         {isAdmin ? <OrganizationInvites /> : null}
         {isAdmin ? <OrganizationFields /> : null}
+        <OrganizationStats />
+        <OrganizationFeatures />
+        <OrganizationCreate onGoToProfile={onOpenProfile} />
       </Stack>
     );
   }
@@ -97,12 +105,14 @@ export function OrganizationContent({
             description="Update your organisation name and look and feel."
           />
         ) : null}
+        {section === "fields" ? <OrganizationFields /> : null}
+        {section === "stats" ? <OrganizationStats /> : null}
+        {section === "features" ? <OrganizationFeatures /> : null}
+        {section === "privacy" ? <OrganizationPrivacy /> : null}
+        {section === "invites" ? <OrganizationInvites /> : null}
         {section === "create" ? (
           <OrganizationCreate onGoToProfile={onOpenProfile} />
         ) : null}
-        {section === "fields" ? <OrganizationFields /> : null}
-        {section === "privacy" ? <OrganizationPrivacy /> : null}
-        {section === "invites" ? <OrganizationInvites /> : null}
       </Grid>
     </Grid>
   );

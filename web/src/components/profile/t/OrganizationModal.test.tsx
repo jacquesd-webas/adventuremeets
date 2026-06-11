@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -116,6 +117,19 @@ describe("OrganizationModal", () => {
       canViewAllMeets: true,
       customField1Name: "Club",
       customField2Name: "Region",
+      userCount: 12,
+      meetCountLast30Days: 2,
+      attendanceCountLast30Days: 10,
+      meetCountLast90Days: 4,
+      attendanceCountLast90Days: 28,
+      meetCountTotal: 19,
+      attendanceCountTotal: 95,
+      adminCount: 2,
+      organizerCount: 3,
+      memberCount: 7,
+      meetImageBytes: 1024,
+      wallImageBytes: 2048,
+      totalImageBytes: 3072,
     };
     mockedInvites = [];
     mockedCurrentOrganizationRole = "admin";
@@ -129,20 +143,15 @@ describe("OrganizationModal", () => {
       screen.getByText("Update your organisation name and look and feel."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Theme" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fields" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Privacy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stats" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Features" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Choose file" }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
-
-    expect(
-      screen.getByText("Organisations can be created under your user profile."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Go to Profile" }),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Fields" }));
@@ -166,6 +175,50 @@ describe("OrganizationModal", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("Invite specific users to join your organisation."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stats" }));
+
+    expect(screen.getByText("Meets")).toBeInTheDocument();
+    const thirtyDayCard = screen.getByText("30 days").closest(".MuiPaper-root");
+    const ninetyDayCard = screen.getByText("90 days").closest(".MuiPaper-root");
+    const totalCard = screen.getByText("Total").closest(".MuiPaper-root");
+
+    expect(thirtyDayCard).not.toBeNull();
+    expect(ninetyDayCard).not.toBeNull();
+    expect(totalCard).not.toBeNull();
+
+    expect(within(thirtyDayCard!).getByText("30 days")).toBeInTheDocument();
+    expect(within(thirtyDayCard!).getByText("2")).toBeInTheDocument();
+
+    expect(within(ninetyDayCard!).getByText("90 days")).toBeInTheDocument();
+    expect(within(ninetyDayCard!).getByText("4")).toBeInTheDocument();
+
+    expect(within(totalCard!).getByText("Total")).toBeInTheDocument();
+    expect(within(totalCard!).getByText("19")).toBeInTheDocument();
+
+    expect(screen.getByText("Users")).toBeInTheDocument();
+    expect(screen.getByText("Admins")).toBeInTheDocument();
+    expect(screen.getByText("Organisers")).toBeInTheDocument();
+    expect(screen.getByText("Members")).toBeInTheDocument();
+    expect(screen.getByText("Resources")).toBeInTheDocument();
+    expect(screen.getByText("Meet images")).toBeInTheDocument();
+    expect(screen.getByText("Wall images")).toBeInTheDocument();
+    expect(screen.getByText("1 KB")).toBeInTheDocument();
+    expect(screen.getByText("2 KB")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Features" }));
+
+    expect(screen.getByText("Advanced reporting")).toBeInTheDocument();
+    expect(screen.getByText("Branded communications")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(
+      screen.getByText("Organisations can be created under your user profile."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Go to Profile" }),
     ).toBeInTheDocument();
   });
 
@@ -216,6 +269,8 @@ describe("OrganizationModal", () => {
       screen.getByText("Allow regular users to join with invite link"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Custom field 1 name")).toBeInTheDocument();
+    expect(screen.getByText("Stats")).toBeInTheDocument();
+    expect(screen.getByText("Features")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Invite User" }),
     ).toBeInTheDocument();
@@ -227,6 +282,12 @@ describe("OrganizationModal", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Invites" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Stats" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Features" }),
     ).not.toBeInTheDocument();
   });
 
@@ -266,5 +327,10 @@ describe("OrganizationModal", () => {
     expect(
       screen.queryByRole("button", { name: "Invite User" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stats" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Features" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
   });
 });

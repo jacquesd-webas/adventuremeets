@@ -36,4 +36,40 @@ export class OrganizationDto {
 
   @ApiPropertyOptional()
   customField2Name?: string;
+
+  @ApiPropertyOptional()
+  meetCountLast30Days?: number;
+
+  @ApiPropertyOptional()
+  attendanceCountLast30Days?: number;
+
+  @ApiPropertyOptional()
+  meetCountLast90Days?: number;
+
+  @ApiPropertyOptional()
+  attendanceCountLast90Days?: number;
+
+  @ApiPropertyOptional()
+  meetCountTotal?: number;
+
+  @ApiPropertyOptional()
+  attendanceCountTotal?: number;
+
+  @ApiPropertyOptional()
+  adminCount?: number;
+
+  @ApiPropertyOptional()
+  organizerCount?: number;
+
+  @ApiPropertyOptional()
+  memberCount?: number;
+
+  @ApiPropertyOptional()
+  meetImageBytes?: number;
+
+  @ApiPropertyOptional()
+  wallImageBytes?: number;
+
+  @ApiPropertyOptional()
+  totalImageBytes?: number;
 }

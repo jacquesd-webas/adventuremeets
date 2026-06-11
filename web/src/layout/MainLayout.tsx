@@ -226,6 +226,10 @@ function MainLayout() {
   };
 
   const logoSrc = getLogoSrc(mode, organization?.theme);
+  const appBarLogoSrc = organization?.logoUrl || logoSrc;
+  const appBarLogoAlt = organization?.logoUrl
+    ? `${organization?.name || "Organisation"} logo`
+    : "AdventureMeets logo";
 
   const accountMenu = (
     <Menu
@@ -345,9 +349,15 @@ function MainLayout() {
           <Toolbar>
             <Box
               component="img"
-              src={logoSrc}
-              alt="AdventureMeets logo"
-              sx={{ height: 36, mr: 3 }}
+              src={appBarLogoSrc}
+              alt={appBarLogoAlt}
+              sx={{
+                height: 36,
+                width: "auto",
+                objectFit: "contain",
+                display: "block",
+                mr: 3,
+              }}
             />
             <Stack direction="row" spacing={2} alignItems="center">
               {desktopNavItems.map((item) => (
@@ -492,9 +502,14 @@ function MainLayout() {
             >
               <Box
                 component="img"
-                src={logoSrc}
-                alt="AdventureMeets logo"
-                sx={{ height: 28 }}
+                src={appBarLogoSrc}
+                alt={appBarLogoAlt}
+                sx={{
+                  height: 28,
+                  width: "auto",
+                  objectFit: "contain",
+                  display: "block",
+                }}
               />
             </Box>
             <Box
@@ -517,9 +532,14 @@ function MainLayout() {
               <Box sx={{ px: 2, py: 1.25 }}>
                 <Box
                   component="img"
-                  src={logoSrc}
-                  alt="AdventureMeets logo"
-                  sx={{ height: 30 }}
+                  src={appBarLogoSrc}
+                  alt={appBarLogoAlt}
+                  sx={{
+                    height: 30,
+                    width: "auto",
+                    objectFit: "contain",
+                    display: "block",
+                  }}
                 />
               </Box>
               <List>
