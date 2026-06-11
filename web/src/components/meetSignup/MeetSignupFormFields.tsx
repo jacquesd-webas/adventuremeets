@@ -48,6 +48,8 @@ export type MeetSignupFormFieldsProps = {
   organization?: {
     customField1Name?: string;
     customField2Name?: string;
+    customField1HelperText?: string;
+    customField2HelperText?: string;
   } | null;
   phoneCountry: string;
   phoneLocal: string;
@@ -286,6 +288,7 @@ export function MeetSignupFormFields({
           required
         >
           <TextField
+            placeholder={organization?.customField1HelperText || undefined}
             inputProps={{
               "aria-label": organization?.customField1Name || "Custom field 1",
             }}
@@ -301,6 +304,7 @@ export function MeetSignupFormFields({
           required
         >
           <TextField
+            placeholder={organization?.customField2HelperText || undefined}
             inputProps={{
               "aria-label": organization?.customField2Name || "Custom field 2",
             }}

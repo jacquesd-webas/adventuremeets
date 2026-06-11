@@ -53,6 +53,10 @@ export type Meet = {
   requirePhone?: boolean;
   requireOrg1?: boolean;
   requireOrg2?: boolean;
+  customField1Name?: string;
+  customField2Name?: string;
+  customField1HelperText?: string;
+  customField2HelperText?: string;
   maxGuests?: number;
   isVirtual?: boolean;
   shareCode?: string;

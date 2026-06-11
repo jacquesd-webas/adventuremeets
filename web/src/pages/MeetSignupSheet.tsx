@@ -127,7 +127,7 @@ function MeetSignupSheet() {
       isEditing ? code : null,
       isEditing ? editAttendeeId : null,
     );
-  const { data: organization } = useFetchOrganization(
+  const { data: privateOrganization } = useFetchOrganization(
     meet?.organizationId || undefined,
   );
   const { state, setField, setMetaValue, resetState } =
@@ -181,6 +181,14 @@ function MeetSignupSheet() {
   const disableIdentityFields = Boolean(isAuthenticated);
   const disablePhone = false;
   const disableGuests = Boolean(guestOf);
+  const organizationFieldConfig = meet
+    ? {
+        customField1Name: meet.customField1Name ?? undefined,
+        customField2Name: meet.customField2Name ?? undefined,
+        customField1HelperText: meet.customField1HelperText ?? undefined,
+        customField2HelperText: meet.customField2HelperText ?? undefined,
+      }
+    : null;
 
   const { data: userMetaValues, isLoading: userMetaLoading } =
     useFetchUserMetaValues(user?.id, meet?.organizationId);
@@ -424,14 +432,14 @@ function MeetSignupSheet() {
         : mode;
     const { image, color } = getOrganizationBackground(
       mode,
-      organization?.theme,
+      privateOrganization?.theme,
     );
     document.body.style.backgroundColor = color;
     document.body.style.backgroundImage = `url("${image}")`;
     document.body.setAttribute("data-theme-base", resolvedBase);
 
-    if (organization?.theme) {
-      document.body.setAttribute("data-org-theme", organization.theme);
+    if (privateOrganization?.theme) {
+      document.body.setAttribute("data-org-theme", privateOrganization.theme);
     } else {
       document.body.removeAttribute("data-org-theme");
     }
@@ -450,7 +458,7 @@ function MeetSignupSheet() {
         document.body.removeAttribute("data-theme-base");
       }
     };
-  }, [mode, organization?.theme]);
+  }, [mode, privateOrganization?.theme]);
 
   // Switch name and guardian fields if the user is a minor and user is logged in
   useEffect(() => {
@@ -599,7 +607,7 @@ function MeetSignupSheet() {
             hasIndemnity={meet?.hasIndemnity || false}
             guests={guests}
             isMinor={isMinor}
-            isOrganizationPrivate={organization?.isPrivate}
+            isOrganizationPrivate={privateOrganization?.isPrivate}
             isPreview={isPreview}
             isGuest={Boolean(guestOf)}
           />
@@ -624,10 +632,10 @@ function MeetSignupSheet() {
     (showEmailField && !email.trim()) ||
     (showPhoneField && !phoneLocal.trim()) ||
     (meet?.requireOrg1 &&
-      organization?.customField1Name &&
+      organizationFieldConfig?.customField1Name &&
       !org1Value.trim()) ||
     (meet?.requireOrg2 &&
-      organization?.customField2Name &&
+      organizationFieldConfig?.customField2Name &&
       !org2Value.trim()) ||
     Boolean(nameError) ||
     (showEmailField && Boolean(emailError)) ||
@@ -879,7 +887,7 @@ function MeetSignupSheet() {
                   meet={meet}
                   fullName={fullName}
                   email={email}
-                  organization={organization}
+                  organization={organizationFieldConfig}
                   phoneCountry={phoneCountry}
                   phoneLocal={phoneLocal}
                   nameError={nameError}

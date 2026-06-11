@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import MeetSignupSheet from "../MeetSignupSheet";
 
-const mockedMeet = {
+const mockedMeet: Record<string, any> = {
   id: "meet-1",
   name: "Mountain Hike",
   organizationId: "org-1",
@@ -36,6 +36,8 @@ const mockedOrganization = {
   isPrivate: false,
   customField1Name: undefined,
   customField2Name: undefined,
+  customField1HelperText: undefined,
+  customField2HelperText: undefined,
 };
 
 const mockedUser = {
@@ -169,8 +171,14 @@ describe("MeetSignupSheet", () => {
     mockedMeet.requirePhone = undefined;
     mockedMeet.requireOrg1 = undefined;
     mockedMeet.requireOrg2 = undefined;
+    mockedMeet.customField1Name = undefined;
+    mockedMeet.customField2Name = undefined;
+    mockedMeet.customField1HelperText = undefined;
+    mockedMeet.customField2HelperText = undefined;
     mockedOrganization.customField1Name = undefined;
     mockedOrganization.customField2Name = undefined;
+    mockedOrganization.customField1HelperText = undefined;
+    mockedOrganization.customField2HelperText = undefined;
   });
 
   it("autofills the signed-in user's identity, phone, and saved autofill answers", async () => {
@@ -254,8 +262,10 @@ describe("MeetSignupSheet", () => {
     const user = userEvent.setup();
     mockedMeet.requireOrg1 = true;
     mockedMeet.requireOrg2 = true;
-    mockedOrganization.customField1Name = "Club";
-    mockedOrganization.customField2Name = "Region";
+    mockedMeet.customField1Name = "Club";
+    mockedMeet.customField2Name = "Region";
+    mockedMeet.customField1HelperText = "Enter your walking club";
+    mockedMeet.customField2HelperText = "Enter your local region";
     const queryClient = new QueryClient();
 
     render(
@@ -271,6 +281,9 @@ describe("MeetSignupSheet", () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
     });
+
+    expect(screen.getByPlaceholderText("Enter your walking club")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter your local region")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Club"), "Bushwalkers");
     await user.type(screen.getByLabelText("Region"), "West");

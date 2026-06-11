@@ -73,6 +73,18 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     requirePhone: apiMeet.requirePhone ?? apiMeet.require_phone ?? null,
     requireOrg1: apiMeet.requireOrg1 ?? apiMeet.require_org1 ?? null,
     requireOrg2: apiMeet.requireOrg2 ?? apiMeet.require_org2 ?? null,
+    customField1Name:
+      apiMeet.customField1Name ?? apiMeet.custom_field1_name ?? null,
+    customField2Name:
+      apiMeet.customField2Name ?? apiMeet.custom_field2_name ?? null,
+    customField1HelperText:
+      apiMeet.customField1HelperText ??
+      apiMeet.custom_field1_helper_text ??
+      null,
+    customField2HelperText:
+      apiMeet.customField2HelperText ??
+      apiMeet.custom_field2_helper_text ??
+      null,
     maxGuests: apiMeet.maxGuests ?? null,
     isVirtual: apiMeet.isVirtual ?? null,
     shareCode: apiMeet.shareCode ?? null,

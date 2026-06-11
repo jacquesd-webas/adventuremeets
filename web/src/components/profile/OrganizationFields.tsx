@@ -25,6 +25,8 @@ export function OrganizationFields() {
   } = useUpdateOrganization(currentOrganizationId ?? undefined);
   const [customField1Name, setCustomField1Name] = useState("");
   const [customField2Name, setCustomField2Name] = useState("");
+  const [customField1HelperText, setCustomField1HelperText] = useState("");
+  const [customField2HelperText, setCustomField2HelperText] = useState("");
   const [saved, setSaved] = useState(false);
   const isAdmin = currentOrganizationRole === "admin";
 
@@ -32,6 +34,8 @@ export function OrganizationFields() {
     if (!organization) return;
     setCustomField1Name(organization.customField1Name ?? "");
     setCustomField2Name(organization.customField2Name ?? "");
+    setCustomField1HelperText(organization.customField1HelperText ?? "");
+    setCustomField2HelperText(organization.customField2HelperText ?? "");
   }, [organization]);
 
   const handleSave = async () => {
@@ -44,6 +48,8 @@ export function OrganizationFields() {
       canViewAllMeets: organization.canViewAllMeets ?? true,
       customField1Name: customField1Name.trim(),
       customField2Name: customField2Name.trim(),
+      customField1HelperText: customField1HelperText.trim(),
+      customField2HelperText: customField2HelperText.trim(),
     });
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1500);
@@ -77,6 +83,22 @@ export function OrganizationFields() {
         fullWidth
         disabled={!isAdmin}
         helperText="Used to label Custom field 2 on meets in this organisation."
+      />
+      <TextField
+        label="Custom field 1 preview text"
+        value={customField1HelperText}
+        onChange={(event) => setCustomField1HelperText(event.target.value)}
+        fullWidth
+        disabled={!isAdmin}
+        helperText="Optional preview text shown inside Custom field 1 on meet signup."
+      />
+      <TextField
+        label="Custom field 2 preview text"
+        value={customField2HelperText}
+        onChange={(event) => setCustomField2HelperText(event.target.value)}
+        fullWidth
+        disabled={!isAdmin}
+        helperText="Optional preview text shown inside Custom field 2 on meet signup."
       />
       {saveError ? <Alert severity="error">{saveError}</Alert> : null}
       <Box sx={{ flexGrow: 1 }} />

@@ -31,4 +31,14 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsString()
   customField2Name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customField1HelperText?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customField2HelperText?: string;
 }

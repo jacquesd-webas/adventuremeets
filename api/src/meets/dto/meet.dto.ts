@@ -171,6 +171,22 @@ export class MeetDto {
   requireOrg2?: boolean;
 
   @ApiPropertyOptional()
+  @IsString()
+  customField1Name?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField2Name?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField1HelperText?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField2HelperText?: string;
+
+  @ApiPropertyOptional()
   @IsNumber()
   maxGuests?: number;
 

@@ -10,6 +10,8 @@ type UpdatePayload = {
   canViewAllMeets?: boolean;
   customField1Name?: string;
   customField2Name?: string;
+  customField1HelperText?: string;
+  customField2HelperText?: string;
 };
 
 export function useUpdateOrganization(organizationId?: string | null) {
@@ -27,6 +29,8 @@ export function useUpdateOrganization(organizationId?: string | null) {
           canViewAllMeets: payload.canViewAllMeets,
           customField1Name: payload.customField1Name,
           customField2Name: payload.customField2Name,
+          customField1HelperText: payload.customField1HelperText,
+          customField2HelperText: payload.customField2HelperText,
         },
       );
       return res?.organization;

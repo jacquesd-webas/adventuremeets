@@ -16,6 +16,14 @@ export function useFetchOrganization(orgId?: string) {
       org.customField1Name ?? org.custom_field1_name ?? undefined,
     customField2Name:
       org.customField2Name ?? org.custom_field2_name ?? undefined,
+    customField1HelperText:
+      org.customField1HelperText ??
+      org.custom_field1_helper_text ??
+      undefined,
+    customField2HelperText:
+      org.customField2HelperText ??
+      org.custom_field2_helper_text ??
+      undefined,
     meetCountLast30Days:
       typeof org.meetCountLast30Days === "number"
         ? org.meetCountLast30Days

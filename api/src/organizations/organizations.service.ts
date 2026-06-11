@@ -723,6 +723,14 @@ export class OrganizationsService {
     if (dto.customField2Name !== undefined) {
       updates.custom_field2_name = dto.customField2Name.trim() || null;
     }
+    if (dto.customField1HelperText !== undefined) {
+      updates.custom_field1_helper_text =
+        dto.customField1HelperText.trim() || null;
+    }
+    if (dto.customField2HelperText !== undefined) {
+      updates.custom_field2_helper_text =
+        dto.customField2HelperText.trim() || null;
+    }
 
     const updated = await this.database
       .getClient()("organizations")
@@ -1127,6 +1135,8 @@ export class OrganizationsService {
       logoUrl: row.logo_url ?? undefined,
       customField1Name: row.custom_field1_name ?? undefined,
       customField2Name: row.custom_field2_name ?? undefined,
+      customField1HelperText: row.custom_field1_helper_text ?? undefined,
+      customField2HelperText: row.custom_field2_helper_text ?? undefined,
       meetCountLast90Days:
         typeof row.meet_count_last_90_days === "number"
           ? row.meet_count_last_90_days

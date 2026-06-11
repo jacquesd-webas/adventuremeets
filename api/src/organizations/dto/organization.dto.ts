@@ -38,6 +38,12 @@ export class OrganizationDto {
   customField2Name?: string;
 
   @ApiPropertyOptional()
+  customField1HelperText?: string;
+
+  @ApiPropertyOptional()
+  customField2HelperText?: string;
+
+  @ApiPropertyOptional()
   meetCountLast30Days?: number;
 
   @ApiPropertyOptional()

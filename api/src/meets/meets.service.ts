@@ -337,6 +337,7 @@ export class MeetsService {
     let query = this.db
       .getClient()("meets as m")
       .leftJoin("users as u", "u.id", "m.organizer_id")
+      .leftJoin("organizations as o", "o.id", "m.organization_id")
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
       .leftJoin("currencies as c", "c.id", "m.currency_id")
       .modify((builder) => {
@@ -374,6 +375,10 @@ export class MeetsService {
         "u.last_name as organizer_last_name",
         "u.email as organizer_email",
         "u.phone as organizer_phone",
+        "o.custom_field1_name",
+        "o.custom_field2_name",
+        "o.custom_field1_helper_text",
+        "o.custom_field2_helper_text",
         userId
           ? this.db.getClient().raw("ua.status as my_attendee_status")
           : this.db.getClient().raw("null as my_attendee_status"),
@@ -2033,6 +2038,10 @@ export class MeetsService {
       requirePhone: meet.require_phone ?? undefined,
       requireOrg1: meet.require_org1 ?? undefined,
       requireOrg2: meet.require_org2 ?? undefined,
+      customField1Name: meet.custom_field1_name ?? undefined,
+      customField2Name: meet.custom_field2_name ?? undefined,
+      customField1HelperText: meet.custom_field1_helper_text ?? undefined,
+      customField2HelperText: meet.custom_field2_helper_text ?? undefined,
       maxGuests: meet.max_guests ?? undefined,
       isVirtual: meet.is_virtual ?? undefined,
       confirmMessage: meet.confirm_message ?? undefined,

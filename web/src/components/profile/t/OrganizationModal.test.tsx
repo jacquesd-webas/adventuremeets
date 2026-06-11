@@ -117,6 +117,8 @@ describe("OrganizationModal", () => {
       canViewAllMeets: true,
       customField1Name: "Club",
       customField2Name: "Region",
+      customField1HelperText: "Your walking club",
+      customField2HelperText: "Your local region",
       userCount: 12,
       meetCountLast30Days: 2,
       attendanceCountLast30Days: 10,
@@ -158,6 +160,8 @@ describe("OrganizationModal", () => {
 
     expect(screen.getByDisplayValue("Club")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Region")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Your walking club")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Your local region")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Privacy" }));
 
@@ -227,6 +231,8 @@ describe("OrganizationModal", () => {
       ...mockedOrganization,
       customField1Name: "Membership number",
       customField2Name: "Branch",
+      customField1HelperText: "Found on your club card",
+      customField2HelperText: "Home branch",
     });
 
     await renderWithQueryClient(<OrganizationModal open onClose={vi.fn()} />);
@@ -237,6 +243,12 @@ describe("OrganizationModal", () => {
     });
     fireEvent.change(screen.getByLabelText("Custom field 2 name"), {
       target: { value: "Branch" },
+    });
+    fireEvent.change(screen.getByLabelText("Custom field 1 preview text"), {
+      target: { value: "Found on your club card" },
+    });
+    fireEvent.change(screen.getByLabelText("Custom field 2 preview text"), {
+      target: { value: "Home branch" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save field names" }));
 
@@ -249,6 +261,8 @@ describe("OrganizationModal", () => {
         canViewAllMeets: true,
         customField1Name: "Membership number",
         customField2Name: "Branch",
+        customField1HelperText: "Found on your club card",
+        customField2HelperText: "Home branch",
       }),
     );
   });

@@ -7,6 +7,8 @@ export type Organization = {
   canViewAllMeets?: boolean;
   customField1Name?: string;
   customField2Name?: string;
+  customField1HelperText?: string;
+  customField2HelperText?: string;
   userCount?: number;
   templateCount?: number;
   meetCountLast30Days?: number;
