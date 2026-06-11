@@ -9,6 +9,18 @@ export type Organization = {
   customField2Name?: string;
   userCount?: number;
   templateCount?: number;
+  meetCountLast30Days?: number;
+  attendanceCountLast30Days?: number;
+  meetCountLast90Days?: number;
+  attendanceCountLast90Days?: number;
+  meetCountTotal?: number;
+  attendanceCountTotal?: number;
+  adminCount?: number;
+  organizerCount?: number;
+  memberCount?: number;
+  meetImageBytes?: number;
+  wallImageBytes?: number;
+  totalImageBytes?: number;
   createdAt?: string;
   updatedAt?: string;
 };
