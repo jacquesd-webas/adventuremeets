@@ -168,69 +168,65 @@ export const QuestionsStep = ({
                 gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
               }}
             >
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={state.requireEmail}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      setState((prev) => ({
-                        ...prev,
-                        requireEmail: e.target.checked,
-                      }))
-                    }
-                  />
-                }
-                label="E-mail address"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={state.requirePhone}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      setState((prev) => ({
-                        ...prev,
-                        requirePhone: e.target.checked,
-                      }))
-                    }
-                  />
-                }
-                label="Phone number"
-              />
-              {customField1Label ? (
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={state.requireOrg1}
-                      disabled={disabled}
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          requireOrg1: e.target.checked,
-                        }))
-                      }
-                    />
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Switch
+                  checked={state.requireEmail}
+                  disabled={disabled}
+                  inputProps={{ "aria-label": "E-mail address" }}
+                  onChange={(e) =>
+                    setState((prev) => ({
+                      ...prev,
+                      requireEmail: e.target.checked,
+                    }))
                   }
-                  label={customField1Label}
                 />
+                <Typography>E-mail address</Typography>
+              </Stack>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Switch
+                  checked={state.requirePhone}
+                  disabled={disabled}
+                  inputProps={{ "aria-label": "Phone number" }}
+                  onChange={(e) =>
+                    setState((prev) => ({
+                      ...prev,
+                      requirePhone: e.target.checked,
+                    }))
+                  }
+                />
+                <Typography>Phone number</Typography>
+              </Stack>
+              {customField1Label ? (
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Switch
+                    checked={state.requireOrg1}
+                    disabled={disabled}
+                    inputProps={{ "aria-label": customField1Label }}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        requireOrg1: e.target.checked,
+                      }))
+                    }
+                  />
+                  <Typography>{customField1Label}</Typography>
+                </Stack>
               ) : null}
               {customField2Label ? (
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={state.requireOrg2}
-                      disabled={disabled}
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          requireOrg2: e.target.checked,
-                        }))
-                      }
-                    />
-                  }
-                  label={customField2Label}
-                />
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Switch
+                    checked={state.requireOrg2}
+                    disabled={disabled}
+                    inputProps={{ "aria-label": customField2Label }}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        requireOrg2: e.target.checked,
+                      }))
+                    }
+                  />
+                  <Typography>{customField2Label}</Typography>
+                </Stack>
               ) : null}
             </Box>
           </Stack>

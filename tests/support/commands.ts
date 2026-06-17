@@ -19,6 +19,7 @@ type CreateMinimalMeetOptions = {
   requireIndemnity?: boolean;
   includeQuestions?: boolean;
   questions?: CreateMinimalMeetQuestion[];
+  requiredStandardFields?: string[];
   allowGuests?: boolean;
   maxGuests?: number;
   allowSelfCheckin?: boolean;
@@ -145,6 +146,12 @@ Cypress.Commands.add("createMinimalMeet", (options: CreateMinimalMeetOptions) =>
       }
     });
   }
+
+  (options.requiredStandardFields ?? []).forEach((label) => {
+    cy.contains("label", label).find('input[type="checkbox"]').check({
+      force: true,
+    });
+  });
   cy.contains("button", "Save & Continue").click();
 
   if (options.allowGuests) {

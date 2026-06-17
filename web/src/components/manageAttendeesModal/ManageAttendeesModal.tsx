@@ -15,7 +15,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
@@ -110,6 +110,8 @@ export function ManageAttendeesModal({
     "responses",
   );
   const canManageAttendees = isOrganizerForMeet || isAdminUnlockEnabled;
+  const mobileMessageTimeoutMs = theme.transitions.duration.leavingScreen;
+  const messageOpenTimeoutRef = useRef<number | null>(null);
   const { data: attendeeMessages } = useFetchAttendeeMessages(
     meetId,
     selectedAttendeeId,
@@ -143,6 +145,14 @@ export function ManageAttendeesModal({
   useEffect(() => {
     setDetailView("responses");
   }, [selectedAttendeeId]);
+
+  useEffect(() => {
+    return () => {
+      if (messageOpenTimeoutRef.current !== null) {
+        window.clearTimeout(messageOpenTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const meetStatus = useMemo(() => {
     const statusVal =
@@ -420,6 +430,17 @@ export function ManageAttendeesModal({
       includeStatusUrl,
     });
     setMessageModalKey((prev) => prev + 1);
+    if (fullScreen && selectedAttendeeId) {
+      setSelectedAttendeeId(null);
+      if (messageOpenTimeoutRef.current !== null) {
+        window.clearTimeout(messageOpenTimeoutRef.current);
+      }
+      messageOpenTimeoutRef.current = window.setTimeout(() => {
+        setMessageOpen(true);
+        messageOpenTimeoutRef.current = null;
+      }, mobileMessageTimeoutMs);
+      return;
+    }
     setMessageOpen(true);
   };
   const buildInviteSubject = (meetName?: string | null) =>

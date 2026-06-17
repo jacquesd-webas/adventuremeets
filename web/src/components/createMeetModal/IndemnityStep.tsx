@@ -1,7 +1,6 @@
 import {
   Alert,
   Box,
-  FormControlLabel,
   Stack,
   Switch,
   TextField,
@@ -62,21 +61,22 @@ export const IndemnityStep = ({
           />
         </LabeledField>
         <Stack spacing={0.5}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={state.indemnityAccepted}
-                disabled={disabled}
-                onChange={(e) =>
-                  setState((prev) => ({
-                    ...prev,
-                    indemnityAccepted: e.target.checked,
-                  }))
-                }
-              />
-            }
-            label="Require attendees to accept indemnity"
-          />
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Switch
+              checked={state.indemnityAccepted}
+              disabled={disabled}
+              inputProps={{
+                "aria-label": "Require attendees to accept indemnity",
+              }}
+              onChange={(e) =>
+                setState((prev) => ({
+                  ...prev,
+                  indemnityAccepted: e.target.checked,
+                }))
+              }
+            />
+            <Typography>Require attendees to accept indemnity</Typography>
+          </Stack>
           {isHelpEnabled ? (
             <Typography variant="caption" color="text.secondary">
               Turn this on if attendees must explicitly accept the indemnity as

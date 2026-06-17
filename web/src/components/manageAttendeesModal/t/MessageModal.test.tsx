@@ -395,6 +395,60 @@ describe("MessageModal", () => {
     });
   });
 
+  it("disables group send for auto messages when multiple status groups are selected", () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+            { id: "confirmed-2", status: AttendeeStatusEnum.CheckedIn },
+            { id: "invited-1", status: AttendeeStatusEnum.Invited },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    const groupCheckbox = screen.getByRole("checkbox", {
+      name: "Send as a group message",
+    });
+
+    fireEvent.click(groupCheckbox);
+    expect(groupCheckbox).toBeChecked();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Invited" }));
+
+    expect(groupCheckbox).toBeDisabled();
+    expect(groupCheckbox).not.toBeChecked();
+  });
+
+  it("keeps group send enabled for auto messages when only one status group is selected", () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+            { id: "confirmed-2", status: AttendeeStatusEnum.CheckedIn },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));
+
+    expect(
+      screen.getByRole("checkbox", { name: "Send as a group message" }),
+    ).toBeEnabled();
+  });
+
   it("splits bulk auto messages by attendee status", async () => {
     const queryClient = new QueryClient();
     render(

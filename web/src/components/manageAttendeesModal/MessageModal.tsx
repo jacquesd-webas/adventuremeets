@@ -321,6 +321,14 @@ export function MessageModal({
   const hasUnnotified = selectedAttendees.some(
     (attendee) => !attendee.respondedAt,
   );
+  const selectedBulkGroupCount = [
+    includeConfirmed,
+    includeWaitlisted,
+    includeRejected,
+    includeInvited,
+  ].filter(Boolean).length;
+  const disableGroupSend =
+    autoResponse && !attendeeIds && selectedBulkGroupCount > 1;
 
   useEffect(() => {
     if (autoResponse) {
@@ -355,6 +363,12 @@ export function MessageModal({
       });
     }
   }, [open, autoResponse, hasUnnotified]);
+
+  useEffect(() => {
+    if (disableGroupSend && sendAsGroup) {
+      setSendAsGroup(false);
+    }
+  }, [disableGroupSend, sendAsGroup]);
 
   const reset = () => {
     setSubject(fallbackSubject);
@@ -692,6 +706,7 @@ export function MessageModal({
                         <Checkbox
                           checked={sendAsGroup}
                           onChange={(e) => setSendAsGroup(e.target.checked)}
+                          disabled={disableGroupSend}
                         />
                       }
                       label="Send as a group message"
