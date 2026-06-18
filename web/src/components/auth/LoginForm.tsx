@@ -21,19 +21,46 @@ import { useFacebookAuthUrl } from "../../hooks/useFacebookAuthUrl";
 import { useFacebookCodeLogin } from "../../hooks/useFacebookCodeLogin";
 import { AuthSocialButtons } from "./AuthSocialButtons";
 
+function buildAuthHref(
+  pathname: string,
+  options: { invite?: string | null; organizationId?: string | null },
+) {
+  const params = new URLSearchParams();
+  if (options.invite) {
+    params.set("invite", options.invite);
+  }
+  if (options.organizationId) {
+    params.set("org", options.organizationId);
+  }
+  const search = params.toString();
+  return search ? `${pathname}?${search}` : pathname;
+}
+
 function parseOauthState(stateValue: string | null) {
-  const result: { invite: string | null; returnTo: string | null } = {
+  const result: {
+    invite: string | null;
+    organizationId: string | null;
+    returnTo: string | null;
+  } = {
     invite: null,
+    organizationId: null,
     returnTo: null,
   };
   if (!stateValue) return result;
   try {
     const parsed = JSON.parse(stateValue) as {
       invite?: unknown;
+      org?: unknown;
+      organizationId?: unknown;
       returnTo?: unknown;
     };
     if (typeof parsed.invite === "string") {
       result.invite = parsed.invite;
+    }
+    if (typeof parsed.org === "string") {
+      result.organizationId = parsed.org;
+    } else if (typeof parsed.organizationId === "string") {
+      result.organizationId = parsed.organizationId;
     }
     if (
       typeof parsed.returnTo === "string" &&
@@ -117,6 +144,8 @@ export function LoginForm({
     [params],
   );
   const inviteCode = params.get("invite") ?? parsedOauthState.invite;
+  const organizationId =
+    params.get("org") ?? parsedOauthState.organizationId ?? undefined;
   const returnToFromQuery = params.get("returnTo");
   const returnTo = useMemo(() => {
     if (
@@ -158,8 +187,16 @@ export function LoginForm({
 
     const doLogin =
       oauthProvider === "google"
-        ? googleCodeLoginAsync({ code, redirectUri: googleRedirectUri })
-        : facebookCodeLoginAsync({ code, redirectUri: facebookRedirectUri });
+        ? googleCodeLoginAsync({
+            code,
+            redirectUri: googleRedirectUri,
+            organizationId,
+          })
+        : facebookCodeLoginAsync({
+            code,
+            redirectUri: facebookRedirectUri,
+            organizationId,
+          });
 
     doLogin
       .then(async () => {
@@ -185,6 +222,7 @@ export function LoginForm({
     googleRedirectUri,
     nav,
     onSuccess,
+    organizationId,
     oauthProvider,
     params,
     refreshSession,
@@ -194,7 +232,7 @@ export function LoginForm({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    loginAsync({ email, password })
+    loginAsync({ email, password, organizationId })
       .then(() => refreshSession())
       .then(() => {
         if (onSuccess) {
@@ -220,6 +258,7 @@ export function LoginForm({
           : "/";
       const state = JSON.stringify({
         invite: inviteCode || undefined,
+        org: organizationId,
         returnTo: returnTo || fallbackReturnTo,
       });
       const response = await getGoogleAuthUrlAsync({
@@ -246,6 +285,7 @@ export function LoginForm({
           : "/";
       const state = JSON.stringify({
         invite: inviteCode || undefined,
+        org: organizationId,
         returnTo: returnTo || fallbackReturnTo,
       });
       const response = await getFacebookAuthUrlAsync({
@@ -375,11 +415,10 @@ export function LoginForm({
         {showFooterLinks ? (
           <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
             <Link
-              href={
-                inviteCode
-                  ? `/register?invite=${encodeURIComponent(inviteCode)}`
-                  : "/register"
-              }
+              href={buildAuthHref("/register", {
+                invite: inviteCode,
+                organizationId,
+              })}
             >
               Create Account
             </Link>
