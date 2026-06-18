@@ -144,6 +144,44 @@ function wrapHtml(content: string, logoUrl?: string) {
 </html>`;
 }
 
+function getMeetResponseWording(isRsvpMode?: boolean) {
+  if (isRsvpMode) {
+    return {
+      signupHeading: "Your RSVP has been received",
+      signupAcknowledgement: "You have RSVP'd for {{meetName}}.",
+      signupSubject: "You RSVP'd for",
+      responseNoun: "RSVP",
+      responseNounLower: "rsvp",
+      responsePastVerb: "RSVP'd",
+      viewStatusLabel: "View your RSVP status:",
+      viewLabel: "View your RSVP",
+      manageResponseLead:
+        "To view or update your RSVP, or provide feedback and upload photos after the meet please use the button below:",
+      rejectHeading: "Sorry, your RSVP was not successful",
+      rejectSubject: "Update on your RSVP for",
+      rejectDefaultMessage:
+        "Unfortunately your RSVP for {{meetName}} was not successful. This is usually due to capacity limits being reached.",
+    };
+  }
+
+  return {
+    signupHeading: "You're signed up",
+    signupAcknowledgement: "You have applied for {{meetName}}.",
+    signupSubject: "You signed up for",
+    responseNoun: "application",
+    responseNounLower: "application",
+    responsePastVerb: "applied",
+    viewStatusLabel: "View your application status:",
+    viewLabel: "View your application",
+    manageResponseLead:
+      "To view or make changes to your application, or provide feedback and upload photos after the meet please use the button below:",
+    rejectHeading: "Sorry, your application was not successful",
+    rejectSubject: "Update on your application for",
+    rejectDefaultMessage:
+      "Unfortunately your application for {{meetName}} was not successful. This is usually due to capacity limits being reached.",
+  };
+}
+
 // Overloads for type safety on vars for each template
 
 export function renderEmailTemplate(
@@ -221,16 +259,32 @@ export function renderEmailTemplate(
       ...baseVarsMap,
       ...getMeetTemplateContext(signupVars),
     };
-    const subject = `You signed up for ${varsMap.meetName}`;
+    const wording = getMeetResponseWording(signupVars.isRsvpMode);
+    const signupAcknowledgement = renderInlineTemplate(
+      wording.signupAcknowledgement,
+      {
+        meetName: varsMap.meetName,
+      },
+    );
+    const signupAcknowledgementHtml = escapeHtml(signupAcknowledgement);
+    const subject = `${wording.signupSubject} ${varsMap.meetName}`;
     const flags = {
       ifStatusUrl: Boolean(varsMap.statusUrl),
       ifOrganizerEmail: Boolean(varsMap.organizerEmail),
     };
-    const text = renderTemplate("meet-signup", "txt", varsMap, flags);
+    const text = renderTemplate(
+      "meet-signup",
+      "txt",
+      { ...varsMap, ...wording, signupAcknowledgement },
+      flags,
+    );
     const htmlBody = renderTemplate(
       "meet-signup",
       "html",
-      escapeAllHtml(varsMap),
+      {
+        ...escapeAllHtml({ ...varsMap, ...wording, signupAcknowledgement }),
+        signupAcknowledgementHtml,
+      },
       flags,
     );
     return { subject, text, html: wrapHtml(htmlBody, signupVars.logoUrl) };
@@ -250,16 +304,25 @@ export function renderEmailTemplate(
           "You're confirmed for {{meetName}} on {{startTime}} at {{locationLine}}.",
       }),
     };
+    const wording = getMeetResponseWording(meetVars.isRsvpMode);
     const flags = {
       ifStatusUrl: Boolean(varsMap.statusUrl),
       ifOrganizerEmail: Boolean(varsMap.organizerEmail),
     };
     const subject = `You're confirmed for ${varsMap.meetName}`;
-    const text = renderTemplate("meet-confirm", "txt", varsMap, flags);
+    const text = renderTemplate(
+      "meet-confirm",
+      "txt",
+      { ...varsMap, ...wording },
+      flags,
+    );
     const htmlBody = renderTemplate(
       "meet-confirm",
       "html",
-      { ...escapeAllHtml(varsMap), messageBody: varsMap.messageBodyHtml },
+      {
+        ...escapeAllHtml({ ...varsMap, ...wording }),
+        messageBody: varsMap.messageBodyHtml,
+      },
       flags,
     );
     return { subject, text, html: wrapHtml(htmlBody, meetVars.logoUrl) };
@@ -279,16 +342,25 @@ export function renderEmailTemplate(
           "{{meetName}} has been re-published after being postponed. Please confirm if you would still like to attend on {{startTime}}.",
       }),
     };
+    const wording = getMeetResponseWording(meetVars.isRsvpMode);
     const flags = {
       ifStatusUrl: Boolean(varsMap.statusUrl),
       ifOrganizerEmail: Boolean(varsMap.organizerEmail),
     };
     const subject = `Please reconfirm your attendance for ${varsMap.meetName}`;
-    const text = renderTemplate("meet-reconfirm", "txt", varsMap, flags);
+    const text = renderTemplate(
+      "meet-reconfirm",
+      "txt",
+      { ...varsMap, ...wording },
+      flags,
+    );
     const htmlBody = renderTemplate(
       "meet-reconfirm",
       "html",
-      { ...escapeAllHtml(varsMap), messageBody: varsMap.messageBodyHtml },
+      {
+        ...escapeAllHtml({ ...varsMap, ...wording }),
+        messageBody: varsMap.messageBodyHtml,
+      },
       flags,
     );
     return { subject, text, html: wrapHtml(htmlBody, meetVars.logoUrl) };
@@ -305,19 +377,28 @@ export function renderEmailTemplate(
       ...baseVarsMap,
       ...getMeetTemplateContext(meetVars, {
         getDefaultMessageBody: () =>
-          "Unfortunately your application for {{meetName}} was not successful. This is usually due to capacity limits being reached.",
+          getMeetResponseWording(meetVars.isRsvpMode).rejectDefaultMessage,
       }),
     };
+    const wording = getMeetResponseWording(meetVars.isRsvpMode);
     const flags = {
       ifStatusUrl: Boolean(varsMap.statusUrl),
       ifOrganizerEmail: Boolean(varsMap.organizerEmail),
     };
-    const subject = `Update on your application for ${varsMap.meetName}`;
-    const text = renderTemplate("meet-reject", "txt", varsMap, flags);
+    const subject = `${wording.rejectSubject} ${varsMap.meetName}`;
+    const text = renderTemplate(
+      "meet-reject",
+      "txt",
+      { ...varsMap, ...wording },
+      flags,
+    );
     const htmlBody = renderTemplate(
       "meet-reject",
       "html",
-      { ...escapeAllHtml(varsMap), messageBody: varsMap.messageBodyHtml },
+      {
+        ...escapeAllHtml({ ...varsMap, ...wording }),
+        messageBody: varsMap.messageBodyHtml,
+      },
       flags,
     );
     return { subject, text, html: wrapHtml(htmlBody, meetVars.logoUrl) };
@@ -337,16 +418,26 @@ export function renderEmailTemplate(
           "You're on the waitlist for {{meetName}}. If a spot opens up, the organiser will notify you. When: {{timeLine}}. Where: {{locationLine}}.",
       }),
     });
+    const wording = getMeetResponseWording(meetVars.isRsvpMode);
     const flags = {
       ifStatusUrl: Boolean(varsMap.statusUrl),
       ifOrganizerEmail: Boolean(varsMap.organizerEmail),
     };
     const subject = `You're on the waitlist for ${varsMap.meetName}`;
-    const text = renderTemplate("meet-waitlist", "txt", varsMap, flags);
+    const text = renderTemplate(
+      "meet-waitlist",
+      "txt",
+      { ...varsMap, ...wording },
+      flags,
+    );
     const htmlBody = renderTemplate(
       "meet-waitlist",
       "html",
-      { ...varsMap, messageBody: varsMap.messageBodyHtml },
+      {
+        ...varsMap,
+        ...escapeAllHtml(wording),
+        messageBody: varsMap.messageBodyHtml,
+      },
       flags,
     );
     return { subject, text, html: wrapHtml(htmlBody, meetVars.logoUrl) };
@@ -360,11 +451,13 @@ export function renderEmailTemplate(
       throw new Error("Missing meetName for meet-message template");
     }
     const includeStatusUrl = messageVars.includeStatusUrl !== false;
+    const wording = getMeetResponseWording(messageVars.isRsvpMode);
     const varsMap = escapeAllHtml({
       ...baseVarsMap,
       ...getMeetTemplateContext(messageVars, {
         includeStatusUrl,
       }),
+      ...wording,
     });
     const flags = {
       ifStatusUrl: includeStatusUrl && Boolean(varsMap.statusUrl),

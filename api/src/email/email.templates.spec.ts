@@ -69,6 +69,23 @@ describe("renderEmailTemplate", () => {
     expect(result.html).toContain(">View your application<");
   });
 
+  it("renders RSVP wording for RSVP-style signup emails", () => {
+    const result = renderEmailTemplate("meet-signup", {
+      meetName: "Sunrise Hike",
+      attendeeName: "Riley",
+      statusUrl: "https://app.example.com/meets/share-123/attendee-1",
+      organizerName: "Taylor",
+      organizerEmail: "taylor@example.com",
+      isRsvpMode: true,
+    });
+
+    expect(result.subject).toBe("You RSVP'd for Sunrise Hike");
+    expect(result.text).toContain("You have RSVP'd for Sunrise Hike.");
+    expect(result.text).toContain("View your RSVP status:");
+    expect(result.html).toContain("Your RSVP has been received");
+    expect(result.html).toContain(">View your RSVP<");
+  });
+
   it("renders meet messages without the status section when includeStatusUrl is false and escapes html content", () => {
     const result = renderEmailTemplate("meet-message", {
       meetName: "Night Trail",

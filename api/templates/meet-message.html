@@ -1,8 +1,7 @@
 <p style="margin: 0 0 16px 0">{{messageBody}}</p>
 {{#ifStatusUrl}}
 <p style="margin: 0 0 16px 0; font-size: 13px; color: #475569">
-  To view or make changes to your application, or provide feedback and upload
-  photos after the meet please use the button below:
+  {{manageResponseLead}}
 </p>
 <p style="margin: 0 0 16px 0; text-align: center">
   <a
@@ -26,11 +25,11 @@
 </p>
 {{/ifStatusUrl}} {{#ifOrganizerEmail}}
 <p style="margin: 0; font-size: 13px; color: #475569">
-  {{#ifGroupedMessage}}
-  If you need to reach the organiser directly, you may reply to
+  {{#ifGroupedMessage}} If you need to reach the organiser directly, you may
+  reply to
   <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a>.
-  {{/ifGroupedMessage}} {{#ifDirectMessage}}
-  If you need to reply, contact {{organizerName}} at
+  {{/ifGroupedMessage}} {{#ifDirectMessage}} If you need to reply, contact
+  {{organizerName}} at
   <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a>.
   {{/ifDirectMessage}}
 </p>

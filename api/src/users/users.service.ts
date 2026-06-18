@@ -95,6 +95,43 @@ export class UsersService {
     return this.findById(id);
   }
 
+  async ensureOrganizationMembership(userId: string, organizationId: string) {
+    const now = new Date().toISOString();
+    const membership = await this.database
+      .getClient()("user_organization_memberships")
+      .where({
+        user_id: userId,
+        organization_id: organizationId,
+      })
+      .first();
+
+    if (!membership) {
+      await this.database.getClient()("user_organization_memberships").insert({
+        user_id: userId,
+        organization_id: organizationId,
+        role: "member",
+        role_id: 4,
+        status: "active",
+        created_at: now,
+        updated_at: now,
+      });
+      return;
+    }
+
+    if (membership.status !== "active") {
+      await this.database
+        .getClient()("user_organization_memberships")
+        .where({
+          user_id: userId,
+          organization_id: organizationId,
+        })
+        .update({
+          status: "active",
+          updated_at: now,
+        });
+    }
+  }
+
   async findById(id: string) {
     // TODO: join on organization memberships { organizationId, role }
     const user = await this.database.getClient()("users").where({ id }).first();
@@ -518,7 +555,10 @@ export class UsersService {
       .select("meta_definition_id", "value");
 
     const byDefinitionId = new Map(
-      rawValues.map((row: any) => [row.meta_definition_id, row.value as string]),
+      rawValues.map((row: any) => [
+        row.meta_definition_id,
+        row.value as string,
+      ]),
     );
     const values = definitions.map((definition: any) => ({
       key: definition.field_key,

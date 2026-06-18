@@ -544,6 +544,7 @@ export class MeetsController {
           organizerName,
           organizerEmail,
           logoUrl,
+          isRsvpMode: meet.autoPlacement,
         });
 
         await this.emailService.sendEmail({
@@ -618,6 +619,7 @@ export class MeetsController {
           organizerName,
           organizerEmail,
           logoUrl,
+          isRsvpMode: meet.autoPlacement,
         });
         await this.emailService.sendEmail({
           to: attendee.email,
@@ -857,6 +859,7 @@ export class MeetsController {
         organizerEmail,
         messageBody: body.text ?? body.html ?? "",
         logoUrl,
+        isRsvpMode: meet.autoPlacement,
       });
 
       await this.emailService.sendEmail({
@@ -885,6 +888,7 @@ export class MeetsController {
             organizerEmail,
             messageBody: body.text ?? body.html ?? "",
             logoUrl,
+            isRsvpMode: meet.autoPlacement,
           });
           return this.emailService.sendEmail({
             to: email,
@@ -919,9 +923,10 @@ export class MeetsController {
           organizerEmail,
           messageBody: body.text ?? body.html ?? "",
           logoUrl,
+          isRsvpMode: meet.autoPlacement,
         });
         const textWithoutStatus = text
-          .split("View your application status:")[0]
+          .split(/\n\nView your (?:application|RSVP) status:/)[0]
           .trim();
         await this.emailService.saveMessage({
           to: body.sendAsGroup

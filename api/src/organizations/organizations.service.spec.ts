@@ -12,6 +12,13 @@ const buildBuilder = () => {
   builder.where = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
+  builder.modify = jest
+    .fn()
+    .mockImplementation((callback: (qb: any) => void) => {
+      callback(builder);
+      return builder;
+    });
+  builder.distinct = jest.fn().mockReturnValue(builder);
   builder.groupBy = jest.fn().mockReturnValue(builder);
   builder.select = jest.fn().mockReturnValue(builder);
   builder.count = jest.fn().mockReturnValue(builder);
@@ -23,8 +30,10 @@ const buildBuilder = () => {
   builder.returning = jest.fn();
   builder.update = jest.fn();
   builder.del = jest.fn();
-  builder.then = (onFulfilled: (value: any) => any, onRejected?: (error: any) => any) =>
-    Promise.resolve(builder.__resolvedValue).then(onFulfilled, onRejected);
+  builder.then = (
+    onFulfilled: (value: any) => any,
+    onRejected?: (error: any) => any,
+  ) => Promise.resolve(builder.__resolvedValue).then(onFulfilled, onRejected);
   return builder;
 };
 
@@ -328,6 +337,53 @@ describe("OrganizationsService", () => {
     );
 
     expect(organizationsBuilder.where).toHaveBeenCalledWith({ id: "org-2" });
+    expect(organizationsBuilder.del).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes empty private organizations for a user while keeping the joined organization", async () => {
+    const privateOrganizationsBuilder = buildBuilder();
+    privateOrganizationsBuilder.__resolvedValue = [{ id: "org-private" }];
+
+    const membershipCountBuilder = buildBuilder();
+    membershipCountBuilder.first.mockResolvedValue({ count: "1" });
+
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue({ count: "0" });
+
+    const organizationsBuilder = buildBuilder();
+
+    const client: any = (table: string) => {
+      if (table === "organizations as o") return privateOrganizationsBuilder;
+      if (table === "user_organization_memberships")
+        return membershipCountBuilder;
+      if (table === "meets") return meetsBuilder;
+      if (table === "organizations") return organizationsBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const service = new OrganizationsService(db, emailService, minioService);
+
+    await expect(
+      service.removeEmptyPrivateOrganizationsForUser("user-1", "org-joined"),
+    ).resolves.toBeUndefined();
+
+    expect(privateOrganizationsBuilder.where).toHaveBeenCalledWith(
+      "uom.user_id",
+      "user-1",
+    );
+    expect(privateOrganizationsBuilder.andWhere).toHaveBeenCalledWith(
+      "o.id",
+      "!=",
+      "org-joined",
+    );
+    expect(organizationsBuilder.where).toHaveBeenCalledWith({
+      id: "org-private",
+    });
+    expect(organizationsBuilder.andWhere).toHaveBeenCalledWith(
+      "is_private",
+      true,
+    );
     expect(organizationsBuilder.del).toHaveBeenCalledTimes(1);
   });
 

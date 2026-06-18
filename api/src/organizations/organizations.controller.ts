@@ -28,7 +28,6 @@ import { InviteLinkDto } from "./dto/invite-link.dto";
 import { Public } from "../auth/decorators/public.decorator";
 import { UseGuards } from "@nestjs/common";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
-import { DatabaseService } from "../database/database.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import { FileInterceptor } from "@nestjs/platform-express";
 
@@ -41,7 +40,6 @@ export class OrganizationsController {
   constructor(
     private readonly organizationsService: OrganizationsService,
     private readonly authService: AuthService,
-    private readonly db: DatabaseService,
     private readonly auditLogService: AuditLogService,
   ) {}
 
@@ -107,7 +105,7 @@ export class OrganizationsController {
     );
 
     try {
-      await this.removeEmptyPrivateOrganizationsForUser(
+      await this.organizationsService.removeEmptyPrivateOrganizationsForUser(
         user.id,
         invite.organizationId,
       );
@@ -145,51 +143,6 @@ export class OrganizationsController {
       target: "organization invite",
     });
     return { invite };
-  }
-
-  private async removeEmptyPrivateOrganizationsForUser(
-    userId: string,
-    keepOrganizationId?: string,
-  ) {
-    const client = this.db.getClient();
-    const orgRows = await client("organizations as o")
-      .join(
-        "user_organization_memberships as uom",
-        "uom.organization_id",
-        "o.id",
-      )
-      .where("uom.user_id", userId)
-      .andWhere("uom.status", "active")
-      .andWhere("o.is_private", true)
-      .modify((queryBuilder) => {
-        if (keepOrganizationId) {
-          queryBuilder.andWhere("o.id", "!=", keepOrganizationId);
-        }
-      })
-      .distinct("o.id");
-
-    for (const org of orgRows) {
-      const countRow = await client("user_organization_memberships")
-        .where({ organization_id: org.id })
-        .countDistinct<{ count: string }>("user_id as count")
-        .first();
-      const memberCount = Number(countRow?.count ?? 0);
-      if (memberCount !== 1) {
-        continue;
-      }
-
-      const meetCountRow = await client("meets")
-        .where({ organization_id: org.id })
-        .count<{ count: string }>("id as count")
-        .first();
-      const meetCount = Number(meetCountRow?.count ?? 0);
-      if (meetCount === 0) {
-        await client("organizations")
-          .where({ id: org.id })
-          .andWhere("is_private", true)
-          .del();
-      }
-    }
   }
 
   @Public()

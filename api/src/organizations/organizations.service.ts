@@ -117,14 +117,18 @@ export class OrganizationsService {
     const attendanceCountLast30DaysRow = await client("meet_attendees as ma")
       .join("meets as m", "m.id", "ma.meet_id")
       .where("m.organization_id", id)
-      .whereRaw('coalesce(m."start_time", m."created_at") >= ?', [thirtyDaysAgo])
+      .whereRaw('coalesce(m."start_time", m."created_at") >= ?', [
+        thirtyDaysAgo,
+      ])
       .count<{ count: string }>("ma.id as count")
       .first();
 
     const attendanceCountLast90DaysRow = await client("meet_attendees as ma")
       .join("meets as m", "m.id", "ma.meet_id")
       .where("m.organization_id", id)
-      .whereRaw('coalesce(m."start_time", m."created_at") >= ?', [ninetyDaysAgo])
+      .whereRaw('coalesce(m."start_time", m."created_at") >= ?', [
+        ninetyDaysAgo,
+      ])
       .count<{ count: string }>("ma.id as count")
       .first();
 
@@ -134,10 +138,13 @@ export class OrganizationsService {
       .count<{ count: string }>("id as count")
       .groupBy("role")) as Array<{ role: string; count: string }>;
 
-    const countByRole = roleCounts.reduce<Record<string, number>>((acc, row) => {
-      acc[row.role] = Number(row.count || 0);
-      return acc;
-    }, {});
+    const countByRole = roleCounts.reduce<Record<string, number>>(
+      (acc, row) => {
+        acc[row.role] = Number(row.count || 0);
+        return acc;
+      },
+      {},
+    );
 
     const meetImageBytesRow = await client("meet_images as mi")
       .join("meets as m", "m.id", "mi.meet_id")
@@ -460,6 +467,51 @@ export class OrganizationsService {
 
     if (orgMemberCount === 0 && meetCount === 0) {
       await client("organizations").where({ id: orgId }).del();
+    }
+  }
+
+  async removeEmptyPrivateOrganizationsForUser(
+    userId: string,
+    keepOrganizationId?: string,
+  ) {
+    const client = this.database.getClient();
+    const orgRows = await client("organizations as o")
+      .join(
+        "user_organization_memberships as uom",
+        "uom.organization_id",
+        "o.id",
+      )
+      .where("uom.user_id", userId)
+      .andWhere("uom.status", "active")
+      .andWhere("o.is_private", true)
+      .modify((queryBuilder) => {
+        if (keepOrganizationId) {
+          queryBuilder.andWhere("o.id", "!=", keepOrganizationId);
+        }
+      })
+      .distinct("o.id");
+
+    for (const org of orgRows) {
+      const countRow = await client("user_organization_memberships")
+        .where({ organization_id: org.id })
+        .countDistinct<{ count: string }>("user_id as count")
+        .first();
+      const memberCount = Number(countRow?.count ?? 0);
+      if (memberCount !== 1) {
+        continue;
+      }
+
+      const meetCountRow = await client("meets")
+        .where({ organization_id: org.id })
+        .count<{ count: string }>("id as count")
+        .first();
+      const meetCount = Number(meetCountRow?.count ?? 0);
+      if (meetCount === 0) {
+        await client("organizations")
+          .where({ id: org.id })
+          .andWhere("is_private", true)
+          .del();
+      }
     }
   }
 

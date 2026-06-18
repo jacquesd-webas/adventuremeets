@@ -146,6 +146,7 @@ export class MeetAttendeesController {
               organizerEmail: meet.organizerEmail,
               messageBody: messageBody,
               logoUrl,
+              isRsvpMode: meet.autoPlacement,
             })
           : renderEmailTemplate("meet-signup", {
               meetName: meet.name,
@@ -158,6 +159,7 @@ export class MeetAttendeesController {
               organizerName: meet.organizerName,
               organizerEmail: meet.organizerEmail,
               logoUrl,
+              isRsvpMode: meet.autoPlacement,
             });
 
       // Send the e-mail

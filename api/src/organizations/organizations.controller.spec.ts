@@ -2,7 +2,6 @@ import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { OrganizationsController } from "./organizations.controller";
 import { OrganizationsService } from "./organizations.service";
 import { AuthService } from "../auth/auth.service";
-import { DatabaseService } from "../database/database.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuditLogService } from "../audit/audit-log.service";
 
@@ -29,16 +28,13 @@ describe("OrganizationsController", () => {
     createInviteLink: jest.fn(),
     acceptInvite: jest.fn(),
     declineInvite: jest.fn(),
+    removeEmptyPrivateOrganizationsForUser: jest.fn(),
   } as unknown as OrganizationsService;
 
   const authService = {
     getUserOrganizationIds: jest.fn(),
     hasRole: jest.fn(),
   } as unknown as AuthService;
-
-  const db = {
-    getClient: jest.fn(),
-  } as unknown as DatabaseService;
 
   const auditLogService = {
     addRecord: jest.fn(),
@@ -63,7 +59,6 @@ describe("OrganizationsController", () => {
     controller = new OrganizationsController(
       organizationsService,
       authService,
-      db,
       auditLogService,
     );
   });
@@ -87,17 +82,9 @@ describe("OrganizationsController", () => {
       email: "member@example.com",
     };
     (organizationsService.acceptInvite as jest.Mock).mockResolvedValue(invite);
-    const cleanupSpy = jest
-      .spyOn(
-        controller as unknown as {
-          removeEmptyPrivateOrganizationsForUser: (
-            userId: string,
-            organizationId?: string,
-          ) => Promise<void>;
-        },
-        "removeEmptyPrivateOrganizationsForUser",
-      )
-      .mockResolvedValue(undefined);
+    (
+      organizationsService.removeEmptyPrivateOrganizationsForUser as jest.Mock
+    ).mockResolvedValue(undefined);
 
     await expect(
       controller.acceptInvite("invite-1", memberUser),
@@ -110,7 +97,9 @@ describe("OrganizationsController", () => {
       "member-1",
       "member@example.com",
     );
-    expect(cleanupSpy).toHaveBeenCalledWith("member-1", "org-1");
+    expect(
+      organizationsService.removeEmptyPrivateOrganizationsForUser,
+    ).toHaveBeenCalledWith("member-1", "org-1");
     expect(auditLogService.addRecord).toHaveBeenCalledWith({
       orgId: "org-1",
       userId: "member-1",
@@ -126,17 +115,9 @@ describe("OrganizationsController", () => {
       email: "member@example.com",
     };
     (organizationsService.acceptInvite as jest.Mock).mockResolvedValue(invite);
-    jest
-      .spyOn(
-        controller as unknown as {
-          removeEmptyPrivateOrganizationsForUser: (
-            userId: string,
-            organizationId?: string,
-          ) => Promise<void>;
-        },
-        "removeEmptyPrivateOrganizationsForUser",
-      )
-      .mockRejectedValue(new Error("db unavailable"));
+    (
+      organizationsService.removeEmptyPrivateOrganizationsForUser as jest.Mock
+    ).mockRejectedValue(new Error("db unavailable"));
     const warnSpy = jest.spyOn((controller as any).logger, "warn");
 
     await expect(
