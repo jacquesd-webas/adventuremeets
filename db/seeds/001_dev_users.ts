@@ -34,6 +34,7 @@ export async function seed(knex: Knex): Promise<void> {
 
   const orgRows = organizations.map((name) => ({
     name,
+    is_private: name === "Summit Explorers" ? false : true,
     created_at: now,
     updated_at: now
   }));
