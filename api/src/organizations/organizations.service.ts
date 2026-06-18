@@ -80,6 +80,9 @@ export class OrganizationsService {
     }
 
     const client = this.database.getClient();
+    const featureRow = await client("org_features")
+      .where({ organization_id: id })
+      .first();
     const now = new Date();
     const thirtyDaysAgo = new Date(
       now.getTime() - 30 * 24 * 60 * 60 * 1000,
@@ -165,6 +168,12 @@ export class OrganizationsService {
       attendance_count_last_90_days: Number(
         attendanceCountLast90DaysRow?.count || 0,
       ),
+      reporting_enabled: featureRow?.reporting_enabled ?? false,
+      branding_enabled: featureRow?.branding_enabled ?? false,
+      domain_enabled: featureRow?.domain_enabled ?? false,
+      whatsapp_enabled: featureRow?.whatsapp_enabled ?? false,
+      payments_enabled: featureRow?.payments_enabled ?? false,
+      disk_quotas_enabled: featureRow?.disk_quotas_enabled ?? false,
       admin_count: countByRole.admin ?? 0,
       organizer_count: countByRole.organizer ?? 0,
       member_count: countByRole.member ?? 0,
@@ -369,6 +378,18 @@ export class OrganizationsService {
         role: "admin",
         role_id: 2,
         status: "active",
+        created_at: now,
+        updated_at: now,
+      });
+
+      await trx("org_features").insert({
+        organization_id: organizationId,
+        reporting_enabled: false,
+        branding_enabled: false,
+        domain_enabled: false,
+        whatsapp_enabled: false,
+        payments_enabled: false,
+        disk_quotas_enabled: false,
         created_at: now,
         updated_at: now,
       });
@@ -740,6 +761,7 @@ export class OrganizationsService {
     if (!updated[0]) {
       throw new NotFoundException("Organization not found");
     }
+
     const row = await this.findById(id);
     return this.toOrganizationDto(row);
   }
@@ -1209,6 +1231,12 @@ export class OrganizationsService {
           : row.total_image_bytes != null
             ? Number(row.total_image_bytes)
             : undefined,
+      reportingEnabled: row.reporting_enabled ?? undefined,
+      brandingEnabled: row.branding_enabled ?? undefined,
+      domainEnabled: row.domain_enabled ?? undefined,
+      whatsappEnabled: row.whatsapp_enabled ?? undefined,
+      paymentsEnabled: row.payments_enabled ?? undefined,
+      diskQuotasEnabled: row.disk_quotas_enabled ?? undefined,
     };
   }
 }

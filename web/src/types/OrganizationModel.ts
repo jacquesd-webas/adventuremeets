@@ -23,6 +23,12 @@ export type Organization = {
   meetImageBytes?: number;
   wallImageBytes?: number;
   totalImageBytes?: number;
+  reportingEnabled?: boolean;
+  brandingEnabled?: boolean;
+  domainEnabled?: boolean;
+  whatsappEnabled?: boolean;
+  paymentsEnabled?: boolean;
+  diskQuotasEnabled?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

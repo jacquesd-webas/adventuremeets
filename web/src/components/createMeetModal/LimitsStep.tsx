@@ -127,12 +127,14 @@ export const LimitsStep = ({
               setState((prev) => ({ ...prev, autoApprove: e.target.checked }))
             }
           />
-          <Typography>Automatically approve applications</Typography>
+          <Typography>
+            Automatically approve applications (RSVP mode)
+          </Typography>
         </Stack>
         {isHelpEnabled ? (
           <Typography variant="caption" color="text.secondary">
-            Turn this on if people should immediately get a confirmed or
-            waitlisted result without manual review.
+            Turn this on to enable more RSVP style application where attendees
+            are automatically accepted or waitlisted depending on capacity.
           </Typography>
         ) : null}
         <Stack direction="row" spacing={1.5} alignItems="center">

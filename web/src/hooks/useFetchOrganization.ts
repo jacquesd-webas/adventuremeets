@@ -96,6 +96,16 @@ export function useFetchOrganization(orgId?: string) {
         : org.total_image_bytes != null
           ? Number(org.total_image_bytes)
           : undefined,
+    reportingEnabled:
+      org.reportingEnabled ?? org.reporting_enabled ?? undefined,
+    brandingEnabled: org.brandingEnabled ?? org.branding_enabled ?? undefined,
+    domainEnabled: org.domainEnabled ?? org.domain_enabled ?? undefined,
+    whatsappEnabled:
+      org.whatsappEnabled ?? org.whatsapp_enabled ?? undefined,
+    paymentsEnabled:
+      org.paymentsEnabled ?? org.payments_enabled ?? undefined,
+    diskQuotasEnabled:
+      org.diskQuotasEnabled ?? org.disk_quotas_enabled ?? undefined,
     userCount:
       typeof org.userCount === "number"
         ? org.userCount

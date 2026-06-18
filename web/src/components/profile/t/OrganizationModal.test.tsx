@@ -132,6 +132,12 @@ describe("OrganizationModal", () => {
       meetImageBytes: 1024,
       wallImageBytes: 2048,
       totalImageBytes: 3072,
+      reportingEnabled: true,
+      brandingEnabled: false,
+      domainEnabled: true,
+      whatsappEnabled: false,
+      paymentsEnabled: true,
+      diskQuotasEnabled: false,
     };
     mockedInvites = [];
     mockedCurrentOrganizationRole = "admin";
@@ -154,6 +160,11 @@ describe("OrganizationModal", () => {
     expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Choose file" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByText(
+        "This feature has not been enabled for this organisation.",
+      ),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Fields" }));
@@ -213,8 +224,24 @@ describe("OrganizationModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Features" }));
 
-    expect(screen.getByText("Advanced reporting")).toBeInTheDocument();
-    expect(screen.getByText("Branded communications")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Advanced reporting" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Branded communications" }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Custom domains" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "WhatsApp integration" }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Payment Gateway" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Storage options" }),
+    ).not.toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -265,6 +292,46 @@ describe("OrganizationModal", () => {
         customField2HelperText: "Home branch",
       }),
     );
+  });
+
+  it("shows organisation feature flags as read-only", async () => {
+    await renderWithQueryClient(<OrganizationModal open onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Features" }));
+
+    expect(
+      screen.getByRole("checkbox", { name: "Advanced reporting" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", { name: "Branded communications" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", { name: "Custom domains" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", { name: "WhatsApp integration" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", { name: "Payment Gateway" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", { name: "Storage options" }),
+    ).toBeDisabled();
+    expect(mockedUpdateOrganizationAsync).not.toHaveBeenCalled();
+  });
+
+  it("shows read-only feature flags on mobile", async () => {
+    setMatchMedia(true);
+
+    await renderWithQueryClient(<OrganizationModal open onClose={vi.fn()} />);
+
+    expect(
+      screen.getByRole("checkbox", { name: "Advanced reporting" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", { name: "Storage options" }),
+    ).toBeDisabled();
+    expect(mockedUpdateOrganizationAsync).not.toHaveBeenCalled();
   });
 
   it("renders all organisation sections stacked on mobile", async () => {

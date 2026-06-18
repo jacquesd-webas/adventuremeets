@@ -1,6 +1,67 @@
-import { Box, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Stack,
+  Switch,
+  Typography,
+} from "@mui/material";
+import { useMemo } from "react";
+import { useCurrentOrganization } from "../../context/organizationContext";
+import { useFetchOrganization } from "../../hooks/useFetchOrganization";
 
 export function OrganizationFeatures() {
+  const { currentOrganizationId } = useCurrentOrganization();
+  const { data: organization } = useFetchOrganization(
+    currentOrganizationId ?? undefined,
+  );
+  const featureRows = useMemo(
+    () => [
+    {
+      label: "Advanced reporting",
+      description:
+        "Richer reports and analytics for businesses that do not really apply to the social community use.",
+      checked: Boolean(organization?.reportingEnabled),
+    },
+    {
+      label: "Branded communications",
+      description:
+        "Add your own business branding to e-mail communications.",
+      checked: Boolean(organization?.brandingEnabled),
+    },
+    {
+      label: "Custom domains",
+      description:
+        "Allow your own subdomain or domain for handling meet communications.",
+      checked: Boolean(organization?.domainEnabled),
+    },
+    {
+      label: "WhatsApp integration",
+      description:
+        "Add your WhatsApp business account to AdventureMeets to allow sending messages to your groups or subscribers.",
+      checked: Boolean(organization?.whatsappEnabled),
+    },
+    {
+      label: "Payment Gateway",
+      description:
+        "Have attendees make payments directly in AdventureMeets when meets you are hosting are not free.",
+      checked: Boolean(organization?.paymentsEnabled),
+    },
+    {
+      label: "Storage options",
+      description:
+        "Cloud storage costs money so we intend to make a certain amount of space available for free for photo uploads, but there will be a point where we will need to delete photos or charge for more storage.",
+      checked: Boolean(organization?.diskQuotasEnabled),
+    },
+  ] as const,
+    [
+      organization?.brandingEnabled,
+      organization?.diskQuotasEnabled,
+      organization?.domainEnabled,
+      organization?.paymentsEnabled,
+      organization?.reportingEnabled,
+      organization?.whatsappEnabled,
+    ],
+  );
+
   return (
     <Stack
       spacing={2}
@@ -10,62 +71,38 @@ export function OrganizationFeatures() {
       <Box>
         <Typography variant="h6">Features</Typography>
         <Typography variant="body2" color="text.secondary">
-          AdventureMeets is intended as a free community app, however some
-          features will need to be paid in order to cover associated costs.
-          Below are some examples or what is being considered as paid add-on.
+          These organisation feature flags are shown here for reference.
         </Typography>
       </Box>
 
-      <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          Advanced reporting
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Richer reports and analytics for businesses that do not really apply
-          to the social community use.
-        </Typography>
-      </Box>
-
-      <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          Branded communications
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Add your own business branding to e-mail communications and
-          potentially your own subdomain for handling meet communications.
-        </Typography>
-      </Box>
-
-      <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          WhatsApp integration
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Add your WhatsApp business account to AdventureMeets to allow sending
-          messages to your groups or subscribers.
-        </Typography>
-      </Box>
-
-      <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          Payment Gateway
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Have attendees make payments directly in AdventureMeets when meets you
-          are hosting are not free.
-        </Typography>
-      </Box>
-
-      <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          Storage options
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Cloud storage costs money so we intend to make a certain amount of
-          space available for free for photo uploads, but there will be a point
-          where we will need to delete photos or charge for more storage.
-        </Typography>
-      </Box>
+      <Stack spacing={1.5} sx={{ width: "100%" }}>
+        {featureRows.map((feature) => (
+          <Box
+            key={feature.label}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 2,
+              py: 1,
+            }}
+          >
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="subtitle1" fontWeight={700}>
+                {feature.label}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {feature.description}
+              </Typography>
+            </Box>
+            <Switch
+              checked={feature.checked}
+              disabled
+              inputProps={{ "aria-label": feature.label }}
+            />
+          </Box>
+        ))}
+      </Stack>
     </Stack>
   );
 }

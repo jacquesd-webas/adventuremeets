@@ -78,4 +78,22 @@ export class OrganizationDto {
 
   @ApiPropertyOptional()
   totalImageBytes?: number;
+
+  @ApiPropertyOptional()
+  reportingEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  brandingEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  domainEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  whatsappEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  paymentsEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  diskQuotasEnabled?: boolean;
 }

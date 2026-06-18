@@ -60,6 +60,8 @@ export function MyOrganization({
   }, [organization]);
 
   const isAdmin = currentOrganizationRole === "admin";
+  const isBrandingEnabled = Boolean(organization?.brandingEnabled);
+  const canUploadLogo = isAdmin && isBrandingEnabled;
 
   const handleLogoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -193,7 +195,7 @@ export function MyOrganization({
           <Button
             variant="outlined"
             component="label"
-            disabled={orgLoading || isLogoSaving || !isAdmin}
+            disabled={orgLoading || isLogoSaving || !canUploadLogo}
             sx={{ mt: 1 }}
           >
             Choose file
@@ -205,6 +207,11 @@ export function MyOrganization({
               data-testid="organization-logo-input"
             />
           </Button>
+          {!isBrandingEnabled ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              This feature has not been enabled for this organisation.
+            </Typography>
+          ) : null}
           {logoSaved ? (
             <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
               Logo saved
