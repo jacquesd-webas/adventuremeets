@@ -56,16 +56,18 @@ export function MeetColumn({
           </Typography>
         ) : meets.length ? (
           meets.map((meet) => {
-            const { canManageMeet, canViewMeet } = getMeetPermissions({
-              currentUserId,
-              currentOrganizationRole,
-              organizerId: meet.organizerId,
-            });
+            const { canManageMeet, canViewMeet, canAccessManageMenu } =
+              getMeetPermissions({
+                currentUserId,
+                currentOrganizationRole,
+                organizerId: meet.organizerId,
+              });
 
             return (
               <MeetCard
                 key={meet.id}
                 meet={meet}
+                canAccessManageMenu={canAccessManageMenu}
                 canManageMeet={canManageMeet}
                 canViewMeet={canViewMeet}
                 statusLabel={getStatusLabel(meet.statusId, statusFallback)}
