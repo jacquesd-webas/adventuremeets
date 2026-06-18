@@ -38,7 +38,9 @@ describe("Meet self check-in", () => {
       cy.wait(11000);
       cy.visit(shareLink as unknown as string);
       cy.get('input[placeholder="Your name"]').clear().type(attendee.name);
-      cy.get('input[placeholder="you@example.com"]').clear().type(attendee.email);
+      cy.get('input[placeholder="you@example.com"]')
+        .clear()
+        .type(attendee.email);
       cy.get('input[placeholder="Mobile phone number"]')
         .clear()
         .type(attendee.phone);
@@ -75,8 +77,6 @@ describe("Meet self check-in", () => {
       .then((url) => {
         cy.wrap(url.trim()).as("selfCheckinUrl");
       });
-
-    cy.logout();
 
     cy.get("@selfCheckinUrl").then((selfCheckinUrl) => {
       cy.visit(String(selfCheckinUrl));

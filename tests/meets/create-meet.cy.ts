@@ -67,9 +67,9 @@ describe("Create meet flow", () => {
         "By attending this meet, you acknowledge the inherent risks of outdoor activities and agree to take reasonable precautions. You accept full responsibility for your safety and agree to follow organiser instructions.",
         { delay: 0 },
       );
-    cy.contains("label", "Require attendees to accept indemnity")
-      .find('input[type="checkbox"]')
-      .check({ force: true });
+    cy.get('input[aria-label="Require attendees to accept indemnity"]').check({
+      force: true,
+    });
     cy.contains("button", "Save & Continue").click();
 
     cy.contains("button", "Textfield").click();
@@ -192,9 +192,9 @@ describe("Create meet flow", () => {
       "have.value",
       "By attending this meet, you acknowledge the inherent risks of outdoor activities and agree to take reasonable precautions. You accept full responsibility for your safety and agree to follow organiser instructions.",
     );
-    cy.contains("label", "Require attendees to accept indemnity")
-      .find('input[type="checkbox"]')
-      .should("be.checked");
+    cy.get('input[aria-label="Require attendees to accept indemnity"]').should(
+      "be.checked",
+    );
     cy.contains("button", "Save & Continue").click();
 
     cy.get('input[placeholder="What should the user see?"]')

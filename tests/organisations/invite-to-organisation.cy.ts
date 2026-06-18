@@ -91,7 +91,10 @@ describe("Invite to organisation", () => {
     });
 
     cy.openProfileModal();
-    cy.get('[data-testid="profile-modal"]').contains("Organisations").click();
+    cy.get('[data-testid="profile-modal"]')
+      .contains("Organisations")
+      .closest('[role="button"]')
+      .click();
     cy.contains(inviterOrgName).should("be.visible");
   });
 });
