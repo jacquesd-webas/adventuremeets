@@ -20,6 +20,7 @@ import { TokenPair } from "./dto/token-pair.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import { OrganizationsService } from "../organizations/organizations.service";
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -63,6 +64,8 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
+    @Inject(forwardRef(() => OrganizationsService))
+    private readonly organizationsService: OrganizationsService,
   ) {}
 
   hasRole(
@@ -189,6 +192,18 @@ export class AuthService {
 
     // 3. Return tokens if login was success, otherwise throw
     if (isValid) {
+      if (payload.organizationId) {
+        await this.ensureOrganizationJoinable(payload.organizationId);
+        await this.usersService.ensureOrganizationMembership(
+          user.id,
+          payload.organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          user.id,
+          payload.organizationId,
+        );
+        user = await this.usersService.findById(user.id);
+      }
       return {
         accessToken: this.signAccessToken(user),
         refreshToken: this.signRefreshToken(user),
@@ -280,6 +295,22 @@ export class AuthService {
     }
     if (isPrivate) {
       throw new ForbiddenException("Invalid organisation invitation link");
+    }
+  }
+
+  private async cleanupEmptyPrivateOrganizationsAfterJoin(
+    userId: string,
+    organizationId: string,
+  ) {
+    try {
+      await this.organizationsService.removeEmptyPrivateOrganizationsForUser(
+        userId,
+        organizationId,
+      );
+    } catch (err: any) {
+      this.logger.warn(
+        `Joined organization ${organizationId} for user ${userId}, but private org cleanup failed: ${err?.message || err}`,
+      );
     }
   }
 
@@ -464,15 +495,19 @@ export class AuthService {
   async googleLoginWithCode(
     code: string,
     redirectUri?: string,
+    organizationId?: string,
   ): Promise<TokenPair> {
     const token = await this.exchangeGoogleCode(code, redirectUri);
     const profile = await this.verifyGoogleIdToken(token.id_token);
-    return this.upsertGoogleUser(profile);
+    return this.upsertGoogleUser(profile, organizationId);
   }
 
-  async googleLoginWithIdToken(idToken: string): Promise<TokenPair> {
+  async googleLoginWithIdToken(
+    idToken: string,
+    organizationId?: string,
+  ): Promise<TokenPair> {
     const profile = await this.verifyGoogleIdToken(idToken);
-    return this.upsertGoogleUser(profile);
+    return this.upsertGoogleUser(profile, organizationId);
   }
 
   private async exchangeGoogleCode(
@@ -524,7 +559,11 @@ export class AuthService {
 
   private async upsertGoogleUser(
     profile: GoogleIdTokenPayload,
+    organizationId?: string,
   ): Promise<TokenPair> {
+    if (organizationId) {
+      await this.ensureOrganizationJoinable(organizationId);
+    }
     if (!profile.sub) {
       throw new UnauthorizedException("Invalid Google profile");
     }
@@ -533,6 +572,16 @@ export class AuthService {
       profile.sub,
     );
     if (existingByIdp) {
+      if (organizationId) {
+        await this.usersService.ensureOrganizationMembership(
+          existingByIdp.id,
+          organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          existingByIdp.id,
+          organizationId,
+        );
+      }
       const user = await this.usersService.findById(existingByIdp.id);
       return {
         accessToken: this.signAccessToken(user as any),
@@ -554,6 +603,16 @@ export class AuthService {
         lastName: profile.family_name,
         idpProfile: profile,
       });
+      if (organizationId) {
+        await this.usersService.ensureOrganizationMembership(
+          existingByEmail.id,
+          organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          existingByEmail.id,
+          organizationId,
+        );
+      }
       const user = await this.usersService.findById(existingByEmail.id);
       return {
         accessToken: this.signAccessToken(user as any),
@@ -568,6 +627,7 @@ export class AuthService {
       firstName: profile.given_name,
       lastName: profile.family_name,
       idpProfile: profile,
+      organizationId,
     });
     const user = await this.usersService.findById(created.id);
     return {
@@ -603,10 +663,11 @@ export class AuthService {
   async facebookLoginWithCode(
     code: string,
     redirectUri?: string,
+    organizationId?: string,
   ): Promise<TokenPair> {
     const token = await this.exchangeFacebookCode(code, redirectUri);
     const profile = await this.fetchFacebookProfile(token.access_token);
-    return this.upsertFacebookUser(profile);
+    return this.upsertFacebookUser(profile, organizationId);
   }
 
   private async exchangeFacebookCode(
@@ -661,7 +722,11 @@ export class AuthService {
 
   private async upsertFacebookUser(
     profile: FacebookProfileResponse,
+    organizationId?: string,
   ): Promise<TokenPair> {
+    if (organizationId) {
+      await this.ensureOrganizationJoinable(organizationId);
+    }
     if (!profile.id) {
       throw new UnauthorizedException("Invalid Facebook profile");
     }
@@ -671,6 +736,16 @@ export class AuthService {
       profile.id,
     );
     if (existingByIdp) {
+      if (organizationId) {
+        await this.usersService.ensureOrganizationMembership(
+          existingByIdp.id,
+          organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          existingByIdp.id,
+          organizationId,
+        );
+      }
       const user = await this.usersService.findById(existingByIdp.id);
       return {
         accessToken: this.signAccessToken(user as any),
@@ -692,6 +767,16 @@ export class AuthService {
         lastName: profile.last_name,
         idpProfile: profile,
       });
+      if (organizationId) {
+        await this.usersService.ensureOrganizationMembership(
+          existingByEmail.id,
+          organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          existingByEmail.id,
+          organizationId,
+        );
+      }
       const user = await this.usersService.findById(existingByEmail.id);
       return {
         accessToken: this.signAccessToken(user as any),
@@ -706,6 +791,7 @@ export class AuthService {
       firstName: profile.first_name,
       lastName: profile.last_name,
       idpProfile: profile,
+      organizationId,
     });
     const user = await this.usersService.findById(created.id);
     return {

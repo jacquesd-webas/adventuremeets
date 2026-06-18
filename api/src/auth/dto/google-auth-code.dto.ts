@@ -10,4 +10,9 @@ export class GoogleAuthCodeDto {
   @IsOptional()
   @IsString()
   redirectUri?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  organizationId?: string;
 }

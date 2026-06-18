@@ -5,6 +5,7 @@ import { UsersService } from "../users/users.service";
 import { EmailService } from "../email/email.service";
 import { RegisterDto } from "./dto/register.dto";
 import { UserProfile } from "../users/dto/user-profile.dto";
+import { OrganizationsService } from "../organizations/organizations.service";
 
 describe("AuthService", () => {
   let service: AuthService;
@@ -14,6 +15,7 @@ describe("AuthService", () => {
     findById: jest.fn(),
     findByEmail: jest.fn(),
     updateLogin: jest.fn(),
+    ensureOrganizationMembership: jest.fn(),
     isOrganizationPrivate: jest.fn(),
     linkByEmail: jest.fn(),
     getEmailVerificationInfo: jest.fn(),
@@ -32,6 +34,10 @@ describe("AuthService", () => {
     sendEmail: jest.fn(),
   } as unknown as EmailService;
 
+  const organizationsService = {
+    removeEmptyPrivateOrganizationsForUser: jest.fn(),
+  } as unknown as OrganizationsService;
+
   const baseUser: UserProfile = {
     id: "user-1",
     email: "jane@example.com",
@@ -41,7 +47,12 @@ describe("AuthService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthService(usersService, jwtService, emailService);
+    service = new AuthService(
+      usersService,
+      jwtService,
+      emailService,
+      organizationsService,
+    );
     (jwtService.sign as jest.Mock)
       .mockReturnValueOnce("access-token")
       .mockReturnValueOnce("refresh-token");
@@ -119,12 +130,53 @@ describe("AuthService", () => {
     });
   });
 
+  it("joins a public organization during login when organizationId is provided", async () => {
+    jest
+      .spyOn(service, "validateUser")
+      .mockResolvedValue({ user: baseUser, isValid: true });
+    jest
+      .spyOn(service, "ensureOrganizationJoinable")
+      .mockResolvedValue(undefined);
+    (usersService.updateLogin as jest.Mock).mockResolvedValue(undefined);
+    (usersService.ensureOrganizationMembership as jest.Mock).mockResolvedValue(
+      undefined,
+    );
+    (
+      organizationsService.removeEmptyPrivateOrganizationsForUser as jest.Mock
+    ).mockResolvedValue(undefined);
+    (usersService.findById as jest.Mock).mockResolvedValue({
+      ...baseUser,
+      organizations: { "org-1": "member" },
+    });
+
+    await expect(
+      service.login({
+        email: baseUser.email,
+        password: "Password123!",
+        organizationId: "org-1",
+      } as any),
+    ).resolves.toEqual({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+    });
+
+    expect(service.ensureOrganizationJoinable).toHaveBeenCalledWith("org-1");
+    expect(usersService.ensureOrganizationMembership).toHaveBeenCalledWith(
+      baseUser.id,
+      "org-1",
+    );
+    expect(
+      organizationsService.removeEmptyPrivateOrganizationsForUser,
+    ).toHaveBeenCalledWith(baseUser.id, "org-1");
+    expect(usersService.findById).toHaveBeenCalledWith(baseUser.id);
+  });
+
   it("rejects private organizations in ensureOrganizationJoinable", async () => {
     (usersService.isOrganizationPrivate as jest.Mock).mockResolvedValue(true);
 
-    await expect(
-      service.ensureOrganizationJoinable("org-1"),
-    ).rejects.toThrow("Invalid organisation invitation link");
+    await expect(service.ensureOrganizationJoinable("org-1")).rejects.toThrow(
+      "Invalid organisation invitation link",
+    );
   });
 
   it("sends a verification email when explicitly requested", async () => {
@@ -176,9 +228,9 @@ describe("AuthService", () => {
       null,
     );
 
-    await expect(service.requestEmailVerification("missing-user")).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.requestEmailVerification("missing-user"),
+    ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(usersService.setEmailVerificationToken).not.toHaveBeenCalled();
     expect(emailService.sendEmail).not.toHaveBeenCalled();
@@ -207,7 +259,9 @@ describe("AuthService", () => {
     ).resolves.toBeUndefined();
 
     expect(usersService.markEmailVerified).toHaveBeenCalledWith(baseUser.id);
-    expect(usersService.incrementEmailVerificationAttempts).not.toHaveBeenCalled();
+    expect(
+      usersService.incrementEmailVerificationAttempts,
+    ).not.toHaveBeenCalled();
     expect(usersService.lockEmailVerification).not.toHaveBeenCalled();
   });
 
@@ -268,9 +322,9 @@ describe("AuthService", () => {
       email_verification_attempts: 4,
       email_verification_locked_until: null,
     });
-    (usersService.incrementEmailVerificationAttempts as jest.Mock).mockResolvedValue(
-      undefined,
-    );
+    (
+      usersService.incrementEmailVerificationAttempts as jest.Mock
+    ).mockResolvedValue(undefined);
     (usersService.lockEmailVerification as jest.Mock).mockResolvedValue(
       undefined,
     );
@@ -279,9 +333,9 @@ describe("AuthService", () => {
       service.verifyEmailCode(baseUser.id, "123456"),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(usersService.incrementEmailVerificationAttempts).toHaveBeenCalledWith(
-      baseUser.id,
-    );
+    expect(
+      usersService.incrementEmailVerificationAttempts,
+    ).toHaveBeenCalledWith(baseUser.id);
     expect(usersService.lockEmailVerification).toHaveBeenCalledWith(
       baseUser.id,
       expect.any(String),
@@ -304,7 +358,9 @@ describe("AuthService", () => {
       service.verifyEmailCode(baseUser.id, "123456"),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(usersService.incrementEmailVerificationAttempts).not.toHaveBeenCalled();
+    expect(
+      usersService.incrementEmailVerificationAttempts,
+    ).not.toHaveBeenCalled();
     expect(usersService.lockEmailVerification).not.toHaveBeenCalled();
     expect(usersService.markEmailVerified).not.toHaveBeenCalled();
   });
