@@ -4,6 +4,7 @@ import { useApi } from "./useApi";
 type FacebookCodeLoginPayload = {
   code: string;
   redirectUri?: string;
+  organizationId?: string;
 };
 
 type FacebookCodeLoginResponse = {
@@ -20,7 +21,10 @@ export function useFacebookCodeLogin() {
     FacebookCodeLoginPayload
   >({
     mutationFn: async (payload) => {
-      return api.post<FacebookCodeLoginResponse>("/auth/facebook/token", payload);
+      return api.post<FacebookCodeLoginResponse>(
+        "/auth/facebook/token",
+        payload,
+      );
     },
     onSuccess: (data) => {
       window.localStorage.setItem("accessToken", data.accessToken);
@@ -36,4 +40,3 @@ export function useFacebookCodeLogin() {
     error: mutation.error ? mutation.error.message : null,
   };
 }
-

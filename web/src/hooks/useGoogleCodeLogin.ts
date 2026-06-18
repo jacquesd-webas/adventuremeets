@@ -4,6 +4,7 @@ import { useApi } from "./useApi";
 type GoogleCodeLoginPayload = {
   code: string;
   redirectUri?: string;
+  organizationId?: string;
 };
 
 type GoogleCodeLoginResponse = {
