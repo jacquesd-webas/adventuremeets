@@ -170,6 +170,7 @@ describe("RegisterPage", () => {
     expect(payload.redirectUri).toContain("/oauth/callback/google");
     expect(JSON.parse(payload.state)).toEqual({
       invite: undefined,
+      org: "org-1",
       returnTo: "/meets/share-1/attendee-1",
     });
   });
@@ -206,5 +207,19 @@ describe("RegisterPage", () => {
     expect(screen.getByLabelText(/first name/i)).toHaveValue("Alex");
     expect(screen.getByLabelText(/last name/i)).toHaveValue("Doe");
     expect(screen.getByLabelText(/email/i)).toHaveValue("alex@example.com");
+  });
+
+  it("preserves invite and org when linking to login", () => {
+    render(
+      <MemoryRouter initialEntries={["/register?invite=invite-1&org=org-1"]}>
+        <Routes>
+          <Route path="/register" element={<RegisterPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByRole("link", { name: /already have an account/i }),
+    ).toHaveAttribute("href", "/login?invite=invite-1&org=org-1");
   });
 });

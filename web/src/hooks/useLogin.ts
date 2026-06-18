@@ -4,6 +4,7 @@ import { useApi } from "./useApi";
 type LoginPayload = {
   email: string;
   password: string;
+  organizationId?: string;
 };
 
 type LoginResponse = {

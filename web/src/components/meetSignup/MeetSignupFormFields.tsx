@@ -21,6 +21,7 @@ import { GuestSwitchField } from "../meet/GuestSwitchField";
 import { Spacer } from "../common/Spacer";
 import { GuestInput } from "../../types/GuestInput";
 import type { MeetSignupSheetState } from "../../pages/MeetSignupSheetState";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 
 function LabeledField({
   label,
@@ -125,6 +126,7 @@ export function MeetSignupFormFields({
   setPhoneCountry,
   setPhoneLocal,
 }: MeetSignupFormFieldsProps) {
+  const wording = getMeetResponseWording(Boolean(meet?.autoPlacement));
   const showEmailField = meet?.requireEmail !== false;
   const showPhoneField = meet?.requirePhone !== false;
   const showOrg1Field = Boolean(
@@ -443,7 +445,7 @@ export function MeetSignupFormFields({
             disabled={isSubmitting || isSubmitDisabled}
             onClick={onSubmit}
           >
-            Submit application
+            {wording.submitLabel}
           </Button>
         )}
       </Stack>

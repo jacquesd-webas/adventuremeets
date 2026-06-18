@@ -6,9 +6,13 @@ type DefaultMessageOptions = {
   confirmMessage?: string;
   waitlistMessage?: string;
   rejectMessage?: string;
+  isRsvpMode?: boolean;
 };
 
-const createMessageContent = (status: AttendeeStatusEnum) => {
+const createMessageContent = (
+  status: AttendeeStatusEnum,
+  isRsvpMode?: boolean,
+) => {
   if (status === AttendeeStatusEnum.Invited) {
     return "You have been invited to join this meet. Please open your meet link to confirm or update your attendance.";
   }
@@ -19,7 +23,9 @@ const createMessageContent = (status: AttendeeStatusEnum) => {
     return "You have been waitlisted for the meet. If a spot opens up, the organiser will notify you.";
   }
   if (status === AttendeeStatusEnum.Rejected) {
-    return "Unfortunately, the meet organiser has not been able to accept your application. This is usually due to capacity limits being reached.";
+    return isRsvpMode
+      ? "Unfortunately, the meet organiser has not been able to accept your RSVP. This is usually due to capacity limits being reached."
+      : "Unfortunately, the meet organiser has not been able to accept your application. This is usually due to capacity limits being reached.";
   }
   return "";
 };
@@ -39,7 +45,8 @@ export function useDefaultMessage(
           ? `Confirmed: ${options.meetName}`
           : "Meet attendance confirmed",
         content:
-          options?.confirmMessage?.trim() || createMessageContent(status),
+          options?.confirmMessage?.trim() ||
+          createMessageContent(status, options?.isRsvpMode),
       };
     }
     if (status === AttendeeStatusEnum.Invited) {
@@ -47,7 +54,7 @@ export function useDefaultMessage(
         subject: options?.meetName
           ? `Invitation: ${options.meetName}`
           : "Meet invitation",
-        content: createMessageContent(status),
+        content: createMessageContent(status, options?.isRsvpMode),
       };
     }
     if (status === AttendeeStatusEnum.Waitlisted) {
@@ -56,7 +63,8 @@ export function useDefaultMessage(
           ? `Waitlist: ${options.meetName}`
           : "Meet attendance waitlisted",
         content:
-          options?.waitlistMessage?.trim() || createMessageContent(status),
+          options?.waitlistMessage?.trim() ||
+          createMessageContent(status, options?.isRsvpMode),
       };
     }
     if (status === AttendeeStatusEnum.Rejected) {
@@ -64,7 +72,9 @@ export function useDefaultMessage(
         subject: options?.meetName
           ? `Update: ${options.meetName}`
           : "Meet attendance update",
-        content: options?.rejectMessage?.trim() || createMessageContent(status),
+        content:
+          options?.rejectMessage?.trim() ||
+          createMessageContent(status, options?.isRsvpMode),
       };
     }
 
@@ -72,6 +82,7 @@ export function useDefaultMessage(
   }, [
     status,
     options?.confirmMessage,
+    options?.isRsvpMode,
     options?.meetName,
     options?.rejectMessage,
     options?.waitlistMessage,

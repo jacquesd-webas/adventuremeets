@@ -55,6 +55,32 @@ describe("MeetSignupSubmitted", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders RSVP wording for RSVP-style meets", () => {
+    render(
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <AuthContext.Provider
+          value={{
+            user: undefined,
+            isLoading: false,
+            isAuthenticated: false,
+            meUpdatedAt: 0,
+            refreshSession: vi.fn(),
+            logout: vi.fn(),
+          }}
+        >
+          <MeetSignupSubmitted hasIndemnity={false} isRsvpMode />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/RSVP submitted/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Your RSVP has been submitted/i),
+    ).toBeInTheDocument();
+  });
+
   it("copies answers immediately when remember my answers is checked", async () => {
     const user = userEvent.setup();
 

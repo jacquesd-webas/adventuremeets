@@ -18,6 +18,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { useMemo, useState } from "react";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 import { getLocationLabel, getMeetTimeLabel } from "../../helpers/meetTime";
 import Meet, { MeetAttendeePreview } from "../../types/MeetModel";
 import { AttendeeListMini } from "./AttendeeListMini";
@@ -34,6 +35,7 @@ export function MeetInfoDeets({
   layout = "vertical",
   attendingAttendees = [],
 }: MeetInfoDeetsProps) {
+  const wording = getMeetResponseWording(Boolean(meet.autoPlacement));
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [attendingAnchorEl, setAttendingAnchorEl] =
     useState<HTMLElement | null>(null);
@@ -109,8 +111,8 @@ export function MeetInfoDeets({
           {attendingAttendees?.length === 0 && (
             <Typography variant="body2">
               {!meet?.capacity
-                ? `${meet.attendeeCount ?? 0} Applied`
-                : `${meet.attendeeCount ?? 0} Applied (limit ${meet.capacity})`}
+                ? `${meet.attendeeCount ?? 0} ${wording.countLabel}`
+                : `${meet.attendeeCount ?? 0} ${wording.countLabel} (limit ${meet.capacity})`}
             </Typography>
           )}
           {attendingAttendees?.length > 0 && (

@@ -39,6 +39,21 @@ import { useGoogleAuthUrl } from "../hooks/useGoogleAuthUrl";
 import { useFacebookAuthUrl } from "../hooks/useFacebookAuthUrl";
 import zxcvbn from "zxcvbn";
 
+function buildAuthHref(
+  pathname: string,
+  options: { invite?: string | null; organizationId?: string | null },
+) {
+  const params = new URLSearchParams();
+  if (options.invite) {
+    params.set("invite", options.invite);
+  }
+  if (options.organizationId) {
+    params.set("org", options.organizationId);
+  }
+  const search = params.toString();
+  return search ? `${pathname}?${search}` : pathname;
+}
+
 const getPasswordStrength = (value: string) => {
   if (!value) return { score: 0, label: "Enter a password" };
   const result = zxcvbn(value);
@@ -98,10 +113,13 @@ function RegisterPage() {
   const [lastNameError, setLastNameError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const logoSrc = getLogoSrc();
-  const inviteCode = new URLSearchParams(location.search).get("invite");
-  const loginHref = inviteCode
-    ? `/login?invite=${encodeURIComponent(inviteCode)}`
-    : "/login";
+  const params = new URLSearchParams(location.search);
+  const inviteCode = params.get("invite");
+  const queryOrganizationId = params.get("org");
+  const loginHref = buildAuthHref("/login", {
+    invite: inviteCode,
+    organizationId: queryOrganizationId || organizationId,
+  });
   const googleRedirectUri =
     typeof window !== "undefined"
       ? `${window.location.origin}/oauth/callback/google`
@@ -143,6 +161,7 @@ function RegisterPage() {
     try {
       const state = JSON.stringify({
         invite: inviteCode || undefined,
+        org: organizationId || queryOrganizationId || undefined,
         returnTo: pendingMeetLink
           ? `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
           : undefined,
@@ -162,6 +181,7 @@ function RegisterPage() {
     try {
       const state = JSON.stringify({
         invite: inviteCode || undefined,
+        org: organizationId || queryOrganizationId || undefined,
         returnTo: pendingMeetLink
           ? `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
           : undefined,

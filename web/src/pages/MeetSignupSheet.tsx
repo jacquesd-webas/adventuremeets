@@ -521,7 +521,6 @@ function MeetSignupSheet() {
   };
 
   const handleCloseSheet = () => {
-    console.log("handleCloseSheet", { isPreview, previewReturnTo, location });
     if (isPreview && window.opener) {
       window.close();
       return;
@@ -610,6 +609,7 @@ function MeetSignupSheet() {
             isOrganizationPrivate={privateOrganization?.isPrivate}
             isPreview={isPreview}
             isGuest={Boolean(guestOf)}
+            isRsvpMode={Boolean(meet?.autoPlacement)}
           />
         </Box>
       </Box>
@@ -880,6 +880,7 @@ function MeetSignupSheet() {
                 <MeetStatusAlert
                   statusId={meet.statusId}
                   openingDate={meet.openingDate}
+                  isRsvpMode={Boolean(meet.autoPlacement)}
                 />
               )}
               {(canSubmitSignup || isPreview) && (
@@ -932,6 +933,7 @@ function MeetSignupSheet() {
           onClose={() => setShowDuplicateModal(false)}
           onRemove={handleRemove}
           onUpdate={handleUpdate}
+          isRsvpMode={Boolean(meet?.autoPlacement)}
         />
         {isMobile ? (
           <Drawer

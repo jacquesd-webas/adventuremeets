@@ -210,12 +210,14 @@ export function MessageModal({
       confirmMessage: meet?.confirmMessage,
       waitlistMessage: meet?.waitlistMessage,
       rejectMessage: meet?.rejectMessage,
+      isRsvpMode: meet?.autoPlacement,
     }),
     [
       meet?.name,
       meet?.confirmMessage,
       meet?.waitlistMessage,
       meet?.rejectMessage,
+      meet?.autoPlacement,
     ],
   );
   const singleAttendeeDefault = useDefaultMessage(

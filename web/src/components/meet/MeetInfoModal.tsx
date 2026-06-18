@@ -66,16 +66,19 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
   );
   const isAdmin = Boolean(
     user?.organizations &&
-      meet?.organizationId &&
-      user.organizations[meet.organizationId] === "admin",
+    meet?.organizationId &&
+    user.organizations[meet.organizationId] === "admin",
   );
   const favouritePost =
-    sortFavouriteItems(wallItems.filter((item) => !item.url && item.favourite > 0))[0] ??
-    null;
+    sortFavouriteItems(
+      wallItems.filter((item) => !item.url && item.favourite > 0),
+    )[0] ?? null;
   const favouritePhotos = sortFavouriteItems(
     wallItems.filter((item) => item.url && item.favourite > 0),
   );
-  const hasFavouriteExport = Boolean(favouritePost || favouritePhotos.length > 0);
+  const hasFavouriteExport = Boolean(
+    favouritePost || favouritePhotos.length > 0,
+  );
 
   const handleDownloadFavourites = async () => {
     if (!meet || !isAdmin || !hasFavouriteExport) {
@@ -133,7 +136,9 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
                           }}
                           size="small"
                           aria-label="Download favourites"
-                          disabled={!hasFavouriteExport || isExportingFavourites}
+                          disabled={
+                            !hasFavouriteExport || isExportingFavourites
+                          }
                         >
                           <DownloadOutlinedIcon fontSize="small" />
                         </IconButton>
@@ -158,7 +163,9 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
             shouldShowMeetWall ? (
               <Suspense
                 fallback={
-                  <Typography color="text.secondary">Loading meet wall...</Typography>
+                  <Typography color="text.secondary">
+                    Loading meet wall...
+                  </Typography>
                 }
               >
                 <MeetWall meetId={meet.id} />
@@ -171,6 +178,7 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
                 enableApply={true}
                 shareCode={meet.shareCode}
                 allowGuests={Boolean(meet.allowGuests)}
+                isRsvpMode={Boolean(meet.autoPlacement)}
                 size="small"
               />
             )

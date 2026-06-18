@@ -183,24 +183,28 @@ export function ManageAttendeesModal({
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
   });
   const invitedMessage = useDefaultMessage(AttendeeStatusEnum.Invited, {
     meetName: meet?.name,
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
   });
   const waitlistMessage = useDefaultMessage(AttendeeStatusEnum.Waitlisted, {
     meetName: meet?.name,
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
   });
   const rejectMessage = useDefaultMessage(AttendeeStatusEnum.Rejected, {
     meetName: meet?.name,
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
   });
   const getDefaultMessageForStatus = (status: AttendeeStatusEnum) => {
     if (status === AttendeeStatusEnum.Invited) {
@@ -756,19 +760,19 @@ export function ManageAttendeesModal({
             {isOrganizerSelected ? (
               detailView === "messages" ? (
                 <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
-                <Button
-                  variant="outlined"
-                  disabled={!canManageAttendees}
-                  onClick={() => {
+                  <Button
+                    variant="outlined"
+                    disabled={!canManageAttendees}
+                    onClick={() => {
                       openMessageModal({
                         attendeeIds: selectedAttendee
                           ? [selectedAttendee.id]
                           : undefined,
                       });
-                  }}
-                >
-                  Message {attendeeLabel(selectedAttendee)}
-                </Button>
+                    }}
+                  >
+                    Message {attendeeLabel(selectedAttendee)}
+                  </Button>
                 </LockedTooltipWrapper>
               ) : (
                 <Button

@@ -366,12 +366,24 @@ describe("ProfileModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Organisations" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Edit organisation Weekend Walkers",
+        name: "Edit organisation Adventure Meets",
       }),
     );
 
-    expect(mockedSetCurrentOrganizationId).toHaveBeenCalledWith("org-2");
+    expect(mockedSetCurrentOrganizationId).toHaveBeenCalledWith("org-1");
     expect(onOpenOrganization).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the edit button for member organisations", async () => {
+    await renderWithQueryClient(<ProfileModal open onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Organisations" }));
+
+    expect(
+      screen.getByRole("button", {
+        name: "Edit organisation Weekend Walkers",
+      }),
+    ).toBeDisabled();
   });
 
   it("renders all profile sections stacked on mobile", async () => {

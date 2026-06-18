@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
 import { useConfirmAttendeeEmail } from "../../hooks/useConfirmAttendeeEmail";
 import { useWithdrawMeetApplication } from "../../hooks/useWithdrawMeetApplication";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 
 type WithdrawApplicationDialogProps = {
   open: boolean;
@@ -10,6 +11,7 @@ type WithdrawApplicationDialogProps = {
   meetId?: string | null;
   attendeeId?: string | null;
   attendeeStatus?: string | null;
+  isRsvpMode?: boolean;
 };
 
 export function WithdrawApplicationDialog({
@@ -18,7 +20,9 @@ export function WithdrawApplicationDialog({
   meetId,
   attendeeId,
   attendeeStatus,
+  isRsvpMode = false,
 }: WithdrawApplicationDialogProps) {
+  const wording = getMeetResponseWording(isRsvpMode);
   const [confirmEmail, setConfirmEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const { confirmAttendeeEmailAsync, isLoading: isConfirming } =
@@ -29,14 +33,14 @@ export function WithdrawApplicationDialog({
   const withdrawDescription = useMemo(() => {
     switch (attendeeStatus) {
       case "confirmed":
-        return "The organiser has already confirmed your application. Withdrawing may cause inconvenience, so be sure to also contact the organiser to let them know.";
+        return `The organiser has already confirmed your ${wording.noun}. Withdrawing may cause inconvenience, so be sure to also contact the organiser to let them know.`;
       case "waitlisted":
         return "Withdrawing will remove you from the waitlist.";
       case "pending":
       default:
-        return "Withdrawing will cancel your application.";
+        return wording.withdrawPendingDescription;
     }
-  }, [attendeeStatus]);
+  }, [attendeeStatus, wording.noun, wording.withdrawPendingDescription]);
 
   // Reset the form when the dialog is closed
   useEffect(() => {
@@ -52,7 +56,7 @@ export function WithdrawApplicationDialog({
       setEmailError(null);
       const res = await confirmAttendeeEmailAsync({ email: confirmEmail });
       if (!res.valid) {
-        setEmailError("Email does not match meet application");
+        setEmailError(wording.emailMismatchLabel);
         return;
       }
       await withdrawMeetApplicationAsync();
@@ -65,9 +69,9 @@ export function WithdrawApplicationDialog({
   return (
     <ConfirmActionDialog
       open={open}
-      title="Withdraw application?"
+      title={`${wording.withdrawLabel}?`}
       description={withdrawDescription}
-      confirmLabel="Withdraw application"
+      confirmLabel={wording.withdrawLabel}
       confirmDisabled={
         !confirmEmail || !meetId || !attendeeId || isWithdrawing || isConfirming
       }
@@ -78,7 +82,7 @@ export function WithdrawApplicationDialog({
       <Stack spacing={1.5} mt={2}>
         <TextField
           label="Confirm email"
-          placeholder="Enter the email used for this application"
+          placeholder={wording.confirmEmailPlaceholder}
           value={confirmEmail}
           onChange={(e) => setConfirmEmail(e.target.value)}
           error={Boolean(emailError)}
@@ -86,7 +90,7 @@ export function WithdrawApplicationDialog({
           fullWidth
         />
         <Typography variant="body2" color="text.secondary">
-          Please use the same email address you used for this application to
+          Please use the same email address you used for this {wording.noun} to
           confirm.
         </Typography>
       </Stack>

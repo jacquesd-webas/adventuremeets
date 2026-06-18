@@ -395,7 +395,23 @@ function MeetCheckinPage() {
         fullWidth
         maxWidth="xs"
       >
-        <DialogTitle>Self check-in QR code</DialogTitle>
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+          }}
+        >
+          Self check-in QR code
+          <IconButton
+            aria-label="Close self check-in QR code"
+            onClick={() => setIsQrDialogOpen(false)}
+            edge="end"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
           <Stack
             spacing={2}

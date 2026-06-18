@@ -16,137 +16,148 @@ export const ResponsesStep = ({
 }: StepProps) => {
   const confirmDefault = useDefaultMessage(AttendeeStatusEnum.Confirmed, {
     meetName: state.name,
+    isRsvpMode: state.autoApprove,
   });
   const rejectDefault = useDefaultMessage(AttendeeStatusEnum.Rejected, {
     meetName: state.name,
+    isRsvpMode: state.autoApprove,
   });
   const waitlistDefault = useDefaultMessage(AttendeeStatusEnum.Waitlisted, {
     meetName: state.name,
+    isRsvpMode: state.autoApprove,
   });
 
   return (
     <Box sx={{ position: "relative" }}>
       <Stack spacing={2}>
-      <LabeledField
-        label="Approved response"
-        labelAction={
-          <SelectTemplate
-            organizationId={state.organizationId || undefined}
-            disabled={disabled}
-            onApplyTemplate={(template) =>
+        <LabeledField
+          label="Approved response"
+          labelAction={
+            <SelectTemplate
+              organizationId={state.organizationId || undefined}
+              disabled={disabled}
+              onApplyTemplate={(template) =>
+                setState((prev) => ({
+                  ...prev,
+                  approvedResponse:
+                    prev.approvedResponse?.trim() ||
+                    template.approvedResponse ||
+                    "",
+                  rejectResponse:
+                    prev.rejectResponse?.trim() ||
+                    template.rejectResponse ||
+                    "",
+                  waitlistResponse:
+                    prev.waitlistResponse?.trim() ||
+                    template.waitlistResponse ||
+                    "",
+                }))
+              }
+            />
+          }
+        >
+          <TextField
+            data-testid="approved-response-field"
+            placeholder={confirmDefault.content}
+            value={state.approvedResponse}
+            onChange={(e) =>
               setState((prev) => ({
                 ...prev,
-                approvedResponse:
-                  prev.approvedResponse?.trim() ||
-                  template.approvedResponse ||
-                  "",
-                rejectResponse:
-                  prev.rejectResponse?.trim() || template.rejectResponse || "",
-                waitlistResponse:
-                  prev.waitlistResponse?.trim() ||
-                  template.waitlistResponse ||
-                  "",
+                approvedResponse: e.target.value,
               }))
             }
-          />
-        }
-      >
-        <TextField
-          data-testid="approved-response-field"
-          placeholder={confirmDefault.content}
-          value={state.approvedResponse}
-          onChange={(e) =>
-            setState((prev) => ({ ...prev, approvedResponse: e.target.value }))
-          }
-          helperText={
-            isHelpEnabled
-              ? "This message is sent when someone is accepted onto the meet."
-              : undefined
-          }
-          fullWidth
-          multiline
-          minRows={3}
-          disabled={disabled}
-        />
-      </LabeledField>
-      <LabeledField label="Reject response">
-        <TextField
-          data-testid="reject-response-field"
-          placeholder={rejectDefault.content}
-          value={state.rejectResponse}
-          onChange={(e) =>
-            setState((prev) => ({ ...prev, rejectResponse: e.target.value }))
-          }
-          helperText={
-            isHelpEnabled
-              ? "Use this to politely explain that the attendee was not given a spot."
-              : undefined
-          }
-          fullWidth
-          multiline
-          minRows={3}
-          disabled={disabled}
-        />
-      </LabeledField>
-      <LabeledField label="Waitlist response">
-        <TextField
-          data-testid="waitlist-response-field"
-          placeholder={waitlistDefault.content}
-          value={state.waitlistResponse}
-          onChange={(e) =>
-            setState((prev) => ({ ...prev, waitlistResponse: e.target.value }))
-          }
-          helperText={
-            isHelpEnabled
-              ? "This message is used when someone is placed on the waitlist rather than confirmed immediately."
-              : undefined
-          }
-          fullWidth
-          multiline
-          minRows={3}
-          disabled={disabled}
-        />
-      </LabeledField>
-      {isHelpEnabled ? (
-        <Typography variant="body2" color="text.secondary">
-          You can leave these blank and rely on defaults, but custom messages
-          usually create a clearer experience for attendees.
-        </Typography>
-      ) : null}
-    </Stack>
-    {isHelpEnabled && !isHelpBannerDismissed ? (
-      <Box
-        sx={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 1,
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "center",
-          p: 1,
-          bgcolor: "rgba(255,255,255,0.72)",
-          backdropFilter: "blur(1px)",
-        }}
-      >
-        <Box sx={{ width: "100%", maxWidth: 760 }}>
-          <HelpBanner
-            message={
-              <>
-                These are the messages attendees receive after you or the system
-                decides their outcome. You can customize them to give attendees
-                more information about the meet, or keep then short or even
-                blank to use the defaults.
-                <br />
-                <br />
-                If your organisation has templates for default responses you can
-                use them here.
-              </>
+            helperText={
+              isHelpEnabled
+                ? "This message is sent when someone is accepted onto the meet."
+                : undefined
             }
-            onDismiss={onDismissHelpBanner || (() => undefined)}
+            fullWidth
+            multiline
+            minRows={3}
+            disabled={disabled}
           />
+        </LabeledField>
+        <LabeledField label="Reject response">
+          <TextField
+            data-testid="reject-response-field"
+            placeholder={rejectDefault.content}
+            value={state.rejectResponse}
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, rejectResponse: e.target.value }))
+            }
+            helperText={
+              isHelpEnabled
+                ? "Use this to politely explain that the attendee was not given a spot."
+                : undefined
+            }
+            fullWidth
+            multiline
+            minRows={3}
+            disabled={disabled}
+          />
+        </LabeledField>
+        <LabeledField label="Waitlist response">
+          <TextField
+            data-testid="waitlist-response-field"
+            placeholder={waitlistDefault.content}
+            value={state.waitlistResponse}
+            onChange={(e) =>
+              setState((prev) => ({
+                ...prev,
+                waitlistResponse: e.target.value,
+              }))
+            }
+            helperText={
+              isHelpEnabled
+                ? "This message is used when someone is placed on the waitlist rather than confirmed immediately."
+                : undefined
+            }
+            fullWidth
+            multiline
+            minRows={3}
+            disabled={disabled}
+          />
+        </LabeledField>
+        {isHelpEnabled ? (
+          <Typography variant="body2" color="text.secondary">
+            You can leave these blank and rely on defaults, but custom messages
+            usually create a clearer experience for attendees.
+          </Typography>
+        ) : null}
+      </Stack>
+      {isHelpEnabled && !isHelpBannerDismissed ? (
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            p: 1,
+            bgcolor: "rgba(255,255,255,0.72)",
+            backdropFilter: "blur(1px)",
+          }}
+        >
+          <Box sx={{ width: "100%", maxWidth: 760 }}>
+            <HelpBanner
+              message={
+                <>
+                  These are the messages attendees receive after you or the
+                  system decides their outcome. You can customize them to give
+                  attendees more information about the meet, or keep then short
+                  or even blank to use the defaults.
+                  <br />
+                  <br />
+                  If your organisation has templates for default responses you
+                  can use them here.
+                </>
+              }
+              onDismiss={onDismissHelpBanner || (() => undefined)}
+            />
+          </Box>
         </Box>
-      </Box>
-    ) : null}
+      ) : null}
     </Box>
   );
 };

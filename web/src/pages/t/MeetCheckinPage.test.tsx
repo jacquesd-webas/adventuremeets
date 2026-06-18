@@ -272,6 +272,13 @@ describe("MeetCheckinPage", () => {
       "data-value",
       `${window.location.origin}/meets/share-123/checkin?pin=ABC123`,
     );
+
+    await user.click(screen.getByLabelText("Close self check-in QR code"));
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Self check-in QR code"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("does not set the row checking spinner while offline", async () => {

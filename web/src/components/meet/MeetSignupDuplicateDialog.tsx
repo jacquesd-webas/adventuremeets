@@ -8,12 +8,14 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 
 type MeetSignupDuplicateDialogProps = {
   open: boolean;
   onClose: () => void;
   onRemove: () => void;
   onUpdate: () => void;
+  isRsvpMode?: boolean;
 };
 
 export function MeetSignupDuplicateDialog({
@@ -21,19 +23,16 @@ export function MeetSignupDuplicateDialog({
   onClose,
   onRemove: _onRemove,
   onUpdate: _onUpdate,
+  isRsvpMode = false,
 }: MeetSignupDuplicateDialogProps) {
+  const wording = getMeetResponseWording(isRsvpMode);
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   return (
     <Dialog open={open} onClose={onClose} fullScreen={fullScreen}>
-      <DialogTitle>Already signed up</DialogTitle>
+      <DialogTitle>{wording.duplicateTitle}</DialogTitle>
       <DialogContent>
-        <Typography color="text.secondary">
-          You have already signed up for this meet. If you wish to make changes
-          to your application, please use the link e-mailed to you. Alternately,
-          you may contact the organiser directly to update or remove your
-          application.
-        </Typography>
+        <Typography color="text.secondary">{wording.duplicateBody}</Typography>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>

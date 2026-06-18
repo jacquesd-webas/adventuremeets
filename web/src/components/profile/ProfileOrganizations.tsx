@@ -111,40 +111,40 @@ export function ProfileOrganizations({
 
       <Stack spacing={1.25} sx={{ width: "100%" }}>
         {memberships.map((organization) => (
-          <Paper
-            key={organization.id}
-            variant="outlined"
-            onClick={() => handleSwitchOrganization(organization.id)}
-            role="button"
-            tabIndex={0}
-            sx={{
-              p: 1.5,
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 1,
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-          >
-            <Box>
-              <Typography fontWeight={600}>{organization.name}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Role: {organization.role}
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <IconButton
-                size="small"
-                aria-label={`Edit organisation ${organization.name}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleEditOrganization(organization.id);
-                }}
-              >
-                <EditOutlinedIcon fontSize="small" />
-              </IconButton>
+          <Paper key={organization.id} variant="outlined">
+            <Box
+              onClick={() => handleSwitchOrganization(organization.id)}
+              role="button"
+              tabIndex={0}
+              sx={{
+                p: 1.5,
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1,
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              <Box>
+                <Typography fontWeight={600}>{organization.name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Role: {organization.role}
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <IconButton
+                  size="small"
+                  aria-label={`Edit organisation ${organization.name}`}
+                  disabled={organization.role === "member"}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleEditOrganization(organization.id);
+                  }}
+                >
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
               {organization.id === currentOrganizationId ? (
                 <Chip label="Current" color="primary" size="small" />
               ) : (
@@ -162,7 +162,8 @@ export function ProfileOrganizations({
                   Leave
                 </Button>
               )}
-            </Stack>
+              </Stack>
+            </Box>
           </Paper>
         ))}
         {!isLoading && memberships.length === 0 ? (

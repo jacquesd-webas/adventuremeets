@@ -4,6 +4,7 @@ import { formatFriendlyTimestamp } from "../../helpers/formatFriendlyTimestamp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/authContext";
 import { useFetchMyMeetAttendee } from "../../hooks/useFetchMyMeetAttendee";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 
 type MeetStatusAlertProps = {
   meetId?: string;
@@ -12,6 +13,7 @@ type MeetStatusAlertProps = {
   enableApply?: boolean;
   shareCode?: string;
   allowGuests?: boolean;
+  isRsvpMode?: boolean;
   size?: "default" | "small";
 };
 
@@ -22,8 +24,10 @@ export function MeetStatusAlert({
   enableApply,
   shareCode,
   allowGuests = false,
+  isRsvpMode = false,
   size = "default",
 }: MeetStatusAlertProps) {
+  const wording = getMeetResponseWording(isRsvpMode);
   const nav = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const { attendee, isLoading: isCheckingAttendee } = useFetchMyMeetAttendee({
@@ -59,7 +63,7 @@ export function MeetStatusAlert({
     text = "This meet is open for bookings!";
     severity = "success";
   } else if (attendee) {
-    text = "You have already applied for this meet.";
+    text = wording.alreadySubmittedLabel;
     severity = "success";
   } else {
     return null;
@@ -95,7 +99,7 @@ export function MeetStatusAlert({
                   }}
                   disabled={!shareCode}
                 >
-                  View your application
+                  {wording.viewLabel}
                 </Button>
                 {allowGuests ? (
                   <Button
@@ -123,7 +127,7 @@ export function MeetStatusAlert({
                 }}
                 disabled={!shareCode}
               >
-                Apply Now
+                {wording.actionNowLabel}
               </Button>
             )}
           </>
