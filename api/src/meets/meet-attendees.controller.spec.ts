@@ -106,6 +106,16 @@ describe("MeetAttendeesController", () => {
     );
   });
 
+  it.each([
+    ["list", () => controller.list("meet-1", "accepted")],
+    ["update", () => controller.update("meet-1", "attendee-1", {})],
+    ["getIceInfo", () => controller.getIceInfo("meet-1", "attendee-1")],
+    ["getHistory", () => controller.getHistory("meet-1", "attendee-1")],
+    ["remove", () => controller.remove("meet-1", "attendee-1")],
+  ])("rejects unauthenticated %s access", async (_name, action) => {
+    await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it("rejects unauthenticated attendee listing", async () => {
     await expect(controller.list("meet-1", "accepted")).rejects.toBeInstanceOf(
       UnauthorizedException,

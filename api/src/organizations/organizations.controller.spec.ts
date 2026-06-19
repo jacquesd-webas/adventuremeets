@@ -15,6 +15,7 @@ describe("OrganizationsController", () => {
     findByIdMinimal: jest.fn(),
     findById: jest.fn(),
     findMembers: jest.fn(),
+    updateMember: jest.fn(),
     findOrganizers: jest.fn(),
     listMetaDefinitions: jest.fn(),
     findTemplates: jest.fn(),
@@ -61,6 +62,64 @@ describe("OrganizationsController", () => {
       authService,
       auditLogService,
     );
+  });
+
+  it.each([
+    ["findAll", () => controller.findAll()],
+    ["create", () => controller.create({ name: "Org" } as any)],
+    ["leave", () => controller.leave("org-1")],
+    ["acceptInvite", () => controller.acceptInvite("invite-1")],
+    ["declineInvite", () => controller.declineInvite("invite-1")],
+    ["findMembers", () => controller.findMembers("org-1")],
+    [
+      "updateMember",
+      () => controller.updateMember("org-1", "user-1", {} as any),
+    ],
+    ["findOrganizers", () => controller.findOrganizers("org-1")],
+    ["findTemplates", () => controller.findTemplates("org-1")],
+    ["listMetaDefinitions", () => controller.listMetaDefinitions("org-1")],
+    ["findTemplate", () => controller.findTemplate("org-1", "template-1")],
+    [
+      "createTemplate",
+      () =>
+        controller.createTemplate(
+          "org-1",
+          { name: "Template", metaDefinitionIds: [] } as any,
+        ),
+    ],
+    [
+      "updateTemplate",
+      () =>
+        controller.updateTemplate(
+          "org-1",
+          "template-1",
+          { name: "Updated Template" } as any,
+        ),
+    ],
+    [
+      "deleteTemplate",
+      () => controller.deleteTemplate("org-1", "template-1", undefined as any),
+    ],
+    ["update", () => controller.update("org-1", { name: "Org" } as any)],
+    [
+      "uploadLogo",
+      () =>
+        controller.uploadLogo(
+          "org-1",
+          { mimetype: "image/png", buffer: Buffer.from("logo") } as any,
+        ),
+    ],
+    ["listInvites", () => controller.listInvites("org-1")],
+    [
+      "invite",
+      () =>
+        controller.invite(
+          "org-1",
+          { email: "member@example.com", roleId: 4 } as any,
+        ),
+    ],
+  ])("rejects unauthenticated %s access", async (_name, action) => {
+    await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it("rejects unauthenticated organization listing", async () => {

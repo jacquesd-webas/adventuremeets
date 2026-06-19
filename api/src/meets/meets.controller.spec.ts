@@ -202,6 +202,81 @@ describe("MeetsController", () => {
     });
   });
 
+  it.each([
+    [
+      "findAll",
+      () =>
+        controller.findAll(
+          "all",
+          "all",
+          "1",
+          "20",
+          "org-1",
+          undefined,
+          undefined,
+          undefined,
+        ),
+    ],
+    ["findOne", () => controller.findOne("meet-1")],
+    [
+      "create",
+      () => controller.create({ name: "Meet", organizationId: "org-1" } as any),
+    ],
+    ["clone", () => controller.clone("meet-1", { name: "Clone" } as any)],
+    ["update", () => controller.update("meet-1", { name: "Updated" } as any)],
+    ["updateStatus", () => controller.updateStatus("meet-1", { statusId: 2 })],
+    [
+      "addImage",
+      () =>
+        controller.addImage(
+          "meet-1",
+          { mimetype: "image/png" } as any,
+          { isPrimary: true } as any,
+        ),
+    ],
+    ["listImages", () => controller.listImages("meet-1")],
+    [
+      "updateImage",
+      () =>
+        controller.updateImage(
+          "meet-1",
+          "image-1",
+          { isPrimary: true } as any,
+        ),
+    ],
+    ["removeImage", () => controller.removeImage("meet-1", "image-1")],
+    ["remove", () => controller.remove("meet-1")],
+    [
+      "messageAttendees",
+      () =>
+        controller.messageAttendees("meet-1", {
+          subject: "Update",
+          text: "Bring water",
+          attendeeIds: ["attendee-1"],
+        }),
+    ],
+    [
+      "listAttendeeMessages",
+      () => controller.listAttendeeMessages("meet-1", "attendee-1"),
+    ],
+    ["markMessageRead", () => controller.markMessageRead("meet-1", "msg-1")],
+    [
+      "uploadAttendees",
+      () => controller.uploadAttendees("meet-1", { buffer: Buffer.from("") }),
+    ],
+    [
+      "createReport",
+      () =>
+        controller.createReport(
+          "meet-1",
+          undefined,
+          { sendEmail: true, downloadReport: false },
+        ),
+    ],
+  ])("rejects unauthenticated %s access", async (_name, action) => {
+    await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it("rejects unauthenticated status updates", async () => {
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }),

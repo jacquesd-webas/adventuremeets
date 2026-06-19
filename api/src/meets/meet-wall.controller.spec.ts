@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { MeetWallController } from "./meet-wall.controller";
 import { MeetsService } from "./meets.service";
 import { AuthService } from "../auth/auth.service";
@@ -49,6 +53,28 @@ describe("MeetWallController", () => {
       authService,
       auditLogService,
     );
+  });
+
+  it.each([
+    [
+      "orderFavourites",
+      () =>
+        controller.orderFavourites(
+          "meet-1",
+          { wallItemIds: ["wall-1"] } as any,
+        ),
+    ],
+    [
+      "updateFavourite",
+      () =>
+        controller.updateFavourite(
+          "meet-1",
+          "wall-1",
+          { favourite: 1 } as any,
+        ),
+    ],
+  ])("rejects unauthenticated %s access", async (_name, action) => {
+    await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it("returns not found for anonymous wall listing without an attendee id", async () => {

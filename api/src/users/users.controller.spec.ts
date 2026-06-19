@@ -56,6 +56,30 @@ describe("UsersController", () => {
     controller = new UsersController(usersService, authService, auditLogService);
   });
 
+  it.each([
+    ["getMyIceInfo", () => controller.getMyIceInfo()],
+    ["updateMyIceInfo", () => controller.updateMyIceInfo({})],
+    [
+      "uploadMyAvatar",
+      () => controller.uploadMyAvatar({ mimetype: "image/png" } as any),
+    ],
+    ["findOne", () => controller.findOne("user-1")],
+    ["create", () => controller.create({ organizationId: "org-1" } as any)],
+    ["update", () => controller.update("user-1", {} as any)],
+    ["listMetaValues", () => controller.listMetaValues("user-1", "org-1")],
+    [
+      "saveMetaValues",
+      () =>
+        controller.saveMetaValues(
+          "user-1",
+          { organizationId: "org-1", values: [] } as any,
+        ),
+    ],
+    ["remove", () => controller.remove("user-1")],
+  ])("rejects unauthenticated %s access", async (_name, action) => {
+    await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it("returns the caller's own ICE info", async () => {
     (usersService.findIceInfoByUserId as jest.Mock).mockResolvedValue({
       iceName: "Alex",
