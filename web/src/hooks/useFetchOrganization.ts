@@ -17,13 +17,25 @@ export function useFetchOrganization(orgId?: string) {
     customField2Name:
       org.customField2Name ?? org.custom_field2_name ?? undefined,
     customField1HelperText:
-      org.customField1HelperText ??
-      org.custom_field1_helper_text ??
-      undefined,
+      org.customField1HelperText ?? org.custom_field1_helper_text ?? undefined,
     customField2HelperText:
-      org.customField2HelperText ??
-      org.custom_field2_helper_text ??
+      org.customField2HelperText ?? org.custom_field2_helper_text ?? undefined,
+    defaultTemplateId:
+      org.defaultTemplateId ?? org.default_template_id ?? undefined,
+    defaultRequireIndemnity:
+      org.defaultRequireIndemnity ?? org.default_require_indemnity ?? undefined,
+    defaultAutoApproveAttendees:
+      org.defaultAutoApproveAttendees ??
+      org.default_auto_approve_attendees ??
       undefined,
+    defaultAllowGuests:
+      org.defaultAllowGuests ?? org.default_allow_guests ?? undefined,
+    defaultAllowSelfCheckin:
+      org.defaultAllowSelfCheckin ??
+      org.default_allow_self_checkin ??
+      undefined,
+    defaultAllowWalkins:
+      org.defaultAllowWalkins ?? org.default_allow_walkins ?? undefined,
     meetCountLast30Days:
       typeof org.meetCountLast30Days === "number"
         ? org.meetCountLast30Days
@@ -100,12 +112,11 @@ export function useFetchOrganization(orgId?: string) {
       org.reportingEnabled ?? org.reporting_enabled ?? undefined,
     brandingEnabled: org.brandingEnabled ?? org.branding_enabled ?? undefined,
     domainEnabled: org.domainEnabled ?? org.domain_enabled ?? undefined,
-    whatsappEnabled:
-      org.whatsappEnabled ?? org.whatsapp_enabled ?? undefined,
-    paymentsEnabled:
-      org.paymentsEnabled ?? org.payments_enabled ?? undefined,
+    whatsappEnabled: org.whatsappEnabled ?? org.whatsapp_enabled ?? undefined,
+    paymentsEnabled: org.paymentsEnabled ?? org.payments_enabled ?? undefined,
     diskQuotasEnabled:
       org.diskQuotasEnabled ?? org.disk_quotas_enabled ?? undefined,
+    enableWebhooks: org.enableWebhooks ?? org.enable_webhooks ?? undefined,
     userCount:
       typeof org.userCount === "number"
         ? org.userCount

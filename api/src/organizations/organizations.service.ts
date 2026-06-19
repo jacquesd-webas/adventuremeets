@@ -397,6 +397,7 @@ export class OrganizationsService {
         whatsapp_enabled: false,
         payments_enabled: false,
         disk_quotas_enabled: false,
+        enable_webhooks: false,
         created_at: now,
         updated_at: now,
       });
@@ -765,6 +766,14 @@ export class OrganizationsService {
   }
 
   async deleteTemplate(orgId: string, templateId: string) {
+    await this.database
+      .getClient()("organizations")
+      .where({ id: orgId, default_template_id: templateId })
+      .update({
+        default_template_id: null,
+        updated_at: new Date().toISOString(),
+      });
+
     const updated = await this.database
       .getClient()("templates")
       .where({ id: templateId, organization_id: orgId })
@@ -803,6 +812,24 @@ export class OrganizationsService {
     if (dto.customField2HelperText !== undefined) {
       updates.custom_field2_helper_text =
         dto.customField2HelperText.trim() || null;
+    }
+    if (dto.defaultTemplateId !== undefined) {
+      updates.default_template_id = dto.defaultTemplateId?.trim() || null;
+    }
+    if (dto.defaultRequireIndemnity !== undefined) {
+      updates.default_require_indemnity = dto.defaultRequireIndemnity;
+    }
+    if (dto.defaultAutoApproveAttendees !== undefined) {
+      updates.default_auto_approve_attendees = dto.defaultAutoApproveAttendees;
+    }
+    if (dto.defaultAllowGuests !== undefined) {
+      updates.default_allow_guests = dto.defaultAllowGuests;
+    }
+    if (dto.defaultAllowSelfCheckin !== undefined) {
+      updates.default_allow_self_checkin = dto.defaultAllowSelfCheckin;
+    }
+    if (dto.defaultAllowWalkins !== undefined) {
+      updates.default_allow_walkins = dto.defaultAllowWalkins;
     }
 
     const updated = await this.database
@@ -1211,6 +1238,15 @@ export class OrganizationsService {
       customField2Name: row.custom_field2_name ?? undefined,
       customField1HelperText: row.custom_field1_helper_text ?? undefined,
       customField2HelperText: row.custom_field2_helper_text ?? undefined,
+      defaultTemplateId: row.default_template_id ?? undefined,
+      defaultRequireIndemnity:
+        row.default_require_indemnity ?? undefined,
+      defaultAutoApproveAttendees:
+        row.default_auto_approve_attendees ?? undefined,
+      defaultAllowGuests: row.default_allow_guests ?? undefined,
+      defaultAllowSelfCheckin:
+        row.default_allow_self_checkin ?? undefined,
+      defaultAllowWalkins: row.default_allow_walkins ?? undefined,
       meetCountLast90Days:
         typeof row.meet_count_last_90_days === "number"
           ? row.meet_count_last_90_days
@@ -1289,6 +1325,7 @@ export class OrganizationsService {
       whatsappEnabled: row.whatsapp_enabled ?? undefined,
       paymentsEnabled: row.payments_enabled ?? undefined,
       diskQuotasEnabled: row.disk_quotas_enabled ?? undefined,
+      enableWebhooks: row.enable_webhooks ?? undefined,
     };
   }
 }

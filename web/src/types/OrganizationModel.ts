@@ -9,6 +9,12 @@ export type Organization = {
   customField2Name?: string;
   customField1HelperText?: string;
   customField2HelperText?: string;
+  defaultTemplateId?: string;
+  defaultRequireIndemnity?: boolean;
+  defaultAutoApproveAttendees?: boolean;
+  defaultAllowGuests?: boolean;
+  defaultAllowSelfCheckin?: boolean;
+  defaultAllowWalkins?: boolean;
   userCount?: number;
   templateCount?: number;
   meetCountLast30Days?: number;
@@ -29,6 +35,7 @@ export type Organization = {
   whatsappEnabled?: boolean;
   paymentsEnabled?: boolean;
   diskQuotasEnabled?: boolean;
+  enableWebhooks?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

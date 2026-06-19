@@ -16,6 +16,7 @@ import {
 import { useState } from "react";
 import { useCurrentOrganization } from "../../context/organizationContext";
 import { OrganizationCreate } from "./OrganizationCreate";
+import { OrganizationDefaults } from "./OrganizationDefaults";
 import { OrganizationFeatures } from "./OrganizationFeatures";
 import { MyOrganization } from "./MyOrganization";
 import { OrganizationFields } from "./OrganizationFields";
@@ -37,6 +38,7 @@ type OrganizationContentProps = {
 type OrganizationSection =
   | "organization"
   | "fields"
+  | "defaults"
   | "stats"
   | "features"
   | "privacy"
@@ -58,6 +60,7 @@ export function OrganizationContent({
     ...(isAdmin ? [{ key: "privacy", label: "Privacy" }] : []),
     ...(isAdmin ? [{ key: "invites", label: "Invites" }] : []),
     ...(isAdmin ? [{ key: "fields", label: "Fields" }] : []),
+    ...(isAdmin ? [{ key: "defaults", label: "Defaults" }] : []),
     { key: "stats", label: "Stats" },
     { key: "features", label: "Features" },
     { key: "create", label: "Create" },
@@ -76,6 +79,7 @@ export function OrganizationContent({
         {isAdmin ? <OrganizationPrivacy /> : null}
         {isAdmin ? <OrganizationInvites /> : null}
         {isAdmin ? <OrganizationFields /> : null}
+        {isAdmin ? <OrganizationDefaults /> : null}
         <OrganizationStats />
         <OrganizationFeatures />
         <OrganizationCreate onGoToProfile={onOpenProfile} />
@@ -106,6 +110,7 @@ export function OrganizationContent({
           />
         ) : null}
         {section === "fields" ? <OrganizationFields /> : null}
+        {section === "defaults" ? <OrganizationDefaults /> : null}
         {section === "stats" ? <OrganizationStats /> : null}
         {section === "features" ? <OrganizationFeatures /> : null}
         {section === "privacy" ? <OrganizationPrivacy /> : null}

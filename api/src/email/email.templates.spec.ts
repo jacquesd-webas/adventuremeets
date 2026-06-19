@@ -109,8 +109,8 @@ describe("renderEmailTemplate", () => {
     expect(result.text).toContain(
       "If you need to reply, contact Robin &amp; Co at robin@example.com.",
     );
-    expect(result.html).toContain(
-      "If you need to reply, contact Robin &amp; Co at",
+    expect(result.html).toMatch(
+      /If you need to reply, contact\s+Robin &amp; Co at/,
     );
   });
 
@@ -128,8 +128,8 @@ describe("renderEmailTemplate", () => {
     expect(result.text).toContain(
       "If you need to reach the organiser directly, you may reply to robin@example.com.",
     );
-    expect(result.html).toContain(
-      "If you need to reach the organiser directly, you may reply to",
+    expect(result.html).toMatch(
+      /If you need to reach the organiser directly, you may\s+reply to/,
     );
     expect(result.html).not.toContain("contact Robin &amp; Co at");
   });

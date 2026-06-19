@@ -44,6 +44,24 @@ export class OrganizationDto {
   customField2HelperText?: string;
 
   @ApiPropertyOptional()
+  defaultTemplateId?: string;
+
+  @ApiPropertyOptional()
+  defaultRequireIndemnity?: boolean;
+
+  @ApiPropertyOptional()
+  defaultAutoApproveAttendees?: boolean;
+
+  @ApiPropertyOptional()
+  defaultAllowGuests?: boolean;
+
+  @ApiPropertyOptional()
+  defaultAllowSelfCheckin?: boolean;
+
+  @ApiPropertyOptional()
+  defaultAllowWalkins?: boolean;
+
+  @ApiPropertyOptional()
   meetCountLast30Days?: number;
 
   @ApiPropertyOptional()
@@ -96,4 +114,7 @@ export class OrganizationDto {
 
   @ApiPropertyOptional()
   diskQuotasEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  enableWebhooks?: boolean;
 }

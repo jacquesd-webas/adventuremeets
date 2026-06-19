@@ -142,6 +142,7 @@ vi.mock("../../../hooks/useFetchOrganizationTemplate", () => ({
   useFetchOrganizationTemplate: () => ({
     data: null,
     isLoading: false,
+    error: null,
   }),
 }));
 

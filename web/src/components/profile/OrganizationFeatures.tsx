@@ -1,9 +1,4 @@
-import {
-  Box,
-  Stack,
-  Switch,
-  Typography,
-} from "@mui/material";
+import { Box, Stack, Switch, Typography } from "@mui/material";
 import { useMemo } from "react";
 import { useCurrentOrganization } from "../../context/organizationContext";
 import { useFetchOrganization } from "../../hooks/useFetchOrganization";
@@ -14,48 +9,56 @@ export function OrganizationFeatures() {
     currentOrganizationId ?? undefined,
   );
   const featureRows = useMemo(
-    () => [
-    {
-      label: "Advanced reporting",
-      description:
-        "Richer reports and analytics for businesses that do not really apply to the social community use.",
-      checked: Boolean(organization?.reportingEnabled),
-    },
-    {
-      label: "Branded communications",
-      description:
-        "Add your own business branding to e-mail communications.",
-      checked: Boolean(organization?.brandingEnabled),
-    },
-    {
-      label: "Custom domains",
-      description:
-        "Allow your own subdomain or domain for handling meet communications.",
-      checked: Boolean(organization?.domainEnabled),
-    },
-    {
-      label: "WhatsApp integration",
-      description:
-        "Add your WhatsApp business account to AdventureMeets to allow sending messages to your groups or subscribers.",
-      checked: Boolean(organization?.whatsappEnabled),
-    },
-    {
-      label: "Payment Gateway",
-      description:
-        "Have attendees make payments directly in AdventureMeets when meets you are hosting are not free.",
-      checked: Boolean(organization?.paymentsEnabled),
-    },
-    {
-      label: "Storage options",
-      description:
-        "Cloud storage costs money so we intend to make a certain amount of space available for free for photo uploads, but there will be a point where we will need to delete photos or charge for more storage.",
-      checked: Boolean(organization?.diskQuotasEnabled),
-    },
-  ] as const,
+    () =>
+      [
+        {
+          label: "Advanced reporting",
+          description:
+            "Richer reports and analytics for businesses that do not really apply to the social community use.",
+          checked: Boolean(organization?.reportingEnabled),
+        },
+        {
+          label: "Branded communications",
+          description:
+            "Add your own business branding to e-mail communications.",
+          checked: Boolean(organization?.brandingEnabled),
+        },
+        {
+          label: "Custom domains",
+          description:
+            "Allow your own subdomain or domain for handling meet communications.",
+          checked: Boolean(organization?.domainEnabled),
+        },
+        {
+          label: "WhatsApp integration",
+          description:
+            "Add your WhatsApp business account to AdventureMeets to allow sending messages to your groups or subscribers.",
+          checked: Boolean(organization?.whatsappEnabled),
+        },
+        {
+          label: "Payment Gateway",
+          description:
+            "Have attendees make payments directly in AdventureMeets when meets you are hosting are not free.",
+          checked: Boolean(organization?.paymentsEnabled),
+        },
+        {
+          label: "Storage options",
+          description:
+            "Cloud storage costs money so we intend to make a certain amount of space available for free for photo uploads, but there will be a point where we will need to delete photos or charge for more storage.",
+          checked: Boolean(organization?.diskQuotasEnabled),
+        },
+        {
+          label: "Webhooks",
+          description:
+            "Allow outbound webhook notifications so your organisation can integrate AdventureMeets events with external systems.",
+          checked: Boolean(organization?.enableWebhooks),
+        },
+      ] as const,
     [
       organization?.brandingEnabled,
       organization?.diskQuotasEnabled,
       organization?.domainEnabled,
+      organization?.enableWebhooks,
       organization?.paymentsEnabled,
       organization?.reportingEnabled,
       organization?.whatsappEnabled,

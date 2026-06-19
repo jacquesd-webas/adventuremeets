@@ -12,6 +12,12 @@ type UpdatePayload = {
   customField2Name?: string;
   customField1HelperText?: string;
   customField2HelperText?: string;
+  defaultTemplateId?: string | null;
+  defaultRequireIndemnity?: boolean;
+  defaultAutoApproveAttendees?: boolean;
+  defaultAllowGuests?: boolean;
+  defaultAllowSelfCheckin?: boolean;
+  defaultAllowWalkins?: boolean;
 };
 
 export function useUpdateOrganization(organizationId?: string | null) {
@@ -31,6 +37,12 @@ export function useUpdateOrganization(organizationId?: string | null) {
           customField2Name: payload.customField2Name,
           customField1HelperText: payload.customField1HelperText,
           customField2HelperText: payload.customField2HelperText,
+          defaultTemplateId: payload.defaultTemplateId,
+          defaultRequireIndemnity: payload.defaultRequireIndemnity,
+          defaultAutoApproveAttendees: payload.defaultAutoApproveAttendees,
+          defaultAllowGuests: payload.defaultAllowGuests,
+          defaultAllowSelfCheckin: payload.defaultAllowSelfCheckin,
+          defaultAllowWalkins: payload.defaultAllowWalkins,
         },
       );
       return res?.organization;

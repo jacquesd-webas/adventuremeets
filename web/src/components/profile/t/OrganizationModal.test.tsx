@@ -18,6 +18,7 @@ let mockedOrganization: Record<string, any> = {
   canViewAllMeets: true,
 };
 let mockedInvites: Array<Record<string, any>> = [];
+let mockedTemplates: Array<Record<string, any>> = [];
 let mockedCurrentOrganizationRole = "admin";
 const mockedCreateInviteAsync = vi.fn();
 const mockedUpdateOrganizationAsync = vi.fn();
@@ -94,6 +95,14 @@ vi.mock("../../../hooks/useFetchOrganizationInvites", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useFetchOrganizationTemplates", () => ({
+  useFetchOrganizationTemplates: () => ({
+    data: mockedTemplates,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 describe("OrganizationModal", () => {
   const renderWithQueryClient = async (ui: React.ReactElement) => {
     const queryClient = new QueryClient();
@@ -119,6 +128,12 @@ describe("OrganizationModal", () => {
       customField2Name: "Region",
       customField1HelperText: "Your walking club",
       customField2HelperText: "Your local region",
+      defaultTemplateId: "template-1",
+      defaultRequireIndemnity: true,
+      defaultAutoApproveAttendees: true,
+      defaultAllowGuests: true,
+      defaultAllowSelfCheckin: false,
+      defaultAllowWalkins: true,
       userCount: 12,
       meetCountLast30Days: 2,
       attendanceCountLast30Days: 10,
@@ -138,8 +153,13 @@ describe("OrganizationModal", () => {
       whatsappEnabled: false,
       paymentsEnabled: true,
       diskQuotasEnabled: false,
+      enableWebhooks: true,
     };
     mockedInvites = [];
+    mockedTemplates = [
+      { id: "template-1", name: "Welcome Pack" },
+      { id: "template-2", name: "Caving Default" },
+    ];
     mockedCurrentOrganizationRole = "admin";
   });
 
@@ -152,15 +172,19 @@ describe("OrganizationModal", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Theme" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fields" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Defaults" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Privacy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Stats" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Features" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Choose file" }),
-    ).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Choose file" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(
       screen.getByText(
         "This feature has not been enabled for this organisation.",
@@ -191,6 +215,25 @@ describe("OrganizationModal", () => {
     expect(
       screen.getByText("Invite specific users to join your organisation."),
     ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Defaults" }));
+
+    expect(screen.getByText("Always apply template")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Require indemnity" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Auto approve attendees" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Allow guests" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Allow self-checkin" }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Allow walk-ins" }),
+    ).toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "Stats" }));
 
@@ -294,6 +337,54 @@ describe("OrganizationModal", () => {
     );
   });
 
+  it("saves organization defaults", async () => {
+    mockedUpdateOrganizationAsync.mockResolvedValue({
+      ...mockedOrganization,
+      defaultTemplateId: "template-2",
+      defaultRequireIndemnity: false,
+      defaultAutoApproveAttendees: false,
+      defaultAllowGuests: false,
+      defaultAllowSelfCheckin: true,
+      defaultAllowWalkins: false,
+    });
+
+    await renderWithQueryClient(<OrganizationModal open onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Defaults" }));
+
+    fireEvent.mouseDown(
+      screen.getByRole("combobox", { name: "Always apply template" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Caving Default" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Require indemnity" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Auto approve attendees" }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow guests" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Allow self-checkin" }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow walk-ins" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save defaults" }));
+
+    await waitFor(() => {
+      expect(mockedUpdateOrganizationAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "org-1",
+          defaultTemplateId: "template-2",
+          defaultRequireIndemnity: false,
+          defaultAutoApproveAttendees: false,
+          defaultAllowGuests: false,
+          defaultAllowSelfCheckin: true,
+          defaultAllowWalkins: false,
+        }),
+      );
+    });
+  });
+
   it("shows organisation feature flags as read-only", async () => {
     await renderWithQueryClient(<OrganizationModal open onClose={vi.fn()} />);
 
@@ -317,6 +408,7 @@ describe("OrganizationModal", () => {
     expect(
       screen.getByRole("checkbox", { name: "Storage options" }),
     ).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Webhooks" })).toBeDisabled();
     expect(mockedUpdateOrganizationAsync).not.toHaveBeenCalled();
   });
 
@@ -331,6 +423,7 @@ describe("OrganizationModal", () => {
     expect(
       screen.getByRole("checkbox", { name: "Storage options" }),
     ).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Webhooks" })).toBeDisabled();
     expect(mockedUpdateOrganizationAsync).not.toHaveBeenCalled();
   });
 

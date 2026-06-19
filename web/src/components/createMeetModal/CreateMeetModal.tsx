@@ -32,6 +32,8 @@ import { ImageStep } from "./ImageStep";
 import { useSaveMeet, SaveMeetPayload } from "../../hooks/useSaveMeet";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
+import { useFetchOrganization } from "../../hooks/useFetchOrganization";
+import { useFetchOrganizationTemplate } from "../../hooks/useFetchOrganizationTemplate";
 import { getLocaleDefaults } from "../../helpers/locale";
 import { useAuth } from "../../context/authContext";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
@@ -53,6 +55,7 @@ import MeetImage from "../../types/MeetImageModel";
 import { writeCreateMeetPreviewRestore } from "./createMeetPreviewRestore";
 import { buildMeetQuestionFieldKey } from "../../helpers/meetQuestionFieldKey";
 import { useNavigate } from "react-router-dom";
+import { buildCreateMeetStateFromOrganizationDefaults } from "./createMeetDefaults";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -98,11 +101,24 @@ export function CreateMeetModal({
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const previewRestoreAppliedRef = useRef(false);
+  const orgDefaultsAppliedKeyRef = useRef<string | null>(null);
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
   const nav = useNavigate();
   const { currentOrganizationId } = useCurrentOrganization();
+  const { data: currentOrganization } = useFetchOrganization(
+    currentOrganizationId ?? undefined,
+  );
+  const defaultTemplateId = currentOrganization?.defaultTemplateId;
+  const {
+    data: defaultTemplate,
+    isLoading: isLoadingDefaultTemplate,
+    error: defaultTemplateError,
+  } = useFetchOrganizationTemplate(
+    currentOrganizationId ?? undefined,
+    defaultTemplateId || undefined,
+  );
 
   const statusId =
     typeof state.statusId === "number"
@@ -157,6 +173,7 @@ export function CreateMeetModal({
       setHelpBannerState({});
       setIsAdminUnlockEnabled(false);
       previewRestoreAppliedRef.current = false;
+      orgDefaultsAppliedKeyRef.current = null;
     }
   }, [open]);
 
@@ -210,6 +227,41 @@ export function CreateMeetModal({
     }
     setMeetId(meetIdProp);
   }, [open, meetIdProp]);
+
+  useEffect(() => {
+    if (!open || meetIdProp || !user || !currentOrganizationId) return;
+    if (!currentOrganization) return;
+    if (defaultTemplateId && isLoadingDefaultTemplate) return;
+
+    const defaultsKey = [
+      currentOrganizationId,
+      defaultTemplateId || "",
+      defaultTemplateError || "",
+    ].join(":");
+    if (orgDefaultsAppliedKeyRef.current === defaultsKey) return;
+
+    const freshState = buildCreateMeetStateFromOrganizationDefaults({
+      currency: getLocaleDefaults().currencyCode,
+      currentOrganizationId,
+      organization: currentOrganization,
+      template: defaultTemplateError ? null : defaultTemplate,
+      userId: user.id,
+    });
+
+    setState(freshState);
+    setBaselineState(freshState);
+    orgDefaultsAppliedKeyRef.current = defaultsKey;
+  }, [
+    currentOrganization,
+    currentOrganizationId,
+    defaultTemplate,
+    defaultTemplateError,
+    defaultTemplateId,
+    isLoadingDefaultTemplate,
+    meetIdProp,
+    open,
+    user,
+  ]);
 
   // When meet data is fetched, populate the form and baseline state for change tracking
   useEffect(() => {
