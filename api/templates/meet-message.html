@@ -25,12 +25,12 @@
 </p>
 {{/ifStatusUrl}} {{#ifOrganizerEmail}}
 <p style="margin: 0; font-size: 13px; color: #475569">
-  {{#ifGroupedMessage}} If you need to reach the organiser directly, you may
+  {{#ifGroupedMessage}}If you need to reach the organiser directly, you may
   reply to
-  <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a>.
-  {{/ifGroupedMessage}} {{#ifDirectMessage}} If you need to reply, contact
+  <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a
+  >.{{/ifGroupedMessage}}{{#ifDirectMessage}}If you need to reply, contact
   {{organizerName}} at
-  <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a>.
-  {{/ifDirectMessage}}
+  <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a
+  >.{{/ifDirectMessage}}
 </p>
 {{/ifOrganizerEmail}}
