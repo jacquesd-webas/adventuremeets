@@ -76,14 +76,7 @@ export function OrganizationFields() {
         disabled={!isAdmin}
         helperText="Used to label Custom field 1 on meets in this organisation."
       />
-      <TextField
-        label="Custom field 2 name"
-        value={customField2Name}
-        onChange={(event) => setCustomField2Name(event.target.value)}
-        fullWidth
-        disabled={!isAdmin}
-        helperText="Used to label Custom field 2 on meets in this organisation."
-      />
+
       <TextField
         label="Custom field 1 preview text"
         value={customField1HelperText}
@@ -91,6 +84,14 @@ export function OrganizationFields() {
         fullWidth
         disabled={!isAdmin}
         helperText="Optional preview text shown inside Custom field 1 on meet signup."
+      />
+      <TextField
+        label="Custom field 2 name"
+        value={customField2Name}
+        onChange={(event) => setCustomField2Name(event.target.value)}
+        fullWidth
+        disabled={!isAdmin}
+        helperText="Used to label Custom field 2 on meets in this organisation."
       />
       <TextField
         label="Custom field 2 preview text"
