@@ -15,6 +15,7 @@ import { useAuth } from "../../context/authContext";
 import Meet from "../../types/MeetModel";
 import { MeetInfoDeets } from "./MeetInfoDeets";
 import { getMeetDateLabel } from "../../helpers/meetTime";
+import { MeetImageCarouselDialog } from "./MeetImageCarouselDialog";
 
 type MeetInfoSummaryProps = {
   meet: Meet;
@@ -22,8 +23,7 @@ type MeetInfoSummaryProps = {
   loginHref?: string;
   onLoginClick?: () => void;
   onCopyLink?: () => void;
-  descriptionMaxLines?: number;
-  showMoreChip?: boolean;
+  maxDescriptionLines?: number;
   showUserAction?: boolean;
   actionSlot?: ReactNode;
   onClose?: () => void;
@@ -35,8 +35,7 @@ export function MeetInfoSummary({
   loginHref = "/login",
   onLoginClick,
   onCopyLink,
-  descriptionMaxLines,
-  showMoreChip = false,
+  maxDescriptionLines,
   showUserAction = true,
   actionSlot,
   onClose,
@@ -45,8 +44,41 @@ export function MeetInfoSummary({
   const descriptionRef = useRef<HTMLParagraphElement | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
+  const [carouselOpen, setCarouselOpen] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const dateLabel = useMemo(() => getMeetDateLabel(meet), [meet]);
-  const hasImage = Boolean(meet.imageUrl);
+  const images = useMemo(() => {
+    if (meet.images?.length) {
+      return meet.images;
+    }
+    if (meet.imageUrl) {
+      return [
+        {
+          id: "primary",
+          meetId: meet.id,
+          url: meet.imageUrl,
+          isPrimary: true,
+          aspect: "O" as const,
+        },
+      ];
+    }
+    return [];
+  }, [meet.id, meet.imageUrl, meet.images]);
+  const hasImage = images.length > 0;
+  const previewImageAspect = images[0]?.aspect ?? "O";
+  const previewImageSize = useMemo(() => {
+    switch (previewImageAspect) {
+      case "P":
+        return { width: 150, height: 210 };
+      case "S":
+        return { width: 170, height: 170 };
+      case "W":
+        return { width: 220, height: 130 };
+      case "O":
+      default:
+        return { width: 200, height: 150 };
+    }
+  }, [previewImageAspect]);
   const displayName = useMemo(() => {
     if (!user) return "";
     const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
@@ -61,7 +93,7 @@ export function MeetInfoSummary({
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   }, [displayName]);
-  const shouldClamp = Boolean(descriptionMaxLines) && !isExpanded;
+  const shouldClamp = Boolean(maxDescriptionLines) && !isExpanded;
   const linkifyText = (text?: string) => {
     if (!text) return text;
     const pattern =
@@ -107,13 +139,36 @@ export function MeetInfoSummary({
   };
 
   useEffect(() => {
-    if (!descriptionRef.current || !descriptionMaxLines) {
+    if (!descriptionRef.current || !maxDescriptionLines) {
       setIsTruncated(false);
       return;
     }
     const el = descriptionRef.current;
-    setIsTruncated(el.scrollHeight > el.clientHeight + 1);
-  }, [descriptionMaxLines, meet.description, isExpanded]);
+    let frameId = 0;
+
+    const measure = () => {
+      setIsTruncated(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(measure);
+    };
+
+    scheduleMeasure();
+
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleMeasure();
+    });
+    resizeObserver.observe(el);
+    window.addEventListener("resize", scheduleMeasure);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [maxDescriptionLines, meet.description, isExpanded]);
 
   const renderDescription = () => (
     <Stack spacing={1} alignItems="flex-start">
@@ -125,7 +180,7 @@ export function MeetInfoSummary({
           whiteSpace: "pre-line",
           ...(shouldClamp && {
             display: "-webkit-box",
-            WebkitLineClamp: descriptionMaxLines,
+            WebkitLineClamp: maxDescriptionLines,
             WebkitBoxOrient: "vertical",
             overflow: "hidden",
           }),
@@ -133,7 +188,7 @@ export function MeetInfoSummary({
       >
         {linkifyText(meet.description)}
       </Typography>
-      {showMoreChip && descriptionMaxLines && isTruncated && (
+      {maxDescriptionLines && isTruncated && (
         <Chip
           label={"show more"}
           size="small"
@@ -143,7 +198,7 @@ export function MeetInfoSummary({
           }}
         />
       )}
-      {showMoreChip && descriptionMaxLines && isExpanded && (
+      {maxDescriptionLines && isExpanded && (
         <Chip
           label={"show less"}
           size="small"
@@ -192,6 +247,7 @@ export function MeetInfoSummary({
             </Button>
           ) : isAuthenticated ? (
             <Avatar
+              src={user?.avatarUrl || undefined}
               role="button"
               sx={{ width: 36, height: 36, cursor: "pointer" }}
               onClick={() => void logout()}
@@ -224,33 +280,67 @@ export function MeetInfoSummary({
             mt={1}
           >
             <Box
-              component="img"
-              src={meet.imageUrl || ""}
-              alt="Meet preview"
               sx={{
-                width: 180,
-                height: 130,
-                borderRadius: 2,
-                objectFit: "cover",
+                position: "relative",
+                width: previewImageSize.width,
+                height: previewImageSize.height,
+                cursor: "pointer",
+                flexShrink: 0,
               }}
-            />
-            <MeetInfoDeets
-              meet={meet}
-            />
+              onClick={() => setCarouselOpen(true)}
+            >
+              <Box
+                component="img"
+                src={images[0]?.url || ""}
+                alt="Meet preview"
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: 2,
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
+              {images.length > 1 ? (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    right: 8,
+                    bottom: 8,
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 999,
+                    bgcolor: "rgba(15, 23, 42, 0.8)",
+                    color: "#fff",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  +{images.length - 1}
+                </Box>
+              ) : null}
+            </Box>
+            <MeetInfoDeets meet={meet} />
           </Stack>
           {renderDescription()}
         </>
       ) : (
         <>
           <Box mt={1}>
-            <MeetInfoDeets
-              meet={meet}
-              layout="horizontal"
-            />
+            <MeetInfoDeets meet={meet} layout="horizontal" />
           </Box>
           {renderDescription()}
         </>
       )}
+      <MeetImageCarouselDialog
+        open={carouselOpen}
+        title={meet.name}
+        images={images}
+        initialIndex={activeImageIndex}
+        onIndexChange={setActiveImageIndex}
+        onClose={() => setCarouselOpen(false)}
+      />
     </>
   );
 }

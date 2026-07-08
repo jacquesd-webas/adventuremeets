@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:24-alpine
 
 WORKDIR /app/db
 
@@ -6,7 +6,7 @@ WORKDIR /app/db
 RUN apk add --no-cache postgresql-client
 
 # Setup pnpm and install dependencies
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
 COPY db/package.json db/pnpm-lock.yaml db/tsconfig.json db/knexfile.ts ./
 RUN pnpm install
 

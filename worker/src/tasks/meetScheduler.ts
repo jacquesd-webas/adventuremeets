@@ -86,25 +86,39 @@ async function openScheduledMeets(db: Knex) {
 async function closeOpenMeets(db: Knex) {
   const ids = await db("meets")
     .where({ status_id: STATUS.Open })
-    .whereNotNull("closing_date")
-    .where("closing_date", "<=", db.fn.now())
+    .where((queryBuilder) => {
+      queryBuilder
+        .where("closing_date", "<=", db.fn.now())
+        .orWhere("start_time", "<=", db.fn.now());
+    })
     .pluck<string>("id");
   return updateStatusViaApi(ids, STATUS.Closed);
 }
 
 async function closeWhenWaitlistFull(db: Knex) {
-  const waitlistSubquery = db("meet_attendees")
+  const attendeeCountsSubquery = db("meet_attendees")
     .select("meet_id")
-    .count<{ waitlisted: string }>("id as waitlisted")
-    .where("status", "waitlisted")
+    .select(
+      db.raw(
+        `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as confirmed_count`,
+      ),
+    )
+    .select(
+      db.raw(
+        `sum(case when status = 'waitlisted' then 1 + coalesce(guests, 0) else 0 end) as waitlist_count`,
+      ),
+    )
     .groupBy("meet_id")
-    .as("wl");
+    .as("ma");
 
   const ids = await db("meets as m")
-    .leftJoin(waitlistSubquery, "m.id", "wl.meet_id")
+    .leftJoin(attendeeCountsSubquery, "m.id", "ma.meet_id")
     .where("m.status_id", STATUS.Open)
+    .where("m.capacity", ">", 0)
     .where("m.waitlist_size", ">", 0)
-    .whereRaw("coalesce(wl.waitlisted, 0) >= m.waitlist_size")
+    .whereRaw(
+      "coalesce(ma.confirmed_count, 0) + coalesce(ma.waitlist_count, 0) >= m.capacity + m.waitlist_size",
+    )
     .pluck<string>("m.id");
   return updateStatusViaApi(ids, STATUS.Closed);
 }

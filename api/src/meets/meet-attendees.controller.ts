@@ -24,6 +24,7 @@ import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { EmailTemplateName } from "../email/email.types";
 import type { Request } from "express";
+import { UsersService } from "../users/users.service";
 
 @ApiTags("Meet Attendees")
 @Controller("meets/:meetId/attendees")
@@ -32,6 +33,7 @@ export class MeetAttendeesController {
     private readonly meetsService: MeetsService,
     private readonly authService: AuthService,
     private readonly emailService: EmailService,
+    private readonly usersService: UsersService,
   ) {}
 
   @Get()
@@ -43,12 +45,7 @@ export class MeetAttendeesController {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(meetId);
-
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You are not an organizer in this organization",
-      );
-    }
+    this.assertCanAccessMeetAttendees(user, meet);
     return await this.meetsService.listAttendees(meetId, filter);
   }
 
@@ -173,8 +170,11 @@ export class MeetAttendeesController {
         meetId,
       });
 
-      // Mark the attendee as notified unless it's meet-signup (this does not count as notification)
-      await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
+      // A plain signup acknowledgement is not an organizer response.
+      // Only auto-confirmed signups should be marked as responded/notified here.
+      if (attendee.status === "confirmed" || attendee.status === "waitlisted") {
+        await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
+      }
     }
     return { attendee };
   }
@@ -205,20 +205,63 @@ export class MeetAttendeesController {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(meetId);
-
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You are not an organizer in this organization",
-      );
-    }
-
-    if (dto.status === "checked-in" && user.id !== meet.organizerId) {
-      throw new ForbiddenException(
-        "You cannot check in attendees for a meet you do not organize",
-      );
-    }
+    this.assertCanAccessMeetAttendees(user, meet);
 
     return this.meetsService.updateAttendee(meetId, attendeeId, dto);
+  }
+
+  @Get(":attendeeId/ice")
+  async getIceInfo(
+    @Param("meetId") meetId: string,
+    @Param("attendeeId") attendeeId: string,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(meetId);
+
+    if (!meet || user.id !== meet.organizerId) {
+      throw new ForbiddenException(
+        "Only the meet organizer can access ICE information",
+      );
+    }
+
+    if (!this.isMeetAccessDay(meet)) {
+      throw new ForbiddenException(
+        "ICE information is only available on the day of the meet",
+      );
+    }
+
+    const attendee = await this.meetsService.findAttendeeForEdit(
+      meetId,
+      attendeeId,
+    );
+    const linkedUserId = attendee?.attendee?.userId;
+
+    if (!linkedUserId) {
+      return { iceInfo: null };
+    }
+
+    const iceInfo = await this.usersService.findIceInfoByUserId(linkedUserId);
+    return { iceInfo };
+  }
+
+  @Get(":attendeeId/history")
+  async getHistory(
+    @Param("meetId") meetId: string,
+    @Param("attendeeId") attendeeId: string,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(meetId);
+    this.assertCanAccessMeetAttendees(user, meet);
+
+    const history = await this.meetsService.listAttendeeHistory(
+      meetId,
+      attendeeId,
+    );
+    return { history };
   }
 
   @Delete(":attendeeId")
@@ -230,12 +273,66 @@ export class MeetAttendeesController {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(meetId);
+    this.assertCanAccessMeetAttendees(user, meet);
+    return this.meetsService.removeAttendee(meetId, attendeeId);
+  }
 
+  private assertCanAccessMeetAttendees(
+    user: UserProfile,
+    meet: { organizationId?: string | null; organizerId?: string | null },
+  ) {
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
         "You are not an organizer in this organization",
       );
     }
-    return this.meetsService.removeAttendee(meetId, attendeeId);
+
+    if (
+      !this.authService.hasRole(user, meet.organizationId!, "admin") &&
+      user.id !== meet.organizerId
+    ) {
+      throw new ForbiddenException(
+        "You cannot access attendees for a meet you do not organize",
+      );
+    }
+  }
+
+  private isMeetAccessDay(
+    meet?: {
+      startTime?: string | null;
+      endTime?: string | null;
+      timeZone?: string | null;
+    } | null,
+  ) {
+    if (!meet?.startTime) {
+      return false;
+    }
+
+    const startTime = new Date(meet.startTime);
+    const endTime = meet.endTime ? new Date(meet.endTime) : startTime;
+    const now = new Date();
+
+    if (
+      Number.isNaN(startTime.getTime()) ||
+      Number.isNaN(endTime.getTime()) ||
+      Number.isNaN(now.getTime())
+    ) {
+      return false;
+    }
+
+    const timeZone = meet.timeZone || "UTC";
+    const formatDate = (value: Date) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(value);
+
+    const currentDate = formatDate(now);
+    const startDate = formatDate(startTime);
+    const endDate = formatDate(endTime);
+
+    return currentDate >= startDate && currentDate <= endDate;
   }
 }

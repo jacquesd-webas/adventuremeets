@@ -18,6 +18,7 @@ import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { UserProfile } from "../users/dto/user-profile.dto";
+import { UsersService } from "../users/users.service";
 
 describe("MeetAttendeesController", () => {
   let controller: MeetAttendeesController;
@@ -25,6 +26,7 @@ describe("MeetAttendeesController", () => {
   const meetsService = {
     findOne: jest.fn(),
     listAttendees: jest.fn(),
+    listAttendeeHistory: jest.fn(),
     findAttendeeByContact: jest.fn(),
     addAttendee: jest.fn(),
     autoPlaceAttendees: jest.fn(),
@@ -43,10 +45,21 @@ describe("MeetAttendeesController", () => {
     saveMessage: jest.fn(),
   } as unknown as EmailService;
 
+  const usersService = {
+    findIceInfoByUserId: jest.fn(),
+  } as unknown as UsersService;
+
   const user: UserProfile = {
     id: "user-1",
     email: "organizer@example.com",
     organizations: { "org-1": "organizer" },
+    pendingInvites: [],
+  };
+
+  const adminUser: UserProfile = {
+    id: "admin-1",
+    email: "admin@example.com",
+    organizations: { "org-1": "admin" },
     pendingInvites: [],
   };
 
@@ -74,6 +87,7 @@ describe("MeetAttendeesController", () => {
       meetsService,
       authService,
       emailService,
+      usersService,
     );
   });
 
@@ -90,6 +104,182 @@ describe("MeetAttendeesController", () => {
     await expect(
       controller.list("meet-1", "accepted", user),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("lists attendees for organizers using the requested filter", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.listAttendees as jest.Mock).mockResolvedValue({
+      attendees: [{ id: "attendee-1", status: "confirmed" }],
+    });
+
+    await expect(controller.list("meet-1", "confirmed", user)).resolves.toEqual(
+      {
+        attendees: [{ id: "attendee-1", status: "confirmed" }],
+      },
+    );
+
+    expect(meetsService.listAttendees).toHaveBeenCalledWith(
+      "meet-1",
+      "confirmed",
+    );
+  });
+
+  it("rejects attendee listing for another organizer in the same organization", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer",
+    );
+
+    await expect(
+      controller.list("meet-1", "confirmed", user),
+    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+  });
+
+  it("allows attendee listing for admins on another organizer's meet", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer" || role === "admin",
+    );
+    (meetsService.listAttendees as jest.Mock).mockResolvedValue({
+      attendees: [{ id: "attendee-1", status: "confirmed" }],
+    });
+
+    await expect(
+      controller.list("meet-1", "confirmed", adminUser),
+    ).resolves.toEqual({
+      attendees: [{ id: "attendee-1", status: "confirmed" }],
+    });
+  });
+
+  it("returns ICE info for the meet organizer on the meet day", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-04-14T06:00:00.000Z"));
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+      attendee: { userId: "user-2" },
+    });
+    (usersService.findIceInfoByUserId as jest.Mock).mockResolvedValue({
+      iceName: "Jordan Contact",
+    });
+
+    await expect(
+      controller.getIceInfo("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      iceInfo: { iceName: "Jordan Contact" },
+    });
+
+    jest.useRealTimers();
+  });
+
+  it("returns attendee history for the meet organizer", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.listAttendeeHistory as jest.Mock).mockResolvedValue([
+      {
+        meetId: "meet-2",
+        date: "2026-03-20T08:00:00.000Z",
+        meetName: "Cliff Walk",
+        attendeeStatus: "confirmed",
+      },
+    ]);
+
+    await expect(
+      controller.getHistory("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      history: [
+        {
+          meetId: "meet-2",
+          date: "2026-03-20T08:00:00.000Z",
+          meetName: "Cliff Walk",
+          attendeeStatus: "confirmed",
+        },
+      ],
+    });
+
+    expect(meetsService.listAttendeeHistory).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+    );
+  });
+
+  it("rejects attendee history access for non-organizers", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockReturnValue(false);
+
+    await expect(
+      controller.getHistory("meet-1", "attendee-1", user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("rejects attendee history access for another organizer in the same organization", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer",
+    );
+
+    await expect(
+      controller.getHistory("meet-1", "attendee-1", user),
+    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+  });
+
+  it("allows attendee history access for admins on another organizer's meet", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer" || role === "admin",
+    );
+    (meetsService.listAttendeeHistory as jest.Mock).mockResolvedValue([]);
+
+    await expect(
+      controller.getHistory("meet-1", "attendee-1", adminUser),
+    ).resolves.toEqual({ history: [] });
+  });
+
+  it("rejects ICE info access for an org admin who is not the meet organizer", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+
+    await expect(
+      controller.getIceInfo("meet-1", "attendee-1", adminUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("returns null ICE info when the attendee is not linked to a user", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-04-14T06:00:00.000Z"));
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+      attendee: { userId: null },
+    });
+
+    await expect(
+      controller.getIceInfo("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      iceInfo: null,
+    });
+
+    expect(usersService.findIceInfoByUserId).not.toHaveBeenCalled();
+    jest.useRealTimers();
+  });
+
+  it("rejects ICE info access outside the meet day", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-04-15T06:00:00.000Z"));
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+
+    await expect(
+      controller.getIceInfo("meet-1", "attendee-1", user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    jest.useRealTimers();
   });
 
   it("checks duplicates without including invited attendees", async () => {
@@ -113,15 +303,14 @@ describe("MeetAttendeesController", () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(null);
 
     await expect(
-      controller.add(
-        "missing-meet",
-        {},
-        { headers: {}, ip: "127.0.0.1" } as unknown as Request,
-      ),
+      controller.add("missing-meet", {}, {
+        headers: {},
+        ip: "127.0.0.1",
+      } as unknown as Request),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it("auto-places pending attendees and sends the status email", async () => {
+  it("sets respondedAt for auto-accepted attendees by marking them notified", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue({
       ...meet,
       autoPlacement: true,
@@ -192,7 +381,7 @@ describe("MeetAttendeesController", () => {
     );
   });
 
-  it("sends the signup email for pending attendees without auto-placement", async () => {
+  it("does not set respondedAt for plain signup acknowledgements without auto-placement", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (meetsService.addAttendee as jest.Mock).mockResolvedValue({
       attendee: { id: "attendee-2", status: "pending" },
@@ -209,11 +398,10 @@ describe("MeetAttendeesController", () => {
       phone: "+27129876543",
     };
 
-    await controller.add(
-      "meet-1",
-      dto,
-      { headers: {}, ip: "127.0.0.1" } as unknown as Request,
-    );
+    await controller.add("meet-1", dto, {
+      headers: {},
+      ip: "127.0.0.1",
+    } as unknown as Request);
 
     expect(meetsService.autoPlaceAttendees).not.toHaveBeenCalled();
     expect(renderEmailTemplate).toHaveBeenCalledWith(
@@ -223,10 +411,7 @@ describe("MeetAttendeesController", () => {
         attendeeName: dto.name,
       }),
     );
-    expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
-      "meet-1",
-      ["attendee-2"],
-    );
+    expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
   });
 
   it("skips email side effects when the attendee has no email address", async () => {
@@ -236,11 +421,10 @@ describe("MeetAttendeesController", () => {
     });
 
     await expect(
-      controller.add(
-        "meet-1",
-        { name: "Phone Only", phone: "+27123400000" },
-        { headers: {}, ip: "127.0.0.1" } as unknown as Request,
-      ),
+      controller.add("meet-1", { name: "Phone Only", phone: "+27123400000" }, {
+        headers: {},
+        ip: "127.0.0.1",
+      } as unknown as Request),
     ).resolves.toEqual({
       attendee: { id: "attendee-3", status: "pending" },
     });
@@ -290,7 +474,7 @@ describe("MeetAttendeesController", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it("delegates attendee updates for organizers", async () => {
+  it("delegates attendee updates for the meet organizer", async () => {
     const dto = { status: "checked-in" };
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (authService.hasRole as jest.Mock).mockReturnValue(true);
@@ -311,36 +495,38 @@ describe("MeetAttendeesController", () => {
     );
   });
 
-  it("rejects check-in updates from another organizer in the same organization", async () => {
-    const dto = { status: "checked-in" };
-    (meetsService.findOne as jest.Mock).mockResolvedValue({
-      ...meet,
-      organizerId: "user-2",
-    });
-    (authService.hasRole as jest.Mock).mockReturnValue(true);
-
-    await expect(
-      controller.update("meet-1", "attendee-1", dto, user),
-    ).rejects.toThrow(
-      "You cannot check in attendees for a meet you do not organize",
-    );
-  });
-
-  it("still allows non-check-in attendee updates from another organizer", async () => {
+  it("rejects attendee updates from another organizer in the same organization", async () => {
     const dto = { status: "confirmed" };
     (meetsService.findOne as jest.Mock).mockResolvedValue({
       ...meet,
       organizerId: "user-2",
     });
-    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer",
+    );
+
+    await expect(
+      controller.update("meet-1", "attendee-1", dto, user),
+    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+  });
+
+  it("allows attendee updates from an admin who is not the meet organizer", async () => {
+    const dto = { status: "checked-in" };
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer" || role === "admin",
+    );
     (meetsService.updateAttendee as jest.Mock).mockResolvedValue({
-      attendee: { id: "attendee-1", status: "confirmed" },
+      attendee: { id: "attendee-1", status: "checked-in" },
     });
 
     await expect(
       controller.update("meet-1", "attendee-1", dto, user),
     ).resolves.toEqual({
-      attendee: { id: "attendee-1", status: "confirmed" },
+      attendee: { id: "attendee-1", status: "checked-in" },
     });
 
     expect(meetsService.updateAttendee).toHaveBeenCalledWith(
@@ -351,9 +537,9 @@ describe("MeetAttendeesController", () => {
   });
 
   it("rejects unauthenticated attendee removal", async () => {
-    await expect(controller.remove("meet-1", "attendee-1")).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      controller.remove("meet-1", "attendee-1"),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it("rejects attendee removal for non-organizers", async () => {
@@ -382,5 +568,38 @@ describe("MeetAttendeesController", () => {
       "meet-1",
       "attendee-1",
     );
+  });
+
+  it("rejects attendee removal by another organizer in the same organization", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer",
+    );
+
+    await expect(
+      controller.remove("meet-1", "attendee-1", user),
+    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+  });
+
+  it("allows attendee removal by an admin on another organizer's meet", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      organizerId: "user-2",
+    });
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer" || role === "admin",
+    );
+    (meetsService.removeAttendee as jest.Mock).mockResolvedValue({
+      deleted: true,
+    });
+
+    await expect(
+      controller.remove("meet-1", "attendee-1", adminUser),
+    ).resolves.toEqual({
+      deleted: true,
+    });
   });
 });

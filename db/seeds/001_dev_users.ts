@@ -13,6 +13,17 @@ const users = [
 const organizations = ["Summit Explorers", "Trailblazers Club", "Weekend Adventurers"];
 
 export async function seed(knex: Knex): Promise<void> {
+  await knex("wall_item_likes").del();
+  await knex("wall_item").del();
+  await knex("messages").del();
+  await knex("message_contents").del();
+  await knex("meet_attendee_indemnity_acceptances").del();
+  await knex("meet_meta_values").del();
+  await knex("meet_meta_definitions").del();
+  await knex("meet_images").del();
+  await knex("meet_attendees").del();
+  await knex("meets").del();
+  await knex("invite_links").del();
   await knex("user_meta_values").del();
   await knex("organization_meta_definitions").del();
   await knex("user_organization_memberships").del();

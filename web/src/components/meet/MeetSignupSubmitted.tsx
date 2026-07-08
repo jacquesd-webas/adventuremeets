@@ -1,7 +1,9 @@
 import {
   Box,
   Button,
+  Checkbox,
   Container,
+  FormControlLabel,
   Paper,
   Stack,
   Tooltip,
@@ -9,8 +11,11 @@ import {
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "../../context/authContext";
 import { GuestInput } from "../../types/GuestInput";
+import { useCopyMyMetaValuesFromAttendee } from "../../hooks/useCopyMyMetaValuesFromAttendee";
+import { useNotistack } from "../../hooks/useNotistack";
 
 type MeetSignupSubmittedProps = {
   firstName?: string;
@@ -24,6 +29,7 @@ type MeetSignupSubmittedProps = {
   shareCode?: string;
   hasIndemnity: boolean;
   guests?: GuestInput[];
+  isMinor?: boolean;
   isGuest?: boolean;
   isOrganizationPrivate?: boolean;
   isPreview?: boolean;
@@ -40,6 +46,7 @@ export function MeetSignupSubmitted({
   attendeeId,
   shareCode,
   hasIndemnity,
+  isMinor = false,
   isGuest = false,
   guests = [],
   isOrganizationPrivate = false,
@@ -47,6 +54,11 @@ export function MeetSignupSubmitted({
 }: MeetSignupSubmittedProps) {
   const nav = useNavigate();
   const { isAuthenticated } = useAuth();
+  const notice = useNotistack();
+  const [rememberAnswers, setRememberAnswers] = useState(false);
+  const [rememberAnswersSaved, setRememberAnswersSaved] = useState(false);
+  const { copyMyMetaValuesFromAttendeeAsync, isLoading: isCopying } =
+    useCopyMyMetaValuesFromAttendee();
 
   const handleCreateProfile = () => {
     nav("/register", {
@@ -101,6 +113,30 @@ export function MeetSignupSubmitted({
 
   const hasMinorIndemnity =
     hasIndemnity && guests.some((guest) => guest.isMinor);
+  const canRememberAnswers =
+    isAuthenticated &&
+    !isGuest &&
+    !isMinor &&
+    !isPreview &&
+    Boolean(meetId && attendeeId);
+
+  const handleRememberAnswersChange = async (checked: boolean) => {
+    if (!checked || !meetId || !attendeeId) {
+      setRememberAnswers(false);
+      return;
+    }
+
+    setRememberAnswers(true);
+    try {
+      await copyMyMetaValuesFromAttendeeAsync({ meetId, attendeeId });
+      setRememberAnswersSaved(true);
+      notice.success("Answers saved for future signups");
+    } catch (err: any) {
+      setRememberAnswers(false);
+      setRememberAnswersSaved(false);
+      notice.error(err?.message || "Unable to save answers");
+    }
+  };
 
   return (
     <Container maxWidth="md" sx={{ py: 6 }}>
@@ -126,6 +162,21 @@ export function MeetSignupSubmitted({
             Your application has been submitted. You will be notified by the
             organizer when meet attendance has been finalized.
           </Typography>
+          {canRememberAnswers ? (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberAnswers}
+                  disabled={isCopying || rememberAnswersSaved}
+                  onChange={(event) =>
+                    void handleRememberAnswersChange(event.target.checked)
+                  }
+                />
+              }
+              label="Remember my answers"
+              sx={{ alignSelf: "center", m: 0 }}
+            />
+          ) : null}
           {isAuthenticated ? (
             <Tooltip
               title={isPreview ? "Can't show status in preview mode" : ""}

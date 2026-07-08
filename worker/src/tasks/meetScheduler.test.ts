@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const buildMockDb = (pluckResults: string[][]) => {
   const builder: any = {
     where: vi.fn().mockReturnThis(),
+    orWhere: vi.fn().mockReturnThis(),
     whereNotNull: vi.fn().mockReturnThis(),
     whereIn: vi.fn().mockReturnThis(),
     whereRaw: vi.fn().mockReturnThis(),
@@ -16,6 +17,7 @@ const buildMockDb = (pluckResults: string[][]) => {
 
   const db: any = vi.fn(() => builder);
   db.fn = { now: vi.fn(() => "now") };
+  db.raw = vi.fn((value: string) => value);
   db.destroy = vi.fn();
 
   return { db, builder };
@@ -101,5 +103,72 @@ describe("runMeetScheduler", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(db.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes meets only when confirmed plus waitlisted attendees fill capacity and waitlist", async () => {
+    vi.resetModules();
+    const { db, builder } = buildMockDb([[], [], ["m3"]]);
+    const knexModule = await import("knex");
+    (knexModule.default as any).mockReturnValue(db);
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: vi.fn() });
+    (global as any).fetch = fetchMock;
+
+    const { runMeetScheduler } = await import("./meetScheduler");
+    await runMeetScheduler();
+
+    expect(builder.where).toHaveBeenCalledWith("m.capacity", ">", 0);
+    expect(builder.whereRaw).toHaveBeenCalledWith(
+      "coalesce(ma.confirmed_count, 0) + coalesce(ma.waitlist_count, 0) >= m.capacity + m.waitlist_size",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api.test/api/v1/meets/m3/status",
+      expect.objectContaining({
+        method: "PATCH",
+      }),
+    );
+  });
+
+  it("closes open meets when either the closing date or start date has passed", async () => {
+    vi.resetModules();
+    const { db, builder } = buildMockDb([[], ["m2"], []]);
+    const knexModule = await import("knex");
+    (knexModule.default as any).mockReturnValue(db);
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: vi.fn() });
+    (global as any).fetch = fetchMock;
+
+    const { runMeetScheduler } = await import("./meetScheduler");
+    await runMeetScheduler();
+
+    const groupedWhereCall = builder.where.mock.calls.find((call: unknown[]) => {
+      const [firstArg] = call;
+      return typeof firstArg === "function";
+    });
+    expect(groupedWhereCall).toBeTruthy();
+
+    const nestedBuilder = {
+      where: vi.fn().mockReturnThis(),
+      orWhere: vi.fn().mockReturnThis(),
+    };
+    groupedWhereCall?.[0](nestedBuilder);
+
+    expect(nestedBuilder.where).toHaveBeenCalledWith(
+      "closing_date",
+      "<=",
+      "now",
+    );
+    expect(nestedBuilder.orWhere).toHaveBeenCalledWith(
+      "start_time",
+      "<=",
+      "now",
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api.test/api/v1/meets/m2/status",
+      expect.objectContaining({
+        method: "PATCH",
+      }),
+    );
   });
 });

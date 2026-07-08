@@ -27,6 +27,7 @@ import { MainLayoutOutletContext } from "../layout/MainLayout";
 import { useAuth } from "../context/authContext";
 import { getMeetPermissions } from "../helpers/meetPermissions";
 import { MeetSearchField } from "../components/meet/MeetSearchField";
+import { isMeetUpcoming } from "../helpers/meetTime";
 
 function ListPage() {
   const theme = useTheme();
@@ -131,7 +132,7 @@ function ListPage() {
         hideable: false,
         headerAlign: "right",
         align: "right",
-        renderCell: (params: GridRenderCellParams) => (
+        renderCell: (params: GridRenderCellParams) =>
           (() => {
             const { canManageMeet, canViewMeet } = getMeetPermissions({
               currentUserId: user?.id,
@@ -141,7 +142,11 @@ function ListPage() {
 
             return (
               <Box
-                sx={{ display: "flex", justifyContent: "flex-end", width: "100%" }}
+                sx={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  width: "100%",
+                }}
                 onClick={(event) => event.stopPropagation()}
               >
                 <MeetActionsMenu
@@ -149,14 +154,15 @@ function ListPage() {
                   statusId={params.row.statusId}
                   canViewMeet={canViewMeet}
                   canManageMeet={canManageMeet}
+                  isUpcoming={isMeetUpcoming(params.row)}
+                  startTime={params.row.startTime}
                   setSelectedMeetId={setSelectedMeetId}
                   setPendingAction={setPendingAction}
                   previewLinkCode={params.row.shareCode}
                 />
               </Box>
             );
-          })()
-        ),
+          })(),
       },
     ],
     [currentOrganizationRole, setPendingAction, setSelectedMeetId, user?.id],
@@ -307,8 +313,20 @@ function ListPage() {
             disableColumnFilter
             disableRowSelectionOnClick
             onRowClick={(params) => {
+              const { canManageMeet } = getMeetPermissions({
+                currentUserId: user?.id,
+                currentOrganizationRole,
+                organizerId: params.row.organizerId,
+              });
               setSelectedMeetId(params.row.id);
-              setPendingAction(defaultPendingAction(params.row.statusId));
+              setPendingAction(
+                defaultPendingAction(
+                  params.row.statusId,
+                  params.row.organizerId === user?.id,
+                  params.row,
+                  { canManageMeet },
+                ),
+              );
             }}
             sx={(theme) => ({
               bgcolor:
@@ -350,7 +368,7 @@ function ListPage() {
               </Typography>
             </Paper>
           )}
-          {meets.map((meet) => (
+          {meets.map((meet) =>
             (() => {
               const { canManageMeet, canViewMeet } = getMeetPermissions({
                 currentUserId: user?.id,
@@ -363,8 +381,20 @@ function ListPage() {
                   key={meet.id}
                   variant="outlined"
                   onClick={() => {
+                    const { canManageMeet } = getMeetPermissions({
+                      currentUserId: user?.id,
+                      currentOrganizationRole,
+                      organizerId: meet.organizerId,
+                    });
                     setSelectedMeetId(meet.id);
-                    setPendingAction(defaultPendingAction(meet.statusId));
+                    setPendingAction(
+                      defaultPendingAction(
+                        meet.statusId,
+                        meet.organizerId === user?.id,
+                        meet,
+                        { canManageMeet },
+                      ),
+                    );
                   }}
                   sx={{
                     p: 1.5,
@@ -385,6 +415,8 @@ function ListPage() {
                           statusId={meet.statusId}
                           canViewMeet={canViewMeet}
                           canManageMeet={canManageMeet}
+                          isUpcoming={isMeetUpcoming(meet)}
+                          startTime={meet.startTime}
                           setSelectedMeetId={setSelectedMeetId}
                           setPendingAction={setPendingAction}
                           previewLinkCode={meet.shareCode || undefined}
@@ -414,9 +446,13 @@ function ListPage() {
                   </Stack>
                 </Paper>
               );
-            })()
-          ))}
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            })(),
+          )}
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+          >
             <Button
               variant="outlined"
               onClick={() =>
@@ -451,6 +487,7 @@ function ListPage() {
         meetId={selectedMeetId}
         canViewMeet={selectedMeetPermissions.canViewMeet}
         canManageMeet={selectedMeetPermissions.canManageMeet}
+        isOrganizer={selectedMeetPermissions.isOrganizerForMeet}
         pendingAction={pendingAction || undefined}
         setPendingAction={setPendingAction}
         setSelectedMeetId={setSelectedMeetId}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -9,11 +9,13 @@ import {
   Step,
   StepLabel,
   Stepper,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import VerticalSplitOutlinedIcon from "@mui/icons-material/VerticalSplitOutlined";
 import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
 import ErrorIcon from "@mui/icons-material/Error";
@@ -27,7 +29,6 @@ import { CostsStep } from "./CostsStep";
 import { ResponsesStep } from "./ResponsesStep";
 import { FinishStep } from "./FinishStep";
 import { ImageStep } from "./ImageStep";
-import { useApi } from "../../hooks/useApi";
 import { useSaveMeet, SaveMeetPayload } from "../../hooks/useSaveMeet";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
@@ -48,6 +49,10 @@ import {
 import { useCurrentOrganization } from "../../context/organizationContext";
 import { LockedMeet } from "./LockedMeet";
 import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
+import MeetImage from "../../types/MeetImageModel";
+import { writeCreateMeetPreviewRestore } from "./createMeetPreviewRestore";
+import { buildMeetQuestionFieldKey } from "../../helpers/meetQuestionFieldKey";
+import { useNavigate } from "react-router-dom";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -84,13 +89,20 @@ export function CreateMeetModal({
   const [isLoadingMeet, setIsLoadingMeet] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [isHelpEnabled, setIsHelpEnabled] = useState(false);
+  const [helpBannerState, setHelpBannerState] = useState<
+    Record<number, boolean>
+  >({});
+  const [isAdminUnlockEnabled, setIsAdminUnlockEnabled] = useState(false);
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const api = useApi();
+  const previewRestoreAppliedRef = useRef(false);
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
+  const nav = useNavigate();
   const { currentOrganizationId } = useCurrentOrganization();
+
   const statusId =
     typeof state.statusId === "number"
       ? state.statusId
@@ -118,12 +130,38 @@ export function CreateMeetModal({
         fetchedMeet.organizerId === user.id),
     );
   }, [fetchedMeet?.organizerId, isEditing, isOrganizer, user?.id]);
-  const isMeetLocked = isEditing && !isOrganizerForEditingMeet;
+  const canUnlockEditingMeet = Boolean(
+    isEditing && !isOrganizerForEditingMeet && canManageMeet,
+  );
+  const canManageEditingMeet =
+    isOrganizerForEditingMeet || isAdminUnlockEnabled;
+  const isMeetLocked = isEditing && !canManageEditingMeet;
+
+  const syncImagesToState = useCallback((images: MeetImage[]) => {
+    const primaryImage = images.find((image) => image.isPrimary) ?? images[0];
+    const apply = (prev: CreateMeetState) => ({
+      ...prev,
+      imageFile: null,
+      imagePreview: primaryImage?.url ?? "",
+      imageCount: images.length,
+    });
+    setState(apply);
+    setBaselineState(apply);
+  }, []);
 
   // Reset to first step when opened/closed
   useEffect(() => {
-    if (!open) setActiveStep(0);
+    if (!open) {
+      setActiveStep(0);
+      setHelpBannerState({});
+      setIsAdminUnlockEnabled(false);
+      previewRestoreAppliedRef.current = false;
+    }
   }, [open]);
+
+  const dismissHelpBanner = useCallback((step: number) => {
+    setHelpBannerState((prev) => ({ ...prev, [step]: true }));
+  }, []);
 
   // Reset show/hide steps when screen size changes
   useEffect(() => {
@@ -233,14 +271,16 @@ export function CreateMeetModal({
     const hasLimits =
       Number(state.capacity) > 0 ||
       Boolean(state.openingDate) ||
-      Boolean(state.closingDate);
+      Boolean(state.closingDate) ||
+      state.allowSelfCheckin ||
+      state.allowWalkins;
     const hasCost =
       state.costCents !== "" && !Number.isNaN(Number(state.costCents));
     const hasResponse =
       Boolean(state.approvedResponse?.trim()) ||
       Boolean(state.rejectResponse?.trim()) ||
       Boolean(state.waitlistResponse?.trim());
-    const hasImage = Boolean(state.imageFile || state.imagePreview);
+    const hasImage = state.imageCount > 0;
     const isPublished =
       (state.statusId ?? null) !== null && state.statusId !== 1;
 
@@ -268,12 +308,14 @@ export function CreateMeetModal({
     state.closingDate,
     state.capacity,
     state.waitlistSize,
+    state.allowSelfCheckin,
+    state.allowWalkins,
     state.costCents,
     state.approvedResponse,
     state.rejectResponse,
     state.waitlistResponse,
     state.statusId,
-    state.imageFile,
+    state.imageCount,
     state.imagePreview,
     meetId,
     shareCode,
@@ -344,7 +386,9 @@ export function CreateMeetModal({
         return {
           metaDefinitions: draft.questions.map((question, index) => ({
             id: question.id,
-            fieldKey: question.fieldKey || question.id || `field_${index + 1}`,
+            fieldKey: draft.organizationId
+              ? buildMeetQuestionFieldKey(draft.organizationId, question.label)
+              : question.fieldKey || question.id || `field_${index + 1}`,
             label: question.label,
             fieldType: question.type,
             required: Boolean(question.required),
@@ -373,6 +417,8 @@ export function CreateMeetModal({
           autoPlacement: draft.autoApprove,
           autoPromoteWaitlist: draft.autoCloseWaitlist,
           allowGuests: draft.allowGuests,
+          allowSelfCheckin: draft.allowSelfCheckin,
+          allowWalkins: draft.allowWalkins,
           maxGuests:
             draft.maxGuests === "" ? undefined : Number(draft.maxGuests),
         };
@@ -397,32 +443,6 @@ export function CreateMeetModal({
 
   // Save method for each step
   const handleSaveStep = async (step: number) => {
-    if (step === 7 && meetId) {
-      if (!state.imageFile) {
-        return false;
-      }
-      const formData = new FormData();
-      formData.append("file", state.imageFile);
-      formData.append("isPrimary", "true");
-      const headers: Record<string, string> = {};
-      const token =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("accessToken")
-          : null;
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-      const res = await fetch(`${api.baseUrl}/meets/${meetId}/images`, {
-        method: "POST",
-        headers,
-        body: formData,
-      });
-      if (!res.ok) {
-        const message = await res.text();
-        throw new Error(message || "Failed to upload image");
-      }
-      return true;
-    }
     const payload = buildPayloadForStep(state, meetId ? step : 0);
     if (Object.keys(payload).length === 0) {
       return false;
@@ -541,6 +561,17 @@ export function CreateMeetModal({
     }
   };
 
+  const handlePreview = () => {
+    if (!shareCode || typeof window === "undefined") return;
+    writeCreateMeetPreviewRestore({
+      meetId,
+    });
+    const params = new URLSearchParams({
+      preview: "true",
+    });
+    nav(`/meets/${shareCode}?${params.toString()}`);
+  };
+
   // User clicks "Next"
   const handleNext = async () => {
     setIsSubmitting(true);
@@ -580,7 +611,12 @@ export function CreateMeetModal({
 
   // User manually selects step
   const handleStepChange = (target: number) => {
-    if (target === activeStep) return;
+    if (target === activeStep) {
+      if (fullScreen) {
+        setShowSteps(false);
+      }
+      return;
+    }
     if (isDirty) {
       setPendingStep(target);
       setDirtyDialogOpen(true);
@@ -666,6 +702,9 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[0])}
+            onDismissHelpBanner={() => dismissHelpBanner(0)}
           />
         );
       }
@@ -676,6 +715,9 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[1])}
+            onDismissHelpBanner={() => dismissHelpBanner(1)}
           />
         );
       case 2:
@@ -685,6 +727,9 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
             disableIndemnityText={isIndemnityLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[2])}
+            onDismissHelpBanner={() => dismissHelpBanner(2)}
           />
         );
       case 3:
@@ -693,6 +738,9 @@ export function CreateMeetModal({
             state={state}
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[3])}
+            onDismissHelpBanner={() => dismissHelpBanner(3)}
           />
         );
       case 4:
@@ -702,6 +750,9 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[4])}
+            onDismissHelpBanner={() => dismissHelpBanner(4)}
           />
         );
       case 5:
@@ -710,6 +761,9 @@ export function CreateMeetModal({
             state={state}
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[5])}
+            onDismissHelpBanner={() => dismissHelpBanner(5)}
           />
         );
       case 6:
@@ -718,14 +772,20 @@ export function CreateMeetModal({
             state={state}
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[6])}
+            onDismissHelpBanner={() => dismissHelpBanner(6)}
           />
         );
       case 7:
         return (
           <ImageStep
-            state={state}
-            setState={(fn) => setState(fn)}
+            meetId={meetId}
+            onImagesChange={syncImagesToState}
             disabled={isMeetLocked}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[7])}
+            onDismissHelpBanner={() => dismissHelpBanner(7)}
           />
         );
       case 8:
@@ -737,6 +797,10 @@ export function CreateMeetModal({
             shareCode={shareCode}
             disabled={isMeetLocked}
             isEditing={isEditing}
+            onPreview={handlePreview}
+            isHelpEnabled={isHelpEnabled}
+            isHelpBannerDismissed={Boolean(helpBannerState[8])}
+            onDismissHelpBanner={() => dismissHelpBanner(8)}
           />
         );
       default:
@@ -745,6 +809,55 @@ export function CreateMeetModal({
         );
     }
   };
+
+  const renderStepNavigation = () => (
+    <Stepper activeStep={activeStep} orientation="vertical" nonLinear>
+      {steps.map((label, index) => (
+        <Step key={label} completed={completedSteps.includes(index + 1)}>
+          <StepLabel
+            icon={
+              errorSteps.has(index) ? (
+                <ErrorIcon
+                  color="error"
+                  sx={{
+                    fontSize: 28,
+                    transform: "translateX(-1px)",
+                  }}
+                />
+              ) : (
+                index + 1
+              )
+            }
+            onClick={() => handleStepChange(index)}
+            sx={{
+              cursor: "pointer",
+              "& .MuiStepLabel-label": {
+                color: errorSteps.has(index) ? "error.main" : "inherit",
+              },
+            }}
+          >
+            <Box component="span">
+              {label}
+              {requiredStepNumbers.has(index + 1) ? (
+                <Box
+                  component="span"
+                  aria-hidden="true"
+                  sx={{
+                    color: "error.main",
+                    ml: 0.25,
+                    fontSize: "1.35em",
+                    lineHeight: 1,
+                  }}
+                >
+                  *
+                </Box>
+              ) : null}
+            </Box>
+          </StepLabel>
+        </Step>
+      ))}
+    </Stepper>
+  );
 
   if (!open) return null;
 
@@ -772,6 +885,7 @@ export function CreateMeetModal({
             display: "flex",
             flexDirection: "column",
             borderRadius: fullScreen ? 0 : 3,
+            minHeight: 0,
           }}
         >
           <Stack
@@ -784,7 +898,25 @@ export function CreateMeetModal({
               {meetId ? "Edit meet" : "New meet"}
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
-              {isMeetLocked ? <LockedMeet canUnlock={canManageMeet} /> : null}
+              <Tooltip title={isHelpEnabled ? "Turn off help" : "Turn on help"}>
+                <IconButton
+                  onClick={() => setIsHelpEnabled((prev) => !prev)}
+                  aria-label={isHelpEnabled ? "Turn off help" : "Turn on help"}
+                  color={isHelpEnabled ? "primary" : "default"}
+                >
+                  <HelpOutlineIcon />
+                </IconButton>
+              </Tooltip>
+              {isEditing && !isOrganizerForEditingMeet ? (
+                <LockedMeet
+                  canUnlock={canUnlockEditingMeet}
+                  onUnlock={
+                    canUnlockEditingMeet
+                      ? () => setIsAdminUnlockEnabled(true)
+                      : undefined
+                  }
+                />
+              ) : null}
 
               <IconButton
                 onClick={() => setShowSteps((prev) => !prev)}
@@ -808,10 +940,10 @@ export function CreateMeetModal({
           )}
           <Stack
             direction="row"
-            spacing={showSteps ? 3 : 0}
-            sx={{ flex: 1, overflow: "hidden" }}
+            spacing={!fullScreen && showSteps ? 3 : 0}
+            sx={{ flex: 1, overflow: "hidden", position: "relative" }}
           >
-            {showSteps && (
+            {!fullScreen && showSteps && (
               <Box
                 sx={{
                   minWidth: 220,
@@ -820,118 +952,128 @@ export function CreateMeetModal({
                   borderColor: "divider",
                 }}
               >
-                <Stepper
-                  activeStep={activeStep}
-                  orientation="vertical"
-                  nonLinear
-                >
-                  {steps.map((label, index) => (
-                    <Step
-                      key={label}
-                      completed={completedSteps.includes(index + 1)}
-                    >
-                      <StepLabel
-                        icon={
-                          errorSteps.has(index) ? (
-                            <ErrorIcon
-                              color="error"
-                              sx={{
-                                fontSize: 28,
-                                transform: "translateX(-1px)",
-                              }}
-                            />
-                          ) : (
-                            index + 1
-                          )
-                        }
-                        onClick={() => handleStepChange(index)}
-                        sx={{
-                          cursor: "pointer",
-                          "& .MuiStepLabel-label": {
-                            color: errorSteps.has(index)
-                              ? "error.main"
-                              : "inherit",
-                          },
-                        }}
-                      >
-                        <Box component="span">
-                          {label}
-                          {requiredStepNumbers.has(index + 1) ? (
-                            <Box
-                              component="span"
-                              aria-hidden="true"
-                              sx={{
-                                color: "error.main",
-                                ml: 0.25,
-                                fontSize: "1.35em",
-                                lineHeight: 1,
-                              }}
-                            >
-                              *
-                            </Box>
-                          ) : null}
-                        </Box>
-                      </StepLabel>
-                    </Step>
-                  ))}
-                </Stepper>
+                {renderStepNavigation()}
               </Box>
             )}
-            <Stack sx={{ flex: 1, minHeight: 0 }}>
-              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+            {fullScreen && showSteps ? (
+              <>
+                <Box
+                  onClick={() => setShowSteps(false)}
+                  sx={{
+                    position: "absolute",
+                    inset: 0,
+                    bgcolor: "rgba(15,23,42,0.28)",
+                    zIndex: 1,
+                  }}
+                />
+                <Box
+                  data-testid="create-meet-steps-drawer"
+                  sx={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    zIndex: 2,
+                    width: "min(280px, 80vw)",
+                    px: 2,
+                    py: 1,
+                    bgcolor: "background.paper",
+                    borderRight: 1,
+                    borderColor: "divider",
+                    boxShadow: 6,
+                    overflowY: "auto",
+                  }}
+                >
+                  {renderStepNavigation()}
+                </Box>
+              </>
+            ) : null}
+            <Stack sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: "auto",
+                  pr: fullScreen ? 0 : 1,
+                  pb: fullScreen ? 2 : 0,
+                }}
+              >
                 {renderStep()}
               </Box>
               <Box
                 sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
                   pt: 2,
+                  mt: 1,
                   borderTop: 1,
                   borderColor: "divider",
+                  position: fullScreen ? "sticky" : "static",
+                  bottom: 0,
+                  backgroundColor: "inherit",
+                  zIndex: 1,
                 }}
               >
-                <Button
-                  variant="text"
-                  disabled={activeStep === 0}
-                  onClick={handlePrev}
+                <Box
+                  sx={
+                    fullScreen
+                      ? {
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(180px, 1fr))",
+                          gap: 1,
+                        }
+                      : {
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 1,
+                        }
+                  }
                 >
-                  Previous
-                </Button>
-                <Stack direction="row" spacing={1}>
-                  <LockedTooltipWrapper isReadOnly={isMeetLocked}>
-                    <Button
-                      variant="contained"
-                      onClick={
-                        isLastStep
-                          ? isDraft
-                            ? handlePublish
-                            : isPostponed
+                  <Button
+                    variant="outlined"
+                    disabled={activeStep === 0}
+                    onClick={handlePrev}
+                    sx={fullScreen ? { width: "100%" } : undefined}
+                  >
+                    Previous
+                  </Button>
+                  <Box sx={fullScreen ? { width: "100%" } : undefined}>
+                    <LockedTooltipWrapper isReadOnly={isMeetLocked}>
+                      <Button
+                        variant="contained"
+                        onClick={
+                          isLastStep
+                            ? isDraft
                               ? handlePublish
-                              : handleSaveAndClose
-                          : handleNext
-                      }
-                      disabled={
-                        isMeetLocked ||
-                        isSubmitting ||
-                        isLoadingMeet ||
-                        isPublishing ||
-                        (finalErrors && finalErrors.length > 0)
-                      }
-                    >
-                      {isLastStep
-                        ? isDraft || isPostponed
-                          ? isPublishing
-                            ? "Publishing..."
-                            : "Publish"
+                              : isPostponed
+                                ? handlePublish
+                                : handleSaveAndClose
+                            : handleNext
+                        }
+                        disabled={
+                          isMeetLocked ||
+                          isSubmitting ||
+                          isLoadingMeet ||
+                          isPublishing ||
+                          (finalErrors && finalErrors.length > 0)
+                        }
+                        sx={fullScreen ? { width: "100%" } : undefined}
+                      >
+                        {isLastStep
+                          ? isDraft || isPostponed
+                            ? isPublishing
+                              ? "Publishing..."
+                              : "Publish"
+                            : isSubmitting
+                              ? "Saving..."
+                              : "Save & Close"
                           : isSubmitting
                             ? "Saving..."
-                            : "Save & Close"
-                        : isSubmitting
-                          ? "Saving..."
-                          : "Save & Continue"}
-                    </Button>
-                  </LockedTooltipWrapper>
-                </Stack>
+                            : "Save & Continue"}
+                      </Button>
+                    </LockedTooltipWrapper>
+                  </Box>
+                </Box>
               </Box>
             </Stack>
           </Stack>

@@ -133,7 +133,7 @@ export function useCheckinAttendees(meetId?: string | null) {
         });
       });
       refreshQueue();
-      await flushQueue();
+      void flushQueue();
     },
   });
 

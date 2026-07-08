@@ -21,7 +21,6 @@ import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import Meet from "../../types/MeetModel";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
-import { useQueryClient } from "@tanstack/react-query";
 
 type MessageModalProps = {
   open: boolean;
@@ -41,6 +40,14 @@ type MessageModalProps = {
   includeStatusUrl?: boolean;
 };
 
+function isConfirmedAttendeeStatus(status?: string) {
+  return (
+    status === AttendeeStatusEnum.Confirmed ||
+    status === AttendeeStatusEnum.CheckedIn ||
+    status === AttendeeStatusEnum.Attended
+  );
+}
+
 export function MessageModal({
   open,
   onClose,
@@ -53,7 +60,6 @@ export function MessageModal({
 }: MessageModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const { notifyAttendeeAsync, isLoading } = useNotifyAttendee();
   const [subject, setSubject] = useState(defaultSubject);
@@ -64,6 +70,7 @@ export function MessageModal({
   const [error, setError] = useState<string | null>(null);
   const [markAsNotified, setMarkAsNotified] = useState(false);
   const [includeConfirmed, setIncludeConfirmed] = useState(true);
+  const [includeInvited, setIncludeInvited] = useState(false);
   const [includeWaitlisted, setIncludeWaitlisted] = useState(false);
   const [includeRejected, setIncludeRejected] = useState(false);
 
@@ -72,6 +79,7 @@ export function MessageModal({
       ? (attendees?.find((att) => att.id === attendeeIds[0])
           ?.status as AttendeeStatusEnum)
       : undefined;
+
   const defaultMessageOptions = useMemo(
     () => ({
       meetName: meet?.name,
@@ -88,6 +96,10 @@ export function MessageModal({
   );
   const singleAttendeeDefault = useDefaultMessage(
     attendeeStatus,
+    defaultMessageOptions,
+  );
+  const invitedDefault = useDefaultMessage(
+    AttendeeStatusEnum.Invited,
     defaultMessageOptions,
   );
   const confirmedDefault = useDefaultMessage(
@@ -109,24 +121,29 @@ export function MessageModal({
       }
 
       const selectedDefaults = [];
+      if (includeInvited)
+        selectedDefaults.push({ label: "Invited", ...invitedDefault });
       if (includeConfirmed)
         selectedDefaults.push({ label: "Confirmed", ...confirmedDefault });
       if (includeWaitlisted)
         selectedDefaults.push({ label: "Waitlisted", ...waitlistedDefault });
       if (includeRejected)
         selectedDefaults.push({ label: "Rejected", ...rejectedDefault });
+      const availableDefaults = selectedDefaults.filter(
+        (item) => item.subject.trim() && item.content.trim(),
+      );
 
-      if (selectedDefaults.length === 1) {
+      if (availableDefaults.length === 1) {
         return {
-          subject: selectedDefaults[0].subject,
-          content: selectedDefaults[0].content,
+          subject: availableDefaults[0].subject,
+          content: availableDefaults[0].content,
         };
       }
 
-      if (selectedDefaults.length > 1) {
+      if (availableDefaults.length > 1) {
         return {
           subject: "Meet attendance update",
-          content: selectedDefaults
+          content: availableDefaults
             .map((item) => `${item.label} attendees:\n${item.content}`)
             .join("\n\n"),
         };
@@ -135,14 +152,25 @@ export function MessageModal({
       return { subject: "", content: "" };
     }, [
       attendeeIds,
+      includeInvited,
       includeConfirmed,
       includeRejected,
       includeWaitlisted,
       singleAttendeeDefault,
+      invitedDefault,
       confirmedDefault,
       waitlistedDefault,
       rejectedDefault,
     ]);
+  const hasInvitedAttendees = useMemo(
+    () =>
+      Boolean(
+        attendees?.some(
+          (attendee) => attendee.status === AttendeeStatusEnum.Invited,
+        ),
+      ),
+    [attendees],
+  );
   const selectedAttendees = useMemo(() => {
     if (!attendees?.length) return [];
     if (attendeeIds && attendeeIds.length) {
@@ -150,28 +178,18 @@ export function MessageModal({
     }
     return attendees.filter((att) => {
       const status = att.status as AttendeeStatusEnum;
-      if (
-        includeConfirmed &&
-        [
-          AttendeeStatusEnum.Confirmed,
-          AttendeeStatusEnum.CheckedIn,
-          AttendeeStatusEnum.Attended,
-        ].includes(status)
-      )
-        return true;
+      if (includeInvited && status === AttendeeStatusEnum.Invited) return true;
+      if (includeConfirmed && isConfirmedAttendeeStatus(status)) return true;
       if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
         return true;
-      if (
-        includeRejected &&
-        (status === AttendeeStatusEnum.Rejected ||
-          status === AttendeeStatusEnum.Cancelled)
-      )
+      if (includeRejected && status === AttendeeStatusEnum.Rejected)
         return true;
       return false;
     });
   }, [
     attendees,
     attendeeIds,
+    includeInvited,
     includeConfirmed,
     includeWaitlisted,
     includeRejected,
@@ -185,7 +203,18 @@ export function MessageModal({
       setSubject(defaultAutoSubject);
       setBody(defaultAutoContent);
     }
-  }, [autoResponse, defaultAutoSubject, defaultAutoContent]);
+  }, [
+    autoResponse,
+    attendeeIds,
+    attendeeStatus,
+    defaultAutoSubject,
+    defaultAutoContent,
+    includeInvited,
+    includeConfirmed,
+    includeWaitlisted,
+    includeRejected,
+    selectedAttendees,
+  ]);
 
   const reset = () => {
     setSubject(defaultSubject);
@@ -196,6 +225,7 @@ export function MessageModal({
     setError(null);
     setMarkAsNotified(false);
     setIncludeConfirmed(true);
+    setIncludeInvited(false);
     setIncludeWaitlisted(false);
     setIncludeRejected(false);
   };
@@ -211,22 +241,13 @@ export function MessageModal({
         : (attendees || [])
             .filter((att) => {
               const status = att.status as AttendeeStatusEnum;
-              if (
-                includeConfirmed &&
-                [
-                  AttendeeStatusEnum.Confirmed,
-                  AttendeeStatusEnum.CheckedIn,
-                  AttendeeStatusEnum.Attended,
-                ].includes(status)
-              )
+              if (includeInvited && status === AttendeeStatusEnum.Invited)
+                return true;
+              if (includeConfirmed && isConfirmedAttendeeStatus(status))
                 return true;
               if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
                 return true;
-              if (
-                includeRejected &&
-                (status === AttendeeStatusEnum.Rejected ||
-                  status === AttendeeStatusEnum.Cancelled)
-              )
+              if (includeRejected && status === AttendeeStatusEnum.Rejected)
                 return true;
               return false;
             })
@@ -237,6 +258,7 @@ export function MessageModal({
     }
     if (
       (!attendeeIds || attendeeIds.length === 0) &&
+      !includeInvited &&
       !includeConfirmed &&
       !includeWaitlisted &&
       !includeRejected
@@ -254,16 +276,6 @@ export function MessageModal({
         markNotified: autoResponse || markAsNotified,
         includeStatusUrl,
       });
-      await queryClient.invalidateQueries({
-        queryKey: ["meet-attendees", meet.id],
-      });
-      await Promise.all(
-        ids.map((attendeeId) =>
-          queryClient.invalidateQueries({
-            queryKey: ["attendee-messages", meet.id, attendeeId],
-          }),
-        ),
-      );
       enqueueSnackbar("Message sent", {
         variant: "success",
         anchorOrigin: { vertical: "bottom", horizontal: "right" },
@@ -347,6 +359,17 @@ export function MessageModal({
           />
           {!attendeeIds && (
             <Stack direction="column" spacing={1}>
+              {hasInvitedAttendees ? (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={includeInvited}
+                      onChange={(e) => setIncludeInvited(e.target.checked)}
+                    />
+                  }
+                  label="Send to invited attendees"
+                />
+              ) : null}
               <FormControlLabel
                 control={
                   <Switch
@@ -405,6 +428,7 @@ export function MessageModal({
           disabled={
             isLoading ||
             (!attendeeIds &&
+              !includeInvited &&
               !includeConfirmed &&
               !includeWaitlisted &&
               !includeRejected)

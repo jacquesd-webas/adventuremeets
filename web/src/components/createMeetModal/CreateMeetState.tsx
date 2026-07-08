@@ -42,6 +42,8 @@ export type CreateMeetState = {
   autoApprove: boolean;
   autoCloseWaitlist: boolean;
   allowGuests: boolean;
+  allowSelfCheckin: boolean;
+  allowWalkins: boolean;
   maxGuests: number | string;
   currency: string;
   costCents: number | string;
@@ -56,6 +58,7 @@ export type CreateMeetState = {
   questions: QuestionField[];
   imageFile: File | null;
   imagePreview: string;
+  imageCount: number;
   statusId: number | null;
   attendeeReconfirm: boolean;
 };
@@ -81,6 +84,8 @@ export const initialState: CreateMeetState = {
   autoApprove: false,
   autoCloseWaitlist: false,
   allowGuests: false,
+  allowSelfCheckin: false,
+  allowWalkins: false,
   maxGuests: "",
   currency: "ZAR",
   costCents: "",
@@ -95,6 +100,7 @@ export const initialState: CreateMeetState = {
   questions: [],
   imageFile: null,
   imagePreview: "",
+  imageCount: 0,
   statusId: null,
   attendeeReconfirm: true,
 };
@@ -104,6 +110,9 @@ export type StepProps = {
   setState: (fn: (prev: CreateMeetState) => CreateMeetState) => void;
   errors?: FieldError[];
   disabled?: boolean;
+  isHelpEnabled?: boolean;
+  isHelpBannerDismissed?: boolean;
+  onDismissHelpBanner?: () => void;
 };
 
 export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
@@ -140,6 +149,8 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     autoApprove: meet.autoPlacement ?? true,
     autoCloseWaitlist: meet.autoPromoteWaitlist ?? false,
     allowGuests: meet.allowGuests ?? false,
+    allowSelfCheckin: meet.allowSelfCheckin ?? false,
+    allowWalkins: meet.allowWalkins ?? false,
     maxGuests: toNumberOrEmpty(meet.maxGuests),
     currency: meet.currencyCode ?? initialState.currency,
     costCents: toCurrencyUnits(meet.costCents),
@@ -172,6 +183,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
       : [],
     statusId: meet.statusId ?? null,
     imagePreview: meet.imageUrl ?? "",
+    imageCount: meet.imageUrl ? 1 : 0,
   };
 };
 

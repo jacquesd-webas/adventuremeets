@@ -1,21 +1,29 @@
-import { Stack, TextField } from "@mui/material";
+import { Box, Stack, TextField } from "@mui/material";
 import { LabeledField } from "./LabeledField";
 import { StepProps, getFieldError } from "./CreateMeetState";
 import { UserSelect, UserOption } from "./UserSelect";
 import { useFetchOrganizers } from "../../hooks/useFetchOrganizers";
 import { useAuth } from "../../context/authContext";
 import { useCurrentOrganization } from "../../context/organizationContext";
+import { HelpBanner } from "./HelpBanner";
 
 export const BasicInfoStep = ({
   state,
   setState,
-  errors,
+  errors = [],
   disabled = false,
+  isHelpEnabled = false,
+  isHelpBannerDismissed = false,
+  onDismissHelpBanner,
 }: StepProps) => {
   const { user } = useAuth();
   const { currentOrganizationId } = useCurrentOrganization();
   const { data: users } = useFetchOrganizers(currentOrganizationId);
-  const organizerOptions: UserOption[] = users.map((u) => {
+  const nameError = getFieldError(errors, "name");
+  const descriptionError = getFieldError(errors, "description");
+  const organizerError = getFieldError(errors, "organizerId");
+  // XXX TODO: Fix the user type here and check that idp_profile comes through
+  const organizerOptions: UserOption[] = users.map((u: any) => {
     const label =
       [u.firstName, u.lastName].filter(Boolean).join(" ") ||
       u.idp_profile?.name ||
@@ -30,48 +38,87 @@ export const BasicInfoStep = ({
     organizerOptions.unshift({ id: user.id, label });
   }
   return (
-    <Stack spacing={2}>
-      <LabeledField label="Meet name" required>
-        <TextField
-          placeholder="Give your meet a name"
-          value={state.name}
-          error={Boolean(getFieldError(errors, "name"))}
-          helperText={getFieldError(errors, "name")}
-          onChange={(e) =>
-            setState((prev) => ({ ...prev, name: e.target.value }))
-          }
-          fullWidth
-          disabled={disabled}
-        />
-      </LabeledField>
-      <LabeledField label="Description" required>
-        <TextField
-          placeholder="Describe your meet in detail here"
-          value={state.description}
-          error={Boolean(getFieldError(errors, "description"))}
-          helperText={getFieldError(errors, "description")}
-          onChange={(e) =>
-            setState((prev) => ({ ...prev, description: e.target.value }))
-          }
-          fullWidth
-          multiline
-          minRows={6}
-          disabled={disabled}
-        />
-      </LabeledField>
-      <LabeledField label="Organizer" required>
-        <UserSelect
-          value={state.organizerId}
-          onChange={(value) =>
-            setState((prev) => ({ ...prev, organizerId: value }))
-          }
-          options={organizerOptions}
-          currentUserId={user?.id}
-          error={Boolean(getFieldError(errors, "organizerId"))}
-          helperText={getFieldError(errors, "organizerId")}
-          disabled={disabled}
-        />
-      </LabeledField>
-    </Stack>
+    <Box sx={{ position: "relative" }}>
+      <Stack spacing={2}>
+        <LabeledField label="Meet name" required>
+          <TextField
+            placeholder="Give your meet a name"
+            value={state.name}
+            error={Boolean(nameError)}
+            helperText={
+              nameError ||
+              (isHelpEnabled
+                ? "Use a short descriptive name that will catch people's attention"
+                : undefined)
+            }
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, name: e.target.value }))
+            }
+            fullWidth
+            disabled={disabled}
+          />
+        </LabeledField>
+        <LabeledField label="Description" required>
+          <TextField
+            placeholder="Describe your meet in detail here"
+            value={state.description}
+            error={Boolean(descriptionError)}
+            helperText={
+              descriptionError ||
+              (isHelpEnabled
+                ? "Some short paragraphs to give potential attendees a good idea of what to expect and get them excited to sign up. You can paste links here if you want and they will be clickable."
+                : undefined)
+            }
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, description: e.target.value }))
+            }
+            fullWidth
+            multiline
+            minRows={6}
+            disabled={disabled}
+          />
+        </LabeledField>
+        <LabeledField label="Organizer" required>
+          <UserSelect
+            value={state.organizerId}
+            onChange={(value) =>
+              setState((prev) => ({ ...prev, organizerId: value }))
+            }
+            options={organizerOptions}
+            currentUserId={user?.id}
+            error={Boolean(organizerError)}
+            helperText={
+              organizerError ||
+              (isHelpEnabled
+                ? "Usually this is just you, but if you're admin you can select another organizer to lead the meet."
+                : undefined)
+            }
+            disabled={disabled}
+          />
+        </LabeledField>
+      </Stack>
+      {isHelpEnabled && !isHelpBannerDismissed ? (
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            p: 1,
+            bgcolor: "rgba(255,255,255,0.72)",
+            backdropFilter: "blur(1px)",
+          }}
+        >
+          <Box sx={{ width: "100%", maxWidth: 760 }}>
+            <HelpBanner
+              message="The name and description you provide here will be visible to everyone who views the meet. You can save and then come back later to edit this information until you're happy with how it looks on the preview. For best results try to keep your description to about 2 or 3 short paragraphs."
+              onDismiss={onDismissHelpBanner || (() => undefined)}
+            />
+          </Box>
+        </Box>
+      ) : null}
+    </Box>
   );
 };

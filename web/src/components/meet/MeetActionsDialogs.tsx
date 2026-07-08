@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ConfirmCloseMeetDialog } from "../confirmDialogs/ConfirmCloseMeetDialog";
 import { ConfirmCancelMeetDialog } from "../confirmDialogs/ConfirmCancelMeetDialog";
 import { ConfirmOpenMeetDialog } from "../confirmDialogs/ConfirmOpenMeetDialog";
@@ -11,6 +12,10 @@ import { ManageAttendeesModal } from "../manageAttendeesModal/ManageAttendeesMod
 import { ReportsModal } from "../reportsModal/ReportsModal";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
 import { MeetInfoModal } from "../meet/MeetInfoModal";
+import {
+  clearCreateMeetPreviewRestore,
+  readCreateMeetPreviewRestore,
+} from "../createMeetModal/createMeetPreviewRestore";
 
 type MeetActionsDialogsProps = {
   meetId: string | null;
@@ -36,6 +41,8 @@ function MeetActionsDialogs({
   setSelectedMeetId,
   onActionConfirm,
 }: MeetActionsDialogsProps) {
+  const nav = useNavigate();
+  const location = useLocation();
   const [isCloseDialogOpen, setIsCloseDialogOpen] = React.useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = React.useState(false);
   const [isOpenDialogOpen, setIsOpenDialogOpen] = React.useState(false);
@@ -61,7 +68,7 @@ function MeetActionsDialogs({
     showReportsModal;
 
   // Prevent background scroll when any dialog/modal is open
-  React.useEffect(() => {
+  useEffect(() => {
     if (!anyOpen) {
       return;
     }
@@ -71,6 +78,9 @@ function MeetActionsDialogs({
       document.body.style.overflow = previousOverflow;
     };
   }, [anyOpen]);
+
+  // Retore key from doing something we need to come back to
+  const restore = readCreateMeetPreviewRestore();
 
   // Common handler to close dialogs and reset state
   const handleClose = () => {
@@ -120,6 +130,15 @@ function MeetActionsDialogs({
 
   // Open the dialog when we have something to do
   useEffect(() => {
+    if (restore?.meetId) {
+      setPendingAction(MeetActionsEnum.Edit);
+      setSelectedMeetId(restore.meetId);
+      clearCreateMeetPreviewRestore();
+      return;
+    }
+  }, [restore, setPendingAction, setSelectedMeetId]);
+
+  useEffect(() => {
     switch (pendingAction) {
       case "create":
         setSelectedMeetId(null);
@@ -135,7 +154,15 @@ function MeetActionsDialogs({
         setShowMeetModal(true);
         break;
       case "checkin":
-        setShowAttendeesModal(true);
+        if (meetId) {
+          nav(`/meet/${meetId}/checkin`, {
+            state: {
+              returnTo: `${location.pathname}${location.search}`,
+            },
+          });
+          setPendingAction(null);
+          setSelectedMeetId(null);
+        }
         break;
       case "close":
         setIsCloseDialogOpen(true);
@@ -167,7 +194,16 @@ function MeetActionsDialogs({
       default:
         break;
     }
-  }, [pendingAction, meetId, onActionConfirm, setSelectedMeetId]);
+  }, [
+    location.pathname,
+    location.search,
+    meetId,
+    nav,
+    onActionConfirm,
+    pendingAction,
+    setPendingAction,
+    setSelectedMeetId,
+  ]);
 
   // If we have a callback for confirming the action, call it now
   const handleConfirm = async () => {

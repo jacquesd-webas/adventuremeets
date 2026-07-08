@@ -130,8 +130,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: Enable pnpm
-        run: corepack enable
+        run: corepack enable && corepack prepare pnpm@9.12.2 --activate
 
       - name: Determine pnpm store directory
         id: pnpm-store
@@ -179,10 +184,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Enable pnpm
-        run: corepack enable
+        run: corepack enable && corepack prepare pnpm@9.12.2 --activate
 
       - name: Determine pnpm store directory
         id: pnpm-cache

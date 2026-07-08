@@ -20,7 +20,7 @@ import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../meet/MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useRef } from "react";
-import { getCardRangeLabel } from "../../helpers/meetTime";
+import { getCardRangeLabel, isMeetUpcoming } from "../../helpers/meetTime";
 import { useAuth } from "../../context/authContext";
 
 type MeetCardProps = {
@@ -150,9 +150,7 @@ export function MeetCard({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const isUpcoming =
-    meet.statusId !== MeetStatusEnum.Draft &&
-    new Date(meet.endTime!) >= new Date();
+  const isUpcoming = isMeetUpcoming(meet);
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
   const rangeLabel = getCardRangeLabel(meet);
   const isOrganizerForMeet = user?.id === meet.organizerId;
@@ -195,6 +193,12 @@ export function MeetCard({
             canViewMeet={canViewMeet}
             canManageMeet={canManageMeet}
             statusId={meet.statusId}
+            isUpcoming={isUpcoming}
+            startTime={
+              meet.startTime instanceof Date
+                ? meet.startTime.toISOString()
+                : meet.startTime
+            }
             setSelectedMeetId={setSelectedMeetId}
             setPendingAction={setPendingAction}
             previewLinkCode={meet.shareCode}

@@ -4,13 +4,14 @@ const currencyOptions = [
   { code: "ZAR", symbol: "R" },
   { code: "USD", symbol: "$" },
   { code: "EUR", symbol: "€" },
-  { code: "GBP", symbol: "£" }
+  { code: "GBP", symbol: "£" },
 ];
 
 export type CurrencySelectProps = {
   value: string;
   onChange?: (value: string) => void;
   disabled?: boolean;
+  helperText?: string;
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -20,22 +21,24 @@ export const getCurrencySymbol = (code: string) =>
 export const CurrencySelect = ({
   value,
   onChange,
+  helperText,
   disabled = false,
 }: CurrencySelectProps) => {
   return (
-  <TextField
-    select
-    value={value}
-    onChange={(e) => onChange?.(e.target.value)}
-    SelectProps={{ MenuProps: { sx: { zIndex: 1501 } } }}
-    fullWidth
-    disabled={disabled}
-  >
-    {currencyOptions.map((option) => (
-      <MenuItem key={option.code} value={option.code}>
-        {option.code} ({option.symbol})
-      </MenuItem>
-    ))}
-  </TextField>
-);
-}
+    <TextField
+      select
+      value={value}
+      onChange={(e) => onChange?.(e.target.value)}
+      SelectProps={{ MenuProps: { sx: { zIndex: 1501 } } }}
+      fullWidth
+      disabled={disabled}
+      helperText={helperText}
+    >
+      {currencyOptions.map((option) => (
+        <MenuItem key={option.code} value={option.code}>
+          {option.code} ({option.symbol})
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+};

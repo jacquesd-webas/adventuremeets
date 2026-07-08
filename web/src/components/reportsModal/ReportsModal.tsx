@@ -82,16 +82,16 @@ export function ReportsModal({
     return !Number.isNaN(statusNum || NaN) ? statusNum : null;
   }, [meet]);
 
-  const hasMeetEnded = useMemo(() => {
-    if (!meet?.endTime) {
+  const hasMeetStarted = useMemo(() => {
+    if (!meet?.startTime) {
       return false;
     }
-    const endDate = new Date(meet.endTime);
-    if (Number.isNaN(endDate.getTime())) {
+    const startDate = new Date(meet.startTime);
+    if (Number.isNaN(startDate.getTime())) {
       return false;
     }
-    return endDate.getTime() <= Date.now();
-  }, [meet?.endTime]);
+    return startDate.getTime() <= Date.now();
+  }, [meet?.startTime]);
 
   const hasCheckedInAttendees = useMemo(
     () =>
@@ -104,7 +104,9 @@ export function ReportsModal({
   );
 
   const shouldCompleteMeet =
-    hasMeetEnded && hasCheckedInAttendees && statusId === MeetStatusEnum.Closed;
+    hasMeetStarted &&
+    hasCheckedInAttendees &&
+    statusId === MeetStatusEnum.Closed;
 
   const isAlreadyCompleted = statusId === MeetStatusEnum.Completed;
 
@@ -283,8 +285,8 @@ export function ReportsModal({
                   ? ""
                   : shouldCompleteMeet
                     ? "Generating the report will mark the meet as completed and prevent further check-ins."
-                    : !hasMeetEnded
-                      ? "Meet has not ended yet. Report will be treated as interim."
+                    : !hasMeetStarted
+                      ? "Meet has not started yet. Report will be treated as interim."
                       : !hasCheckedInAttendees
                         ? "No attendees have checked in yet. Report will be treated as interim."
                         : ""}

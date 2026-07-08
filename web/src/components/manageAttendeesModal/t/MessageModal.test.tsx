@@ -18,10 +18,18 @@ vi.mock("../../../hooks/useNotifyAttendee", () => ({
 }));
 
 vi.mock("../../../hooks/useDefaultMessage", () => ({
-  useDefaultMessage: () => ({
-    subject: "Auto subject",
-    content: "Auto body",
-  }),
+  useDefaultMessage: (status?: AttendeeStatusEnum | null) => {
+    if (status === AttendeeStatusEnum.Invited) {
+      return {
+        subject: "Invitation: Meet",
+        content: "Invitation body",
+      };
+    }
+    return {
+      subject: "Auto subject",
+      content: "Auto body",
+    };
+  },
 }));
 
 describe("MessageModal", () => {
@@ -51,7 +59,6 @@ describe("MessageModal", () => {
 
   it("sends a message to attendee ids", async () => {
     const queryClient = new QueryClient();
-    const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
     render(
       <QueryClientProvider client={queryClient}>
         <MessageModal
@@ -81,9 +88,6 @@ describe("MessageModal", () => {
         markNotified: false,
         includeStatusUrl: true,
       });
-    });
-    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
-      queryKey: ["meet-attendees", "m1"],
     });
     expect(enqueueSnackbar).toHaveBeenCalled();
   });
@@ -148,6 +152,143 @@ describe("MessageModal", () => {
         text: "Auto body",
         attendeeIds: ["a1"],
         markNotified: true,
+        includeStatusUrl: true,
+      });
+    });
+  });
+
+  it("sends an invitation for an invited attendee when auto is enabled", async () => {
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendeeIds={["a1"]}
+          attendees={[
+            {
+              id: "a1",
+              status: AttendeeStatusEnum.Invited,
+              respondedAt: null,
+            },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenCalledWith({
+        meetId: "m1",
+        subject: "Invitation: Meet",
+        text: "Invitation body",
+        attendeeIds: ["a1"],
+        markNotified: true,
+        includeStatusUrl: true,
+      });
+    });
+  });
+
+  it("includes checked-in and attended attendees in the confirmed group send", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+            { id: "checked-in-1", status: AttendeeStatusEnum.CheckedIn },
+            { id: "attended-1", status: AttendeeStatusEnum.Attended },
+            { id: "waitlisted-1", status: AttendeeStatusEnum.Waitlisted },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "Hello" },
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Body" },
+    });
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenCalledWith({
+        meetId: "m1",
+        subject: "Hello",
+        text: "Body",
+        attendeeIds: ["confirmed-1", "checked-in-1", "attended-1"],
+        markNotified: false,
+        includeStatusUrl: true,
+      });
+    });
+  });
+
+  it("shows an invited-attendees switch when invited attendees exist", () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "invited-1", status: AttendeeStatusEnum.Invited },
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.getByRole("checkbox", { name: "Send to invited attendees" }),
+    ).toBeInTheDocument();
+  });
+
+  it("can send to invited attendees from the bulk message modal", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "invited-1", status: AttendeeStatusEnum.Invited },
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "Hello" },
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Body" },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Send to invited attendees" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Send to confirmed attendees" }),
+    );
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenCalledWith({
+        meetId: "m1",
+        subject: "Hello",
+        text: "Body",
+        attendeeIds: ["invited-1"],
+        markNotified: false,
         includeStatusUrl: true,
       });
     });

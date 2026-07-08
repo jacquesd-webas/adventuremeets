@@ -12,6 +12,9 @@ describe("AuthService", () => {
   const usersService = {
     create: jest.fn(),
     findById: jest.fn(),
+    findByEmail: jest.fn(),
+    updateLogin: jest.fn(),
+    isOrganizationPrivate: jest.fn(),
     linkByEmail: jest.fn(),
     getEmailVerificationInfo: jest.fn(),
     setEmailVerificationToken: jest.fn(),
@@ -74,6 +77,54 @@ describe("AuthService", () => {
       baseUser.id,
     );
     expect(emailService.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("rejects refresh tokens with the wrong token type", async () => {
+    (jwtService.sign as jest.Mock).mockReset();
+    (jwtService as any).verify = jest.fn().mockReturnValue({
+      sub: baseUser.id,
+      type: "access",
+    });
+
+    await expect(
+      service.refresh({ refreshToken: "wrong-type-token" }),
+    ).rejects.toThrow("Invalid refresh token");
+  });
+
+  it("rejects refresh when the user no longer exists", async () => {
+    (jwtService.sign as jest.Mock).mockReset();
+    (jwtService as any).verify = jest.fn().mockReturnValue({
+      sub: "missing-user",
+      type: "refresh",
+    });
+    (usersService.findById as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      service.refresh({ refreshToken: "refresh-token" }),
+    ).rejects.toThrow("User not found");
+  });
+
+  it("returns incorrect email or password when credentials do not match", async () => {
+    jest
+      .spyOn(service, "validateUser")
+      .mockResolvedValue({ user: baseUser, isValid: false });
+    (usersService.updateLogin as jest.Mock).mockResolvedValue(undefined);
+
+    await expect(
+      service.login({ email: baseUser.email, password: "bad" } as any),
+    ).rejects.toThrow("Incorrect email or password");
+
+    expect(usersService.updateLogin).toHaveBeenCalledWith(baseUser.id, {
+      isSuccess: false,
+    });
+  });
+
+  it("rejects private organizations in ensureOrganizationJoinable", async () => {
+    (usersService.isOrganizationPrivate as jest.Mock).mockResolvedValue(true);
+
+    await expect(
+      service.ensureOrganizationJoinable("org-1"),
+    ).rejects.toThrow("Invalid organisation invitation link");
   });
 
   it("sends a verification email when explicitly requested", async () => {

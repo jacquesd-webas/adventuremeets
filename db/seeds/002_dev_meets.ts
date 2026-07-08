@@ -14,6 +14,8 @@ function addHours(base: Date, hours: number) {
 
 export async function seed(knex: Knex): Promise<void> {
   // Clear dependent tables first
+  await knex("wall_item_likes").del();
+  await knex("wall_item").del();
   await knex("meet_meta_values").del();
   await knex("meet_meta_definitions").del();
   await knex("meet_attendees").del();
@@ -216,5 +218,41 @@ export async function seed(knex: Knex): Promise<void> {
 
   if (attendeeRows.length) {
     await knex("meet_attendees").insert(attendeeRows);
+  }
+
+  const workMeetId = meetByName.get("Work Meet");
+  if (workMeetId) {
+    await knex("wall_item").insert([
+      {
+        meet_id: workMeetId,
+        created_by: organizer.id,
+        comment:
+          "Thanks everyone. Clear priorities, fewer open questions, and a much better plan than last sprint.",
+        stars: 5,
+        favourite: 3,
+        created_at: nowIso
+      },
+      {
+        meet_id: workMeetId,
+        created_by: organizer.id,
+        comment:
+          "Big win from this session: we finally aligned product, design, and engineering on the next release scope.",
+        favourite: 1,
+        created_at: nowIso
+      },
+      {
+        meet_id: workMeetId,
+        created_by: organizer.id,
+        comment: "Retro snapshot from the virtual whiteboard session.",
+        stars: 4,
+        url: "https://picsum.photos/seed/adventuremeets-work-meet-wall/1200/900",
+        object_key: "seed/work-meet/wall-1.jpg",
+        content_type: "image/jpeg",
+        size_bytes: 0,
+        aspect: "O",
+        favourite: 2,
+        created_at: nowIso
+      }
+    ]);
   }
 }

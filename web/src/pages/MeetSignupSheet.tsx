@@ -8,6 +8,7 @@ import {
   IconButton,
   Paper,
   Stack,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
@@ -111,6 +112,8 @@ function MeetSignupSheet() {
   const location = useLocation();
   const navigate = useNavigate();
   const isPreview = searchParams.get("preview") === "true";
+  const previewSource = searchParams.get("previewSource");
+  const previewReturnTo = searchParams.get("returnTo");
   const guestOf = searchParams.get("guestOf");
   const action = searchParams.get("action");
   const editAttendeeId = attendeeIdParam || searchParams.get("attendeeId");
@@ -178,6 +181,8 @@ function MeetSignupSheet() {
 
   const { data: userMetaValues, isLoading: userMetaLoading } =
     useFetchUserMetaValues(user?.id, meet?.organizationId);
+  const hasMinorQueryPrefill =
+    !isEditing && parseBooleanQuery(searchParams.get("isMinor")) === true;
 
   const loggedInName = user
     ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
@@ -213,6 +218,7 @@ function MeetSignupSheet() {
 
   // Auto-fill questions based on users profile
   useEffect(() => {
+    if (hasMinorQueryPrefill || isMinor) return;
     if (!isAuthenticated || !meet || userMetaLoading) return;
     if (metaAutofillRef.current) return;
     if (!userMetaValues.length) {
@@ -248,6 +254,8 @@ function MeetSignupSheet() {
     metaAutofillRef.current = true;
   }, [
     isAuthenticated,
+    hasMinorQueryPrefill,
+    isMinor,
     meet,
     metaValues,
     setMetaValue,
@@ -494,8 +502,13 @@ function MeetSignupSheet() {
   };
 
   const handleCloseSheet = () => {
-    if (window.opener) {
+    console.log("handleCloseSheet", { isPreview, previewReturnTo, location });
+    if (isPreview && window.opener) {
       window.close();
+      return;
+    }
+    if (isPreview && previewReturnTo) {
+      navigate(previewReturnTo, { replace: true });
       return;
     }
     if (location.key !== "default") {
@@ -511,8 +524,18 @@ function MeetSignupSheet() {
   };
 
   const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
+  const isDraftMeet = meet?.statusId === MeetStatusEnum.Draft;
+  const closeButtonLabel = isPreview
+    ? previewSource === "editor"
+      ? "Back to editing"
+      : "Close preview"
+    : "Close";
 
   if (!isLoading && !meet) {
+    return <MeetNotFound />;
+  }
+
+  if (!isLoading && isDraftMeet && !isPreview) {
     return <MeetNotFound />;
   }
 
@@ -558,6 +581,7 @@ function MeetSignupSheet() {
             shareCode={code}
             hasIndemnity={meet?.hasIndemnity || false}
             guests={guests}
+            isMinor={isMinor}
             isOrganizationPrivate={organization?.isPrivate}
             isPreview={isPreview}
             isGuest={Boolean(guestOf)}
@@ -787,14 +811,16 @@ function MeetSignupSheet() {
                     {guestOf ? (
                       <Chip label="Guest" size="small" color="info" />
                     ) : null}
-                    <IconButton
-                      onClick={handleCloseSheet}
-                      size="small"
-                      aria-label="Close"
-                      data-testid="close-meet-signup-sheet"
-                    >
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
+                    <Tooltip title={closeButtonLabel}>
+                      <IconButton
+                        onClick={handleCloseSheet}
+                        size="small"
+                        aria-label={closeButtonLabel}
+                        data-testid="close-meet-signup-sheet"
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </Stack>
                 }
               />

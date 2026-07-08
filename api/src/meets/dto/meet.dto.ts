@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsDateString,
 } from "class-validator/types";
+import { MeetImageDto } from "./meet-image.dto";
 
 export class MeetMetaDefinitionDto {
   @ApiProperty()
@@ -128,6 +129,14 @@ export class MeetDto {
   allowGuests?: boolean;
 
   @ApiPropertyOptional()
+  @IsBoolean()
+  allowSelfCheckin?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  allowWalkins?: boolean;
+
+  @ApiPropertyOptional()
   @IsNumber()
   maxGuests?: number;
 
@@ -202,6 +211,9 @@ export class MeetDto {
   @ApiPropertyOptional()
   @IsString()
   imageUrl?: string;
+
+  @ApiPropertyOptional({ type: [MeetImageDto] })
+  images?: MeetImageDto[];
 
   @ApiPropertyOptional()
   @IsNumber()

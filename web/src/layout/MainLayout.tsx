@@ -38,7 +38,6 @@ import {
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
-import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { ChooseOrganizationModal } from "../components/auth/ChooseOrganizationModal";
@@ -77,7 +76,7 @@ function MainLayout() {
     return "light";
   });
 
-  const { user, meUpdatedAt } = useAuth();
+  const { user, meUpdatedAt, logout } = useAuth();
   const {
     currentOrganizationId,
     currentOrganizationName,
@@ -89,7 +88,6 @@ function MainLayout() {
   );
   const [profileOpen, setProfileOpen] = useState(false);
   const { mode, setMode } = useThemeMode();
-  const queryClient = useQueryClient();
   const isAdmin = Boolean(
     user?.organizations && Object.values(user.organizations).includes("admin"),
   );
@@ -150,22 +148,18 @@ function MainLayout() {
   };
 
   const handleLogout = () => {
-    window.localStorage.removeItem("accessToken");
-    window.localStorage.removeItem("refreshToken");
-    queryClient.clear();
+    logout();
     handleMenuClose();
-    nav("/login");
+    nav("/login", { replace: true });
   };
   const handleMobileProfile = () => {
     setProfileOpen(true);
     setMobileNavOpen(false);
   };
   const handleMobileLogout = () => {
-    window.localStorage.removeItem("accessToken");
-    window.localStorage.removeItem("refreshToken");
-    queryClient.clear();
+    logout();
     setMobileNavOpen(false);
-    nav("/login");
+    nav("/login", { replace: true });
   };
 
   const allowedThemeModes = useMemo(
@@ -300,7 +294,7 @@ function MainLayout() {
       sx={{
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
+        height: "100dvh",
         overflow: "hidden",
       }}
     >
@@ -399,7 +393,12 @@ function MainLayout() {
                 aria-label="Open account menu"
                 data-testid="account-menu-button"
               >
-                <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
+                <Avatar
+                  src={user?.avatarUrl || undefined}
+                  sx={{ width: 36, height: 36 }}
+                >
+                  {initials}
+                </Avatar>
               </IconButton>
             </Tooltip>
             {isAdmin && (
@@ -593,6 +592,7 @@ function MainLayout() {
         disableGutters={isMobile}
         sx={{
           flex: 1,
+          minHeight: 0,
           overflowY: "auto",
           overscrollBehavior: "contain",
           py: isMobile ? 1 : 3,

@@ -75,6 +75,8 @@ export function MeetColumn({
                     defaultPendingAction(
                       meet.statusId,
                       meet.organizerId === currentUserId,
+                      meet,
+                      { canManageMeet },
                     ),
                   );
                 }}
