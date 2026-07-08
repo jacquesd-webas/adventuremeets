@@ -29,6 +29,8 @@ export type MeetSignupTemplateVars = {
   statusUrl?: string;
   organizerName?: string;
   organizerEmail?: string;
+  logoUrl?: string;
+  isRsvpMode?: boolean;
 };
 
 export type MeetStatusTemplateVars = {
@@ -42,6 +44,8 @@ export type MeetStatusTemplateVars = {
   organizerName?: string;
   organizerEmail?: string;
   messageBody?: string;
+  logoUrl?: string;
+  isRsvpMode?: boolean;
 };
 
 export type MeetMessageTemplateVars = {
@@ -49,15 +53,19 @@ export type MeetMessageTemplateVars = {
   attendeeName?: string;
   statusUrl?: string;
   includeStatusUrl?: boolean;
+  isGroupedMessage?: boolean;
   organizerName?: string;
   organizerEmail?: string;
   messageBody: string;
+  logoUrl?: string;
+  isRsvpMode?: boolean;
 };
 
 export type OrganizationInviteTemplateVars = {
   organizationName: string;
   registerUrl?: string;
   expiresAt?: string;
+  logoUrl?: string;
 };
 
 export type MeetTemplateContextVars = {
@@ -71,6 +79,7 @@ export type MeetTemplateContextVars = {
   timeZone?: string;
   location?: string;
   messageBody?: string;
+  isRsvpMode?: boolean;
 };
 
 export type MeetTemplateContextOptions = {

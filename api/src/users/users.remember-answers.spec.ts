@@ -5,6 +5,7 @@ import { UsersService } from "./users.service";
 import { DatabaseService } from "../database/database.service";
 import { MinioService } from "../storage/minio.service";
 import { AuthService } from "../auth/auth.service";
+import { AuditLogService } from "../audit/audit-log.service";
 
 type UserMetaValueRow = {
   user_id: string;
@@ -196,6 +197,7 @@ describe("Users remember answers integration", () => {
         },
         { provide: MinioService, useValue: {} },
         { provide: AuthService, useValue: {} },
+        { provide: AuditLogService, useValue: { addRecord: jest.fn() } },
       ],
     }).compile();
 

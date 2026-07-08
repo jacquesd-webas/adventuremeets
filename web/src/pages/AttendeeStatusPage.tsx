@@ -4,6 +4,7 @@ import {
   IconButton,
   Paper,
   Stack,
+  Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -16,12 +17,18 @@ import { useFetchMeetAttendeeStatus } from "../hooks/useFetchMeetAttendeeStatus"
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { FullPageSpinner } from "../components/FullPageSpinner";
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
 import { MeetStatusEnum } from "../types/MeetStatusEnum";
-import { MeetWall } from "../components/wall/MeetWall";
+import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
+
+const MeetWall = lazy(() =>
+  import("../components/wall/MeetWall").then((module) => ({
+    default: module.default ?? module.MeetWall,
+  })),
+);
 
 export default function AttendeeStatusPage() {
   const { code, attendeeId } = useParams<{
@@ -106,6 +113,11 @@ export default function AttendeeStatusPage() {
   const shouldShowMeetWall =
     meet.statusId === MeetStatusEnum.Completed ||
     (meet.statusId === MeetStatusEnum.Closed && meetHasStarted);
+  const shouldShowAttendingAttendees = [
+    AttendeeStatusEnum.Confirmed,
+    AttendeeStatusEnum.CheckedIn,
+    AttendeeStatusEnum.Attended,
+  ].includes(attendeeStatusData?.attendee?.status ?? AttendeeStatusEnum.Pending);
 
   return (
     <Box sx={{ height: "100vh", position: "relative" }}>
@@ -114,7 +126,7 @@ export default function AttendeeStatusPage() {
         disableGutters={isMobile}
         sx={{
           py: isMobile ? 0 : 6,
-          pt: isMobile ? 2 : 6,
+          pt: isMobile ? 0 : 6,
           minHeight: "100vh",
           height: "100%",
           overflowY: "auto",
@@ -125,6 +137,7 @@ export default function AttendeeStatusPage() {
           variant="outlined"
           sx={{
             p: isMobile ? 2 : 3,
+            height: "100%",
             minHeight: "100%",
             borderRadius: isMobile ? 0 : 2,
             boxShadow: isMobile ? "none" : undefined,
@@ -135,6 +148,11 @@ export default function AttendeeStatusPage() {
               meet={meet}
               isPreview={false}
               maxDescriptionLines={meet.imageUrl ? 6 : 9}
+              attendingAttendees={
+                shouldShowAttendingAttendees
+                  ? attendeeStatusData?.attendingAttendees
+                  : []
+              }
               showUserAction={false}
               actionSlot={
                 <IconButton
@@ -149,10 +167,16 @@ export default function AttendeeStatusPage() {
             />
 
             {shouldShowMeetWall ? (
-              <MeetWall
-                meetId={meet.id}
-                attendeeId={attendeeStatusData?.attendee.id}
-              />
+              <Suspense
+                fallback={
+                  <Typography color="text.secondary">Loading meet wall...</Typography>
+                }
+              >
+                <MeetWall
+                  meetId={meet.id}
+                  attendeeId={attendeeStatusData?.attendee.id}
+                />
+              </Suspense>
             ) : (
               <AttendeeStatusActions
                 meet={meet}

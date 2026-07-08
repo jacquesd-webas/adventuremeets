@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { MeetStatusAlert } from "../MeetStatusAlert";
 import { MeetStatusEnum } from "../../../types/MeetStatusEnum";
@@ -12,6 +13,18 @@ vi.mock("react-router-dom", async () => {
   );
   return {
     ...actual,
+    MemoryRouter: ({
+      future,
+      ...props
+    }: React.ComponentProps<typeof actual.MemoryRouter>) =>
+      React.createElement(actual.MemoryRouter, {
+        ...props,
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+          ...future,
+        },
+      }),
     useNavigate: () => navigate,
   };
 });
@@ -116,5 +129,47 @@ describe("MeetStatusAlert", () => {
     expect(navigate).toHaveBeenCalledWith(
       "/meets/share-1?guestOf=attendee-1&isMinor=true",
     );
+  });
+
+  it("shows RSVP wording for open RSVP-style meets", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(useAuth).mockReturnValue({
+      user: {
+        id: "user-1",
+        email: "alice@example.com",
+        phone: "+275550004444",
+      },
+      isAuthenticated: true,
+      isLoading: false,
+      meUpdatedAt: 0,
+      refreshSession: vi.fn(),
+      logout: vi.fn(),
+    });
+    vi.mocked(useFetchMyMeetAttendee).mockReturnValue({
+      attendee: { id: "attendee-1" },
+      isLoading: false,
+      error: null,
+    });
+
+    render(
+      <MemoryRouter>
+        <MeetStatusAlert
+          meetId="meet-1"
+          statusId={MeetStatusEnum.Open}
+          enableApply
+          shareCode="share-1"
+          isRsvpMode
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/already rsvp'd for this meet/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /view your rsvp/i }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /view your rsvp/i }));
+    expect(navigate).toHaveBeenCalledWith("/meets/share-1/attendee-1");
   });
 });

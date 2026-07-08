@@ -67,7 +67,24 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     allowGuests: apiMeet.allowGuests ?? null,
     allowSelfCheckin:
       apiMeet.allowSelfCheckin ?? apiMeet.allow_self_checkin ?? null,
+    checkinPin: apiMeet.checkinPin ?? apiMeet.checkin_pin ?? null,
     allowWalkins: apiMeet.allowWalkins ?? apiMeet.allow_walkins ?? null,
+    requireEmail: apiMeet.requireEmail ?? apiMeet.require_email ?? null,
+    requirePhone: apiMeet.requirePhone ?? apiMeet.require_phone ?? null,
+    requireOrg1: apiMeet.requireOrg1 ?? apiMeet.require_org1 ?? null,
+    requireOrg2: apiMeet.requireOrg2 ?? apiMeet.require_org2 ?? null,
+    customField1Name:
+      apiMeet.customField1Name ?? apiMeet.custom_field1_name ?? null,
+    customField2Name:
+      apiMeet.customField2Name ?? apiMeet.custom_field2_name ?? null,
+    customField1HelperText:
+      apiMeet.customField1HelperText ??
+      apiMeet.custom_field1_helper_text ??
+      null,
+    customField2HelperText:
+      apiMeet.customField2HelperText ??
+      apiMeet.custom_field2_helper_text ??
+      null,
     maxGuests: apiMeet.maxGuests ?? null,
     isVirtual: apiMeet.isVirtual ?? null,
     shareCode: apiMeet.shareCode ?? null,
@@ -89,6 +106,15 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     checkedInCount: apiMeet.checkedInCount ?? null,
     isHidden: apiMeet.isHidden ?? null,
     myAttendeeStatus: apiMeet.myAttendeeStatus ?? null,
+    attendingAttendees: (
+      apiMeet.attendingAttendees ??
+      apiMeet.attending_attendees ??
+      []
+    ).map((attendee: any) => ({
+      id: attendee.id,
+      name: attendee.name,
+      avatarUrl: attendee.avatarUrl ?? attendee.avatar_url ?? null,
+    })),
     metaDefinitions: (
       apiMeet.metaDefinitions ||
       apiMeet.meta_definitions ||

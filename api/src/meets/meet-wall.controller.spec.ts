@@ -1,8 +1,13 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { MeetWallController } from "./meet-wall.controller";
 import { MeetsService } from "./meets.service";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
+import { AuditLogService } from "../audit/audit-log.service";
 
 describe("MeetWallController", () => {
   let controller: MeetWallController;
@@ -24,6 +29,10 @@ describe("MeetWallController", () => {
     hasRole: jest.fn(),
   } as unknown as AuthService;
 
+  const auditLogService = {
+    addRecord: jest.fn(),
+  } as unknown as AuditLogService;
+
   const user: UserProfile = {
     id: "user-1",
     email: "user@example.com",
@@ -39,7 +48,33 @@ describe("MeetWallController", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new MeetWallController(meetsService, authService);
+    controller = new MeetWallController(
+      meetsService,
+      authService,
+      auditLogService,
+    );
+  });
+
+  it.each([
+    [
+      "orderFavourites",
+      () =>
+        controller.orderFavourites(
+          "meet-1",
+          { wallItemIds: ["wall-1"] } as any,
+        ),
+    ],
+    [
+      "updateFavourite",
+      () =>
+        controller.updateFavourite(
+          "meet-1",
+          "wall-1",
+          { favourite: 1 } as any,
+        ),
+    ],
+  ])("rejects unauthenticated %s access", async (_name, action) => {
+    await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it("returns not found for anonymous wall listing without an attendee id", async () => {
@@ -135,6 +170,14 @@ describe("MeetWallController", () => {
         attendeeId: "attendee-1",
       },
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "user-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "edited",
+      target: "meet wall for meet",
+    });
   });
 
   it("allows attendee comment editing by attendee id without login", async () => {
@@ -215,6 +258,13 @@ describe("MeetWallController", () => {
       "meet-1",
       ["wall-2", "wall-1"],
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "user-1",
+      meetId: "meet-1",
+      action: "reordered favourites for",
+      target: "meet wall for meet",
+    });
   });
 
   it("allows a logged-in organization member to react to a wall item", async () => {
@@ -331,6 +381,14 @@ describe("MeetWallController", () => {
         attendeeId: "attendee-1",
       },
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "user-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "posted to",
+      target: "meet wall for meet",
+    });
   });
 
   it("allows attendee wall posting by attendee id without login", async () => {

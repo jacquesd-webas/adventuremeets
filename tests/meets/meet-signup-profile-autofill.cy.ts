@@ -46,13 +46,17 @@ describe("Meet signup profile autofill", () => {
 
     cy.visit("/");
 
-    cy.openProfileModal();
-    cy.contains("Organisation").click();
+    cy.get('[data-testid="account-menu-button"]').click();
+    cy.get('[role="menu"]').should("be.visible");
+    cy.contains('[role="menuitem"]', "Organisation").click();
+    cy.get('[data-testid="organization-modal"]').should("be.visible");
+    cy.get('[data-testid="organization-modal"]').contains("Privacy").click();
     cy.contains("label", "Allow regular users to join with invite link")
       .find('input[type="checkbox"]')
       .check({ force: true });
-    cy.contains("button", "Save organization").click();
-    cy.closeProfileModal();
+    cy.contains("button", "Save privacy settings").click();
+    cy.get('[data-testid="close-organization-modal"]').click();
+    cy.get('[data-testid="organization-modal"]').should("not.exist");
 
     cy.createMinimalMeet({
       meetName: firstMeetName,

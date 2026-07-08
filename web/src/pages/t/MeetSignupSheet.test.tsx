@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import MeetSignupSheet from "../MeetSignupSheet";
 
-const mockedMeet = {
+const mockedMeet: Record<string, any> = {
   id: "meet-1",
   name: "Mountain Hike",
   organizationId: "org-1",
@@ -34,6 +34,10 @@ const mockedOrganization = {
   id: "org-1",
   theme: null,
   isPrivate: false,
+  customField1Name: undefined,
+  customField2Name: undefined,
+  customField1HelperText: undefined,
+  customField2HelperText: undefined,
 };
 
 const mockedUser = {
@@ -147,17 +151,34 @@ vi.mock("../../components/auth/LoginForm", () => ({
 }));
 
 vi.mock("../../components/meet/MeetStatusAlert", () => ({
-  MeetStatusAlert: () => null,
+  MeetStatusAlert: () => <div>Meet status banner</div>,
 }));
 
 vi.mock("../../components/meet/MeetSignupDuplicateDialog", () => ({
   MeetSignupDuplicateDialog: () => null,
 }));
 
+vi.mock("../../components/meet/MeetSignupSubmitted", () => ({
+  MeetSignupSubmitted: () => <div>Submitted</div>,
+}));
+
 describe("MeetSignupSheet", () => {
   beforeEach(() => {
     addAttendeeAsync.mockClear();
     mockedMeet.statusId = 3;
+    mockedMeet.checkinPin = undefined;
+    mockedMeet.requireEmail = undefined;
+    mockedMeet.requirePhone = undefined;
+    mockedMeet.requireOrg1 = undefined;
+    mockedMeet.requireOrg2 = undefined;
+    mockedMeet.customField1Name = undefined;
+    mockedMeet.customField2Name = undefined;
+    mockedMeet.customField1HelperText = undefined;
+    mockedMeet.customField2HelperText = undefined;
+    mockedOrganization.customField1Name = undefined;
+    mockedOrganization.customField2Name = undefined;
+    mockedOrganization.customField1HelperText = undefined;
+    mockedOrganization.customField2HelperText = undefined;
   });
 
   it("autofills the signed-in user's identity, phone, and saved autofill answers", async () => {
@@ -208,6 +229,166 @@ describe("MeetSignupSheet", () => {
     expect(
       screen.getByRole("checkbox", { name: /bringing extra water/i }),
     ).not.toBeChecked();
+  });
+
+  it("hides email and phone when the meet does not require them", async () => {
+    mockedMeet.requireEmail = false;
+    mockedMeet.requirePhone = false;
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Phone")).not.toBeInTheDocument();
+    expect(
+      screen.queryByDisplayValue("alice@example.com"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("5550004444")).not.toBeInTheDocument();
+  });
+
+  it("shows organisation custom fields when required and includes them in the signup payload", async () => {
+    const user = userEvent.setup();
+    mockedMeet.requireOrg1 = true;
+    mockedMeet.requireOrg2 = true;
+    mockedMeet.customField1Name = "Club";
+    mockedMeet.customField2Name = "Region";
+    mockedMeet.customField1HelperText = "Enter your walking club";
+    mockedMeet.customField2HelperText = "Enter your local region";
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
+    });
+
+    expect(screen.getByPlaceholderText("Enter your walking club")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter your local region")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Club"), "Bushwalkers");
+    await user.type(screen.getByLabelText("Region"), "West");
+    await user.click(
+      screen.getByRole("button", { name: "Submit application" }),
+    );
+
+    await waitFor(() => {
+      expect(addAttendeeAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          meetId: "meet-1",
+          org1Value: "Bushwalkers",
+          org2Value: "West",
+        }),
+      );
+    });
+  });
+
+  it("passes the check-in pin through when signing up from a self-check-in handoff", async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123?pin=PIN123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit application" }),
+    );
+
+    await waitFor(() => {
+      expect(addAttendeeAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          meetId: "meet-1",
+          checkinPin: "PIN123",
+        }),
+      );
+    });
+  });
+
+  it("allows a closed meet signup when a valid check-in pin is provided", async () => {
+    const user = userEvent.setup();
+    mockedMeet.statusId = 4;
+    mockedMeet.checkinPin = "PIN123";
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123?pin=PIN123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Meet status banner")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit application" }),
+    ).toBeEnabled();
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit application" }),
+    );
+
+    await waitFor(() => {
+      expect(addAttendeeAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          meetId: "meet-1",
+          checkinPin: "PIN123",
+        }),
+      );
+    });
+  });
+
+  it("shows the meet status banner for closed meets without a valid check-in pin", async () => {
+    mockedMeet.statusId = 4;
+    mockedMeet.checkinPin = "PIN123";
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123?pin=WRONG"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Meet status banner")).toBeInTheDocument();
   });
 
   it("shows meet not found for draft meets when preview is not enabled", async () => {

@@ -25,13 +25,15 @@ import { UserMetaValuesPayloadDto } from "./dto/user-meta-values.dto";
 import { UpdateUserIceInfoDto } from "./dto/update-user-ice-info.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { CopyUserMetaValuesFromAttendeeDto } from "./dto/copy-user-meta-values-from-attendee.dto";
+import { AuditLogService } from "../audit/audit-log.service";
 
 @ApiTags("Users")
 @Controller("users")
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   @Get("me/ice")
@@ -50,6 +52,12 @@ export class UsersController {
     if (!user) throw new UnauthorizedException();
 
     const iceInfo = await this.usersService.upsertIceInfo(user.id, body);
+    await this.auditLogIfPossible({
+      orgId: this.getPrimaryOrganizationId(user),
+      userId: user.id,
+      action: "updated",
+      target: "ice info",
+    });
     return { iceInfo };
   }
 
@@ -65,6 +73,14 @@ export class UsersController {
       body.meetId,
       body.attendeeId,
     );
+    await this.auditLogIfPossible({
+      orgId: result.organizationId,
+      userId: user.id,
+      attendeeId: body.attendeeId,
+      meetId: body.meetId,
+      action: "saved",
+      target: "signup answers",
+    });
     return {
       organizationId: result.organizationId,
       metaValues: result.values,
@@ -90,6 +106,12 @@ export class UsersController {
     }
 
     const updatedUser = await this.usersService.uploadAvatar(user.id, file);
+    await this.auditLogIfPossible({
+      orgId: this.getPrimaryOrganizationId(user),
+      userId: user.id,
+      action: "updated",
+      target: "avatar",
+    });
     return { user: updatedUser };
   }
 
@@ -144,6 +166,12 @@ export class UsersController {
       );
     }
     const createdUser = await this.usersService.create(body);
+    await this.auditLogIfPossible({
+      orgId: body.organizationId,
+      userId: user.id,
+      action: "created",
+      target: "user",
+    });
     return { user: createdUser };
   }
 
@@ -186,6 +214,12 @@ export class UsersController {
     }
 
     const updatedUser = await this.usersService.update(id, body);
+    await this.auditLogIfPossible({
+      orgId: body.organizationId || this.getPrimaryOrganizationId(user),
+      userId: user.id,
+      action: "updated",
+      target: isModifyingSelf ? "profile" : "user",
+    });
     return { user: updatedUser };
   }
 
@@ -224,6 +258,12 @@ export class UsersController {
       body.organizationId,
       body.values
     );
+    await this.auditLogIfPossible({
+      orgId: body.organizationId,
+      userId: user.id,
+      action: "saved",
+      target: "user meta values",
+    });
     return { metaValues };
   }
 
@@ -243,6 +283,40 @@ export class UsersController {
         "You are not an administrator for this organization"
       );
     }
-    return this.usersService.remove(id);
+    const result = await this.usersService.remove(id);
+    await this.auditLogIfPossible({
+      orgId: organizationsIds[0] || null,
+      userId: user.id,
+      action: "deleted",
+      target: "user",
+    });
+    return result;
+  }
+
+  private getPrimaryOrganizationId(user?: UserProfile) {
+    const organizationIds = Object.keys(user?.organizations || {});
+    return organizationIds[0] || null;
+  }
+
+  private async auditLogIfPossible(input: {
+    orgId: string | null;
+    userId?: string | null;
+    attendeeId?: string | null;
+    meetId?: string | null;
+    action: string;
+    target: string;
+  }) {
+    if (!input.orgId) {
+      return;
+    }
+
+    await this.auditLogService.addRecord({
+      orgId: input.orgId,
+      userId: input.userId ?? null,
+      attendeeId: input.attendeeId ?? null,
+      meetId: input.meetId ?? null,
+      action: input.action,
+      target: input.target,
+    });
   }
 }

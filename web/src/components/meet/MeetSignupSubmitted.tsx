@@ -16,6 +16,7 @@ import { useAuth } from "../../context/authContext";
 import { GuestInput } from "../../types/GuestInput";
 import { useCopyMyMetaValuesFromAttendee } from "../../hooks/useCopyMyMetaValuesFromAttendee";
 import { useNotistack } from "../../hooks/useNotistack";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 
 type MeetSignupSubmittedProps = {
   firstName?: string;
@@ -33,6 +34,7 @@ type MeetSignupSubmittedProps = {
   isGuest?: boolean;
   isOrganizationPrivate?: boolean;
   isPreview?: boolean;
+  isRsvpMode?: boolean;
 };
 
 export function MeetSignupSubmitted({
@@ -51,7 +53,9 @@ export function MeetSignupSubmitted({
   guests = [],
   isOrganizationPrivate = false,
   isPreview = false,
+  isRsvpMode = false,
 }: MeetSignupSubmittedProps) {
+  const wording = getMeetResponseWording(isRsvpMode);
   const nav = useNavigate();
   const { isAuthenticated } = useAuth();
   const notice = useNotistack();
@@ -106,7 +110,7 @@ export function MeetSignupSubmitted({
     if (!shareLink) return;
     const subject = encodeURIComponent("Meet invite");
     const body = encodeURIComponent(
-      `Hi ${guestName || "there"},\n\nPlease use this link to sign up: ${shareLink}`,
+      `Hi ${guestName || "there"},\n\n${wording.minorInviteMessage}: ${shareLink}`,
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
@@ -156,11 +160,10 @@ export function MeetSignupSubmitted({
             <CheckCircleIcon sx={{ color: "#ffffff", fontSize: 64 }} />
           </Box>
           <Typography variant="h5" fontWeight={700}>
-            Application submitted
+            {wording.submittedTitle}
           </Typography>
           <Typography color="text.secondary">
-            Your application has been submitted. You will be notified by the
-            organizer when meet attendance has been finalized.
+            {wording.submittedBody}
           </Typography>
           {canRememberAnswers ? (
             <FormControlLabel
@@ -196,8 +199,8 @@ export function MeetSignupSubmitted({
             <>
               <Typography color="text.secondary">
                 {isOrganizationPrivate || isGuest
-                  ? "Use the link below to check the status of your application."
-                  : "If you wish you can create a profile to make future meet signups faster and manage your applications. Alternatively just use the link below to check the status of your application."}
+                  ? wording.withdrawalStatusLead
+                  : wording.withdrawalStatusLeadWithProfile}
               </Typography>
               <Stack direction="row" spacing={2}>
                 {!isOrganizationPrivate && !isGuest && (

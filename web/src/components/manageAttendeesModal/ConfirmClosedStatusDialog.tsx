@@ -1,6 +1,12 @@
 import ConfirmActionDialog from "../ConfirmActionDialog";
 import { useSnackbar } from "notistack";
-import { Box, Checkbox, FormControlLabel, TextField, Typography } from "@mui/material";
+import {
+  Box,
+  Checkbox,
+  FormControlLabel,
+  TextField,
+  Typography,
+} from "@mui/material";
 import Meet from "../../types/MeetModel";
 import { Attendee } from "../../types/AttendeeModel";
 import { useUpdateAttendeeStatus } from "../../hooks/useUpdateAttendeeStatus";
@@ -33,6 +39,7 @@ export function ConfirmClosedStatusDialog({
     confirmMessage: meet.confirmMessage,
     waitlistMessage: meet.waitlistMessage,
     rejectMessage: meet.rejectMessage,
+    isRsvpMode: meet.autoPlacement,
   });
   const [shouldSendMessage, setShouldSendMessage] = useState(true);
   const [editableSubject, setEditableSubject] = useState(subject);
@@ -66,8 +73,8 @@ export function ConfirmClosedStatusDialog({
           ? "Status updated and message sent"
           : "Status updated without sending a message",
         {
-        variant: "success",
-        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+          variant: "success",
+          anchorOrigin: { vertical: "bottom", horizontal: "right" },
         },
       );
       onDone();

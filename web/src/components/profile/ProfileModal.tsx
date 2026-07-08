@@ -14,10 +14,8 @@ import {
   useTheme,
 } from "@mui/material";
 import { useState } from "react";
-import { useCurrentOrganization } from "../../context/organizationContext";
 import { PersonalDetails } from "./PersonalDetails";
-import { MyOrganization } from "./MyOrganization";
-import { OrganizationInvites } from "./OrganizationInvites";
+import { ProfileOrganizations } from "./ProfileOrganizations";
 import { ProfileSecurity } from "./ProfileSecurity";
 import { ProfileAutoFill } from "./ProfileAutoFill";
 import { ProfileICE } from "./ProfileICE";
@@ -26,31 +24,32 @@ import { ProfileAvatar } from "./ProfileAvatar";
 type ProfileModalProps = {
   open: boolean;
   onClose: () => void;
+  onOpenOrganization?: () => void;
 };
 
 type ProfileContentProps = {
   open: boolean;
+  onOpenOrganization?: () => void;
 };
 
-export function ProfileContent({ open: _open }: ProfileContentProps) {
-  const { currentOrganizationRole } = useCurrentOrganization();
+export function ProfileContent({
+  open: _open,
+  onOpenOrganization,
+}: ProfileContentProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [section, setSection] = useState<
     | "personal"
-    | "organization"
-    | "invites"
+    | "organizations"
     | "security"
     | "autofill"
     | "emergency"
     | "avatar"
   >("personal");
-  const isAdmin = currentOrganizationRole === "admin";
 
   const sections = [
     { key: "personal", label: "Personal details" },
-    { key: "organization", label: "Organisation" },
-    ...(isAdmin ? [{ key: "invites", label: "Invites" }] : []),
+    { key: "organizations", label: "Organisations" },
     { key: "security", label: "Security" },
     { key: "autofill", label: "AutoFill" },
     { key: "emergency", label: "Emergency Info" },
@@ -61,8 +60,7 @@ export function ProfileContent({ open: _open }: ProfileContentProps) {
     return (
       <Stack divider={<Divider flexItem />} spacing={2}>
         <PersonalDetails />
-        <MyOrganization />
-        {isAdmin ? <OrganizationInvites /> : null}
+        <ProfileOrganizations onOpenOrganization={onOpenOrganization} />
         <ProfileSecurity />
         <ProfileAutoFill />
         <ProfileICE />
@@ -88,8 +86,9 @@ export function ProfileContent({ open: _open }: ProfileContentProps) {
       </Grid>
       <Grid item xs={12} sm={8} md={9}>
         {section === "personal" ? <PersonalDetails /> : null}
-        {section === "organization" ? <MyOrganization /> : null}
-        {section === "invites" ? <OrganizationInvites /> : null}
+        {section === "organizations" ? (
+          <ProfileOrganizations onOpenOrganization={onOpenOrganization} />
+        ) : null}
         {section === "security" ? <ProfileSecurity /> : null}
         {section === "autofill" ? <ProfileAutoFill /> : null}
         {section === "emergency" ? <ProfileICE /> : null}
@@ -99,7 +98,11 @@ export function ProfileContent({ open: _open }: ProfileContentProps) {
   );
 }
 
-export function ProfileModal({ open, onClose }: ProfileModalProps) {
+export function ProfileModal({
+  open,
+  onClose,
+  onOpenOrganization,
+}: ProfileModalProps) {
   return (
     <Dialog
       open={open}
@@ -111,7 +114,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     >
       <DialogTitle>Profile</DialogTitle>
       <DialogContent dividers>
-        <ProfileContent open={open} />
+        <ProfileContent open={open} onOpenOrganization={onOpenOrganization} />
       </DialogContent>
       <Divider />
       <DialogActions>

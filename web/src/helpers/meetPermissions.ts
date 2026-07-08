@@ -18,6 +18,7 @@ export function getMeetPermissions({
 
   return {
     isOrganizerForMeet,
+    canAccessManageMenu: isAdmin || isOrganizer || isOrganizerForMeet,
     canManageMeet: isAdmin || isOrganizerForMeet,
     canViewMeet: isAdmin || isOrganizer || isMember,
   };

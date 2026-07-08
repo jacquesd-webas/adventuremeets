@@ -182,4 +182,10 @@ describe("AuthController", () => {
       pendingInvites: [{ id: "invite-1" }],
     });
   });
+
+  it("rejects auth/me without an authenticated user", async () => {
+    await expect(controller.me(undefined as any)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
 });

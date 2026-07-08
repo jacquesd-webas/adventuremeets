@@ -116,7 +116,25 @@ describe("ManageAttendeesModal", () => {
     });
   });
 
+  const setMatchMedia = (matches: boolean) => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    });
+  };
+
   beforeEach(() => {
+    setMatchMedia(false);
+    vi.useRealTimers();
     updateMeetAttendeeAsync.mockReset();
     notifyAttendeeAsync.mockReset();
     refetch.mockReset();
@@ -138,6 +156,11 @@ describe("ManageAttendeesModal", () => {
       waitlistMessage: "Waitlisted custom body",
       rejectMessage: "Rejected custom body",
     };
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
   });
 
   it("shows attendees and updates status", async () => {
@@ -184,6 +207,31 @@ describe("ManageAttendeesModal", () => {
 
     fireEvent.click(screen.getByText("Send Message to All Attendees"));
     expect(screen.getByText("Message modal")).toBeInTheDocument();
+  });
+
+  it("closes the mobile attendee drawer before opening the message modal", async () => {
+    setMatchMedia(true);
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Alex/i }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Message Alex/i }),
+    );
+
+    expect(screen.queryByText("Message modal")).not.toBeInTheDocument();
+
+    expect(await screen.findByText("Message modal")).toBeInTheDocument();
   });
 
   it("closes immediately without notify prompt when the user is not the organizer", () => {

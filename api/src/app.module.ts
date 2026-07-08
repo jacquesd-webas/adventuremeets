@@ -9,6 +9,7 @@ import { MeetsModule } from './meets/meets.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { EmailModule } from './email/email.module';
 import { TypesModule } from './types/types.module';
+import { AuditLogModule } from './audit/audit-log.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TypesModule } from './types/types.module';
     OrganizationsModule,
     EmailModule,
     TypesModule,
+    AuditLogModule,
   ],
   controllers: [],
   providers: [

@@ -134,7 +134,8 @@ function ListPage() {
         align: "right",
         renderCell: (params: GridRenderCellParams) =>
           (() => {
-            const { canManageMeet, canViewMeet } = getMeetPermissions({
+            const { canManageMeet, canViewMeet, canAccessManageMenu } =
+              getMeetPermissions({
               currentUserId: user?.id,
               currentOrganizationRole,
               organizerId: params.row.organizerId,
@@ -152,6 +153,7 @@ function ListPage() {
                 <MeetActionsMenu
                   meetId={params.row.id}
                   statusId={params.row.statusId}
+                  canAccessManageMenu={canAccessManageMenu}
                   canViewMeet={canViewMeet}
                   canManageMeet={canManageMeet}
                   isUpcoming={isMeetUpcoming(params.row)}
@@ -370,7 +372,8 @@ function ListPage() {
           )}
           {meets.map((meet) =>
             (() => {
-              const { canManageMeet, canViewMeet } = getMeetPermissions({
+              const { canManageMeet, canViewMeet, canAccessManageMenu } =
+                getMeetPermissions({
                 currentUserId: user?.id,
                 currentOrganizationRole,
                 organizerId: meet.organizerId,
@@ -413,10 +416,15 @@ function ListPage() {
                         <MeetActionsMenu
                           meetId={meet.id}
                           statusId={meet.statusId}
+                          canAccessManageMenu={canAccessManageMenu}
                           canViewMeet={canViewMeet}
                           canManageMeet={canManageMeet}
                           isUpcoming={isMeetUpcoming(meet)}
-                          startTime={meet.startTime}
+                          startTime={
+                            meet.startTime instanceof Date
+                              ? meet.startTime.toISOString()
+                              : meet.startTime
+                          }
                           setSelectedMeetId={setSelectedMeetId}
                           setPendingAction={setPendingAction}
                           previewLinkCode={meet.shareCode || undefined}

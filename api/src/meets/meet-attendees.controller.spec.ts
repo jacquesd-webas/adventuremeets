@@ -19,6 +19,8 @@ import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { UsersService } from "../users/users.service";
+import { AuditLogService } from "../audit/audit-log.service";
+import { OrganizationsService } from "../organizations/organizations.service";
 
 describe("MeetAttendeesController", () => {
   let controller: MeetAttendeesController;
@@ -48,6 +50,14 @@ describe("MeetAttendeesController", () => {
   const usersService = {
     findIceInfoByUserId: jest.fn(),
   } as unknown as UsersService;
+
+  const auditLogService = {
+    addRecord: jest.fn(),
+  } as unknown as AuditLogService;
+
+  const organizationsService = {
+    findLogoUrlById: jest.fn(),
+  } as unknown as OrganizationsService;
 
   const user: UserProfile = {
     id: "user-1",
@@ -88,7 +98,22 @@ describe("MeetAttendeesController", () => {
       authService,
       emailService,
       usersService,
+      auditLogService,
+      organizationsService,
     );
+    (organizationsService.findLogoUrlById as jest.Mock).mockResolvedValue(
+      "https://cdn.example.com/logos/org-1.webp",
+    );
+  });
+
+  it.each([
+    ["list", () => controller.list("meet-1", "accepted")],
+    ["update", () => controller.update("meet-1", "attendee-1", {})],
+    ["getIceInfo", () => controller.getIceInfo("meet-1", "attendee-1")],
+    ["getHistory", () => controller.getHistory("meet-1", "attendee-1")],
+    ["remove", () => controller.remove("meet-1", "attendee-1")],
+  ])("rejects unauthenticated %s access", async (_name, action) => {
+    await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it("rejects unauthenticated attendee listing", async () => {
@@ -134,9 +159,9 @@ describe("MeetAttendeesController", () => {
       (_user, _orgId, role) => role === "organizer",
     );
 
-    await expect(
-      controller.list("meet-1", "confirmed", user),
-    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+    await expect(controller.list("meet-1", "confirmed", user)).rejects.toThrow(
+      "You cannot access attendees for a meet you do not organize",
+    );
   });
 
   it("allows attendee listing for admins on another organizer's meet", async () => {
@@ -228,7 +253,9 @@ describe("MeetAttendeesController", () => {
 
     await expect(
       controller.getHistory("meet-1", "attendee-1", user),
-    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+    ).rejects.toThrow(
+      "You cannot access attendees for a meet you do not organize",
+    );
   });
 
   it("allows attendee history access for admins on another organizer's meet", async () => {
@@ -285,16 +312,23 @@ describe("MeetAttendeesController", () => {
   it("checks duplicates without including invited attendees", async () => {
     (meetsService.findAttendeeByContact as jest.Mock).mockResolvedValue({
       attendee: null,
+      attendees: [],
     });
 
     await expect(
-      controller.check("meet-1", "person@example.com", "+27123456789"),
-    ).resolves.toEqual({ attendee: null });
+      controller.check(
+        "meet-1",
+        "Person Example",
+        "person@example.com",
+        "+27123456789",
+      ),
+    ).resolves.toEqual({ attendee: null, attendees: [] });
 
     expect(meetsService.findAttendeeByContact).toHaveBeenCalledWith(
       "meet-1",
       "person@example.com",
       "+27123456789",
+      "Person Example",
       { includeInvited: false },
     );
   });
@@ -359,6 +393,7 @@ describe("MeetAttendeesController", () => {
       expect.objectContaining({
         meetName: meet.name,
         attendeeName: dto.name,
+        logoUrl: "https://cdn.example.com/logos/org-1.webp",
       }),
     );
     expect(emailService.sendEmail).toHaveBeenCalledWith(
@@ -379,6 +414,13 @@ describe("MeetAttendeesController", () => {
       "meet-1",
       ["attendee-1"],
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "signed up for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("does not set respondedAt for plain signup acknowledgements without auto-placement", async () => {
@@ -409,6 +451,7 @@ describe("MeetAttendeesController", () => {
       expect.objectContaining({
         meetName: meet.name,
         attendeeName: dto.name,
+        logoUrl: "https://cdn.example.com/logos/org-1.webp",
       }),
     );
     expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
@@ -493,6 +536,14 @@ describe("MeetAttendeesController", () => {
       "attendee-1",
       dto,
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "user-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "updated attendee for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("rejects attendee updates from another organizer in the same organization", async () => {
@@ -507,7 +558,9 @@ describe("MeetAttendeesController", () => {
 
     await expect(
       controller.update("meet-1", "attendee-1", dto, user),
-    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+    ).rejects.toThrow(
+      "You cannot access attendees for a meet you do not organize",
+    );
   });
 
   it("allows attendee updates from an admin who is not the meet organizer", async () => {
@@ -568,6 +621,14 @@ describe("MeetAttendeesController", () => {
       "meet-1",
       "attendee-1",
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "user-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "removed attendee from",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("rejects attendee removal by another organizer in the same organization", async () => {
@@ -581,7 +642,9 @@ describe("MeetAttendeesController", () => {
 
     await expect(
       controller.remove("meet-1", "attendee-1", user),
-    ).rejects.toThrow("You cannot access attendees for a meet you do not organize");
+    ).rejects.toThrow(
+      "You cannot access attendees for a meet you do not organize",
+    );
   });
 
   it("allows attendee removal by an admin on another organizer's meet", async () => {

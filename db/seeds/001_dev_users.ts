@@ -34,6 +34,7 @@ export async function seed(knex: Knex): Promise<void> {
 
   const orgRows = organizations.map((name) => ({
     name,
+    is_private: name === "Summit Explorers" ? false : true,
     created_at: now,
     updated_at: now
   }));
@@ -63,6 +64,42 @@ export async function seed(knex: Knex): Promise<void> {
   if (!org1 || !org2 || !org3) {
     throw new Error("Seed requires three organizations");
   }
+
+  await knex("org_features").insert([
+    {
+      organization_id: org1,
+      reporting_enabled: true,
+      branding_enabled: true,
+      domain_enabled: true,
+      whatsapp_enabled: true,
+      payments_enabled: true,
+      disk_quotas_enabled: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      organization_id: org2,
+      reporting_enabled: false,
+      branding_enabled: false,
+      domain_enabled: false,
+      whatsapp_enabled: false,
+      payments_enabled: false,
+      disk_quotas_enabled: false,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      organization_id: org3,
+      reporting_enabled: false,
+      branding_enabled: false,
+      domain_enabled: false,
+      whatsapp_enabled: false,
+      payments_enabled: false,
+      disk_quotas_enabled: false,
+      created_at: now,
+      updated_at: now,
+    },
+  ]);
 
   const membershipRows = insertedUsers.flatMap((user) => {
     if (user.email === "alice@nowhere.com") {

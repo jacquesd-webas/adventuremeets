@@ -9,12 +9,16 @@ import {
   Post,
   Delete,
   UnauthorizedException,
+  BadRequestException,
+  UploadedFile,
+  UseInterceptors,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { User } from "../auth/decorators/user.decorator";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { OrganizationsService } from "./organizations.service";
+import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { CreateTemplateDto } from "./dto/create-template.dto";
 import { UpdateTemplateDto } from "./dto/update-template.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
@@ -24,7 +28,8 @@ import { InviteLinkDto } from "./dto/invite-link.dto";
 import { Public } from "../auth/decorators/public.decorator";
 import { UseGuards } from "@nestjs/common";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
-import { DatabaseService } from "../database/database.service";
+import { AuditLogService } from "../audit/audit-log.service";
+import { FileInterceptor } from "@nestjs/platform-express";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -35,7 +40,7 @@ export class OrganizationsController {
   constructor(
     private readonly organizationsService: OrganizationsService,
     private readonly authService: AuthService,
-    private readonly db: DatabaseService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   @Get()
@@ -49,6 +54,41 @@ export class OrganizationsController {
     const organizations =
       await this.organizationsService.findAllByIds(organizationIds);
     return { organizations };
+  }
+
+  @Post()
+  async create(
+    @Body() body: CreateOrganizationDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const organization =
+      await this.organizationsService.createPrivateOrganization(
+        body.name,
+        user.id,
+      );
+    await this.auditLogService.addRecord({
+      orgId: organization.id,
+      userId: user.id,
+      action: "created",
+      target: `organization ${organization.name || "organization"}`,
+    });
+    return { organization };
+  }
+
+  @Post(":id/leave")
+  async leave(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    await this.organizationsService.leaveOrganization(id, user.id);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "left",
+      target: "organization",
+    });
+    return { success: true };
   }
 
   @Post("invites/:inviteId/accept")
@@ -65,7 +105,7 @@ export class OrganizationsController {
     );
 
     try {
-      await this.removeEmptyPrivateOrganizationsForUser(
+      await this.organizationsService.removeEmptyPrivateOrganizationsForUser(
         user.id,
         invite.organizationId,
       );
@@ -74,6 +114,13 @@ export class OrganizationsController {
         `Accepted invite ${inviteId} for user ${user.id}, but private org cleanup failed: ${err?.message || err}`,
       );
     }
+
+    await this.auditLogService.addRecord({
+      orgId: invite.organizationId,
+      userId: user.id,
+      action: "accepted",
+      target: "organization invite",
+    });
 
     return { invite };
   }
@@ -89,48 +136,13 @@ export class OrganizationsController {
       inviteId,
       user.email,
     );
+    await this.auditLogService.addRecord({
+      orgId: invite.organizationId,
+      userId: user.id,
+      action: "declined",
+      target: "organization invite",
+    });
     return { invite };
-  }
-
-  private async removeEmptyPrivateOrganizationsForUser(
-    userId: string,
-    keepOrganizationId?: string,
-  ) {
-    const client = this.db.getClient();
-    const orgRows = await client("organizations as o")
-      .join("user_organization_memberships as uom", "uom.organization_id", "o.id")
-      .where("uom.user_id", userId)
-      .andWhere("uom.status", "active")
-      .andWhere("o.is_private", true)
-      .modify((queryBuilder) => {
-        if (keepOrganizationId) {
-          queryBuilder.andWhere("o.id", "!=", keepOrganizationId);
-        }
-      })
-      .distinct("o.id");
-
-    for (const org of orgRows) {
-      const countRow = await client("user_organization_memberships")
-        .where({ organization_id: org.id })
-        .countDistinct<{ count: string }>("user_id as count")
-        .first();
-      const memberCount = Number(countRow?.count ?? 0);
-      if (memberCount !== 1) {
-        continue;
-      }
-
-      const meetCountRow = await client("meets")
-        .where({ organization_id: org.id })
-        .count<{ count: string }>("id as count")
-        .first();
-      const meetCount = Number(meetCountRow?.count ?? 0);
-      if (meetCount === 0) {
-        await client("organizations")
-          .where({ id: org.id })
-          .andWhere("is_private", true)
-          .del();
-      }
-    }
   }
 
   @Public()
@@ -187,6 +199,12 @@ export class OrganizationsController {
       userId,
       body,
     );
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "updated",
+      target: "organization member",
+    });
     return { member };
   }
 
@@ -269,6 +287,12 @@ export class OrganizationsController {
     }
 
     const template = await this.organizationsService.createTemplate(id, body);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "created",
+      target: `organization template ${template.name || "template"}`,
+    });
     return { template };
   }
 
@@ -292,6 +316,12 @@ export class OrganizationsController {
       templateId,
       body,
     );
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "updated",
+      target: `organization template ${template.name || "template"}`,
+    });
     return { template };
   }
 
@@ -308,7 +338,17 @@ export class OrganizationsController {
         "You are not an administrator for this organization",
       );
     }
-    return await this.organizationsService.deleteTemplate(id, templateId);
+    const result = await this.organizationsService.deleteTemplate(
+      id,
+      templateId,
+    );
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "deleted",
+      target: "organization template",
+    });
+    return result;
   }
 
   @Patch(":id")
@@ -325,6 +365,47 @@ export class OrganizationsController {
       );
     }
     const organization = await this.organizationsService.update(id, dto);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "updated",
+      target: `organization ${organization.name || "organization"}`,
+    });
+    return { organization };
+  }
+
+  @Post(":id/logo")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async uploadLogo(
+    @Param("id") id: string,
+    @UploadedFile() file: any,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization",
+      );
+    }
+    if (!file) {
+      throw new BadRequestException("Organisation logo image file is required");
+    }
+    if (!file.mimetype?.startsWith("image/")) {
+      throw new BadRequestException("Only image uploads are allowed");
+    }
+
+    const organization = await this.organizationsService.uploadLogo(id, file);
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "updated",
+      target: "organization logo",
+    });
     return { organization };
   }
 
@@ -364,6 +445,12 @@ export class OrganizationsController {
       body,
       user.id,
     );
+    await this.auditLogService.addRecord({
+      orgId: id,
+      userId: user.id,
+      action: "created",
+      target: "organization invite",
+    });
     return { invite };
   }
 }

@@ -21,6 +21,7 @@ import { GuestSwitchField } from "../meet/GuestSwitchField";
 import { Spacer } from "../common/Spacer";
 import { GuestInput } from "../../types/GuestInput";
 import type { MeetSignupSheetState } from "../../pages/MeetSignupSheetState";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 
 function LabeledField({
   label,
@@ -45,6 +46,12 @@ export type MeetSignupFormFieldsProps = {
   meet: any;
   fullName: string;
   email: string;
+  organization?: {
+    customField1Name?: string;
+    customField2Name?: string;
+    customField1HelperText?: string;
+    customField2HelperText?: string;
+  } | null;
   phoneCountry: string;
   phoneLocal: string;
   nameError?: string | null;
@@ -54,6 +61,8 @@ export type MeetSignupFormFieldsProps = {
   disablePhone: boolean;
   disableGuests: boolean;
   guardianName: string;
+  org1Value: string;
+  org2Value: string;
   wantsGuests: boolean;
   guests: GuestInput[];
   metaValues: Record<string, any>;
@@ -75,10 +84,7 @@ export type MeetSignupFormFieldsProps = {
     key: K,
     value: MeetSignupSheetState[K],
   ) => void;
-  setMetaValue: (
-    key: string,
-    value: string | number | boolean,
-  ) => void;
+  setMetaValue: (key: string, value: string | number | boolean) => void;
   setPhoneCountry: (value: string) => void;
   setPhoneLocal: (value: string) => void;
 };
@@ -87,6 +93,7 @@ export function MeetSignupFormFields({
   meet,
   fullName,
   email,
+  organization,
   phoneCountry,
   phoneLocal,
   nameError,
@@ -96,6 +103,8 @@ export function MeetSignupFormFields({
   disablePhone,
   disableGuests,
   guardianName,
+  org1Value,
+  org2Value,
   wantsGuests,
   guests,
   metaValues,
@@ -117,6 +126,16 @@ export function MeetSignupFormFields({
   setPhoneCountry,
   setPhoneLocal,
 }: MeetSignupFormFieldsProps) {
+  const wording = getMeetResponseWording(Boolean(meet?.autoPlacement));
+  const showEmailField = meet?.requireEmail !== false;
+  const showPhoneField = meet?.requirePhone !== false;
+  const showOrg1Field = Boolean(
+    meet?.requireOrg1 && organization?.customField1Name,
+  );
+  const showOrg2Field = Boolean(
+    meet?.requireOrg2 && organization?.customField2Name,
+  );
+
   return (
     <Stack spacing={2} mt={2}>
       <Stack spacing={0.5}>
@@ -223,44 +242,80 @@ export function MeetSignupFormFields({
         ) : null}
       </Stack>
 
-      <LabeledField
-        label={isMinor ? "Parent or Guardian Email" : "Email"}
-        required
-      >
-        <EmailField
+      {showEmailField ? (
+        <LabeledField
+          label={isMinor ? "Parent or Guardian Email" : "Email"}
           required
-          value={email}
-          onChange={(value) => setField("email", value)}
-          onBlur={onEmailBlur}
-          error={Boolean(emailError)}
-          helperText={emailError || undefined}
-          hideLabel
-          disabled={disableIdentityFields}
-        />
-      </LabeledField>
-      <LabeledField
-        label={isMinor ? "Parent or Guardian Phone" : "Phone"}
-        required
-      >
-        <InternationalPhoneField
+        >
+          <EmailField
+            required
+            value={email}
+            onChange={(value) => setField("email", value)}
+            onBlur={onEmailBlur}
+            error={Boolean(emailError)}
+            helperText={emailError || undefined}
+            hideLabel
+            disabled={disableIdentityFields}
+          />
+        </LabeledField>
+      ) : null}
+      {showPhoneField ? (
+        <LabeledField
+          label={isMinor ? "Parent or Guardian Phone" : "Phone"}
           required
-          country={phoneCountry}
-          local={phoneLocal}
-          onCountryChange={(value) => {
-            setPhoneCountry(value);
-            setField("phone", buildInternationalPhone(value, phoneLocal));
-          }}
-          onLocalChange={(value) => {
-            setPhoneLocal(value);
-            setField("phone", buildInternationalPhone(phoneCountry, value));
-          }}
-          onBlur={onPhoneBlur}
-          error={Boolean(phoneError)}
-          helperText={phoneError || undefined}
-          hideLabel
-          disabled={disablePhone}
-        />
-      </LabeledField>
+        >
+          <InternationalPhoneField
+            required
+            country={phoneCountry}
+            local={phoneLocal}
+            onCountryChange={(value) => {
+              setPhoneCountry(value);
+              setField("phone", buildInternationalPhone(value, phoneLocal));
+            }}
+            onLocalChange={(value) => {
+              setPhoneLocal(value);
+              setField("phone", buildInternationalPhone(phoneCountry, value));
+            }}
+            onBlur={onPhoneBlur}
+            error={Boolean(phoneError)}
+            helperText={phoneError || undefined}
+            hideLabel
+            disabled={disablePhone}
+          />
+        </LabeledField>
+      ) : null}
+      {showOrg1Field ? (
+        <LabeledField
+          label={organization?.customField1Name || "Custom field 1"}
+          required
+        >
+          <TextField
+            placeholder={organization?.customField1HelperText || undefined}
+            inputProps={{
+              "aria-label": organization?.customField1Name || "Custom field 1",
+            }}
+            value={org1Value}
+            onChange={(event) => setField("org1Value", event.target.value)}
+            fullWidth
+          />
+        </LabeledField>
+      ) : null}
+      {showOrg2Field ? (
+        <LabeledField
+          label={organization?.customField2Name || "Custom field 2"}
+          required
+        >
+          <TextField
+            placeholder={organization?.customField2HelperText || undefined}
+            inputProps={{
+              "aria-label": organization?.customField2Name || "Custom field 2",
+            }}
+            value={org2Value}
+            onChange={(event) => setField("org2Value", event.target.value)}
+            fullWidth
+          />
+        </LabeledField>
+      ) : null}
       <GuestSwitchField
         allowGuests={Boolean(meet.allowGuests)}
         disabled={disableGuests}
@@ -390,7 +445,7 @@ export function MeetSignupFormFields({
             disabled={isSubmitting || isSubmitDisabled}
             onClick={onSubmit}
           >
-            Submit application
+            {wording.submitLabel}
           </Button>
         )}
       </Stack>

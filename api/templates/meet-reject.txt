@@ -1,7 +1,7 @@
 {{messageBody}}
 
 {{#ifStatusUrl}}
-You can view your application status here:
+You can view your {{responseNoun}} status here:
 {{statusUrl}}
 {{/ifStatusUrl}}
 {{#ifOrganizerEmail}}

@@ -30,9 +30,12 @@ export async function seed(knex: Knex): Promise<void> {
     throw new Error("Seed requires at least one organization (run user seeds first)");
   }
 
-  const organizer = await knex("users").first("id");
-  if (!organizer?.id) {
-    throw new Error("Seed requires at least one user (run user seeds first)");
+  const alice = await knex("users")
+    .where({ email: "alice@nowhere.com" })
+    .first("id");
+  const bob = await knex("users").where({ email: "bob@nowhere.com" }).first("id");
+  if (!alice?.id || !bob?.id) {
+    throw new Error("Seed requires Alice and Bob users (run user seeds first)");
   }
 
   const usd = await knex("currencies").where({ code: "USD" }).first("id");
@@ -148,7 +151,7 @@ export async function seed(knex: Knex): Promise<void> {
     const confirm = meet.startOffsetDays >= 0 ? addDays(start, -2) : addDays(start, -1);
 
     return {
-      organizer_id: organizer.id,
+      organizer_id: meet.name === "Caving Meet" ? bob.id : alice.id,
       organization_id: primaryOrg.id,
       name: meet.name,
       description: meet.description,
@@ -225,7 +228,7 @@ export async function seed(knex: Knex): Promise<void> {
     await knex("wall_item").insert([
       {
         meet_id: workMeetId,
-        created_by: organizer.id,
+        created_by: alice.id,
         comment:
           "Thanks everyone. Clear priorities, fewer open questions, and a much better plan than last sprint.",
         stars: 5,
@@ -234,7 +237,7 @@ export async function seed(knex: Knex): Promise<void> {
       },
       {
         meet_id: workMeetId,
-        created_by: organizer.id,
+        created_by: alice.id,
         comment:
           "Big win from this session: we finally aligned product, design, and engineering on the next release scope.",
         favourite: 1,
@@ -242,7 +245,7 @@ export async function seed(knex: Knex): Promise<void> {
       },
       {
         meet_id: workMeetId,
-        created_by: organizer.id,
+        created_by: alice.id,
         comment: "Retro snapshot from the virtual whiteboard session.",
         stars: 4,
         url: "https://picsum.photos/seed/adventuremeets-work-meet-wall/1200/900",

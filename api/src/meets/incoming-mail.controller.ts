@@ -18,6 +18,7 @@ import { Request, Response } from "express";
 import { DatabaseService } from "../database/database.service";
 import { Public } from "../auth/decorators/public.decorator";
 import { EmailService } from "../email/email.service";
+import { AuditLogService } from "../audit/audit-log.service";
 
 @ApiTags("Mail")
 @Controller()
@@ -25,6 +26,7 @@ export class IncomingMailController {
   constructor(
     private readonly db: DatabaseService,
     private readonly emailService: EmailService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   @Public()
@@ -93,7 +95,7 @@ export class IncomingMailController {
     // Make sure meet, sender and recipients are real
     const meet = await this.db
       .getClient()("meets")
-      .select("id", "organizer_id", "name")
+      .select("id", "organization_id", "organizer_id", "name")
       .where("id", meetId)
       .first();
 
@@ -143,6 +145,13 @@ export class IncomingMailController {
       from: sender,
       to: organizer?.email ?? null,
       rawContent: rawBody,
+    });
+
+    await this.auditLogService.addRecord({
+      orgId: meet.organization_id,
+      attendeeId: attendee?.id ?? null,
+      meetId: meet.id,
+      description: `Incoming mail for meet ${meet.name || "meet"}`,
     });
 
     res.status(HttpStatus.CREATED);

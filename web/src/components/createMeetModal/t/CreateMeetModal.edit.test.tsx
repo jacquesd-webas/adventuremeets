@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { CreateMeetModal } from "../CreateMeetModal";
 import { mapMeetToState, toIsoWithOffset } from "../CreateMeetState";
@@ -29,6 +30,10 @@ const meetFixture = {
   allowGuests: true,
   allowSelfCheckin: true,
   allowWalkins: true,
+  requireEmail: true,
+  requirePhone: true,
+  requireOrg1: false,
+  requireOrg2: true,
   maxGuests: 2,
   statusId: 1,
   shareCode: "camping-share",
@@ -36,6 +41,12 @@ const meetFixture = {
 };
 
 let currentMeetFixture = meetFixture;
+let mockedOrganization = {
+  id: "org-1",
+  name: "Adventure Meets",
+  customField1Name: "",
+  customField2Name: "Membership number",
+};
 
 function renderCreateMeetModal() {
   return render(
@@ -67,11 +78,24 @@ function renderCreateMeetModalAsAdmin() {
 }
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom",
-  );
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom",
+    );
   return {
     ...actual,
+    MemoryRouter: ({
+      future,
+      ...props
+    }: React.ComponentProps<typeof actual.MemoryRouter>) =>
+      React.createElement(actual.MemoryRouter, {
+        ...props,
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+          ...future,
+        },
+      }),
     useNavigate: () => navigate,
   };
 });
@@ -98,9 +122,36 @@ vi.mock("../../../hooks/useFetchMeet", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useFetchOrganization", () => ({
+  useFetchOrganization: () => ({
+    data: mockedOrganization,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useFetchOrganizationTemplates", () => ({
+  useFetchOrganizationTemplates: () => ({
+    data: [],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useFetchOrganizationTemplate", () => ({
+  useFetchOrganizationTemplate: () => ({
+    data: null,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../../../hooks/useFetchOrganizers", () => ({
   useFetchOrganizers: () => ({
-    data: [{ id: "organizer-1", firstName: "Alice", lastName: "Jones" }],
+    data: [
+      { id: "organizer-1", firstName: "Alice", lastName: "Jones" },
+      { id: "someone-else", firstName: "Sam", lastName: "Taylor" },
+    ],
   }),
 }));
 
@@ -125,6 +176,12 @@ describe("CreateMeetModal edit mode", () => {
     mockUpdateStatusAsync.mockClear();
     navigate.mockClear();
     currentMeetFixture = meetFixture;
+    mockedOrganization = {
+      id: "org-1",
+      name: "Adventure Meets",
+      customField1Name: "",
+      customField2Name: "Membership number",
+    };
     window.sessionStorage.clear();
   });
 
@@ -161,6 +218,21 @@ describe("CreateMeetModal edit mode", () => {
     expect(screen.getByDisplayValue(expected.startTime)).toBeInTheDocument();
     expect(screen.getByDisplayValue(expected.endTime)).toBeInTheDocument();
 
+    await user.click(screen.getByText("Questions"));
+
+    expect(
+      screen.getByRole("checkbox", { name: "E-mail address" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Phone number" }),
+    ).toBeChecked();
+    expect(
+      screen.queryByRole("checkbox", { name: "Custom field 1" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Membership number" }),
+    ).toBeChecked();
+
     await user.click(screen.getByText("Limits"));
 
     expect(screen.getByDisplayValue(expected.openingDate)).toBeInTheDocument();
@@ -196,9 +268,7 @@ describe("CreateMeetModal edit mode", () => {
     });
 
     await user.click(screen.getByText("Limits"));
-    await user.click(
-      screen.getByRole("checkbox", { name: "Allow walk-ins" }),
-    );
+    await user.click(screen.getByRole("checkbox", { name: "Allow walk-ins" }));
 
     expect(
       screen.getByRole("checkbox", { name: "Allow self check-in" }),
@@ -213,6 +283,50 @@ describe("CreateMeetModal edit mode", () => {
       expect.objectContaining({
         allowSelfCheckin: true,
         allowWalkins: true,
+      }),
+      "meet-1",
+    );
+  });
+
+  it("saves required attendee field flags from the questions step", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      requireEmail: false,
+      requirePhone: false,
+      requireOrg1: false,
+      requireOrg2: false,
+    };
+    mockedOrganization = {
+      id: "org-1",
+      name: "Adventure Meets",
+      customField1Name: "Club",
+      customField2Name: "Membership number",
+    };
+
+    renderCreateMeetModal();
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Questions"));
+    await user.click(screen.getByRole("checkbox", { name: "E-mail address" }));
+    await user.click(screen.getByRole("checkbox", { name: "Phone number" }));
+    await user.click(screen.getByRole("checkbox", { name: "Club" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Membership number" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requireEmail: true,
+        requirePhone: true,
+        requireOrg1: true,
+        requireOrg2: true,
       }),
       "meet-1",
     );
@@ -342,7 +456,9 @@ describe("CreateMeetModal edit mode", () => {
     await user.click(screen.getByRole("button", { name: /preview/i }));
 
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith("/meets/camping-share?preview=true");
+      expect(navigate).toHaveBeenCalledWith(
+        "/meets/camping-share?preview=true",
+      );
     });
 
     const snapshot = window.sessionStorage.getItem(EDITING_MEET_RESTORE_KEY);

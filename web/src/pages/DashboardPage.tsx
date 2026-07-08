@@ -306,6 +306,7 @@ function DashboardPage() {
 
       <Box
         ref={scrollContainerRef}
+        data-testid="dashboard-scroll-container"
         sx={{ flex: 1, overflowY: "auto", pr: isMobile ? 0 : 1 }}
       >
         <Grid container spacing={3}>
@@ -367,22 +368,19 @@ function DashboardPage() {
           ) : null}
         </Box>
       </Box>
-      {canManageMeets ? (
-        <MeetActionsDialogs
-          meetId={selectedMeetId || null}
-          canViewMeet={selectedMeetPermissions.canViewMeet}
-          canManageMeet={selectedMeetPermissions.canManageMeet}
-          isOrganizer={selectedMeetPermissions.isOrganizerForMeet}
-          pendingAction={pendingAction || undefined}
-          setPendingAction={setPendingAction}
-          setSelectedMeetId={setSelectedMeetId}
-        />
-      ) : (
-        <CreatePrivateOrganizationDialog
-          open={showCreateOrgDialog}
-          onClose={() => setShowCreateOrgDialog(false)}
-        />
-      )}
+      <MeetActionsDialogs
+        meetId={selectedMeetId || null}
+        canViewMeet={selectedMeetPermissions.canViewMeet}
+        canManageMeet={selectedMeetPermissions.canManageMeet}
+        isOrganizer={selectedMeetPermissions.isOrganizerForMeet}
+        pendingAction={pendingAction || undefined}
+        setPendingAction={setPendingAction}
+        setSelectedMeetId={setSelectedMeetId}
+      />
+      <CreatePrivateOrganizationDialog
+        open={showCreateOrgDialog}
+        onClose={() => setShowCreateOrgDialog(false)}
+      />
     </Container>
   );
 }

@@ -133,8 +133,12 @@ function MeetCheckinPage() {
 
   const selfCheckinUrl = useMemo(() => {
     if (!meet?.shareCode || typeof window === "undefined") return "";
-    return `${window.location.origin}/meets/${meet.shareCode}?self-checkin`;
-  }, [meet?.shareCode]);
+    const params = new URLSearchParams();
+    if (meet?.checkinPin) {
+      params.set("pin", meet.checkinPin);
+    }
+    return `${window.location.origin}/meets/${meet.shareCode}/checkin?${params.toString()}`;
+  }, [meet?.checkinPin, meet?.shareCode]);
 
   const handleCheckin = async (attendeeId: string) => {
     if (isReadOnly) return;
@@ -391,7 +395,23 @@ function MeetCheckinPage() {
         fullWidth
         maxWidth="xs"
       >
-        <DialogTitle>Self check-in QR code</DialogTitle>
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+          }}
+        >
+          Self check-in QR code
+          <IconButton
+            aria-label="Close self check-in QR code"
+            onClick={() => setIsQrDialogOpen(false)}
+            edge="end"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
           <Stack
             spacing={2}

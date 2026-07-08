@@ -18,6 +18,7 @@ describe("renderEmailTemplate", () => {
       statusUrl: "https://app.example.com/meets/share-123/attendee-1",
       organizerName: "Taylor <Org>",
       organizerEmail: "taylor@example.com",
+      logoUrl: "https://cdn.example.com/logos/org-1.webp",
     });
 
     expect(result.subject).toBe('You signed up for River <Escape> & "Climb"');
@@ -33,7 +34,7 @@ describe("renderEmailTemplate", () => {
     );
 
     expect(result.html).toContain(
-      '<img src="https://app.example.com/static/adventuremeets-logo.png"',
+      '<img src="https://cdn.example.com/logos/org-1.webp"',
     );
     expect(result.html).toContain("Alex &amp; Sam &lt;Leader&gt;");
     expect(result.html).toContain(
@@ -68,6 +69,23 @@ describe("renderEmailTemplate", () => {
     expect(result.html).toContain(">View your application<");
   });
 
+  it("renders RSVP wording for RSVP-style signup emails", () => {
+    const result = renderEmailTemplate("meet-signup", {
+      meetName: "Sunrise Hike",
+      attendeeName: "Riley",
+      statusUrl: "https://app.example.com/meets/share-123/attendee-1",
+      organizerName: "Taylor",
+      organizerEmail: "taylor@example.com",
+      isRsvpMode: true,
+    });
+
+    expect(result.subject).toBe("You RSVP'd for Sunrise Hike");
+    expect(result.text).toContain("You have RSVP'd for Sunrise Hike.");
+    expect(result.text).toContain("View your RSVP status:");
+    expect(result.html).toContain("Your RSVP has been received");
+    expect(result.html).toContain(">View your RSVP<");
+  });
+
   it("renders meet messages without the status section when includeStatusUrl is false and escapes html content", () => {
     const result = renderEmailTemplate("meet-message", {
       meetName: "Night Trail",
@@ -88,7 +106,32 @@ describe("renderEmailTemplate", () => {
       "Please bring &lt;headlamp&gt;<br/>Reply if needed.",
     );
     expect(result.html).not.toContain("View your application");
-    expect(result.html).toContain("Robin &amp; Co");
+    expect(result.text).toContain(
+      "If you need to reply, contact Robin &amp; Co at robin@example.com.",
+    );
+    expect(result.html).toMatch(
+      /If you need to reply, contact\s+Robin &amp; Co at/,
+    );
+  });
+
+  it("renders grouped meet messages with the organiser-direct reply wording", () => {
+    const result = renderEmailTemplate("meet-message", {
+      meetName: "Night Trail",
+      attendeeName: "everyone",
+      includeStatusUrl: false,
+      isGroupedMessage: true,
+      organizerName: "Robin & Co",
+      organizerEmail: "robin@example.com",
+      messageBody: "Please bring <headlamp>\nReply if needed.",
+    });
+
+    expect(result.text).toContain(
+      "If you need to reach the organiser directly, you may reply to robin@example.com.",
+    );
+    expect(result.html).toMatch(
+      /If you need to reach the organiser directly, you may\s+reply to/,
+    );
+    expect(result.html).not.toContain("contact Robin &amp; Co at");
   });
 
   it("linkifies urls, email addresses and phone numbers inside the html message body", () => {
@@ -143,6 +186,17 @@ describe("renderEmailTemplate", () => {
     );
     expect(result.html).toContain(
       'href="https://app.example.com/register/invite-1"',
+    );
+  });
+
+  it("falls back to the AdventureMeets logo when no organization logo is provided", () => {
+    const result = renderEmailTemplate("organization-invite", {
+      organizationName: "Mountain Club",
+      registerUrl: "https://app.example.com/register/invite-1",
+    });
+
+    expect(result.html).toContain(
+      '<img src="https://app.example.com/static/adventuremeets-logo.png"',
     );
   });
 });

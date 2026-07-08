@@ -28,6 +28,10 @@ export type CreateMeetPayload = {
   allowGuests?: boolean;
   allowSelfCheckin?: boolean;
   allowWalkins?: boolean;
+  requireEmail?: boolean;
+  requirePhone?: boolean;
+  requireOrg1?: boolean;
+  requireOrg2?: boolean;
   maxGuests?: number;
   isVirtual?: boolean;
   accessLink?: string;

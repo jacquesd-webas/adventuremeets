@@ -7,25 +7,20 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  FormControlLabel,
   IconButton,
-  Alert,
-  Checkbox,
   Tooltip,
   Paper,
   Stack,
-  Switch,
-  TextField,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
-import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
+import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import CloseIcon from "@mui/icons-material/Close";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import { AttendeeUploadButton } from "./AttendeeUploadButton";
@@ -79,8 +74,7 @@ export function ManageAttendeesModal({
     Boolean(open && meetId),
   );
   const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
-  const { notifyAttendeeAsync, isLoading: isMessageSending } =
-    useNotifyAttendee();
+  const { notifyAttendeeAsync } = useNotifyAttendee();
   const { enqueueSnackbar } = useSnackbar();
   const api = useApi();
   const isOrganizerForMeet = Boolean(isOrganizer);
@@ -111,35 +105,13 @@ export function ManageAttendeesModal({
     includeStatusUrl: true,
   });
   const [messageModalKey, setMessageModalKey] = useState(0);
-  const [messageDrawerOpen, setMessageDrawerOpen] = useState(false);
-  const [messageDrawerRecipientIds, setMessageDrawerRecipientIds] = useState<
-    string[] | undefined
-  >(undefined);
-  const [messageDrawerSubject, setMessageDrawerSubject] = useState("");
-  const [messageDrawerBody, setMessageDrawerBody] = useState("");
-  const [messageDrawerAutoResponse, setMessageDrawerAutoResponse] =
-    useState(false);
-  const [messageDrawerManualSubject, setMessageDrawerManualSubject] =
-    useState("");
-  const [messageDrawerManualBody, setMessageDrawerManualBody] = useState("");
-  const [messageDrawerMarkAsNotified, setMessageDrawerMarkAsNotified] =
-    useState(false);
-  const [messageDrawerIncludeStatusUrl, setMessageDrawerIncludeStatusUrl] =
-    useState(true);
-  const [messageDrawerError, setMessageDrawerError] = useState<string | null>(
-    null,
-  );
-  const [messageDrawerIncludeConfirmed, setMessageDrawerIncludeConfirmed] =
-    useState(true);
-  const [messageDrawerIncludeWaitlisted, setMessageDrawerIncludeWaitlisted] =
-    useState(false);
-  const [messageDrawerIncludeRejected, setMessageDrawerIncludeRejected] =
-    useState(false);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [detailView, setDetailView] = useState<"responses" | "messages">(
     "responses",
   );
   const canManageAttendees = isOrganizerForMeet || isAdminUnlockEnabled;
+  const mobileMessageTimeoutMs = theme.transitions.duration.leavingScreen;
+  const messageOpenTimeoutRef = useRef<number | null>(null);
   const { data: attendeeMessages } = useFetchAttendeeMessages(
     meetId,
     selectedAttendeeId,
@@ -174,6 +146,14 @@ export function ManageAttendeesModal({
     setDetailView("responses");
   }, [selectedAttendeeId]);
 
+  useEffect(() => {
+    return () => {
+      if (messageOpenTimeoutRef.current !== null) {
+        window.clearTimeout(messageOpenTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const meetStatus = useMemo(() => {
     const statusVal =
       typeof meet?.statusId !== "undefined" ? meet.statusId : null;
@@ -191,15 +171,6 @@ export function ManageAttendeesModal({
       attendees.find((attendee) => attendee.id === selectedAttendeeId) || null,
     [attendees, selectedAttendeeId],
   );
-  const messageDrawerAttendee = useMemo(
-    () =>
-      messageDrawerRecipientIds && messageDrawerRecipientIds.length === 1
-        ? attendees.find(
-            (attendee) => attendee.id === messageDrawerRecipientIds[0],
-          ) || null
-        : null,
-    [attendees, messageDrawerRecipientIds],
-  );
   const attendeeLabel = (attendee: Attendee) =>
     attendee?.name || attendee?.email || attendee?.phone || "Unnamed attendee";
   const guestOfLabel = (attendee: Attendee) => {
@@ -207,74 +178,33 @@ export function ManageAttendeesModal({
     const host = attendees.find((person) => person.id === attendee.guestOf);
     return host ? attendeeLabel(host) : "Unknown attendee";
   };
-  const mobileMessageDefault = useDefaultMessage(
-    messageDrawerAttendee?.status as AttendeeStatusEnum | undefined,
-    {
-      meetName: meet?.name,
-      confirmMessage: meet?.confirmMessage,
-      waitlistMessage: meet?.waitlistMessage,
-      rejectMessage: meet?.rejectMessage,
-    },
-  );
-  const messageDrawerSelectedAttendees = useMemo(() => {
-    if (!attendees?.length) return [];
-    if (messageDrawerRecipientIds && messageDrawerRecipientIds.length) {
-      return attendees.filter((att) =>
-        messageDrawerRecipientIds.includes(att.id),
-      );
-    }
-    return attendees.filter((att) => {
-      const status = att.status as AttendeeStatusEnum;
-      if (
-        messageDrawerIncludeConfirmed &&
-        status === AttendeeStatusEnum.Confirmed
-      )
-        return true;
-      if (
-        messageDrawerIncludeWaitlisted &&
-        status === AttendeeStatusEnum.Waitlisted
-      )
-        return true;
-      if (
-        messageDrawerIncludeRejected &&
-        status === AttendeeStatusEnum.Rejected
-      )
-        return true;
-      return false;
-    });
-  }, [
-    attendees,
-    messageDrawerRecipientIds,
-    messageDrawerIncludeConfirmed,
-    messageDrawerIncludeWaitlisted,
-    messageDrawerIncludeRejected,
-  ]);
-  const messageDrawerHasUnnotified = messageDrawerSelectedAttendees.some(
-    (attendee) => !attendee.respondedAt,
-  );
   const confirmedMessage = useDefaultMessage(AttendeeStatusEnum.Confirmed, {
     meetName: meet?.name,
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
   });
   const invitedMessage = useDefaultMessage(AttendeeStatusEnum.Invited, {
     meetName: meet?.name,
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
   });
   const waitlistMessage = useDefaultMessage(AttendeeStatusEnum.Waitlisted, {
     meetName: meet?.name,
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
   });
   const rejectMessage = useDefaultMessage(AttendeeStatusEnum.Rejected, {
     meetName: meet?.name,
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
   });
   const getDefaultMessageForStatus = (status: AttendeeStatusEnum) => {
     if (status === AttendeeStatusEnum.Invited) {
@@ -292,12 +222,6 @@ export function ManageAttendeesModal({
     return { subject: "", content: "" };
   };
 
-  useEffect(() => {
-    if (messageDrawerAutoResponse) {
-      setMessageDrawerSubject(mobileMessageDefault.subject);
-      setMessageDrawerBody(mobileMessageDefault.content);
-    }
-  }, [messageDrawerAutoResponse, mobileMessageDefault]);
   const applyStatus = async (status: string) => {
     if (!canManageAttendees || !meetId || !selectedAttendeeId) return;
     setIsUpdating(true);
@@ -510,6 +434,17 @@ export function ManageAttendeesModal({
       includeStatusUrl,
     });
     setMessageModalKey((prev) => prev + 1);
+    if (fullScreen && selectedAttendeeId) {
+      setSelectedAttendeeId(null);
+      if (messageOpenTimeoutRef.current !== null) {
+        window.clearTimeout(messageOpenTimeoutRef.current);
+      }
+      messageOpenTimeoutRef.current = window.setTimeout(() => {
+        setMessageOpen(true);
+        messageOpenTimeoutRef.current = null;
+      }, mobileMessageTimeoutMs);
+      return;
+    }
     setMessageOpen(true);
   };
   const buildInviteSubject = (meetName?: string | null) =>
@@ -534,18 +469,6 @@ export function ManageAttendeesModal({
       inviteLink,
       Boolean(meet?.hasIndemnity),
     );
-    if (fullScreen) {
-      setMessageDrawerRecipientIds([selectedAttendee.id]);
-      resetMobileMessageDrawer();
-      setMessageDrawerSubject(defaultSubject);
-      setMessageDrawerBody(defaultBody);
-      setMessageDrawerManualSubject(defaultSubject);
-      setMessageDrawerManualBody(defaultBody);
-      setMessageDrawerAutoResponse(false);
-      setMessageDrawerIncludeStatusUrl(false);
-      setMessageDrawerOpen(true);
-      return;
-    }
     openMessageModal({
       attendeeIds: [selectedAttendee.id],
       defaultSubject,
@@ -554,77 +477,6 @@ export function ManageAttendeesModal({
     });
   };
   const mobileDrawerOpen = fullScreen && Boolean(selectedAttendee);
-  const resetMobileMessageDrawer = () => {
-    setMessageDrawerSubject("");
-    setMessageDrawerBody("");
-    setMessageDrawerAutoResponse(false);
-    setMessageDrawerManualSubject("");
-    setMessageDrawerManualBody("");
-    setMessageDrawerError(null);
-    setMessageDrawerMarkAsNotified(false);
-    setMessageDrawerIncludeStatusUrl(true);
-    setMessageDrawerIncludeConfirmed(true);
-    setMessageDrawerIncludeWaitlisted(false);
-    setMessageDrawerIncludeRejected(false);
-  };
-  const openMobileMessageDrawerForSelectedAttendee = () => {
-    if (!fullScreen || !selectedAttendee) return;
-    setMessageDrawerRecipientIds([selectedAttendee.id]);
-    resetMobileMessageDrawer();
-    setMessageDrawerOpen(true);
-  };
-  const openMobileMessageDrawerForAllAttendees = () => {
-    if (!fullScreen) return;
-    setMessageDrawerRecipientIds(undefined);
-    resetMobileMessageDrawer();
-    setMessageDrawerOpen(true);
-  };
-  const closeMobileMessageDrawer = () => {
-    setMessageDrawerOpen(false);
-    setMessageDrawerError(null);
-  };
-  const handleSendMobileMessage = async () => {
-    if (
-      !meet?.id ||
-      !messageDrawerSubject.trim() ||
-      !messageDrawerBody.trim()
-    ) {
-      setMessageDrawerError("Subject, message and meet ID are required");
-      return;
-    }
-    const ids = messageDrawerSelectedAttendees.map((attendee) => attendee.id);
-    if (!messageDrawerRecipientIds && ids.length === 0) {
-      setMessageDrawerError("Select at least one recipient group");
-      return;
-    }
-    if (
-      !messageDrawerRecipientIds &&
-      !messageDrawerIncludeConfirmed &&
-      !messageDrawerIncludeWaitlisted &&
-      !messageDrawerIncludeRejected
-    ) {
-      setMessageDrawerError("Select at least one recipient group");
-      return;
-    }
-    setMessageDrawerError(null);
-    try {
-      await notifyAttendeeAsync({
-        meetId: meet.id,
-        subject: messageDrawerSubject.trim(),
-        text: messageDrawerBody,
-        attendeeIds: ids.length ? ids : undefined,
-        markNotified: messageDrawerAutoResponse || messageDrawerMarkAsNotified,
-        includeStatusUrl: messageDrawerIncludeStatusUrl,
-      });
-      enqueueSnackbar("Message sent", {
-        variant: "success",
-        anchorOrigin: { vertical: "bottom", horizontal: "right" },
-      });
-      setMessageDrawerOpen(false);
-    } catch (err: any) {
-      setMessageDrawerError(err?.message || "Failed to send message");
-    }
-  };
 
   const handleDownloadAttendees = async () => {
     if (!meetId || isDownloadingReport) return;
@@ -912,7 +764,11 @@ export function ManageAttendeesModal({
                     variant="outlined"
                     disabled={!canManageAttendees}
                     onClick={() => {
-                      openMobileMessageDrawerForSelectedAttendee();
+                      openMessageModal({
+                        attendeeIds: selectedAttendee
+                          ? [selectedAttendee.id]
+                          : undefined,
+                      });
                     }}
                   >
                     Message {attendeeLabel(selectedAttendee)}
@@ -932,7 +788,11 @@ export function ManageAttendeesModal({
                   variant="outlined"
                   disabled={!selectedAttendee || !canManageAttendees}
                   onClick={() => {
-                    openMobileMessageDrawerForSelectedAttendee();
+                    openMessageModal({
+                      attendeeIds: selectedAttendee
+                        ? [selectedAttendee.id]
+                        : undefined,
+                    });
                   }}
                 >
                   Message {attendeeLabel(selectedAttendee)}
@@ -1061,7 +921,7 @@ export function ManageAttendeesModal({
                   sx={{ flex: 1 }}
                   disabled={!canManageAttendees}
                   onClick={() => {
-                    openMobileMessageDrawerForAllAttendees();
+                    openMessageModal({ attendeeIds: undefined });
                   }}
                 >
                   Send Message to All Attendees
@@ -1092,185 +952,6 @@ export function ManageAttendeesModal({
               }}
             >
               {renderMobileDrawerContent()}
-            </Drawer>
-            <Drawer
-              anchor="bottom"
-              open={messageDrawerOpen}
-              onClose={closeMobileMessageDrawer}
-              sx={{ zIndex: (theme) => theme.zIndex.modal + 200 }}
-              ModalProps={{
-                sx: { zIndex: (theme) => theme.zIndex.modal + 200 },
-              }}
-              PaperProps={{
-                sx: {
-                  borderTopLeftRadius: 12,
-                  borderTopRightRadius: 12,
-                },
-              }}
-            >
-              <Box sx={{ width: "100%", maxWidth: 720, mx: "auto", p: 2 }}>
-                <Typography variant="h6">Send message</Typography>
-                <Stack spacing={2} sx={{ mt: 2 }}>
-                  {messageDrawerError && (
-                    <span
-                      style={{
-                        color: "#d32f2f",
-                        fontSize: 14,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {messageDrawerError}
-                    </span>
-                  )}
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <TextField
-                      label="Subject"
-                      fullWidth
-                      size="small"
-                      value={messageDrawerSubject}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setMessageDrawerSubject(value);
-                        if (!messageDrawerAutoResponse) {
-                          setMessageDrawerManualSubject(value);
-                        }
-                      }}
-                      disabled={messageDrawerAutoResponse}
-                    />
-                    <FormControlLabel
-                      label={<Typography variant="body2">Auto</Typography>}
-                      control={
-                        <Switch
-                          checked={messageDrawerAutoResponse}
-                          onChange={(event) => {
-                            const checked = event.target.checked;
-                            setMessageDrawerAutoResponse(checked);
-                            setMessageDrawerMarkAsNotified(checked);
-                            if (checked) {
-                              setMessageDrawerManualSubject(
-                                messageDrawerSubject,
-                              );
-                              setMessageDrawerManualBody(messageDrawerBody);
-                              setMessageDrawerSubject(
-                                mobileMessageDefault.subject,
-                              );
-                              setMessageDrawerBody(
-                                mobileMessageDefault.content,
-                              );
-                            } else {
-                              setMessageDrawerSubject(
-                                messageDrawerManualSubject,
-                              );
-                              setMessageDrawerBody(messageDrawerManualBody);
-                            }
-                          }}
-                        />
-                      }
-                      sx={{ m: 0, whiteSpace: "nowrap" }}
-                    />
-                  </Box>
-                  <TextField
-                    label="Message"
-                    fullWidth
-                    multiline
-                    minRows={4}
-                    value={messageDrawerBody}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setMessageDrawerBody(value);
-                      if (!messageDrawerAutoResponse) {
-                        setMessageDrawerManualBody(value);
-                      }
-                    }}
-                    disabled={messageDrawerAutoResponse}
-                  />
-                  {!messageDrawerRecipientIds && (
-                    <Stack direction="column" spacing={1}>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={messageDrawerIncludeConfirmed}
-                            onChange={(event) =>
-                              setMessageDrawerIncludeConfirmed(
-                                event.target.checked,
-                              )
-                            }
-                          />
-                        }
-                        label="Send to confirmed attendees"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={messageDrawerIncludeWaitlisted}
-                            onChange={(event) =>
-                              setMessageDrawerIncludeWaitlisted(
-                                event.target.checked,
-                              )
-                            }
-                          />
-                        }
-                        label="Send to waitlisted attendees"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={messageDrawerIncludeRejected}
-                            onChange={(event) =>
-                              setMessageDrawerIncludeRejected(
-                                event.target.checked,
-                              )
-                            }
-                          />
-                        }
-                        label="Send to rejected attendees"
-                      />
-                    </Stack>
-                  )}
-                  {messageDrawerHasUnnotified && !messageDrawerAutoResponse && (
-                    <Stack spacing={1}>
-                      <Alert severity="info">
-                        Manual messages do not notify attendees of their status.
-                        Use the *Auto* switch to send a status notification, or
-                        mark them as notified below.
-                      </Alert>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={
-                              messageDrawerAutoResponse ||
-                              messageDrawerMarkAsNotified
-                            }
-                            onChange={(event) =>
-                              setMessageDrawerMarkAsNotified(
-                                event.target.checked,
-                              )
-                            }
-                            disabled={messageDrawerAutoResponse}
-                          />
-                        }
-                        label="Mark attendee as notified"
-                      />
-                    </Stack>
-                  )}
-                  <Stack direction="row" justifyContent="flex-end" spacing={1}>
-                    <Button onClick={closeMobileMessageDrawer}>Cancel</Button>
-                    <Button
-                      variant="contained"
-                      onClick={handleSendMobileMessage}
-                      disabled={
-                        isMessageSending ||
-                        (!messageDrawerRecipientIds &&
-                          !messageDrawerIncludeConfirmed &&
-                          !messageDrawerIncludeWaitlisted &&
-                          !messageDrawerIncludeRejected)
-                      }
-                    >
-                      {isMessageSending ? "Sending..." : "Send"}
-                    </Button>
-                  </Stack>
-                </Stack>
-              </Box>
             </Drawer>
           </Box>
         ) : (

@@ -39,6 +39,20 @@ export class MeetMetaDefinitionDto {
   config?: Record<string, any>;
 }
 
+export class MeetAttendeePreviewDto {
+  @ApiProperty()
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty()
+  @IsString()
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  avatarUrl?: string;
+}
+
 export class MeetDto {
   @ApiProperty()
   @IsUUID()
@@ -133,8 +147,44 @@ export class MeetDto {
   allowSelfCheckin?: boolean;
 
   @ApiPropertyOptional()
+  @IsString()
+  checkinPin?: string;
+
+  @ApiPropertyOptional()
   @IsBoolean()
   allowWalkins?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requireEmail?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requirePhone?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requireOrg1?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requireOrg2?: boolean;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField1Name?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField2Name?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField1HelperText?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField2HelperText?: string;
 
   @ApiPropertyOptional()
   @IsNumber()
@@ -250,6 +300,9 @@ export class MeetDto {
   @ApiPropertyOptional()
   @IsString()
   myAttendeeStatus?: string;
+
+  @ApiPropertyOptional({ type: [MeetAttendeePreviewDto] })
+  attendingAttendees?: MeetAttendeePreviewDto[];
 
   @ApiPropertyOptional({ type: [MeetMetaDefinitionDto] })
   metaDefinitions?: MeetMetaDefinitionDto[];

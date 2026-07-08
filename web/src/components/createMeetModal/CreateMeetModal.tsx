@@ -32,6 +32,8 @@ import { ImageStep } from "./ImageStep";
 import { useSaveMeet, SaveMeetPayload } from "../../hooks/useSaveMeet";
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
+import { useFetchOrganization } from "../../hooks/useFetchOrganization";
+import { useFetchOrganizationTemplate } from "../../hooks/useFetchOrganizationTemplate";
 import { getLocaleDefaults } from "../../helpers/locale";
 import { useAuth } from "../../context/authContext";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
@@ -53,6 +55,7 @@ import MeetImage from "../../types/MeetImageModel";
 import { writeCreateMeetPreviewRestore } from "./createMeetPreviewRestore";
 import { buildMeetQuestionFieldKey } from "../../helpers/meetQuestionFieldKey";
 import { useNavigate } from "react-router-dom";
+import { buildCreateMeetStateFromOrganizationDefaults } from "./createMeetDefaults";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -84,6 +87,7 @@ export function CreateMeetModal({
   const [pendingClose, setPendingClose] = useState(false);
   const [meetId, setMeetId] = useState<string | null>(null);
   const [shareCode, setShareCode] = useState<string | null>(null);
+  const [checkinPin, setCheckinPin] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isLoadingMeet, setIsLoadingMeet] = useState(false);
@@ -97,11 +101,24 @@ export function CreateMeetModal({
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const previewRestoreAppliedRef = useRef(false);
+  const orgDefaultsAppliedKeyRef = useRef<string | null>(null);
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
   const { user } = useAuth();
   const nav = useNavigate();
   const { currentOrganizationId } = useCurrentOrganization();
+  const { data: currentOrganization } = useFetchOrganization(
+    currentOrganizationId ?? undefined,
+  );
+  const defaultTemplateId = currentOrganization?.defaultTemplateId;
+  const {
+    data: defaultTemplate,
+    isLoading: isLoadingDefaultTemplate,
+    error: defaultTemplateError,
+  } = useFetchOrganizationTemplate(
+    currentOrganizationId ?? undefined,
+    defaultTemplateId || undefined,
+  );
 
   const statusId =
     typeof state.statusId === "number"
@@ -156,6 +173,7 @@ export function CreateMeetModal({
       setHelpBannerState({});
       setIsAdminUnlockEnabled(false);
       previewRestoreAppliedRef.current = false;
+      orgDefaultsAppliedKeyRef.current = null;
     }
   }, [open]);
 
@@ -197,6 +215,7 @@ export function CreateMeetModal({
     if (!meetIdProp) {
       setMeetId(null);
       setShareCode(null);
+      setCheckinPin(null);
       const localeCurrency = getLocaleDefaults().currencyCode;
       const fresh = {
         ...initialState,
@@ -209,6 +228,41 @@ export function CreateMeetModal({
     setMeetId(meetIdProp);
   }, [open, meetIdProp]);
 
+  useEffect(() => {
+    if (!open || meetIdProp || !user || !currentOrganizationId) return;
+    if (!currentOrganization) return;
+    if (defaultTemplateId && isLoadingDefaultTemplate) return;
+
+    const defaultsKey = [
+      currentOrganizationId,
+      defaultTemplateId || "",
+      defaultTemplateError || "",
+    ].join(":");
+    if (orgDefaultsAppliedKeyRef.current === defaultsKey) return;
+
+    const freshState = buildCreateMeetStateFromOrganizationDefaults({
+      currency: getLocaleDefaults().currencyCode,
+      currentOrganizationId,
+      organization: currentOrganization,
+      template: defaultTemplateError ? null : defaultTemplate,
+      userId: user.id,
+    });
+
+    setState(freshState);
+    setBaselineState(freshState);
+    orgDefaultsAppliedKeyRef.current = defaultsKey;
+  }, [
+    currentOrganization,
+    currentOrganizationId,
+    defaultTemplate,
+    defaultTemplateError,
+    defaultTemplateId,
+    isLoadingDefaultTemplate,
+    meetIdProp,
+    open,
+    user,
+  ]);
+
   // When meet data is fetched, populate the form and baseline state for change tracking
   useEffect(() => {
     if (!open || !meetIdProp) return;
@@ -220,6 +274,11 @@ export function CreateMeetModal({
       setShareCode(
         (fetchedMeet as any).shareCode ??
           (fetchedMeet as any).share_code ??
+          null,
+      );
+      setCheckinPin(
+        (fetchedMeet as any).checkinPin ??
+          (fetchedMeet as any).checkin_pin ??
           null,
       );
       setFieldErrors([]);
@@ -268,6 +327,7 @@ export function CreateMeetModal({
     const hasTime = Boolean(state.startTime && state.endTime);
     const hasIndemnity = Boolean(state.indemnityAccepted);
     const hasQuestion = state.questions.length > 0;
+    const hasRequiredFields = state.requireOrg1 || state.requireOrg2;
     const hasLimits =
       Number(state.capacity) > 0 ||
       Boolean(state.openingDate) ||
@@ -288,7 +348,7 @@ export function CreateMeetModal({
     if (hasBasic) completed.push(1);
     if (hasTime) completed.push(2);
     if (hasIndemnity) completed.push(3);
-    if (hasQuestion) completed.push(4);
+    if (hasQuestion || hasRequiredFields) completed.push(4);
     if (hasLimits) completed.push(5);
     if (hasCost) completed.push(6);
     if (hasResponse) completed.push(7);
@@ -304,6 +364,10 @@ export function CreateMeetModal({
     state.endTime,
     state.indemnityAccepted,
     state.questions,
+    state.requireEmail,
+    state.requirePhone,
+    state.requireOrg1,
+    state.requireOrg2,
     state.openingDate,
     state.closingDate,
     state.capacity,
@@ -384,6 +448,10 @@ export function CreateMeetModal({
         };
       case 3:
         return {
+          requireEmail: draft.requireEmail,
+          requirePhone: draft.requirePhone,
+          requireOrg1: draft.requireOrg1,
+          requireOrg2: draft.requireOrg2,
           metaDefinitions: draft.questions.map((question, index) => ({
             id: question.id,
             fieldKey: draft.organizationId
@@ -453,6 +521,9 @@ export function CreateMeetModal({
     }
     if (result?.shareCode || result?.share_code) {
       setShareCode(result.shareCode ?? result.share_code ?? null);
+    }
+    if ("checkinPin" in result || "checkin_pin" in result) {
+      setCheckinPin(result.checkinPin ?? result.checkin_pin ?? null);
     }
     if (result?.statusId) {
       setState((prev) => ({
@@ -795,6 +866,7 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={finalErrors}
             shareCode={shareCode}
+            checkinPin={checkinPin}
             disabled={isMeetLocked}
             isEditing={isEditing}
             onPreview={handlePreview}

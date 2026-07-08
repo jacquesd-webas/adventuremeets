@@ -10,9 +10,8 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { MeetInfoSummary } from "./MeetInfoSummary";
-import { MeetWall } from "../wall/MeetWall";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useFetchMeetWall } from "../../hooks/useFetchMeetWall";
 import { useNotistack } from "../../hooks/useNotistack";
@@ -21,6 +20,12 @@ import { MeetStatusAlert } from "./MeetStatusAlert";
 import { MeetStatusEnum } from "../../types/MeetStatusEnum";
 import { downloadFavouriteWallArchive } from "../wall/downloadFavouriteWallArchive";
 import { WallItem } from "../../types/WallItemModel";
+
+const MeetWall = lazy(() =>
+  import("../wall/MeetWall").then((module) => ({
+    default: module.default ?? module.MeetWall,
+  })),
+);
 
 type MeetInfoModalProps = {
   open: boolean;
@@ -61,16 +66,19 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
   );
   const isAdmin = Boolean(
     user?.organizations &&
-      meet?.organizationId &&
-      user.organizations[meet.organizationId] === "admin",
+    meet?.organizationId &&
+    user.organizations[meet.organizationId] === "admin",
   );
   const favouritePost =
-    sortFavouriteItems(wallItems.filter((item) => !item.url && item.favourite > 0))[0] ??
-    null;
+    sortFavouriteItems(
+      wallItems.filter((item) => !item.url && item.favourite > 0),
+    )[0] ?? null;
   const favouritePhotos = sortFavouriteItems(
     wallItems.filter((item) => item.url && item.favourite > 0),
   );
-  const hasFavouriteExport = Boolean(favouritePost || favouritePhotos.length > 0);
+  const hasFavouriteExport = Boolean(
+    favouritePost || favouritePhotos.length > 0,
+  );
 
   const handleDownloadFavourites = async () => {
     if (!meet || !isAdmin || !hasFavouriteExport) {
@@ -128,7 +136,9 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
                           }}
                           size="small"
                           aria-label="Download favourites"
-                          disabled={!hasFavouriteExport || isExportingFavourites}
+                          disabled={
+                            !hasFavouriteExport || isExportingFavourites
+                          }
                         >
                           <DownloadOutlinedIcon fontSize="small" />
                         </IconButton>
@@ -151,7 +161,15 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
           ) : null}
           {meet ? (
             shouldShowMeetWall ? (
-              <MeetWall meetId={meet.id} />
+              <Suspense
+                fallback={
+                  <Typography color="text.secondary">
+                    Loading meet wall...
+                  </Typography>
+                }
+              >
+                <MeetWall meetId={meet.id} />
+              </Suspense>
             ) : (
               <MeetStatusAlert
                 meetId={meet.id}
@@ -160,6 +178,7 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
                 enableApply={true}
                 shareCode={meet.shareCode}
                 allowGuests={Boolean(meet.allowGuests)}
+                isRsvpMode={Boolean(meet.autoPlacement)}
                 size="small"
               />
             )

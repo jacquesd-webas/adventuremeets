@@ -1,11 +1,4 @@
-import {
-  Box,
-  FormControlLabel,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Box, Stack, Switch, TextField, Typography } from "@mui/material";
 import { LabeledField } from "./LabeledField";
 import { StepProps, FieldError, getFieldError } from "./CreateMeetState";
 import { HelpBanner } from "./HelpBanner";
@@ -125,36 +118,36 @@ export const LimitsStep = ({
         </LabeledField>
       </Stack>
       <Stack spacing={1}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={state.autoApprove}
-              disabled={disabled}
-              onChange={(e) =>
-                setState((prev) => ({ ...prev, autoApprove: e.target.checked }))
-              }
-            />
-          }
-          label="Automatically approve applications"
-        />
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Switch
+            checked={state.autoApprove}
+            disabled={disabled}
+            inputProps={{ "aria-label": "Automatically approve applications" }}
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, autoApprove: e.target.checked }))
+            }
+          />
+          <Typography>
+            Automatically approve applications (RSVP mode)
+          </Typography>
+        </Stack>
         {isHelpEnabled ? (
           <Typography variant="caption" color="text.secondary">
-            Turn this on if people should immediately get a confirmed or
-            waitlisted result without manual review.
+            Turn this on to enable more RSVP style application where attendees
+            are automatically accepted or waitlisted depending on capacity.
           </Typography>
         ) : null}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={state.allowGuests}
-              disabled={disabled}
-              onChange={(e) =>
-                setState((prev) => ({ ...prev, allowGuests: e.target.checked }))
-              }
-            />
-          }
-          label="Allow attendees to bring guests"
-        />
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Switch
+            checked={state.allowGuests}
+            disabled={disabled}
+            inputProps={{ "aria-label": "Allow attendees to bring guests" }}
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, allowGuests: e.target.checked }))
+            }
+          />
+          <Typography>Allow attendees to bring guests</Typography>
+        </Stack>
         {isHelpEnabled ? (
           <Typography variant="caption" color="text.secondary">
             This will ask attendees if they want to bring guests. You can set a
@@ -185,46 +178,44 @@ export const LimitsStep = ({
             />
           </LabeledField>
         )}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={state.allowSelfCheckin}
-              disabled={disabled}
-              onChange={(e) =>
-                setState((prev) => ({
-                  ...prev,
-                  allowSelfCheckin: e.target.checked,
-                  allowWalkins: e.target.checked ? prev.allowWalkins : false,
-                }))
-              }
-            />
-          }
-          label="Allow self check-in"
-        />
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Switch
+            checked={state.allowSelfCheckin}
+            disabled={disabled}
+            inputProps={{ "aria-label": "Allow self check-in" }}
+            onChange={(e) =>
+              setState((prev) => ({
+                ...prev,
+                allowSelfCheckin: e.target.checked,
+                allowWalkins: e.target.checked ? prev.allowWalkins : false,
+              }))
+            }
+          />
+          <Typography>Allow self check-in</Typography>
+        </Stack>
         {isHelpEnabled ? (
           <Typography variant="caption" color="text.secondary">
             Show a self check-in QR code on the check-in page so attendees can
-            open the meet from their own devices.
+            use their own devices.
           </Typography>
         ) : null}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={state.allowWalkins}
-              disabled={disabled}
-              onChange={(e) =>
-                setState((prev) => ({
-                  ...prev,
-                  allowWalkins: e.target.checked,
-                  allowSelfCheckin: e.target.checked
-                    ? true
-                    : prev.allowSelfCheckin,
-                }))
-              }
-            />
-          }
-          label="Allow walk-ins"
-        />
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Switch
+            checked={state.allowWalkins}
+            disabled={disabled}
+            inputProps={{ "aria-label": "Allow walk-ins" }}
+            onChange={(e) =>
+              setState((prev) => ({
+                ...prev,
+                allowWalkins: e.target.checked,
+                allowSelfCheckin: e.target.checked
+                  ? true
+                  : prev.allowSelfCheckin,
+              }))
+            }
+          />
+          <Typography>Allow walk-ins</Typography>
+        </Stack>
         {isHelpEnabled ? (
           <Typography variant="caption" color="text.secondary">
             Allow people on-site to self check in even if they were not already
@@ -249,7 +240,24 @@ export const LimitsStep = ({
       >
         <Box sx={{ width: "100%", maxWidth: 760 }}>
           <HelpBanner
-            message="You can use limits to control when people can apply, how many spots are available, whether a waitlist should exist, and whether guests can be invited. If you do not set any dates or limits the meet will be open to unlimited applications until it starts. You can edit all of these settings later if needed."
+            message={
+              <>
+                You can use limits to control when people can apply, how many
+                spots are available, whether a waitlist should exist, and a few
+                other meet controls.
+                <br />
+                <br />
+                <strong>
+                  If you do not set an opening date the meet will be open to
+                  application as soon as you publish.
+                </strong>{" "}
+                <br />
+                <br />
+                You can come back and edit all these setting later, but bear in
+                mind that once applications are in it may impact attendees who
+                have already been approved.
+              </>
+            }
             onDismiss={onDismissHelpBanner || (() => undefined)}
           />
         </Box>

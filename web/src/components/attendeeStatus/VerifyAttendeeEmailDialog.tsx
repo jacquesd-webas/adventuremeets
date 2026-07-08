@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
 import { useNotistack } from "../../hooks/useNotistack";
 import { useConfirmAttendeeEmail } from "../../hooks/useConfirmAttendeeEmail";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 
 type VerifyAttendeeEmailDialogProps = {
   open: boolean;
@@ -10,6 +11,7 @@ type VerifyAttendeeEmailDialogProps = {
   meetId?: string | null;
   attendeeId?: string | null;
   onVerified: () => void;
+  isRsvpMode?: boolean;
 };
 
 export function VerifyAttendeeEmailDialog({
@@ -18,7 +20,9 @@ export function VerifyAttendeeEmailDialog({
   meetId,
   attendeeId,
   onVerified,
+  isRsvpMode = false,
 }: VerifyAttendeeEmailDialogProps) {
+  const wording = getMeetResponseWording(isRsvpMode);
   const { error } = useNotistack();
   const { confirmAttendeeEmailAsync, isLoading } = useConfirmAttendeeEmail(
     meetId,
@@ -39,7 +43,7 @@ export function VerifyAttendeeEmailDialog({
       setEmailError(null);
       const res = await confirmAttendeeEmailAsync({ email: confirmEmail });
       if (!res.valid) {
-        setEmailError("Email does not match meet application");
+        setEmailError(wording.emailMismatchLabel);
         return;
       }
       onVerified();
@@ -54,7 +58,7 @@ export function VerifyAttendeeEmailDialog({
     <ConfirmActionDialog
       open={open}
       title="Verify your email"
-      description="Please confirm the email address you used for this application."
+      description={wording.confirmEmailDescription}
       confirmLabel="Continue"
       confirmDisabled={!confirmEmail || !meetId || !attendeeId || isLoading}
       onConfirm={handleVerify}
@@ -64,7 +68,7 @@ export function VerifyAttendeeEmailDialog({
       <Stack spacing={1.5} mt={2}>
         <TextField
           label="Confirm email"
-          placeholder="Enter the email used for this application"
+          placeholder={wording.confirmEmailPlaceholder}
           value={confirmEmail}
           onChange={(e) => setConfirmEmail(e.target.value)}
           error={Boolean(emailError)}
@@ -72,7 +76,7 @@ export function VerifyAttendeeEmailDialog({
           fullWidth
         />
         <Typography variant="body2" color="text.secondary">
-          Enter the email you used for this application to continue.
+          {wording.confirmEmailHelp}
         </Typography>
       </Stack>
     </ConfirmActionDialog>

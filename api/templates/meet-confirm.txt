@@ -2,7 +2,7 @@
 
 {{#ifStatusUrl}}
 
-View your application status:
+{{viewStatusLabel}}
 {{statusUrl}}
 {{/ifStatusUrl}}
 {{#ifOrganizerEmail}}

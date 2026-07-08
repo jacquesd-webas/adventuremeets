@@ -6,6 +6,7 @@ import PlaceIcon from "@mui/icons-material/Place";
 import {
   Box,
   Button,
+  ButtonBase,
   Dialog,
   DialogActions,
   DialogContent,
@@ -13,21 +14,33 @@ import {
   Link,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useMemo, useState } from "react";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 import { getLocationLabel, getMeetTimeLabel } from "../../helpers/meetTime";
-import Meet from "../../types/MeetModel";
+import Meet, { MeetAttendeePreview } from "../../types/MeetModel";
+import { AttendeeListMini } from "./AttendeeListMini";
+import { MeetAttendeeAvatars } from "./MeetAttendeeAvatars";
 
 type MeetInfoDeetsProps = {
   meet: Meet;
   layout?: "vertical" | "horizontal";
+  attendingAttendees?: MeetAttendeePreview[];
 };
 
 export function MeetInfoDeets({
   meet,
   layout = "vertical",
+  attendingAttendees = [],
 }: MeetInfoDeetsProps) {
+  const wording = getMeetResponseWording(Boolean(meet.autoPlacement));
   const [isMapOpen, setIsMapOpen] = useState(false);
+  const [attendingAnchorEl, setAttendingAnchorEl] =
+    useState<HTMLElement | null>(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isHorizontal = layout === "horizontal";
   const timeLabel = getMeetTimeLabel(meet);
   const locationLabel = getLocationLabel(meet);
@@ -54,6 +67,7 @@ export function MeetInfoDeets({
   const mapEmbedUrl = mapQuery
     ? `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`
     : "";
+  const attendingPopoverOpen = Boolean(attendingAnchorEl);
 
   return (
     <>
@@ -92,16 +106,35 @@ export function MeetInfoDeets({
             <Typography variant="body2">{locationLabel}</Typography>
           )}
         </Stack>
-        {typeof meet.capacity === "number" && (
-          <Stack direction="row" spacing={1} alignItems="center">
-            <GroupOutlinedIcon fontSize="small" color="disabled" />
+        <Stack direction="row" spacing={1} alignItems="center">
+          <GroupOutlinedIcon fontSize="small" color="disabled" />
+          {attendingAttendees?.length === 0 && (
             <Typography variant="body2">
-              {meet.capacity === 0
-                ? `${meet.attendeeCount ?? 0} Applied`
-                : `${meet.attendeeCount ?? 0} Applied (limit ${meet.capacity})`}
+              {!meet?.capacity
+                ? `${meet.attendeeCount ?? 0} ${wording.countLabel}`
+                : `${meet.attendeeCount ?? 0} ${wording.countLabel} (limit ${meet.capacity})`}
             </Typography>
-          </Stack>
-        )}
+          )}
+          {attendingAttendees?.length > 0 && (
+            <ButtonBase
+              onClick={(event) => setAttendingAnchorEl(event.currentTarget)}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 1,
+                p: 0,
+                color: "primary.main",
+                borderRadius: 1,
+              }}
+            >
+              <Typography variant="body2" sx={{ color: "inherit" }}>
+                {attendingAttendees.length} Attending
+              </Typography>
+              <MeetAttendeeAvatars attendees={attendingAttendees} />
+            </ButtonBase>
+          )}
+        </Stack>
+
         {costLabel && (
           <Stack direction="row" spacing={1} alignItems="center">
             <AttachMoneyOutlinedIcon fontSize="small" color="disabled" />
@@ -138,6 +171,13 @@ export function MeetInfoDeets({
           <Button onClick={() => setIsMapOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+      <AttendeeListMini
+        attendees={attendingAttendees}
+        open={attendingPopoverOpen}
+        anchorEl={attendingAnchorEl}
+        onClose={() => setAttendingAnchorEl(null)}
+        isMobile={isMobile}
+      />
     </>
   );
 }

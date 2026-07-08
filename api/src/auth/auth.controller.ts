@@ -32,7 +32,7 @@ import { VerifyEmailDto } from "./dto/verify-email.dto";
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
   ) {}
 
   @Public()
@@ -60,7 +60,7 @@ export class AuthController {
   @Public()
   @Get("register/organization")
   async registerOrganizationCheck(
-    @Query("organizationId") organizationId?: string
+    @Query("organizationId") organizationId?: string,
   ) {
     if (!organizationId) {
       throw new BadRequestException("organizationId is required");
@@ -74,7 +74,7 @@ export class AuthController {
   async googleUrl(@Query() query: GoogleAuthUrlDto) {
     const url = await this.authService.getGoogleAuthUrl(
       query.redirectUri,
-      query.state
+      query.state,
     );
     return { url };
   }
@@ -82,7 +82,11 @@ export class AuthController {
   @Public()
   @Post("google/token")
   async googleToken(@Body() dto: GoogleAuthCodeDto): Promise<TokenPair> {
-    return this.authService.googleLoginWithCode(dto.code, dto.redirectUri);
+    return this.authService.googleLoginWithCode(
+      dto.code,
+      dto.redirectUri,
+      dto.organizationId,
+    );
   }
 
   @Public()
@@ -104,7 +108,11 @@ export class AuthController {
   @Public()
   @Post("facebook/token")
   async facebookToken(@Body() dto: FacebookAuthCodeDto): Promise<TokenPair> {
-    return this.authService.facebookLoginWithCode(dto.code, dto.redirectUri);
+    return this.authService.facebookLoginWithCode(
+      dto.code,
+      dto.redirectUri,
+      dto.organizationId,
+    );
   }
 
   @Public()
@@ -141,7 +149,7 @@ export class AuthController {
   @Post("email/verification/confirm")
   async confirmEmailVerification(
     @Body() dto: VerifyEmailDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) {
       throw new UnauthorizedException("Unauthorized");
@@ -174,7 +182,7 @@ export class AuthController {
         acc[org.organizationId] = role;
         return acc;
       },
-      {}
+      {},
     );
     return {
       ...fullUser,

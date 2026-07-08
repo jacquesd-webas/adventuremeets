@@ -14,6 +14,9 @@ import { CreateInviteLinkDto } from "./dto/create-invite-link.dto";
 import { InviteLinkDto } from "./dto/invite-link.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import { MinioService } from "../storage/minio.service";
+import sharp = require("sharp");
+import { v4 as uuid } from "uuid";
 
 @Injectable()
 export class OrganizationsService {
@@ -22,6 +25,7 @@ export class OrganizationsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly emailService: EmailService,
+    private readonly minio: MinioService,
   ) {}
 
   private static readonly inviteCodeChars =
@@ -74,10 +78,115 @@ export class OrganizationsService {
     if (!org) {
       throw new NotFoundException("Organization not found");
     }
+
+    const client = this.database.getClient();
+    const featureRow = await client("org_features")
+      .where({ organization_id: id })
+      .first();
+    const now = new Date();
+    const thirtyDaysAgo = new Date(
+      now.getTime() - 30 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const ninetyDaysAgo = new Date(
+      now.getTime() - 90 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const meetCountTotalRow = await client("meets")
+      .where("organization_id", id)
+      .count<{ count: string }>("id as count")
+      .first();
+
+    const meetCountLast30DaysRow = await client("meets")
+      .where("organization_id", id)
+      .whereRaw('coalesce("start_time", "created_at") >= ?', [thirtyDaysAgo])
+      .count<{ count: string }>("id as count")
+      .first();
+
+    const meetCountLast90DaysRow = await client("meets")
+      .where("organization_id", id)
+      .whereRaw('coalesce("start_time", "created_at") >= ?', [ninetyDaysAgo])
+      .count<{ count: string }>("id as count")
+      .first();
+
+    const attendanceCountTotalRow = await client("meet_attendees as ma")
+      .join("meets as m", "m.id", "ma.meet_id")
+      .where("m.organization_id", id)
+      .count<{ count: string }>("ma.id as count")
+      .first();
+
+    const attendanceCountLast30DaysRow = await client("meet_attendees as ma")
+      .join("meets as m", "m.id", "ma.meet_id")
+      .where("m.organization_id", id)
+      .whereRaw('coalesce(m."start_time", m."created_at") >= ?', [
+        thirtyDaysAgo,
+      ])
+      .count<{ count: string }>("ma.id as count")
+      .first();
+
+    const attendanceCountLast90DaysRow = await client("meet_attendees as ma")
+      .join("meets as m", "m.id", "ma.meet_id")
+      .where("m.organization_id", id)
+      .whereRaw('coalesce(m."start_time", m."created_at") >= ?', [
+        ninetyDaysAgo,
+      ])
+      .count<{ count: string }>("ma.id as count")
+      .first();
+
+    const roleCounts = (await client("user_organization_memberships")
+      .where({ organization_id: id, status: "active" })
+      .select("role")
+      .count<{ count: string }>("id as count")
+      .groupBy("role")) as Array<{ role: string; count: string }>;
+
+    const countByRole = roleCounts.reduce<Record<string, number>>(
+      (acc, row) => {
+        acc[row.role] = Number(row.count || 0);
+        return acc;
+      },
+      {},
+    );
+
+    const meetImageBytesRow = await client("meet_images as mi")
+      .join("meets as m", "m.id", "mi.meet_id")
+      .where("m.organization_id", id)
+      .sum<{ total: string | number | null }>("mi.size_bytes as total")
+      .first();
+
+    const wallImageBytesRow = await client("wall_item as wi")
+      .join("meets as m", "m.id", "wi.meet_id")
+      .where("m.organization_id", id)
+      .sum<{ total: string | number | null }>("wi.size_bytes as total")
+      .first();
+
+    const meetImageBytes = Number(meetImageBytesRow?.total ?? 0);
+    const wallImageBytes = Number(wallImageBytesRow?.total ?? 0);
+
     return {
       ...org,
       user_count: Number(org.user_count || 0),
       template_count: Number(org.template_count || 0),
+      meet_count_total: Number(meetCountTotalRow?.count || 0),
+      meet_count_last_30_days: Number(meetCountLast30DaysRow?.count || 0),
+      meet_count_last_90_days: Number(meetCountLast90DaysRow?.count || 0),
+      attendance_count_total: Number(attendanceCountTotalRow?.count || 0),
+      attendance_count_last_30_days: Number(
+        attendanceCountLast30DaysRow?.count || 0,
+      ),
+      attendance_count_last_90_days: Number(
+        attendanceCountLast90DaysRow?.count || 0,
+      ),
+      reporting_enabled: featureRow?.reporting_enabled ?? false,
+      branding_enabled: featureRow?.branding_enabled ?? false,
+      domain_enabled: featureRow?.domain_enabled ?? false,
+      whatsapp_enabled: featureRow?.whatsapp_enabled ?? false,
+      payments_enabled: featureRow?.payments_enabled ?? false,
+      disk_quotas_enabled: featureRow?.disk_quotas_enabled ?? false,
+      admin_count: countByRole.admin ?? 0,
+      organizer_count: countByRole.organizer ?? 0,
+      member_count: countByRole.member ?? 0,
+      meet_image_bytes: meetImageBytes,
+      wall_image_bytes: wallImageBytes,
+      total_image_bytes: meetImageBytes + wallImageBytes,
     };
   }
 
@@ -129,6 +238,20 @@ export class OrganizationsService {
       throw new NotFoundException("Organization not found");
     }
     return row.theme;
+  }
+
+  async findLogoUrlById(id: string) {
+    const row = await this.database
+      .getClient()("organizations")
+      .where({ id })
+      .select("logo_url")
+      .first();
+
+    if (!row) {
+      throw new NotFoundException("Organization not found");
+    }
+
+    return row.logo_url ?? undefined;
   }
 
   async findMembers(orgId: string) {
@@ -231,6 +354,166 @@ export class OrganizationsService {
       throw new NotFoundException("Member not found");
     }
     return this.mapMember(memberRow);
+  }
+
+  async createPrivateOrganization(name: string, userId: string) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw new BadRequestException("Organization name is required");
+    }
+
+    const now = new Date().toISOString();
+    const trx = await this.database.getClient().transaction();
+
+    try {
+      const inserted = await trx("organizations")
+        .insert({
+          name: trimmedName,
+          is_private: true,
+          created_at: now,
+          updated_at: now,
+        })
+        .returning("id");
+
+      const organizationId = Array.isArray(inserted)
+        ? (inserted[0] as any).id
+        : (inserted as any).id;
+
+      await trx("user_organization_memberships").insert({
+        user_id: userId,
+        organization_id: organizationId,
+        role: "admin",
+        role_id: 2,
+        status: "active",
+        created_at: now,
+        updated_at: now,
+      });
+
+      await trx("org_features").insert({
+        organization_id: organizationId,
+        reporting_enabled: false,
+        branding_enabled: false,
+        domain_enabled: false,
+        whatsapp_enabled: false,
+        payments_enabled: false,
+        disk_quotas_enabled: false,
+        enable_webhooks: false,
+        created_at: now,
+        updated_at: now,
+      });
+
+      await trx.commit();
+      const row = await this.findById(organizationId);
+      return this.toOrganizationDto(row);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  async leaveOrganization(orgId: string, userId: string) {
+    const client = this.database.getClient();
+    const membership = await client("user_organization_memberships")
+      .where({
+        organization_id: orgId,
+        user_id: userId,
+        status: "active",
+      })
+      .first();
+
+    if (!membership) {
+      throw new NotFoundException("Membership not found");
+    }
+
+    const countRow = await client("user_organization_memberships")
+      .where({
+        user_id: userId,
+        status: "active",
+      })
+      .count<{ count: string }>("organization_id as count")
+      .first();
+    const activeMembershipCount = Number(countRow?.count ?? 0);
+
+    if (activeMembershipCount <= 1) {
+      throw new BadRequestException(
+        "You cannot leave your last active organization",
+      );
+    }
+
+    await client("user_organization_memberships")
+      .where({
+        organization_id: orgId,
+        user_id: userId,
+        status: "active",
+      })
+      .update({
+        status: "inactive",
+        updated_at: new Date().toISOString(),
+      });
+
+    const orgMemberCountRow = await client("user_organization_memberships")
+      .where({
+        organization_id: orgId,
+        status: "active",
+      })
+      .countDistinct<{ count: string }>("user_id as count")
+      .first();
+    const orgMemberCount = Number(orgMemberCountRow?.count ?? 0);
+
+    const meetCountRow = await client("meets")
+      .where({ organization_id: orgId })
+      .count<{ count: string }>("id as count")
+      .first();
+    const meetCount = Number(meetCountRow?.count ?? 0);
+
+    if (orgMemberCount === 0 && meetCount === 0) {
+      await client("organizations").where({ id: orgId }).del();
+    }
+  }
+
+  async removeEmptyPrivateOrganizationsForUser(
+    userId: string,
+    keepOrganizationId?: string,
+  ) {
+    const client = this.database.getClient();
+    const orgRows = await client("organizations as o")
+      .join(
+        "user_organization_memberships as uom",
+        "uom.organization_id",
+        "o.id",
+      )
+      .where("uom.user_id", userId)
+      .andWhere("uom.status", "active")
+      .andWhere("o.is_private", true)
+      .modify((queryBuilder) => {
+        if (keepOrganizationId) {
+          queryBuilder.andWhere("o.id", "!=", keepOrganizationId);
+        }
+      })
+      .distinct("o.id");
+
+    for (const org of orgRows) {
+      const countRow = await client("user_organization_memberships")
+        .where({ organization_id: org.id })
+        .countDistinct<{ count: string }>("user_id as count")
+        .first();
+      const memberCount = Number(countRow?.count ?? 0);
+      if (memberCount !== 1) {
+        continue;
+      }
+
+      const meetCountRow = await client("meets")
+        .where({ organization_id: org.id })
+        .count<{ count: string }>("id as count")
+        .first();
+      const meetCount = Number(meetCountRow?.count ?? 0);
+      if (meetCount === 0) {
+        await client("organizations")
+          .where({ id: org.id })
+          .andWhere("is_private", true)
+          .del();
+      }
+    }
   }
 
   async findTemplates(orgId: string) {
@@ -483,6 +766,14 @@ export class OrganizationsService {
   }
 
   async deleteTemplate(orgId: string, templateId: string) {
+    await this.database
+      .getClient()("organizations")
+      .where({ id: orgId, default_template_id: templateId })
+      .update({
+        default_template_id: null,
+        updated_at: new Date().toISOString(),
+      });
+
     const updated = await this.database
       .getClient()("templates")
       .where({ id: templateId, organization_id: orgId })
@@ -508,6 +799,38 @@ export class OrganizationsService {
     if (dto.isPrivate !== undefined) {
       updates.is_private = dto.isPrivate;
     }
+    if (dto.customField1Name !== undefined) {
+      updates.custom_field1_name = dto.customField1Name.trim() || null;
+    }
+    if (dto.customField2Name !== undefined) {
+      updates.custom_field2_name = dto.customField2Name.trim() || null;
+    }
+    if (dto.customField1HelperText !== undefined) {
+      updates.custom_field1_helper_text =
+        dto.customField1HelperText.trim() || null;
+    }
+    if (dto.customField2HelperText !== undefined) {
+      updates.custom_field2_helper_text =
+        dto.customField2HelperText.trim() || null;
+    }
+    if (dto.defaultTemplateId !== undefined) {
+      updates.default_template_id = dto.defaultTemplateId?.trim() || null;
+    }
+    if (dto.defaultRequireIndemnity !== undefined) {
+      updates.default_require_indemnity = dto.defaultRequireIndemnity;
+    }
+    if (dto.defaultAutoApproveAttendees !== undefined) {
+      updates.default_auto_approve_attendees = dto.defaultAutoApproveAttendees;
+    }
+    if (dto.defaultAllowGuests !== undefined) {
+      updates.default_allow_guests = dto.defaultAllowGuests;
+    }
+    if (dto.defaultAllowSelfCheckin !== undefined) {
+      updates.default_allow_self_checkin = dto.defaultAllowSelfCheckin;
+    }
+    if (dto.defaultAllowWalkins !== undefined) {
+      updates.default_allow_walkins = dto.defaultAllowWalkins;
+    }
 
     const updated = await this.database
       .getClient()("organizations")
@@ -517,6 +840,50 @@ export class OrganizationsService {
     if (!updated[0]) {
       throw new NotFoundException("Organization not found");
     }
+
+    const row = await this.findById(id);
+    return this.toOrganizationDto(row);
+  }
+
+  async uploadLogo(id: string, file: any) {
+    const organization = await this.database
+      .getClient()("organizations")
+      .where({ id })
+      .select("id", "name", "logo_object_key")
+      .first();
+
+    if (!organization) {
+      throw new NotFoundException("Organization not found");
+    }
+
+    const normalized = await sharp(file.buffer)
+      .rotate()
+      .resize(512, 512, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    const objectKey = `logos/${id}/${uuid()}.webp`;
+    const uploaded = await this.minio.upload(
+      objectKey,
+      normalized,
+      "image/webp",
+    );
+
+    if (organization.logo_object_key) {
+      await this.minio
+        .remove(organization.logo_object_key)
+        .catch(() => undefined);
+    }
+
+    await this.database.getClient()("organizations").where({ id }).update({
+      logo_object_key: uploaded.objectKey,
+      logo_url: uploaded.url,
+      updated_at: new Date().toISOString(),
+    });
+
     const row = await this.findById(id);
     return this.toOrganizationDto(row);
   }
@@ -529,7 +896,7 @@ export class OrganizationsService {
     const client = this.database.getClient();
     const organization = await client("organizations")
       .where({ id: orgId })
-      .select("id", "name")
+      .select("id", "name", "logo_url")
       .first();
     if (!organization) {
       throw new NotFoundException("Organization not found");
@@ -585,6 +952,7 @@ export class OrganizationsService {
           organizationName: organization.name || "your organization",
           registerUrl,
           expiresAt,
+          logoUrl: organization.logo_url ?? undefined,
         });
         try {
           await this.emailService.sendEmail({
@@ -865,6 +1233,99 @@ export class OrganizationsService {
       canViewAllMeets: row.can_view_all_meets ?? undefined,
       theme: row.theme ?? undefined,
       isPrivate: row.is_private ?? undefined,
+      logoUrl: row.logo_url ?? undefined,
+      customField1Name: row.custom_field1_name ?? undefined,
+      customField2Name: row.custom_field2_name ?? undefined,
+      customField1HelperText: row.custom_field1_helper_text ?? undefined,
+      customField2HelperText: row.custom_field2_helper_text ?? undefined,
+      defaultTemplateId: row.default_template_id ?? undefined,
+      defaultRequireIndemnity:
+        row.default_require_indemnity ?? undefined,
+      defaultAutoApproveAttendees:
+        row.default_auto_approve_attendees ?? undefined,
+      defaultAllowGuests: row.default_allow_guests ?? undefined,
+      defaultAllowSelfCheckin:
+        row.default_allow_self_checkin ?? undefined,
+      defaultAllowWalkins: row.default_allow_walkins ?? undefined,
+      meetCountLast90Days:
+        typeof row.meet_count_last_90_days === "number"
+          ? row.meet_count_last_90_days
+          : row.meet_count_last_90_days != null
+            ? Number(row.meet_count_last_90_days)
+            : undefined,
+      meetCountLast30Days:
+        typeof row.meet_count_last_30_days === "number"
+          ? row.meet_count_last_30_days
+          : row.meet_count_last_30_days != null
+            ? Number(row.meet_count_last_30_days)
+            : undefined,
+      attendanceCountLast90Days:
+        typeof row.attendance_count_last_90_days === "number"
+          ? row.attendance_count_last_90_days
+          : row.attendance_count_last_90_days != null
+            ? Number(row.attendance_count_last_90_days)
+            : undefined,
+      attendanceCountLast30Days:
+        typeof row.attendance_count_last_30_days === "number"
+          ? row.attendance_count_last_30_days
+          : row.attendance_count_last_30_days != null
+            ? Number(row.attendance_count_last_30_days)
+            : undefined,
+      meetCountTotal:
+        typeof row.meet_count_total === "number"
+          ? row.meet_count_total
+          : row.meet_count_total != null
+            ? Number(row.meet_count_total)
+            : undefined,
+      attendanceCountTotal:
+        typeof row.attendance_count_total === "number"
+          ? row.attendance_count_total
+          : row.attendance_count_total != null
+            ? Number(row.attendance_count_total)
+            : undefined,
+      adminCount:
+        typeof row.admin_count === "number"
+          ? row.admin_count
+          : row.admin_count != null
+            ? Number(row.admin_count)
+            : undefined,
+      organizerCount:
+        typeof row.organizer_count === "number"
+          ? row.organizer_count
+          : row.organizer_count != null
+            ? Number(row.organizer_count)
+            : undefined,
+      memberCount:
+        typeof row.member_count === "number"
+          ? row.member_count
+          : row.member_count != null
+            ? Number(row.member_count)
+            : undefined,
+      meetImageBytes:
+        typeof row.meet_image_bytes === "number"
+          ? row.meet_image_bytes
+          : row.meet_image_bytes != null
+            ? Number(row.meet_image_bytes)
+            : undefined,
+      wallImageBytes:
+        typeof row.wall_image_bytes === "number"
+          ? row.wall_image_bytes
+          : row.wall_image_bytes != null
+            ? Number(row.wall_image_bytes)
+            : undefined,
+      totalImageBytes:
+        typeof row.total_image_bytes === "number"
+          ? row.total_image_bytes
+          : row.total_image_bytes != null
+            ? Number(row.total_image_bytes)
+            : undefined,
+      reportingEnabled: row.reporting_enabled ?? undefined,
+      brandingEnabled: row.branding_enabled ?? undefined,
+      domainEnabled: row.domain_enabled ?? undefined,
+      whatsappEnabled: row.whatsapp_enabled ?? undefined,
+      paymentsEnabled: row.payments_enabled ?? undefined,
+      diskQuotasEnabled: row.disk_quotas_enabled ?? undefined,
+      enableWebhooks: row.enable_webhooks ?? undefined,
     };
   }
 }

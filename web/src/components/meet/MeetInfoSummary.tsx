@@ -12,7 +12,7 @@ import LinkIcon from "@mui/icons-material/Link";
 import CloseIcon from "@mui/icons-material/Close";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../context/authContext";
-import Meet from "../../types/MeetModel";
+import Meet, { MeetAttendeePreview } from "../../types/MeetModel";
 import { MeetInfoDeets } from "./MeetInfoDeets";
 import { getMeetDateLabel } from "../../helpers/meetTime";
 import { MeetImageCarouselDialog } from "./MeetImageCarouselDialog";
@@ -27,6 +27,7 @@ type MeetInfoSummaryProps = {
   showUserAction?: boolean;
   actionSlot?: ReactNode;
   onClose?: () => void;
+  attendingAttendees?: MeetAttendeePreview[];
 };
 
 export function MeetInfoSummary({
@@ -39,6 +40,7 @@ export function MeetInfoSummary({
   showUserAction = true,
   actionSlot,
   onClose,
+  attendingAttendees,
 }: MeetInfoSummaryProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const descriptionRef = useRef<HTMLParagraphElement | null>(null);
@@ -321,14 +323,21 @@ export function MeetInfoSummary({
                 </Box>
               ) : null}
             </Box>
-            <MeetInfoDeets meet={meet} />
+            <MeetInfoDeets
+              meet={meet}
+              attendingAttendees={attendingAttendees ?? meet.attendingAttendees}
+            />
           </Stack>
           {renderDescription()}
         </>
       ) : (
         <>
           <Box mt={1}>
-            <MeetInfoDeets meet={meet} layout="horizontal" />
+            <MeetInfoDeets
+              meet={meet}
+              layout="horizontal"
+              attendingAttendees={attendingAttendees ?? meet.attendingAttendees}
+            />
           </Box>
           {renderDescription()}
         </>

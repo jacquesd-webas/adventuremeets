@@ -23,7 +23,7 @@ describe("OrganizationActions", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Organization actions" }),
+      screen.getByRole("button", { name: "Organisation actions" }),
     );
 
     expect(
@@ -37,7 +37,7 @@ describe("OrganizationActions", () => {
     expect(onEdit).toHaveBeenCalledWith("org-123");
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Organization actions" }),
+      screen.getByRole("button", { name: "Organisation actions" }),
     );
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     expect(onDelete).toHaveBeenCalledWith("org-123");
@@ -56,7 +56,7 @@ describe("OrganizationActions", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Organization actions" }),
+      screen.getByRole("button", { name: "Organisation actions" }),
     ).toBeDisabled();
   });
 });

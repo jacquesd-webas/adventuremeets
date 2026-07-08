@@ -1,3 +1,9 @@
+export type MeetAttendeePreview = {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+};
+
 export type Meet = {
   id: string;
   name: string;
@@ -41,7 +47,16 @@ export type Meet = {
   autoPromoteWaitlist?: boolean;
   allowGuests?: boolean;
   allowSelfCheckin?: boolean;
+  checkinPin?: string;
   allowWalkins?: boolean;
+  requireEmail?: boolean;
+  requirePhone?: boolean;
+  requireOrg1?: boolean;
+  requireOrg2?: boolean;
+  customField1Name?: string;
+  customField2Name?: string;
+  customField1HelperText?: string;
+  customField2HelperText?: string;
   maxGuests?: number;
   isVirtual?: boolean;
   shareCode?: string;
@@ -62,6 +77,7 @@ export type Meet = {
   checkedInCount?: number;
   isHidden?: boolean;
   myAttendeeStatus?: string;
+  attendingAttendees?: MeetAttendeePreview[];
   metaDefinitions?: Array<{
     id: string;
     fieldKey: string;

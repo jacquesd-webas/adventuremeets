@@ -66,6 +66,42 @@ describe("EmailService.saveMessage", () => {
       }),
     );
   });
+
+  it("stores grouped recipient lists as a comma-separated string", async () => {
+    const messageContentsInsert = {
+      insert: jest.fn().mockReturnThis(),
+      onConflict: jest.fn().mockReturnThis(),
+      merge: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockResolvedValue([{ id: "content-1" }]),
+    };
+    const messagesInsert = {
+      insert: jest.fn().mockResolvedValue([{ id: "message-1" }]),
+    };
+
+    const client: any = (table: string) => {
+      if (table === "message_contents") return messageContentsInsert;
+      if (table === "messages") return messagesInsert;
+      throw new Error(`Unexpected table ${table}`);
+    };
+
+    const service = new EmailService({
+      getClient: () => client,
+    } as any);
+
+    await service.saveMessage({
+      to: ["alex@example.com", "jamie@example.com"],
+      subject: "Group message",
+      text: "Hello everyone",
+      meetId: "meet-1",
+      attendeeId: "attendee-1",
+    });
+
+    expect(messagesInsert.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "alex@example.com, jamie@example.com",
+      }),
+    );
+  });
 });
 
 describe("EmailService.sendEmail", () => {

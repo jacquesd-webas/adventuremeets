@@ -24,7 +24,18 @@ vi.mock("../../helpers/organizationTheme", () => ({
 }));
 
 vi.mock("../../components/meet/MeetInfoSummary", () => ({
-  MeetInfoSummary: ({ meet }: { meet: { name: string } }) => <div>{meet.name}</div>,
+  MeetInfoSummary: ({
+    meet,
+    attendingAttendees,
+  }: {
+    meet: { name: string };
+    attendingAttendees?: Array<{ id: string }>;
+  }) => (
+    <div>
+      {meet.name}
+      <span>attending {attendingAttendees?.length ?? 0}</span>
+    </div>
+  ),
 }));
 
 vi.mock("../../components/attendeeStatus/AttendeeStatusAlert", () => ({
@@ -35,9 +46,15 @@ vi.mock("../../components/attendeeStatus/AttendeeRsvp", () => ({
   AttendeeRsvp: () => <div>attendee rsvp</div>,
 }));
 
-vi.mock("../../components/wall/MeetWall", () => ({
-  MeetWall: ({ meetId }: { meetId: string }) => <div>meet wall {meetId}</div>,
-}));
+vi.mock("../../components/wall/MeetWall", () => {
+  const MockMeetWall = ({ meetId }: { meetId: string }) => (
+    <div>meet wall {meetId}</div>
+  );
+  return {
+    default: MockMeetWall,
+    MeetWall: MockMeetWall,
+  };
+});
 
 vi.mock("../../components/meet/MeetNotFound", () => ({
   MeetNotFound: () => <div>not found</div>,
@@ -78,14 +95,18 @@ function renderPage() {
 describe("AttendeeStatusPage", () => {
   beforeEach(() => {
     vi.mocked(useFetchMeetAttendeeStatus).mockReturnValue({
-      data: { attendee: { id: "attendee-1", status: "confirmed" } },
+      data: {
+        attendee: { id: "attendee-1", status: "confirmed" },
+        attendingAttendees: [{ id: "attendee-2", name: "Alice Walker" }],
+      },
+      attendingAttendees: [{ id: "attendee-2", name: "Alice Walker" }],
       isLoading: false,
       error: null,
       refetch: vi.fn(),
     });
   });
 
-  it("shows the meet wall for completed meets", () => {
+  it("shows the meet wall for completed meets", async () => {
     vi.mocked(useFetchMeetSignup).mockReturnValue({
       data: {
         id: "meet-1",
@@ -100,10 +121,10 @@ describe("AttendeeStatusPage", () => {
 
     renderPage();
 
-    expect(screen.getByText("meet wall meet-1")).toBeInTheDocument();
+    expect(await screen.findByText("meet wall meet-1")).toBeInTheDocument();
   });
 
-  it("shows the meet wall for closed meets after the start time", () => {
+  it("shows the meet wall for closed meets after the start time", async () => {
     vi.mocked(useFetchMeetSignup).mockReturnValue({
       data: {
         id: "meet-2",
@@ -118,7 +139,7 @@ describe("AttendeeStatusPage", () => {
 
     renderPage();
 
-    expect(screen.getByText("meet wall meet-2")).toBeInTheDocument();
+    expect(await screen.findByText("meet wall meet-2")).toBeInTheDocument();
   });
 
   it("does not show the meet wall for closed meets before the start time", () => {
@@ -137,5 +158,23 @@ describe("AttendeeStatusPage", () => {
     renderPage();
 
     expect(screen.queryByText("meet wall meet-3")).not.toBeInTheDocument();
+  });
+
+  it("passes attending attendee previews to the summary for confirmed attendees", () => {
+    vi.mocked(useFetchMeetSignup).mockReturnValue({
+      data: {
+        id: "meet-4",
+        name: "Confirmed Meet",
+        statusId: MeetStatusEnum.Open,
+        startTime: "2099-04-20T08:00:00.000Z",
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("attending 1")).toBeInTheDocument();
   });
 });

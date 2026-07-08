@@ -83,21 +83,21 @@ export function ChooseOrganizationModal({
   const modalContent = (
     <Stack spacing={2} sx={{ mt: 1 }}>
       <Typography variant="body2" color="text.secondary">
-        Select the organization you want to work with.
+        Select the organisation you want to work with.
       </Typography>
       <FormControl size="small" fullWidth>
-        <InputLabel id="organization-select-label">Organization</InputLabel>
+        <InputLabel id="organization-select-label">Organisation</InputLabel>
         <Select
           labelId="organization-select-label"
-          label="Organization"
+          label="Organisation"
           value={selectedId}
-          onChange={(event) => setSelectedId(event.target.value)}
-          disabled={isLoading}
-          MenuProps={{ sx: { zIndex: 1501 } }}
-        >
+            onChange={(event) => setSelectedId(event.target.value)}
+            disabled={isLoading}
+            MenuProps={{ sx: { zIndex: 1501 } }}
+          >
           {options.map((org) => (
             <MenuItem key={org.id} value={org.id}>
-              {org.name || "Untitled organization"}
+              {org.name || "Untitled organisation"}
             </MenuItem>
           ))}
         </Select>

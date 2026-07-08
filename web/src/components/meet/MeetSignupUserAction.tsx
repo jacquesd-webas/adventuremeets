@@ -41,9 +41,9 @@ export function MismatchedUserDialog({
       <DialogTitle>Signed Out</DialogTitle>
       <DialogContent>
         <Typography variant="body2">
-          You have automatically been signed out because the application for
-          this meet is using a different e-mail address than the one you are
-          currently signed in with.
+          You have automatically been signed out because this meet signup is
+          using a different e-mail address than the one you are currently signed
+          in with.
         </Typography>
         <Typography variant="body2" sx={{ mt: 2 }}>
           Please sign in again with the correct e-mail address, or just continue

@@ -17,6 +17,7 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { QuestionField, StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
 import { HelpBanner } from "./HelpBanner";
+import { useFetchOrganization } from "../../hooks/useFetchOrganization";
 
 export const QuestionsStep = ({
   state,
@@ -28,6 +29,11 @@ export const QuestionsStep = ({
 }: StepProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const { data: organization } = useFetchOrganization(
+    state.organizationId || undefined,
+  );
+  const customField1Label = organization?.customField1Name?.trim() || "";
+  const customField2Label = organization?.customField2Name?.trim() || "";
 
   const addField = (type: QuestionField["type"]) => {
     const newField: QuestionField = {
@@ -144,11 +150,87 @@ export const QuestionsStep = ({
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
           <i>
-            The form will already have{" "}
-            <strong>Name, Email, and Phone number</strong>. You can add more
-            questions using the buttons above or import them from a template.
+            The form will already have <strong>Name</strong>. Use the switches
+            below to mark the standard attendee fields as required, then add any
+            extra questions using the buttons above or import them from a
+            template.
           </i>
         </Typography>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack spacing={1.25}>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Standard fields
+            </Typography>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              }}
+            >
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Switch
+                  checked={state.requireEmail}
+                  disabled={disabled}
+                  inputProps={{ "aria-label": "E-mail address" }}
+                  onChange={(e) =>
+                    setState((prev) => ({
+                      ...prev,
+                      requireEmail: e.target.checked,
+                    }))
+                  }
+                />
+                <Typography>E-mail address</Typography>
+              </Stack>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Switch
+                  checked={state.requirePhone}
+                  disabled={disabled}
+                  inputProps={{ "aria-label": "Phone number" }}
+                  onChange={(e) =>
+                    setState((prev) => ({
+                      ...prev,
+                      requirePhone: e.target.checked,
+                    }))
+                  }
+                />
+                <Typography>Phone number</Typography>
+              </Stack>
+              {customField1Label ? (
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Switch
+                    checked={state.requireOrg1}
+                    disabled={disabled}
+                    inputProps={{ "aria-label": customField1Label }}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        requireOrg1: e.target.checked,
+                      }))
+                    }
+                  />
+                  <Typography>{customField1Label}</Typography>
+                </Stack>
+              ) : null}
+              {customField2Label ? (
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Switch
+                    checked={state.requireOrg2}
+                    disabled={disabled}
+                    inputProps={{ "aria-label": customField2Label }}
+                    onChange={(e) =>
+                      setState((prev) => ({
+                        ...prev,
+                        requireOrg2: e.target.checked,
+                      }))
+                    }
+                  />
+                  <Typography>{customField2Label}</Typography>
+                </Stack>
+              ) : null}
+            </Box>
+          </Stack>
+        </Paper>
         {isHelpEnabled ? (
           <Typography variant="body2" color="text.secondary">
             Use text for open answers, select for one choice from a list, switch
@@ -272,7 +354,7 @@ export const QuestionsStep = ({
                 {isHelpEnabled ? (
                   <Typography variant="body2" color="text.secondary">
                     Required means the attendee must answer before submitting.
-                    Include in reports means organizers can use this answer in
+                    Include in reports means organisers can use this answer in
                     exports and reporting later.
                   </Typography>
                 ) : null}
@@ -297,7 +379,23 @@ export const QuestionsStep = ({
         >
           <Box sx={{ width: "100%", maxWidth: 760 }}>
             <HelpBanner
-              message="Name, email and phone number questions are included by default. Use this section to add any additional questions you want attendees to answer as part of their application. You can also import questions from a template if your organization has some set up already. If you use the imported templates this will help attendees to auto-fill their answers in future meets."
+              message={
+                <>
+                  Here you can add questions you want attendees to answer as
+                  part of their application.
+                  <br />
+                  <br />
+                  The form will always include Name, and it is recommended to
+                  have email and phone as well to enable you to communicate with
+                  attendees.
+                  <br />
+                  <br />
+                  You can also import questions from a template if your
+                  organisation has some set up already. If you use the templates
+                  it helps with consistency which allows attendees to auto-fill
+                  their answers in future meets.
+                </>
+              }
               onDismiss={onDismissHelpBanner || (() => undefined)}
             />
           </Box>

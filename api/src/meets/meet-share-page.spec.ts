@@ -39,4 +39,33 @@ describe("buildMeetSharePageHtml", () => {
       'meta property="og:description" content="Join this meet."',
     );
   });
+
+  it("omits the body description when nodesc=1 is present", () => {
+    const { html, redirectUrl } = buildMeetSharePageHtml({
+      req: buildRequest("/share/share-123?nodesc=1"),
+      code: "share-123",
+      frontendUrl: "https://app.example.com",
+      meetDescription: "Join us on the mountain.",
+      meetStartTime: "2026-04-14T07:00:00.000Z",
+      meetTimeZone: "Africa/Johannesburg",
+    });
+
+    expect(html).toContain(
+      'meta property="og:description" content="Tuesday, 14 April 2026"',
+    );
+    expect(html).not.toContain("Join us on the mountain.");
+    expect(redirectUrl).toBe("https://app.example.com/meets/share-123");
+  });
+
+  it("preserves other query params while stripping nodesc from the redirect", () => {
+    const { redirectUrl } = buildMeetSharePageHtml({
+      req: buildRequest("/share/share-123?nodesc=1&pin=abc123"),
+      code: "share-123",
+      frontendUrl: "https://app.example.com",
+    });
+
+    expect(redirectUrl).toBe(
+      "https://app.example.com/meets/share-123?pin=abc123",
+    );
+  });
 });

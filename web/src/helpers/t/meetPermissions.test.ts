@@ -10,6 +10,7 @@ describe("getMeetPermissions", () => {
       }),
     ).toEqual({
       isOrganizerForMeet: false,
+      canAccessManageMenu: false,
       canManageMeet: false,
       canViewMeet: true,
     });
@@ -24,6 +25,7 @@ describe("getMeetPermissions", () => {
       }),
     ).toEqual({
       isOrganizerForMeet: true,
+      canAccessManageMenu: true,
       canManageMeet: true,
       canViewMeet: true,
     });
@@ -38,6 +40,7 @@ describe("getMeetPermissions", () => {
       }),
     ).toEqual({
       isOrganizerForMeet: false,
+      canAccessManageMenu: true,
       canManageMeet: false,
       canViewMeet: true,
     });
@@ -52,6 +55,7 @@ describe("getMeetPermissions", () => {
       }),
     ).toEqual({
       isOrganizerForMeet: false,
+      canAccessManageMenu: true,
       canManageMeet: true,
       canViewMeet: true,
     });

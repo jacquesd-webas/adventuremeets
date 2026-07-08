@@ -1,21 +1,21 @@
-import {
-  ForbiddenException,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { OrganizationsController } from "./organizations.controller";
 import { OrganizationsService } from "./organizations.service";
 import { AuthService } from "../auth/auth.service";
-import { DatabaseService } from "../database/database.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
+import { AuditLogService } from "../audit/audit-log.service";
 
 describe("OrganizationsController", () => {
   let controller: OrganizationsController;
 
   const organizationsService = {
     findAllByIds: jest.fn(),
+    createPrivateOrganization: jest.fn(),
+    leaveOrganization: jest.fn(),
     findByIdMinimal: jest.fn(),
     findById: jest.fn(),
     findMembers: jest.fn(),
+    updateMember: jest.fn(),
     findOrganizers: jest.fn(),
     listMetaDefinitions: jest.fn(),
     findTemplates: jest.fn(),
@@ -24,10 +24,12 @@ describe("OrganizationsController", () => {
     updateTemplate: jest.fn(),
     deleteTemplate: jest.fn(),
     update: jest.fn(),
+    uploadLogo: jest.fn(),
     listInviteLinks: jest.fn(),
     createInviteLink: jest.fn(),
     acceptInvite: jest.fn(),
     declineInvite: jest.fn(),
+    removeEmptyPrivateOrganizationsForUser: jest.fn(),
   } as unknown as OrganizationsService;
 
   const authService = {
@@ -35,9 +37,9 @@ describe("OrganizationsController", () => {
     hasRole: jest.fn(),
   } as unknown as AuthService;
 
-  const db = {
-    getClient: jest.fn(),
-  } as unknown as DatabaseService;
+  const auditLogService = {
+    addRecord: jest.fn(),
+  } as unknown as AuditLogService;
 
   const adminUser: UserProfile = {
     id: "admin-1",
@@ -58,8 +60,66 @@ describe("OrganizationsController", () => {
     controller = new OrganizationsController(
       organizationsService,
       authService,
-      db,
+      auditLogService,
     );
+  });
+
+  it.each([
+    ["findAll", () => controller.findAll()],
+    ["create", () => controller.create({ name: "Org" } as any)],
+    ["leave", () => controller.leave("org-1")],
+    ["acceptInvite", () => controller.acceptInvite("invite-1")],
+    ["declineInvite", () => controller.declineInvite("invite-1")],
+    ["findMembers", () => controller.findMembers("org-1")],
+    [
+      "updateMember",
+      () => controller.updateMember("org-1", "user-1", {} as any),
+    ],
+    ["findOrganizers", () => controller.findOrganizers("org-1")],
+    ["findTemplates", () => controller.findTemplates("org-1")],
+    ["listMetaDefinitions", () => controller.listMetaDefinitions("org-1")],
+    ["findTemplate", () => controller.findTemplate("org-1", "template-1")],
+    [
+      "createTemplate",
+      () =>
+        controller.createTemplate(
+          "org-1",
+          { name: "Template", metaDefinitionIds: [] } as any,
+        ),
+    ],
+    [
+      "updateTemplate",
+      () =>
+        controller.updateTemplate(
+          "org-1",
+          "template-1",
+          { name: "Updated Template" } as any,
+        ),
+    ],
+    [
+      "deleteTemplate",
+      () => controller.deleteTemplate("org-1", "template-1", undefined as any),
+    ],
+    ["update", () => controller.update("org-1", { name: "Org" } as any)],
+    [
+      "uploadLogo",
+      () =>
+        controller.uploadLogo(
+          "org-1",
+          { mimetype: "image/png", buffer: Buffer.from("logo") } as any,
+        ),
+    ],
+    ["listInvites", () => controller.listInvites("org-1")],
+    [
+      "invite",
+      () =>
+        controller.invite(
+          "org-1",
+          { email: "member@example.com", roleId: 4 } as any,
+        ),
+    ],
+  ])("rejects unauthenticated %s access", async (_name, action) => {
+    await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it("rejects unauthenticated organization listing", async () => {
@@ -81,17 +141,9 @@ describe("OrganizationsController", () => {
       email: "member@example.com",
     };
     (organizationsService.acceptInvite as jest.Mock).mockResolvedValue(invite);
-    const cleanupSpy = jest
-      .spyOn(
-        controller as unknown as {
-          removeEmptyPrivateOrganizationsForUser: (
-            userId: string,
-            organizationId?: string,
-          ) => Promise<void>;
-        },
-        "removeEmptyPrivateOrganizationsForUser",
-      )
-      .mockResolvedValue(undefined);
+    (
+      organizationsService.removeEmptyPrivateOrganizationsForUser as jest.Mock
+    ).mockResolvedValue(undefined);
 
     await expect(
       controller.acceptInvite("invite-1", memberUser),
@@ -104,7 +156,15 @@ describe("OrganizationsController", () => {
       "member-1",
       "member@example.com",
     );
-    expect(cleanupSpy).toHaveBeenCalledWith("member-1", "org-1");
+    expect(
+      organizationsService.removeEmptyPrivateOrganizationsForUser,
+    ).toHaveBeenCalledWith("member-1", "org-1");
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "member-1",
+      action: "accepted",
+      target: "organization invite",
+    });
   });
 
   it("still returns the accepted invite when private-organization cleanup fails", async () => {
@@ -114,17 +174,9 @@ describe("OrganizationsController", () => {
       email: "member@example.com",
     };
     (organizationsService.acceptInvite as jest.Mock).mockResolvedValue(invite);
-    jest
-      .spyOn(
-        controller as unknown as {
-          removeEmptyPrivateOrganizationsForUser: (
-            userId: string,
-            organizationId?: string,
-          ) => Promise<void>;
-        },
-        "removeEmptyPrivateOrganizationsForUser",
-      )
-      .mockRejectedValue(new Error("db unavailable"));
+    (
+      organizationsService.removeEmptyPrivateOrganizationsForUser as jest.Mock
+    ).mockRejectedValue(new Error("db unavailable"));
     const warnSpy = jest.spyOn((controller as any).logger, "warn");
 
     await expect(
@@ -163,6 +215,12 @@ describe("OrganizationsController", () => {
       "invite-1",
       "member@example.com",
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "member-1",
+      action: "declined",
+      target: "organization invite",
+    });
   });
 
   it("returns an empty list when the caller has no organization memberships", async () => {
@@ -170,6 +228,53 @@ describe("OrganizationsController", () => {
 
     await expect(controller.findAll(adminUser)).resolves.toEqual([]);
     expect(organizationsService.findAllByIds).not.toHaveBeenCalled();
+  });
+
+  it("creates a private organization for the signed-in user", async () => {
+    (
+      organizationsService.createPrivateOrganization as jest.Mock
+    ).mockResolvedValue({
+      id: "org-3",
+      name: "New Private Org",
+    });
+
+    await expect(
+      controller.create({ name: "New Private Org" } as any, memberUser),
+    ).resolves.toEqual({
+      organization: { id: "org-3", name: "New Private Org" },
+    });
+
+    expect(organizationsService.createPrivateOrganization).toHaveBeenCalledWith(
+      "New Private Org",
+      "member-1",
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-3",
+      userId: "member-1",
+      action: "created",
+      target: "organization New Private Org",
+    });
+  });
+
+  it("allows a signed-in user to leave an organization", async () => {
+    (organizationsService.leaveOrganization as jest.Mock).mockResolvedValue(
+      undefined,
+    );
+
+    await expect(controller.leave("org-2", memberUser)).resolves.toEqual({
+      success: true,
+    });
+
+    expect(organizationsService.leaveOrganization).toHaveBeenCalledWith(
+      "org-2",
+      "member-1",
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-2",
+      userId: "member-1",
+      action: "left",
+      target: "organization",
+    });
   });
 
   it("lists organizations for the caller's organization ids", async () => {
@@ -302,11 +407,11 @@ describe("OrganizationsController", () => {
       { id: "template-1", name: "Default" },
     ]);
 
-    await expect(controller.findTemplates("org-1", memberUser)).resolves.toEqual(
-      {
-        templates: [{ id: "template-1", name: "Default" }],
-      },
-    );
+    await expect(
+      controller.findTemplates("org-1", memberUser),
+    ).resolves.toEqual({
+      templates: [{ id: "template-1", name: "Default" }],
+    });
   });
 
   it("gets a single template for organizers", async () => {
@@ -348,6 +453,12 @@ describe("OrganizationsController", () => {
       ),
     ).resolves.toEqual({
       template: { id: "template-1", name: "New Template" },
+    });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      action: "created",
+      target: "organization template New Template",
     });
   });
 
@@ -395,6 +506,45 @@ describe("OrganizationsController", () => {
     ).resolves.toEqual({
       organization: { id: "org-1", name: "Updated Org" },
     });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      action: "updated",
+      target: "organization Updated Org",
+    });
+  });
+
+  it("uploads organization logos for admins", async () => {
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (organizationsService.uploadLogo as jest.Mock).mockResolvedValue({
+      id: "org-1",
+      name: "Updated Org",
+      logoUrl: "https://cdn.example.com/logo.webp",
+    });
+
+    await expect(
+      controller.uploadLogo(
+        "org-1",
+        { mimetype: "image/png", buffer: Buffer.from("logo") } as any,
+        adminUser,
+      ),
+    ).resolves.toEqual({
+      organization: {
+        id: "org-1",
+        name: "Updated Org",
+        logoUrl: "https://cdn.example.com/logo.webp",
+      },
+    });
+    expect(organizationsService.uploadLogo).toHaveBeenCalledWith(
+      "org-1",
+      expect.objectContaining({ mimetype: "image/png" }),
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      action: "updated",
+      target: "organization logo",
+    });
   });
 
   it("lists invites for admins", async () => {
@@ -434,5 +584,11 @@ describe("OrganizationsController", () => {
       { email: "new@example.com", roleId: 4 },
       "admin-1",
     );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "admin-1",
+      action: "created",
+      target: "organization invite",
+    });
   });
 });

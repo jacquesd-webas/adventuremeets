@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEmail,
   IsInt,
+  Length,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -46,15 +47,25 @@ export class CreateMeetAttendeeDto {
   name?: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((o) => !o.userId)
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   phone?: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((o) => !o.userId)
+  @IsOptional()
   @IsEmail()
   email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  org1Value?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  org2Value?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -105,4 +116,10 @@ export class CreateMeetAttendeeDto {
   @IsOptional()
   @IsString()
   autoPlacement?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(6, 6)
+  checkinPin?: string;
 }

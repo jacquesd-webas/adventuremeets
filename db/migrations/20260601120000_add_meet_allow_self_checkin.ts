@@ -2,7 +2,7 @@ import type { Knex } from "knex";
 
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable("meets", (table) => {
-    table.boolean("allow_self_checkin").notNullable().defaultTo(false);
+    table.string("checkin_pin", 6).nullable();
     table.boolean("allow_walkins").notNullable().defaultTo(false);
   });
 }
@@ -10,6 +10,6 @@ export async function up(knex: Knex): Promise<void> {
 export async function down(knex: Knex): Promise<void> {
   await knex.schema.alterTable("meets", (table) => {
     table.dropColumn("allow_walkins");
-    table.dropColumn("allow_self_checkin");
+    table.dropColumn("checkin_pin");
   });
 }

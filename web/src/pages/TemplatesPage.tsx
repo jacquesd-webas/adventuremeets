@@ -6,7 +6,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { DataGrid, GridCellParams, GridColDef } from "@mui/x-data-grid";
 import { useParams } from "react-router-dom";
 import { useFetchOrganizationTemplates } from "../hooks/useFetchOrganizationTemplates";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
@@ -32,6 +32,11 @@ function TemplatesPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteTargetName, setDeleteTargetName] = useState<string>("");
   const { deleteTemplateAsync } = useDeleteTemplate();
+
+  const handleEditTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    setCreateOpen(true);
+  };
 
   const columns: GridColDef[] = [
     { field: "name", headerName: "Name", flex: 1, minWidth: 180 },
@@ -62,10 +67,7 @@ function TemplatesPage() {
       headerAlign: "right",
       renderCell: (params) => (
         <AdminActionsMenu
-          onEdit={() => {
-            setSelectedTemplateId(params.row.id);
-            setCreateOpen(true);
-          }}
+          onEdit={() => handleEditTemplate(params.row.id as string)}
           onDelete={async () => {
             if (!id) return;
             setDeleteTargetId(params.row.id as string);
@@ -95,7 +97,7 @@ function TemplatesPage() {
             {title}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Templates available for this organization.
+            Templates available for this organisation.
           </Typography>
         </Box>
         <Button
@@ -131,11 +133,23 @@ function TemplatesPage() {
             columns={columns}
             autoHeight
             disableRowSelectionOnClick
+            onCellClick={(params: GridCellParams) => {
+              if (params.field === "actions") return;
+              handleEditTemplate(params.row.id as string);
+            }}
             initialState={{
               pagination: { paginationModel: { pageSize: 25, page: 0 } },
             }}
             pageSizeOptions={[10, 25, 50]}
-            sx={{ border: "none" }}
+            sx={{
+              border: "none",
+              "& .MuiDataGrid-row": {
+                cursor: "pointer",
+              },
+              "& .MuiDataGrid-cell[data-field='actions']": {
+                cursor: "default",
+              },
+            }}
           />
         )}
       </Paper>

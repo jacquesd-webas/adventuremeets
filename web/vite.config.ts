@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -8,11 +9,90 @@ export default defineConfig(({ mode }) => {
   const apiOrigin = apiBase.endsWith("/api/v1")
     ? apiBase.slice(0, -"/api/v1".length)
     : apiBase;
+  const minioPublicUrl = String(
+    env.VITE_MINIO_PUBLIC_URL || env.MINIO_PUBLIC_URL || "",
+  ).replace(/\/+$/, "");
+  const minioTarget =
+    minioPublicUrl ||
+    `${
+      env.MINIO_USE_SSL === "true" ? "https" : "http"
+    }://${env.MINIO_ENDPOINT || "localhost"}:${env.MINIO_PORT || "9000"}`;
 
   const proxyTarget = apiOrigin || "http://localhost:8080";
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      VitePWA({
+        registerType: "autoUpdate",
+        injectRegister: false,
+        manifest: false,
+        includeAssets: [
+          "favicon.svg",
+          "apple-touch-icon.png",
+          "icons/*.png",
+          "static/*.png",
+          "static/*.svg",
+        ],
+        workbox: {
+          cleanupOutdatedCaches: true,
+          globPatterns: [
+            "**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,webmanifest}",
+          ],
+          globIgnores: ["**/static/splash/*.png", "**/static/themes/*.png"],
+          navigateFallback: "/index.html",
+          navigateFallbackDenylist: [/^\/api\//, /^\/share\//],
+          runtimeCaching: [
+            {
+              urlPattern: ({ request, url }) =>
+                url.origin === self.location.origin &&
+                ["script", "style", "worker", "font"].includes(
+                  request.destination,
+                ),
+              handler: "CacheFirst",
+              options: {
+                cacheName: "static-assets",
+                cacheableResponse: {
+                  statuses: [200],
+                },
+                expiration: {
+                  maxEntries: 96,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+              },
+            },
+            {
+              urlPattern: ({ request, url }) =>
+                url.origin === self.location.origin &&
+                request.destination === "image",
+              handler: "CacheFirst",
+              options: {
+                cacheName: "static-images",
+                cacheableResponse: {
+                  statuses: [200],
+                },
+                expiration: {
+                  maxEntries: 128,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+              },
+            },
+            {
+              urlPattern: ({ request, url }) =>
+                url.origin === self.location.origin &&
+                request.destination === "manifest",
+              handler: "CacheFirst",
+              options: {
+                cacheName: "app-manifest",
+                cacheableResponse: {
+                  statuses: [200],
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ],
     build: {
       chunkSizeWarningLimit: 2500,
     },
@@ -21,8 +101,16 @@ export default defineConfig(({ mode }) => {
       host: true,
       // Let `/share/:code` be served by the API so OG meta tags are present in the HTML response.
       proxy: {
+        "/api": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
         "/share": {
           target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/meet-images": {
+          target: minioTarget,
           changeOrigin: true,
         },
       },

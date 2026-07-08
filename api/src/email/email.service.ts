@@ -56,6 +56,7 @@ export class EmailService {
       `Subject: ${parsed.subject}\n\n` +
       (parsed.pertinentBody || parsed.body || content);
     const sender = meetId ? this.defaultFrom : from || this.defaultFrom;
+    const recipients = Array.isArray(to) ? to.join(", ") : to;
 
     const contentId = await this.resolveMessageContentId(body);
     if (!contentId) {
@@ -67,7 +68,7 @@ export class EmailService {
       meet_id: meetId,
       attendee_id: attendeeId,
       from: sender,
-      to,
+      to: recipients,
       message_content_id: contentId,
       is_read: true,
     });

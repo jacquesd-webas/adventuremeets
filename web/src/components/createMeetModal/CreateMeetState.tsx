@@ -44,6 +44,10 @@ export type CreateMeetState = {
   allowGuests: boolean;
   allowSelfCheckin: boolean;
   allowWalkins: boolean;
+  requireEmail: boolean;
+  requirePhone: boolean;
+  requireOrg1: boolean;
+  requireOrg2: boolean;
   maxGuests: number | string;
   currency: string;
   costCents: number | string;
@@ -86,6 +90,10 @@ export const initialState: CreateMeetState = {
   allowGuests: false,
   allowSelfCheckin: false,
   allowWalkins: false,
+  requireEmail: true,
+  requirePhone: true,
+  requireOrg1: false,
+  requireOrg2: false,
   maxGuests: "",
   currency: "ZAR",
   costCents: "",
@@ -151,6 +159,10 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     allowGuests: meet.allowGuests ?? false,
     allowSelfCheckin: meet.allowSelfCheckin ?? false,
     allowWalkins: meet.allowWalkins ?? false,
+    requireEmail: meet.requireEmail ?? false,
+    requirePhone: meet.requirePhone ?? false,
+    requireOrg1: meet.requireOrg1 ?? false,
+    requireOrg2: meet.requireOrg2 ?? false,
     maxGuests: toNumberOrEmpty(meet.maxGuests),
     currency: meet.currencyCode ?? initialState.currency,
     costCents: toCurrencyUnits(meet.costCents),
@@ -235,7 +247,7 @@ export const validateStep = (step: number, draft: CreateMeetState) => {
       if (!draft.organizerId)
         errors.push({
           field: "organizerId",
-          message: "Please select an organizer",
+          message: "Please select an organiser",
           step,
         });
       break;

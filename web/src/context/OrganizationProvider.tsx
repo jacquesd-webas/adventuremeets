@@ -25,11 +25,32 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(storageKey);
   });
+  const [lastKnownOrganizations, setLastKnownOrganizations] = useState<
+    Record<string, string>
+  >({});
+
+  useEffect(() => {
+    if (!user) {
+      setLastKnownOrganizations({});
+      return;
+    }
+    const currentOrganizations = user.organizations || {};
+    if (Object.keys(currentOrganizations).length > 0) {
+      setLastKnownOrganizations(currentOrganizations);
+    }
+  }, [user]);
+
+  const effectiveOrganizations = useMemo(() => {
+    const currentOrganizations = user?.organizations || {};
+    if (Object.keys(currentOrganizations).length > 0) {
+      return currentOrganizations;
+    }
+    return lastKnownOrganizations;
+  }, [lastKnownOrganizations, user?.organizations]);
 
   const organizationIds = useMemo(() => {
-    if (!user?.organizations) return [];
-    return Object.keys(user.organizations);
-  }, [user]);
+    return Object.keys(effectiveOrganizations);
+  }, [effectiveOrganizations]);
 
   const canFetchOrganization = Boolean(user) && !isPublicRoute;
   const { data: organization } = useFetchOrganization(
@@ -57,7 +78,14 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
       setCurrentOrganizationId(organizationIds[0]);
       return;
     }
-  }, [organizationIds, currentOrganizationId, isLoading, user]);
+  }, [
+    currentOrganizationId,
+    isLoading,
+    isPublicRoute,
+    location.pathname,
+    organizationIds,
+    user,
+  ]);
 
   // Persist current organization to localStorage
   useEffect(() => {
@@ -70,9 +98,9 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
   }, [currentOrganizationId]);
 
   const currentOrganizationRole = useMemo(() => {
-    if (!user?.organizations || !currentOrganizationId) return null;
-    return user.organizations[currentOrganizationId] || null;
-  }, [user?.organizations, currentOrganizationId]);
+    if (!currentOrganizationId) return null;
+    return effectiveOrganizations[currentOrganizationId] || null;
+  }, [currentOrganizationId, effectiveOrganizations]);
 
   const value = useMemo<OrganizationContextValue>(
     () => ({

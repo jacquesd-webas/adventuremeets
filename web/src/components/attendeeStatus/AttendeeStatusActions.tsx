@@ -1,4 +1,11 @@
-import { Box, Button, Stack, Typography, useMediaQuery, useTheme } from "@mui/material";
+import {
+  Box,
+  Button,
+  Stack,
+  Typography,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
@@ -8,6 +15,7 @@ import { AttendeeRsvp } from "./AttendeeRsvp";
 import { ContactOrganizerDialog } from "./ContactOrganizerDialog";
 import { VerifyAttendeeEmailDialog } from "./VerifyAttendeeEmailDialog";
 import { WithdrawApplicationDialog } from "./WithdrawApplicationDialog";
+import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 
 type AttendeeStatusActionsProps = {
   meet: Meet;
@@ -22,6 +30,7 @@ export function AttendeeStatusActions({
   attendeeId,
   attendeeStatus,
 }: AttendeeStatusActionsProps) {
+  const wording = getMeetResponseWording(Boolean(meet.autoPlacement));
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -42,8 +51,8 @@ export function AttendeeStatusActions({
           <AttendeeStatusAlert status={attendeeStatus} />
 
           <Typography variant="body1">
-            You may choose to make changes to your application using any of the
-            links below:
+            You may choose to make changes to your {wording.noun} using any of
+            the links below:
           </Typography>
 
           <Box sx={{ width: "100%" }}>
@@ -62,7 +71,7 @@ export function AttendeeStatusActions({
                 }}
                 fullWidth={isMobile}
               >
-                Edit Application
+                {wording.editLabel}
               </Button>
               <Button
                 variant="outlined"
@@ -72,7 +81,7 @@ export function AttendeeStatusActions({
                 }}
                 fullWidth={isMobile}
               >
-                Withdraw Application
+                {wording.withdrawLabel}
               </Button>
               <Button
                 variant="outlined"
@@ -102,6 +111,7 @@ export function AttendeeStatusActions({
         meetId={meet.id}
         attendeeId={attendeeId}
         attendeeStatus={attendeeStatus}
+        isRsvpMode={Boolean(meet.autoPlacement)}
       />
 
       <VerifyAttendeeEmailDialog
@@ -109,6 +119,7 @@ export function AttendeeStatusActions({
         onClose={() => setIsVerifyOpen(false)}
         meetId={meet.id}
         attendeeId={attendeeId}
+        isRsvpMode={Boolean(meet.autoPlacement)}
         onVerified={() => {
           if (!meetCode || !attendeeId) return;
           navigate(`/meets/${meetCode}/${attendeeId}?action=edit`);

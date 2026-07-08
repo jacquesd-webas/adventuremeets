@@ -31,6 +31,7 @@ type MeetCardProps = {
   setPendingAction: (action: MeetActionsEnum | null) => void;
   canViewMeet: boolean;
   canManageMeet: boolean;
+  canAccessManageMenu?: boolean;
 };
 
 type CountProps = { count1?: number; count2?: number };
@@ -144,6 +145,7 @@ export function MeetCard({
   setPendingAction,
   canViewMeet,
   canManageMeet,
+  canAccessManageMenu,
 }: MeetCardProps) {
   const { user } = useAuth();
   const theme = useTheme();
@@ -190,6 +192,7 @@ export function MeetCard({
         <Box sx={{ ml: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <MeetActionsMenu
             meetId={meet.id}
+            canAccessManageMenu={canAccessManageMenu}
             canViewMeet={canViewMeet}
             canManageMeet={canManageMeet}
             statusId={meet.statusId}

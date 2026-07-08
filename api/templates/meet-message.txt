@@ -1,11 +1,16 @@
 {{messageBody}}
 
 {{#ifStatusUrl}}
-View your application status:
+{{viewStatusLabel}}
 {{statusUrl}}
 {{/ifStatusUrl}}
 {{#ifOrganizerEmail}}
+{{#ifGroupedMessage}}
+If you need to reach the organiser directly, you may reply to {{organizerEmail}}.
+{{/ifGroupedMessage}}
+{{#ifDirectMessage}}
 If you need to reply, contact {{organizerName}} at {{organizerEmail}}.
+{{/ifDirectMessage}}
 {{/ifOrganizerEmail}}
 
 Best regards,
