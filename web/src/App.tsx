@@ -10,10 +10,13 @@ import MeetCheckinPage from "./pages/MeetCheckinPage";
 import AttendeeStatusPage from "./pages/AttendeeStatusPage";
 import OrganisationsPage from "./pages/OrganisationsPage";
 import MembersPage from "./pages/MembersPage";
-import UsersPage from "./pages/UsersPage";
 import TemplatesPage from "./pages/TemplatesPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import SplashPage from "./pages/SplashPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TncPage from "./pages/TncPage";
+import RequestAccountDeletionPage from "./pages/RequestAccountDeletionPage";
 
 function App() {
   return (
@@ -27,7 +30,7 @@ function App() {
           path="/admin/organizations/:id/members"
           element={<MembersPage />}
         />
-        <Route path="/admin/users" element={<UsersPage />} />
+        <Route path="/admin/users" element={<MembersPage />} />
         <Route
           path="/admin/organizations/:id/templates"
           element={<TemplatesPage />}
@@ -36,7 +39,21 @@ function App() {
       <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
       <Route path="/meets/:code/:attendeeId" element={<AttendeeStatusPage />} />
       <Route path="/meets/:code" element={<MeetSignupSheet />} />
+      <Route path="/splash" element={<SplashPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
+      <Route
+        path="/request-account-deletion"
+        element={<RequestAccountDeletionPage />}
+      />
+      <Route path="/tnc" element={<TncPage />} />
+      <Route
+        path="/terms-and-conditions"
+        element={<Navigate to="/tnc" replace />}
+      />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/oauth/callback/google" element={<LoginPage />} />
+      <Route path="/oauth/callback/facebook" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/register" element={<RegisterPage />} />

@@ -6,7 +6,12 @@ type LimitsStepProps = StepProps & {
   errors?: FieldError[];
 };
 
-export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
+export const LimitsStep = ({
+  state,
+  setState,
+  errors,
+  disabled = false,
+}: LimitsStepProps) => (
   <Stack spacing={2}>
     <Stack
       direction={{ xs: "column", sm: "row" }}
@@ -29,6 +34,7 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
             getFieldError(errors, "openingDate") ||
             "Leave blank to open on publish"
           }
+          disabled={disabled}
         />
       </LabeledField>
       <LabeledField label="Applications close" sx={{ flex: 1 }}>
@@ -46,6 +52,7 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
             getFieldError(errors, "closingDate") ||
             "Leave blank to close when meet starts"
           }
+          disabled={disabled}
         />
       </LabeledField>
     </Stack>
@@ -72,6 +79,7 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
             getFieldError(errors, "capacity") ||
             "Leave blank or use 0 for unlimited"
           }
+          disabled={disabled}
         />
       </LabeledField>
       <LabeledField label="Waitlist size" sx={{ flex: 1 }}>
@@ -90,6 +98,7 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
           helperText={
             getFieldError(errors, "waitlistSize") || "Use 0 for no waitlist"
           }
+          disabled={disabled}
         />
       </LabeledField>
     </Stack>
@@ -97,8 +106,8 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
       <FormControlLabel
         control={
           <Switch
-            disabled
             checked={state.autoApprove}
+            disabled={disabled}
             onChange={(e) =>
               setState((prev) => ({ ...prev, autoApprove: e.target.checked }))
             }
@@ -109,23 +118,8 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
       <FormControlLabel
         control={
           <Switch
-            disabled
-            checked={state.autoCloseWaitlist}
-            onChange={(e) =>
-              setState((prev) => ({
-                ...prev,
-                autoCloseWaitlist: e.target.checked,
-              }))
-            }
-          />
-        }
-        label="Automatically close when waitlist is full"
-      />
-      <FormControlLabel
-        control={
-          <Switch
-            disabled
             checked={state.allowGuests}
+            disabled={disabled}
             onChange={(e) =>
               setState((prev) => ({ ...prev, allowGuests: e.target.checked }))
             }
@@ -146,6 +140,7 @@ export const LimitsStep = ({ state, setState, errors }: LimitsStepProps) => (
               }))
             }
             fullWidth
+            disabled={disabled}
           />
         </LabeledField>
       )}

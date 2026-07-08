@@ -5,6 +5,7 @@ type UpdateMeetStatusPayload = {
   meetId: string;
   statusId: number;
   notifyAttendees?: boolean;
+  reconfirmAttendees?: boolean;
 };
 
 export function useUpdateMeetStatus() {
@@ -12,21 +13,28 @@ export function useUpdateMeetStatus() {
   const queryClient = useQueryClient();
 
   const mutation = useMutation<unknown, Error, UpdateMeetStatusPayload>({
-    mutationFn: async ({ meetId, statusId, notifyAttendees }) => {
+    mutationFn: async ({
+      meetId,
+      statusId,
+      notifyAttendees,
+      reconfirmAttendees,
+    }) => {
       return api.patch(`/meets/${meetId}/status`, {
         statusId,
         notifyAttendees,
+        reconfirmAttendees,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["meets"] });
-    }
+      queryClient.invalidateQueries({ queryKey: ["meet", variables.meetId] });
+    },
   });
 
   return {
     updateStatus: mutation.mutate,
     updateStatusAsync: mutation.mutateAsync,
     isLoading: mutation.isPending,
-    error: mutation.error
+    error: mutation.error,
   };
 }

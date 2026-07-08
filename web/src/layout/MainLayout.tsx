@@ -26,10 +26,15 @@ import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
+import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import { useMemo, useState, MouseEvent, useEffect, ReactNode } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { ProfileContent, ProfileModal } from "../components/profile/ProfileModal";
+import {
+  ProfileContent,
+  ProfileModal,
+} from "../components/profile/ProfileModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
@@ -37,6 +42,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { ChooseOrganizationModal } from "../components/auth/ChooseOrganizationModal";
+import { PendingInvitePromptModal } from "../components/auth/PendingInvitePromptModal";
 import {
   getAllowedThemeModes,
   getOrganizationBackground,
@@ -60,9 +66,8 @@ function MainLayout() {
   const [adminAnchorEl, setAdminAnchorEl] = useState<null | HTMLElement>(null);
   const [orgModalOpen, setOrgModalOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mobileHeaderAction, setMobileHeaderAction] = useState<ReactNode | null>(
-    null,
-  );
+  const [mobileHeaderAction, setMobileHeaderAction] =
+    useState<ReactNode | null>(null);
   const [baseMode, setBaseMode] = useState<"light" | "dark">(() => {
     const stored =
       typeof window !== "undefined"
@@ -72,9 +77,13 @@ function MainLayout() {
     return "light";
   });
 
-  const { user } = useAuth();
-  const { currentOrganizationId, organizationIds, currentOrganizationRole } =
-    useCurrentOrganization();
+  const { user, meUpdatedAt } = useAuth();
+  const {
+    currentOrganizationId,
+    currentOrganizationName,
+    organizationIds,
+    currentOrganizationRole,
+  } = useCurrentOrganization();
   const { data: organization } = useFetchOrganization(
     currentOrganizationId || undefined,
   );
@@ -85,6 +94,9 @@ function MainLayout() {
     user?.organizations && Object.values(user.organizations).includes("admin"),
   );
   const isCurrentOrgAdmin = currentOrganizationRole === "admin";
+  const pendingInvites = useMemo(() => user?.pendingInvites ?? [], [user]);
+  const desktopNavItems = navItems;
+  const mobileNavItems = navItems.filter((item) => item.path !== "/plan");
 
   const displayName = useMemo(() => {
     if (!user) return "";
@@ -125,6 +137,10 @@ function MainLayout() {
     if (currentOrganizationId) {
       nav(`/admin/organizations/${currentOrganizationId}/templates`);
     }
+    handleAdminClose();
+  };
+  const handleAdminUsers = () => {
+    nav("/admin/users");
     handleAdminClose();
   };
 
@@ -223,7 +239,7 @@ function MainLayout() {
           {mode === "glass" ? "Disable glass mode" : "Enable glass mode"}
         </MenuItem>
       )}
-      <MenuItem onClick={handleProfile}>
+      <MenuItem onClick={handleProfile} data-testid="account-profile-menu-item">
         <ListItemIcon>
           <PersonOutlineIcon fontSize="small" />
         </ListItemIcon>
@@ -234,6 +250,19 @@ function MainLayout() {
           <LogoutIcon fontSize="small" />
         </ListItemIcon>
         Logout
+      </MenuItem>
+      <Divider />
+      <MenuItem onClick={() => handleNavigate("/privacy")}>
+        <ListItemIcon>
+          <PrivacyTipOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        Privacy
+      </MenuItem>
+      <MenuItem onClick={() => handleNavigate("/tnc")}>
+        <ListItemIcon>
+          <GavelOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        T&C's
       </MenuItem>
     </Menu>
   );
@@ -290,7 +319,7 @@ function MainLayout() {
               sx={{ height: 36, mr: 3 }}
             />
             <Stack direction="row" spacing={2} alignItems="center">
-              {navItems.map((item) => (
+              {desktopNavItems.map((item) => (
                 <Box
                   key={item.path}
                   component="button"
@@ -327,6 +356,7 @@ function MainLayout() {
             <Box sx={{ flexGrow: 1 }} />
             {organizationIds.length > 1 && (
               <Button
+                key={`organization-switcher-${meUpdatedAt}`}
                 onClick={() => setOrgModalOpen(true)}
                 variant="outlined"
                 color="primary"
@@ -356,7 +386,7 @@ function MainLayout() {
               >
                 <Typography variant="body2" noWrap>
                   {currentOrganizationId
-                    ? organization?.name || "Organisation"
+                    ? currentOrganizationName || "Organisation"
                     : "No Organisation"}
                 </Typography>
               </Button>
@@ -391,8 +421,8 @@ function MainLayout() {
                   Templates
                 </MenuItem>
                 <MenuItem
-                  onClick={() => handleAdminNavigate("/admin/users")}
-                  disabled={!isCurrentOrgAdmin}
+                  onClick={handleAdminUsers}
+                  disabled={!currentOrganizationId || !isCurrentOrgAdmin}
                 >
                   Users
                 </MenuItem>
@@ -417,7 +447,9 @@ function MainLayout() {
             >
               <MenuIcon />
             </IconButton>
-            <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
+            <Box
+              sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}
+            >
               <Box
                 component="img"
                 src={logoSrc}
@@ -451,7 +483,7 @@ function MainLayout() {
                 />
               </Box>
               <List>
-                {navItems.map((item) => (
+                {mobileNavItems.map((item) => (
                   <ListItemButton
                     key={item.path}
                     onClick={() => handleMobileNavigate(item.path)}
@@ -520,7 +552,10 @@ function MainLayout() {
                     />
                   </ListItemButton>
                 )}
-                <ListItemButton onClick={handleMobileProfile}>
+                <ListItemButton
+                  onClick={handleMobileProfile}
+                  data-testid="mobile-profile-menu-item"
+                >
                   <ListItemIcon>
                     <PersonOutlineIcon fontSize="small" />
                   </ListItemIcon>
@@ -531,6 +566,21 @@ function MainLayout() {
                     <LogoutIcon fontSize="small" />
                   </ListItemIcon>
                   <ListItemText primary="Logout" />
+                </ListItemButton>
+                <Divider sx={{ my: 1 }} />
+                <ListItemButton
+                  onClick={() => handleMobileNavigate("/privacy")}
+                >
+                  <ListItemIcon>
+                    <PrivacyTipOutlinedIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Privacy" />
+                </ListItemButton>
+                <ListItemButton onClick={() => handleMobileNavigate("/tnc")}>
+                  <ListItemIcon>
+                    <GavelOutlinedIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="T&C's" />
                 </ListItemButton>
               </List>
             </Box>
@@ -556,6 +606,7 @@ function MainLayout() {
           anchor="bottom"
           open={profileOpen}
           onClose={() => setProfileOpen(false)}
+          data-testid="profile-drawer"
           PaperProps={{
             sx: {
               borderTopLeftRadius: 16,
@@ -585,13 +636,17 @@ function MainLayout() {
           </Box>
         </Drawer>
       ) : (
-        <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+        <ProfileModal
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+        />
       )}
       <ChooseOrganizationModal
         open={orgModalOpen || !currentOrganizationId}
         onClose={() => setOrgModalOpen(false)}
         disableClose={!currentOrganizationId}
       />
+      <PendingInvitePromptModal pendingInvites={pendingInvites} />
     </Box>
   );
 }

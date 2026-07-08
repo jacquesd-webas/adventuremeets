@@ -1,4 +1,10 @@
-import { Alert, FormControlLabel, Stack, Switch, TextField } from "@mui/material";
+import {
+  Alert,
+  FormControlLabel,
+  Stack,
+  Switch,
+  TextField,
+} from "@mui/material";
 import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
@@ -10,6 +16,7 @@ type IndemnityStepProps = StepProps & {
 export const IndemnityStep = ({
   state,
   setState,
+  disabled = false,
   disableIndemnityText = false,
 }: IndemnityStepProps) => (
   <Stack spacing={2}>
@@ -17,7 +24,8 @@ export const IndemnityStep = ({
       label="Indemnity text"
       labelAction={
         <SelectTemplate
-          disabled={disableIndemnityText}
+          organizationId={state.organizationId || undefined}
+          disabled={disabled || disableIndemnityText}
           onApplyTemplate={(template) =>
             setState((prev) => ({
               ...prev,
@@ -34,7 +42,7 @@ export const IndemnityStep = ({
         onChange={(e) =>
           setState((prev) => ({ ...prev, indemnityText: e.target.value }))
         }
-        disabled={disableIndemnityText}
+        disabled={disabled || disableIndemnityText}
         fullWidth
         multiline
         minRows={8}
@@ -44,6 +52,7 @@ export const IndemnityStep = ({
       control={
         <Switch
           checked={state.indemnityAccepted}
+          disabled={disabled}
           onChange={(e) =>
             setState((prev) => ({
               ...prev,

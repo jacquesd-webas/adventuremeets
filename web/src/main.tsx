@@ -7,6 +7,7 @@ import { NotistackProvider } from "./components/NotistackProvider";
 import { ThemeModeProvider } from "./context/ThemeModeContext";
 import { AuthProvider } from "./context/AuthProvider";
 import { OrganizationProvider } from "./context/OrganizationProvider";
+import { FilterProvider } from "./context/FilterProvider";
 import { registerServiceWorker } from "./helpers/registerServiceWorker";
 import "./styles.css";
 
@@ -30,13 +31,17 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <ThemeModeProvider>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <OrganizationProvider>
-              <NotistackProvider>
-                <App />
-              </NotistackProvider>
+              <FilterProvider>
+                <NotistackProvider>
+                  <App />
+                </NotistackProvider>
+              </FilterProvider>
             </OrganizationProvider>
           </AuthProvider>
         </QueryClientProvider>

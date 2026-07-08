@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ManageAttendeesModal } from "../ManageAttendeesModal";
 import AttendeeStatusEnum from "../../../types/AttendeeStatusEnum";
@@ -6,17 +12,26 @@ import MeetStatusEnum from "../../../types/MeetStatusEnum";
 
 const updateMeetAttendeeAsync = vi.fn();
 const refetch = vi.fn();
+const onClose = vi.fn();
+
+let mockAttendees = [
+  {
+    id: "a1",
+    name: "Alex",
+    status: AttendeeStatusEnum.Pending,
+    email: "alex@example.com",
+  },
+];
+
+let mockMeet = {
+  id: "m1",
+  organizerId: "org-1",
+  statusId: MeetStatusEnum.Open,
+};
 
 vi.mock("../../../hooks/useFetchMeetAttendees", () => ({
   useFetchMeetAttendees: () => ({
-    data: [
-      {
-        id: "a1",
-        name: "Alex",
-        status: AttendeeStatusEnum.Pending,
-        email: "alex@example.com",
-      },
-    ],
+    data: mockAttendees,
     isLoading: false,
     refetch,
   }),
@@ -24,11 +39,7 @@ vi.mock("../../../hooks/useFetchMeetAttendees", () => ({
 
 vi.mock("../../../hooks/useFetchMeet", () => ({
   useFetchMeet: () => ({
-    data: {
-      id: "m1",
-      organizerId: "org-1",
-      statusId: MeetStatusEnum.Open,
-    },
+    data: mockMeet,
   }),
 }));
 
@@ -89,12 +100,31 @@ describe("ManageAttendeesModal", () => {
     });
   });
 
+  beforeEach(() => {
+    updateMeetAttendeeAsync.mockReset();
+    refetch.mockReset();
+    onClose.mockReset();
+    mockAttendees = [
+      {
+        id: "a1",
+        name: "Alex",
+        status: AttendeeStatusEnum.Pending,
+        email: "alex@example.com",
+      },
+    ];
+    mockMeet = {
+      id: "m1",
+      organizerId: "org-1",
+      statusId: MeetStatusEnum.Open,
+    };
+  });
+
   it("shows attendees and updates status", async () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <ManageAttendeesModal open onClose={vi.fn()} meetId="m1" />
-      </QueryClientProvider>
+        <ManageAttendeesModal open onClose={onClose} meetId="m1" />
+      </QueryClientProvider>,
     );
 
     const list = await screen.findByRole("list");
@@ -115,11 +145,74 @@ describe("ManageAttendeesModal", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <ManageAttendeesModal open onClose={vi.fn()} meetId="m1" />
-      </QueryClientProvider>
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByText("Send Message to All Attendees"));
     expect(screen.getByText("Message modal")).toBeInTheDocument();
+  });
+
+  it("closes immediately without notify prompt when the user is not the organizer", () => {
+    mockAttendees = [
+      {
+        id: "a1",
+        name: "Alex",
+        status: AttendeeStatusEnum.Confirmed,
+        email: "alex@example.com",
+      },
+    ];
+
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal open onClose={onClose} meetId="m1" />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("close-attendees-modal"));
+
+    expect(onClose).toHaveBeenCalled();
+    expect(screen.queryByText("Notify attendees?")).not.toBeInTheDocument();
+  });
+
+  it("closes immediately without notify prompt when the meet is completed", () => {
+    mockAttendees = [
+      {
+        id: "a1",
+        name: "Alex",
+        status: AttendeeStatusEnum.Confirmed,
+        email: "alex@example.com",
+      },
+    ];
+    mockMeet = {
+      id: "m1",
+      organizerId: "org-1",
+      statusId: MeetStatusEnum.Completed,
+    };
+
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("close-attendees-modal"));
+
+    expect(onClose).toHaveBeenCalled();
+    expect(screen.queryByText("Notify attendees?")).not.toBeInTheDocument();
   });
 });

@@ -20,22 +20,33 @@ import {
 } from "@mui/material";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { useState, useMemo } from "react";
-import { useApi } from "../../hooks/useApi";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { useGenerateMeetReport } from "../../hooks/useGenerateMeetReport";
+import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 
 type ReportsModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
+  isOrganizer?: boolean;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
 };
 
-export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
+export function ReportsModal({
+  open,
+  onClose,
+  meetId,
+  isOrganizer: _isOrganizer,
+  canManageMeet,
+}: ReportsModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const api = useApi();
+  const { generateReportAsync } = useGenerateMeetReport();
+  const { updateStatusAsync } = useUpdateMeetStatus();
   const [isGenerating, setIsGenerating] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [downloadReport, setDownloadReport] = useState(false);
@@ -71,38 +82,60 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
     return !Number.isNaN(statusNum || NaN) ? statusNum : null;
   }, [meet]);
 
-  const showCompletionWarning =
-    statusId !== null && statusId !== MeetStatusEnum.Completed;
+  const hasMeetEnded = useMemo(() => {
+    if (!meet?.endTime) {
+      return false;
+    }
+    const endDate = new Date(meet.endTime);
+    if (Number.isNaN(endDate.getTime())) {
+      return false;
+    }
+    return endDate.getTime() <= Date.now();
+  }, [meet?.endTime]);
+
+  const hasCheckedInAttendees = useMemo(
+    () =>
+      attendees.some(
+        (attendee) =>
+          attendee.status === AttendeeStatusEnum.CheckedIn ||
+          attendee.status === AttendeeStatusEnum.Attended,
+      ),
+    [attendees],
+  );
+
+  const shouldCompleteMeet =
+    hasMeetEnded && hasCheckedInAttendees && statusId === MeetStatusEnum.Closed;
+
+  const isAlreadyCompleted = statusId === MeetStatusEnum.Completed;
+
+  const isGenerateDisabled =
+    !canManageMeet ||
+    !meetId ||
+    isGenerating ||
+    (!sendEmail && !downloadReport);
 
   const handleGenerateReport = async () => {
     if (!meetId || isGenerating || (!sendEmail && !downloadReport)) return;
     setIsGenerating(true);
     try {
-      if (downloadReport) {
-        const token = window.localStorage.getItem("accessToken");
-        const res = await fetch(`${api.baseUrl}/meets/${meetId}/report`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ sendEmail, downloadReport }),
-        });
-        if (!res.ok) {
-          const message = await res.text();
-          throw new Error(message || `Request failed with status ${res.status}`);
-        }
-        const blob = await res.blob();
+      const blob = await generateReportAsync({
+        meetId,
+        sendEmail,
+        downloadReport,
+        isFinalReport: shouldCompleteMeet,
+      });
+      if (downloadReport && blob) {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
         link.download = `${meet?.name || "meet"}-report.xlsx`;
         link.click();
         window.URL.revokeObjectURL(url);
-      } else {
-        await api.post(`/meets/${meetId}/report`, {
-          sendEmail,
-          downloadReport,
+      }
+      if (shouldCompleteMeet) {
+        await updateStatusAsync({
+          meetId,
+          statusId: MeetStatusEnum.Completed,
         });
       }
       onClose();
@@ -241,24 +274,28 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
               justifyContent: "space-between",
             }}
           >
-            {showCompletionWarning ? (
-              <Stack direction="row" spacing={1} alignItems="center">
+            <Stack direction="row" spacing={1} alignItems="center">
+              {!isAlreadyCompleted && (
                 <WarningAmberOutlinedIcon fontSize="small" color="warning" />
-                <Typography variant="body2" color="text.secondary">
-                  Generating a report will set this meet to completed.
-                </Typography>
-              </Stack>
-            ) : (
-              <span />
-            )}
+              )}
+              <Typography variant="body2" color="text.secondary">
+                {isAlreadyCompleted
+                  ? ""
+                  : shouldCompleteMeet
+                    ? "Generating the report will mark the meet as completed and prevent further check-ins."
+                    : !hasMeetEnded
+                      ? "Meet has not ended yet. Report will be treated as interim."
+                      : !hasCheckedInAttendees
+                        ? "No attendees have checked in yet. Report will be treated as interim."
+                        : ""}
+              </Typography>
+            </Stack>
             <Stack direction="row" spacing={1}>
               <Button onClick={onClose}>Cancel</Button>
               <Button
                 variant="contained"
                 onClick={handleGenerateReport}
-                disabled={
-                  !meetId || isGenerating || (!sendEmail && !downloadReport)
-                }
+                disabled={isGenerateDisabled}
               >
                 Generate report
               </Button>

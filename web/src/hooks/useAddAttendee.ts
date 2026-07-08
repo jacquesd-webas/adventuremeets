@@ -3,6 +3,7 @@ import { useApi } from "./useApi";
 
 export type AddAttendeePayload = {
   meetId: string;
+  userId?: string;
   name: string;
   email: string;
   phone: string;
@@ -28,14 +29,17 @@ export function useAddAttendee() {
 
   const mutation = useMutation<AddAttendeeResponse, Error, AddAttendeePayload>({
     mutationFn: async ({ meetId, ...payload }) => {
-      return api.post<AddAttendeeResponse>(`/meets/${meetId}/attendees`, payload);
-    }
+      return api.post<AddAttendeeResponse>(
+        `/meets/${meetId}/attendees`,
+        payload,
+      );
+    },
   });
 
   return {
     addAttendee: mutation.mutate,
     addAttendeeAsync: mutation.mutateAsync,
     isLoading: mutation.isPending,
-    error: mutation.error
+    error: mutation.error,
   };
 }

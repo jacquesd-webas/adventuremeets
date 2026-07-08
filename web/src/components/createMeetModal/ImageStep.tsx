@@ -1,8 +1,15 @@
 import { Box, Button, Stack, Typography } from "@mui/material";
 import { StepProps } from "./CreateMeetState";
 
-export const ImageStep = ({ state, setState }: StepProps) => {
+export const ImageStep = ({
+  state,
+  setState,
+  disabled = false,
+}: StepProps) => {
   const handleFile = (file?: File | null) => {
+    if (disabled) {
+      return;
+    }
     if (!file) {
       setState((prev) => ({ ...prev, imageFile: null, imagePreview: "" }));
       return;
@@ -54,12 +61,13 @@ export const ImageStep = ({ state, setState }: StepProps) => {
       <Typography variant="body2" color="text.secondary">
         Upload a small image to represent your meet. This will be stored as base64.
       </Typography>
-      <Button variant="outlined" component="label">
+      <Button variant="outlined" component="label" disabled={disabled}>
         Choose image
         <input
           type="file"
           accept="image/*"
           hidden
+          disabled={disabled}
           onChange={(e) => handleFile(e.target.files?.[0])}
         />
       </Button>

@@ -1,9 +1,10 @@
 import { Box, Stack, Typography } from "@mui/material";
+import { MetaValue } from "../../types/MetaValueModel";
 
 type AttendeeResponsesProps = {
   indemnityAccepted?: boolean;
   indemnityMinors?: string | number | null;
-  responses?: Array<{ definitionId?: string; label?: string; value?: string }>;
+  responses?: MetaValue[];
   guestOfLabel?: string | null;
 };
 

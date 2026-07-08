@@ -11,7 +11,9 @@ describe("OrganizationActions", () => {
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <OrganizationActions
           organizationId="org-123"
           onEdit={onEdit}
@@ -46,7 +48,9 @@ describe("OrganizationActions", () => {
 
   it("disables the action button when disabled is true", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <OrganizationActions organizationId="org-123" disabled />
       </MemoryRouter>,
     );

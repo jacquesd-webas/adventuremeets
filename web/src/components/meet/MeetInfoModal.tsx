@@ -14,7 +14,7 @@ import { MeetStatusAlert } from "./MeetStatusAlert";
 
 type MeetInfoModalProps = {
   open: boolean;
-  meetId: string;
+  meetId?: string | null;
   onClose: () => void;
 };
 
@@ -39,19 +39,20 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
     >
       <DialogContent sx={{ pt: 2.5, pb: 3 }}>
         <Stack spacing={2}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6" fontWeight={700}>
-              Meet details
-            </Typography>
-            <IconButton onClick={onClose} aria-label="Close meet details">
-              <CloseIcon />
-            </IconButton>
-          </Stack>
           {meet ? (
             <MeetInfoSummary
               meet={meet}
               isPreview={false}
-              showUserAction={false}
+              actionSlot={
+                <IconButton
+                  onClick={onClose}
+                  size="small"
+                  aria-label="Close meet details"
+                  data-testid="close-meet-details"
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              }
             />
           ) : isLoading ? (
             <Typography color="text.secondary">Loading meet...</Typography>

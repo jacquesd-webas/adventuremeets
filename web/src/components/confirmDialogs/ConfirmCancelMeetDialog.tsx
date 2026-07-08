@@ -1,10 +1,13 @@
 import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
+import { OrganizerOverrideWarning } from "../OrganizerOverrideWarning";
 
 type ConfirmCancelMeetDialogProps = {
   open: boolean;
   meetId?: string | null;
+  canManageMeet?: boolean;
+  isOrganizer?: boolean;
   onClose: () => void;
   onConfirm: () => void;
   isLoading?: boolean;
@@ -15,6 +18,7 @@ export function ConfirmCancelMeetDialog({
   meetId,
   onClose,
   onConfirm,
+  isOrganizer,
   isLoading = false,
 }: ConfirmCancelMeetDialogProps) {
   const { updateStatusAsync, isLoading: isSubmitting } = useUpdateMeetStatus();
@@ -36,6 +40,8 @@ export function ConfirmCancelMeetDialog({
       onConfirm={handleCancelMeet}
       isLoading={isLoading}
       isSubmitting={isSubmitting}
-    />
+    >
+      {!isOrganizer && <OrganizerOverrideWarning />}
+    </ConfirmActionDialog>
   );
 }

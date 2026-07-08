@@ -80,18 +80,22 @@ describe("Meet signup with Bob", () => {
     cy.get('input[type="password"]').type("Password123!");
     cy.contains("button", "Login").click();
     cy.contains("Dashboard").should("be.visible");
-    cy.contains(meetName).should("be.visible");
-
+    cy.visit("/plan");
     cy.contains(meetName)
+      .scrollIntoView()
       .parents('[role="row"]')
       .first()
+      .as("createdMeetRow");
+    cy.get("@createdMeetRow").should("be.visible");
+
+    cy.get("@createdMeetRow")
       .within(() => {
         cy.get('svg[data-testid="MoreVertIcon"]').parent("button").click();
       });
     cy.contains("Attendees").click();
 
     attendees.forEach((attendee) => {
-      cy.contains(attendee.name).should("be.visible");
+      cy.contains(attendee.name).scrollIntoView().should("be.visible");
     });
 
     cy.contains("button", "Close").click();

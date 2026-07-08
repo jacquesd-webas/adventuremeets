@@ -3,12 +3,18 @@ import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
 
-export const ResponsesStep = ({ state, setState }: StepProps) => (
+export const ResponsesStep = ({
+  state,
+  setState,
+  disabled = false,
+}: StepProps) => (
   <Stack spacing={2}>
     <LabeledField
       label="Approved response"
       labelAction={
         <SelectTemplate
+          organizationId={state.organizationId || undefined}
+          disabled={disabled}
           onApplyTemplate={(template) =>
             setState((prev) => ({
               ...prev,
@@ -19,7 +25,9 @@ export const ResponsesStep = ({ state, setState }: StepProps) => (
               rejectResponse:
                 prev.rejectResponse?.trim() || template.rejectResponse || "",
               waitlistResponse:
-                prev.waitlistResponse?.trim() || template.waitlistResponse || "",
+                prev.waitlistResponse?.trim() ||
+                template.waitlistResponse ||
+                "",
             }))
           }
         />
@@ -34,26 +42,33 @@ export const ResponsesStep = ({ state, setState }: StepProps) => (
         fullWidth
         multiline
         minRows={3}
+        disabled={disabled}
       />
     </LabeledField>
     <LabeledField label="Reject response">
       <TextField
         placeholder="Message sent to rejected applicants"
         value={state.rejectResponse}
-        onChange={(e) => setState((prev) => ({ ...prev, rejectResponse: e.target.value }))}
+        onChange={(e) =>
+          setState((prev) => ({ ...prev, rejectResponse: e.target.value }))
+        }
         fullWidth
         multiline
         minRows={3}
+        disabled={disabled}
       />
     </LabeledField>
     <LabeledField label="Waitlist response">
       <TextField
         placeholder="Message sent to people on the waitlist"
         value={state.waitlistResponse}
-        onChange={(e) => setState((prev) => ({ ...prev, waitlistResponse: e.target.value }))}
+        onChange={(e) =>
+          setState((prev) => ({ ...prev, waitlistResponse: e.target.value }))
+        }
         fullWidth
         multiline
         minRows={3}
+        disabled={disabled}
       />
     </LabeledField>
   </Stack>

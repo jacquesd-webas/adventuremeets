@@ -40,17 +40,18 @@ describe("MessageModal", () => {
           meet={{ id: "m1", name: "Meet" } as any}
           attendeeIds={["a1"]}
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByText("Send"));
     expect(
-      screen.getByText("Subject and message are required")
+      screen.getByText("Subject, message and meet ID are required"),
     ).toBeInTheDocument();
   });
 
   it("sends a message to attendee ids", async () => {
     const queryClient = new QueryClient();
+    const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
     render(
       <QueryClientProvider client={queryClient}>
         <MessageModal
@@ -60,7 +61,7 @@ describe("MessageModal", () => {
           attendeeIds={["a1"]}
           attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.change(screen.getByLabelText("Subject"), {
@@ -81,6 +82,9 @@ describe("MessageModal", () => {
         includeStatusUrl: true,
       });
     });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: ["meet-attendees", "m1"],
+    });
     expect(enqueueSnackbar).toHaveBeenCalled();
   });
 
@@ -95,7 +99,7 @@ describe("MessageModal", () => {
           attendeeIds={["a1"]}
           attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.change(screen.getByLabelText("Subject"), {
@@ -131,7 +135,7 @@ describe("MessageModal", () => {
           attendeeIds={["a1"]}
           attendees={[{ id: "a1", status: AttendeeStatusEnum.Confirmed }]}
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));

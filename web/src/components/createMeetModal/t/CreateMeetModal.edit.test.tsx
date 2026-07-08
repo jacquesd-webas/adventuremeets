@@ -1,9 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CreateMeetModal } from "../CreateMeetModal";
-import { mapMeetToState } from "../CreateMeetState";
+import { mapMeetToState, toIsoWithOffset } from "../CreateMeetState";
+import MeetStatusEnum from "../../../types/MeetStatusEnum";
 
 const mockSave = vi.fn(async () => ({}));
+const mockUpdateStatusAsync = vi.fn(async () => ({}));
 
 const meetFixture = {
   id: "meet-1",
@@ -27,6 +29,8 @@ const meetFixture = {
   metaDefinitions: [],
 };
 
+let currentMeetFixture = meetFixture;
+
 vi.mock("../../../hooks/useApi", () => ({
   useApi: () => ({ baseUrl: "http://localhost:3000" }),
 }));
@@ -37,14 +41,14 @@ vi.mock("../../../hooks/useSaveMeet", () => ({
 
 vi.mock("../../../hooks/useUpdateMeetStatus", () => ({
   useUpdateMeetStatus: () => ({
-    updateStatusAsync: vi.fn(),
+    updateStatusAsync: mockUpdateStatusAsync,
     isLoading: false,
   }),
 }));
 
 vi.mock("../../../hooks/useFetchMeet", () => ({
   useFetchMeet: () => ({
-    data: meetFixture,
+    data: currentMeetFixture,
     isLoading: false,
   }),
 }));
@@ -70,6 +74,8 @@ vi.mock("../../../context/organizationContext", () => ({
 describe("CreateMeetModal edit mode", () => {
   beforeEach(() => {
     mockSave.mockClear();
+    mockUpdateStatusAsync.mockClear();
+    currentMeetFixture = meetFixture;
   });
 
   it("prefills fields from fetched meet across steps", async () => {
@@ -77,25 +83,30 @@ describe("CreateMeetModal edit mode", () => {
     const user = userEvent.setup();
 
     render(
-      <CreateMeetModal open onClose={vi.fn()} onCreated={vi.fn()} meetId="meet-1" />
+      <CreateMeetModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        meetId="meet-1"
+        isOrganizer
+        canManageMeet
+      />,
     );
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Give your meet a name")).toHaveValue(
-        expected.name
+        expected.name,
       );
     });
 
     expect(
-      screen.getByPlaceholderText("Describe your meet in detail here")
+      screen.getByPlaceholderText("Describe your meet in detail here"),
     ).toHaveValue(expected.description);
 
     await user.click(screen.getByRole("button", { name: "Save & Continue" }));
 
     expect(
-      screen.getByPlaceholderText(
-        /Where is the meeting place\?/i
-      )
+      screen.getByPlaceholderText(/Where is the meeting place\?/i),
     ).toHaveValue(expected.location);
 
     expect(screen.getByDisplayValue(expected.startTime)).toBeInTheDocument();
@@ -105,9 +116,109 @@ describe("CreateMeetModal edit mode", () => {
 
     expect(screen.getByDisplayValue(expected.openingDate)).toBeInTheDocument();
     expect(screen.getByDisplayValue(expected.closingDate)).toBeInTheDocument();
-    expect(screen.getByDisplayValue(String(expected.capacity))).toBeInTheDocument();
     expect(
-      screen.getByDisplayValue(String(expected.waitlistSize))
+      screen.getByDisplayValue(String(expected.capacity)),
     ).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(String(expected.waitlistSize)),
+    ).toBeInTheDocument();
+  });
+
+  it("passes reconfirmAttendees when saving a postponed meet", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      statusId: MeetStatusEnum.Postponed,
+    };
+
+    render(
+      <CreateMeetModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        meetId="meet-1"
+        isOrganizer
+        canManageMeet
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Finish"));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /require attendees to re-confirm their attendance/i,
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: /publish/i }));
+
+    expect(mockUpdateStatusAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      statusId: MeetStatusEnum.Published,
+      reconfirmAttendees: false,
+    });
+  });
+
+  it("resets past opening and closing dates when publishing", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      statusId: MeetStatusEnum.Postponed,
+      openingDate: "2026-02-05T10:00:00.000Z",
+      closingDate: "2026-02-11T18:00:00.000Z",
+    };
+
+    render(
+      <CreateMeetModal
+        open
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        meetId="meet-1"
+        isOrganizer
+        canManageMeet
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Finish"));
+    const beforePublish = Date.now();
+    await user.click(screen.getByRole("button", { name: /publish/i }));
+    const expectedClosingDate = toIsoWithOffset(
+      mapMeetToState(currentMeetFixture).startTime,
+    );
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        {
+          closingDate: expectedClosingDate,
+        },
+        "meet-1",
+      );
+    });
+
+    const openingDateCall = mockSave.mock.calls.find(
+      ([payload]) => payload?.openingDate,
+    );
+    expect(openingDateCall).toBeTruthy();
+    const openingDate = openingDateCall?.[0]?.openingDate;
+    expect(typeof openingDate).toBe("string");
+    expect(new Date(openingDate).getTime()).toBeGreaterThanOrEqual(
+      beforePublish,
+    );
+
+    expect(mockUpdateStatusAsync).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      statusId: MeetStatusEnum.Published,
+      reconfirmAttendees: true,
+    });
   });
 });

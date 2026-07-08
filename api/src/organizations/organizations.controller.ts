@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Logger,
   Param,
   Patch,
   Post,
@@ -18,17 +19,23 @@ import { CreateTemplateDto } from "./dto/create-template.dto";
 import { UpdateTemplateDto } from "./dto/update-template.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { UpdateMemberDto } from "./dto/update-member.dto";
+import { CreateInviteLinkDto } from "./dto/create-invite-link.dto";
+import { InviteLinkDto } from "./dto/invite-link.dto";
 import { Public } from "../auth/decorators/public.decorator";
 import { UseGuards } from "@nestjs/common";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
+import { DatabaseService } from "../database/database.service";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
 @Controller(["organizations", "organisations"])
 export class OrganizationsController {
+  private readonly logger = new Logger(OrganizationsController.name);
+
   constructor(
     private readonly organizationsService: OrganizationsService,
     private readonly authService: AuthService,
+    private readonly db: DatabaseService,
   ) {}
 
   @Get()
@@ -42,6 +49,88 @@ export class OrganizationsController {
     const organizations =
       await this.organizationsService.findAllByIds(organizationIds);
     return { organizations };
+  }
+
+  @Post("invites/:inviteId/accept")
+  async acceptInvite(
+    @Param("inviteId") inviteId: string,
+    @User() user?: UserProfile,
+  ): Promise<{ invite: InviteLinkDto }> {
+    if (!user) throw new UnauthorizedException();
+
+    const invite = await this.organizationsService.acceptInvite(
+      inviteId,
+      user.id,
+      user.email,
+    );
+
+    try {
+      await this.removeEmptyPrivateOrganizationsForUser(
+        user.id,
+        invite.organizationId,
+      );
+    } catch (err: any) {
+      this.logger.warn(
+        `Accepted invite ${inviteId} for user ${user.id}, but private org cleanup failed: ${err?.message || err}`,
+      );
+    }
+
+    return { invite };
+  }
+
+  @Post("invites/:inviteId/decline")
+  async declineInvite(
+    @Param("inviteId") inviteId: string,
+    @User() user?: UserProfile,
+  ): Promise<{ invite: InviteLinkDto }> {
+    if (!user) throw new UnauthorizedException();
+
+    const invite = await this.organizationsService.declineInvite(
+      inviteId,
+      user.email,
+    );
+    return { invite };
+  }
+
+  private async removeEmptyPrivateOrganizationsForUser(
+    userId: string,
+    keepOrganizationId?: string,
+  ) {
+    const client = this.db.getClient();
+    const orgRows = await client("organizations as o")
+      .join("user_organization_memberships as uom", "uom.organization_id", "o.id")
+      .where("uom.user_id", userId)
+      .andWhere("uom.status", "active")
+      .andWhere("o.is_private", true)
+      .modify((queryBuilder) => {
+        if (keepOrganizationId) {
+          queryBuilder.andWhere("o.id", "!=", keepOrganizationId);
+        }
+      })
+      .distinct("o.id");
+
+    for (const org of orgRows) {
+      const countRow = await client("user_organization_memberships")
+        .where({ organization_id: org.id })
+        .countDistinct<{ count: string }>("user_id as count")
+        .first();
+      const memberCount = Number(countRow?.count ?? 0);
+      if (memberCount !== 1) {
+        continue;
+      }
+
+      const meetCountRow = await client("meets")
+        .where({ organization_id: org.id })
+        .count<{ count: string }>("id as count")
+        .first();
+      const meetCount = Number(meetCountRow?.count ?? 0);
+      if (meetCount === 0) {
+        await client("organizations")
+          .where({ id: org.id })
+          .andWhere("is_private", true)
+          .del();
+      }
+    }
   }
 
   @Public()
@@ -237,5 +326,44 @@ export class OrganizationsController {
     }
     const organization = await this.organizationsService.update(id, dto);
     return { organization };
+  }
+
+  @Get(":id/invites")
+  async listInvites(
+    @Param("id") id: string,
+    @User() user?: UserProfile,
+  ): Promise<{ invites: InviteLinkDto[] }> {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization",
+      );
+    }
+
+    const invites = await this.organizationsService.listInviteLinks(id);
+    return { invites };
+  }
+
+  @Post(":id/invites")
+  async invite(
+    @Param("id") id: string,
+    @Body() body: CreateInviteLinkDto,
+    @User() user?: UserProfile,
+  ): Promise<{ invite: InviteLinkDto }> {
+    if (!user) throw new UnauthorizedException();
+
+    if (!this.authService.hasRole(user, id, "admin")) {
+      throw new ForbiddenException(
+        "You are not an administrator for this organization",
+      );
+    }
+
+    const invite = await this.organizationsService.createInviteLink(
+      id,
+      body,
+      user.id,
+    );
+    return { invite };
   }
 }

@@ -4,14 +4,21 @@ import {
   Container,
   Dialog,
   DialogContent,
-  DialogTitle,
+  Drawer,
+  IconButton,
   Paper,
   Stack,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { useParams, useSearchParams } from "react-router-dom";
+import CloseIcon from "@mui/icons-material/Close";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { MeetStatusEnum } from "../types/MeetStatusEnum";
@@ -26,6 +33,7 @@ import { getLocaleDefaults } from "../helpers/locale";
 import {
   buildInternationalPhone,
   getDefaultPhoneCountry,
+  isSupportedPhoneCountry,
   splitInternationalPhone,
 } from "../components/formFields/InternationalPhoneField";
 import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
@@ -34,7 +42,6 @@ import { LoginForm } from "../components/auth/LoginForm";
 import { MeetStatusAlert } from "../components/meet/MeetStatusAlert";
 import { useAuth } from "../context/authContext";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
-import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
@@ -47,12 +54,62 @@ import {
 } from "../helpers/validation";
 import { MeetSignupFormFields } from "../components/meetSignup/MeetSignupFormFields";
 
+const DEFAULT_OG_IMAGE = "/static/adventuremeets-logo.png";
+const DEFAULT_OG_DESCRIPTION = "Join this meet on AdventureMeets.";
+
+function toAbsoluteUrl(url?: string | null): string {
+  const fallbackBase =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const fallback = `${fallbackBase}${DEFAULT_OG_IMAGE}`;
+  if (!url?.trim()) {
+    return fallback;
+  }
+  try {
+    return new URL(url, fallbackBase).toString();
+  } catch {
+    return fallback;
+  }
+}
+
+function setMetaProperty(property: string, content: string): () => void {
+  const selector = `meta[property="${property}"]`;
+  const existing = document.head.querySelector<HTMLMetaElement>(selector);
+  if (existing) {
+    const previousContent = existing.getAttribute("content");
+    existing.setAttribute("content", content);
+    return () => {
+      if (previousContent === null) {
+        existing.removeAttribute("content");
+      } else {
+        existing.setAttribute("content", previousContent);
+      }
+    };
+  }
+  const created = document.createElement("meta");
+  created.setAttribute("property", property);
+  created.setAttribute("content", content);
+  document.head.appendChild(created);
+  return () => {
+    created.remove();
+  };
+}
+
+function parseBooleanQuery(value?: string | null): boolean | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n"].includes(normalized)) return false;
+  return null;
+}
+
 function MeetSignupSheet() {
   const { code, attendeeId: attendeeIdParam } = useParams<{
     code: string;
     attendeeId?: string;
   }>();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const isPreview = searchParams.get("preview") === "true";
   const guestOf = searchParams.get("guestOf");
   const action = searchParams.get("action");
@@ -77,12 +134,13 @@ function MeetSignupSheet() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { mode } = useThemeMode();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const queryClient = useQueryClient();
   const mobilePreviewTopOffset = "var(--preview-banner-height, 0px)";
   const suppressAutofillRef = useRef(false);
   const metaAutofillRef = useRef(false);
   const editPrefillRef = useRef(false);
+  const queryPrefillRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedAttendeeId, setSubmittedAttendeeId] = useState<string | null>(
     null,
@@ -204,6 +262,55 @@ function MeetSignupSheet() {
       metaAutofillRef.current = false;
     }
   }, [isAuthenticated]);
+
+  // Prefill identity from query params (used for guest links / minor sign-ups).
+  useEffect(() => {
+    if (queryPrefillRef.current) return;
+    if (isEditing) return;
+
+    const nameParam = searchParams.get("name")?.trim() || "";
+    const isMinorParam = parseBooleanQuery(searchParams.get("isMinor"));
+
+    if (nameParam) setField("fullName", nameParam);
+    if (isMinorParam !== null) setField("isMinor", isMinorParam);
+
+    // Only set the rest if not authenticated
+    if (isAuthenticated) return;
+
+    const emailParam = searchParams.get("email")?.trim() || "";
+    const phoneCountryParam = searchParams.get("phoneCountry")?.trim() || "";
+    const phoneLocalParam = searchParams.get("phoneLocal")?.trim() || "";
+
+    if (emailParam) setField("email", emailParam);
+
+    // Only prefill phone is it all checks out
+    if (
+      phoneCountryParam &&
+      phoneLocalParam &&
+      isSupportedPhoneCountry(phoneCountryParam)
+    ) {
+      setPhoneCountry(phoneCountryParam.toUpperCase());
+      setPhoneLocal(phoneLocalParam.trim());
+      setField(
+        "phone",
+        buildInternationalPhone(
+          phoneCountryParam.toUpperCase(),
+          phoneLocalParam,
+        ).trim(),
+      );
+    }
+
+    queryPrefillRef.current = true;
+  }, [
+    isAuthenticated,
+    isEditing,
+    phoneCountry,
+    phoneLocal,
+    searchParams,
+    setField,
+    setPhoneCountry,
+    setPhoneLocal,
+  ]);
 
   // Edit mode - pre-fill form with existing attendee data
   useEffect(() => {
@@ -331,7 +438,6 @@ function MeetSignupSheet() {
   // Switch name and guardian fields if the user is a minor and user is logged in
   useEffect(() => {
     if (disableIdentityFields && isMinor) {
-      console.log({ loggedInName, guardianName, fullName });
       if (loggedInName && loggedInName !== guardianName) {
         setField("guardianName", loggedInName);
         setField("fullName", "");
@@ -348,6 +454,29 @@ function MeetSignupSheet() {
     fullName,
   ]);
 
+  useEffect(() => {
+    const title = meet?.name?.trim() || "AdventureMeets";
+    const description = meet?.description?.trim() || DEFAULT_OG_DESCRIPTION;
+    const image = toAbsoluteUrl(meet?.imageUrl);
+    const url = window.location.href;
+
+    const previousTitle = document.title;
+    document.title = title;
+
+    const restoreTitle = setMetaProperty("og:title", title);
+    const restoreDescription = setMetaProperty("og:description", description);
+    const restoreImage = setMetaProperty("og:image", image);
+    const restoreUrl = setMetaProperty("og:url", url);
+
+    return () => {
+      document.title = previousTitle;
+      restoreUrl();
+      restoreImage();
+      restoreDescription();
+      restoreTitle();
+    };
+  }, [meet?.description, meet?.imageUrl, meet?.name]);
+
   const handleLogout = () => {
     suppressAutofillRef.current = true;
     resetState();
@@ -362,6 +491,23 @@ function MeetSignupSheet() {
     setShowDuplicateModal(false);
     setSubmitted(false);
     setSubmittedAttendeeId(null);
+  };
+
+  const handleCloseSheet = () => {
+    if (window.opener) {
+      window.close();
+      return;
+    }
+    if (location.key !== "default") {
+      navigate(-1);
+      return;
+    }
+    navigate("/", { replace: true });
+  };
+
+  const handleSignOut = () => {
+    handleLogout();
+    logout();
   };
 
   const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
@@ -410,9 +556,11 @@ function MeetSignupSheet() {
             meetId={meet?.id}
             attendeeId={submittedAttendeeId || undefined}
             shareCode={code}
+            hasIndemnity={meet?.hasIndemnity || false}
             guests={guests}
             isOrganizationPrivate={organization?.isPrivate}
             isPreview={isPreview}
+            isGuest={Boolean(guestOf)}
           />
         </Box>
       </Box>
@@ -438,7 +586,7 @@ function MeetSignupSheet() {
     Boolean(emailError) ||
     Boolean(phoneError) ||
     requiredMetaMissing ||
-    (meet?.hasIndemnity && !indemnityAccepted);
+    Boolean(meet?.hasIndemnity && !indemnityAccepted);
 
   const handleNameBlur = () => {
     setNameError(validateRequired(fullName, "Name"));
@@ -455,7 +603,7 @@ function MeetSignupSheet() {
   const handlePhoneBlur = () => {
     const error = validatePhone(phoneLocal);
     setPhoneError(error);
-    if (!error) {
+    if (!error && !isMinor) {
       checkForDuplicate();
     }
   };
@@ -463,6 +611,7 @@ function MeetSignupSheet() {
   const checkForDuplicate = async () => {
     if (!meet) return;
     if (isEditing) return;
+    if (isMinor) return;
     const trimmedEmail = isMinor ? "" : email.trim();
     const trimmedPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!trimmedEmail && !trimmedPhone) return;
@@ -511,21 +660,24 @@ function MeetSignupSheet() {
     }
     const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!isEditing) {
-      const trimmedEmail = isMinor ? "" : email.trim();
-      const check = await checkAttendeeAsync({
-        meetId: meet.id,
-        email: trimmedEmail || undefined,
-        phone: fullPhone,
-      });
-      if (check.attendee) {
-        setExistingAttendee({ id: check.attendee.id });
-        setShowDuplicateModal(true);
-        return;
+      if (!isMinor) {
+        const trimmedEmail = email.trim();
+        const check = await checkAttendeeAsync({
+          meetId: meet.id,
+          email: trimmedEmail || undefined,
+          phone: fullPhone,
+        });
+        if (check.attendee) {
+          setExistingAttendee({ id: check.attendee.id });
+          setShowDuplicateModal(true);
+          return;
+        }
       }
     }
     const metaPayload = buildMetaPayload();
     const res = await addAttendeeAsync({
       meetId: meet.id,
+      userId: isAuthenticated ? user?.id : undefined,
       name: fullName,
       email,
       phone: fullPhone,
@@ -623,7 +775,7 @@ function MeetSignupSheet() {
             boxShadow: isMobile ? "none" : undefined,
           }}
         >
-          {isLoading ? (
+          {isLoading || !meet ? (
             <Typography color="text.secondary">Loading meet...</Typography>
           ) : (
             <Stack spacing={1.5}>
@@ -631,17 +783,22 @@ function MeetSignupSheet() {
                 meet={meet}
                 isPreview={isPreview}
                 actionSlot={
-                  guestOf ? (
-                    <Chip label="Guest" size="small" color="info" />
-                  ) : (
-                    <MeetSignupUserAction
-                      formEmail={undefined}
-                      onLogout={handleLogout}
-                    />
-                  )
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {guestOf ? (
+                      <Chip label="Guest" size="small" color="info" />
+                    ) : null}
+                    <IconButton
+                      onClick={handleCloseSheet}
+                      size="small"
+                      aria-label="Close"
+                      data-testid="close-meet-signup-sheet"
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
                 }
               />
-              {!isPreview && (
+              {!isPreview && meet && (
                 <MeetStatusAlert
                   statusId={meet.statusId}
                   openingDate={meet.openingDate}
@@ -669,8 +826,11 @@ function MeetSignupSheet() {
                   isSubmitDisabled={isSubmitDisabled}
                   isSubmitting={isSubmitting}
                   isEditing={isEditing}
+                  isAuthenticated={isAuthenticated}
                   onSubmit={handleSubmit}
                   onCancelEdit={handleCancelEdit}
+                  onSignInClick={() => setLoginOpen(true)}
+                  onSignOutClick={handleSignOut}
                   onCheckDuplicate={
                     isEditing ? () => undefined : checkForDuplicate
                   }
@@ -692,20 +852,59 @@ function MeetSignupSheet() {
           onRemove={handleRemove}
           onUpdate={handleUpdate}
         />
-        <Dialog
-          open={loginOpen}
-          onClose={() => setLoginOpen(false)}
-          fullWidth
-          maxWidth="sm"
-        >
-          <DialogTitle>Login</DialogTitle>
-          <DialogContent sx={{ pt: 2 }}>
-            <LoginForm
-              onSuccess={() => setLoginOpen(false)}
-              submitLabel="Login"
-            />
-          </DialogContent>
-        </Dialog>
+        {isMobile ? (
+          <Drawer
+            anchor="bottom"
+            open={loginOpen}
+            onClose={() => setLoginOpen(false)}
+            slotProps={{
+              backdrop: {
+                sx: { backgroundColor: "rgba(0,0,0,0.35)" },
+              },
+            }}
+            ModalProps={{
+              keepMounted: true,
+              disableAutoFocus: true,
+              disableEnforceFocus: true,
+              disableRestoreFocus: true,
+            }}
+            PaperProps={{
+              sx: {
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                maxHeight: "78vh",
+                overflowY: "auto",
+                pb: "calc(16px + env(safe-area-inset-bottom))",
+              },
+            }}
+          >
+            <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Login
+              </Typography>
+              <LoginForm
+                onSuccess={() => setLoginOpen(false)}
+                submitLabel="Login"
+                showSocialButtons
+              />
+            </Box>
+          </Drawer>
+        ) : (
+          <Dialog
+            open={loginOpen}
+            onClose={() => setLoginOpen(false)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogContent sx={{ pt: 2 }}>
+              <LoginForm
+                onSuccess={() => setLoginOpen(false)}
+                submitLabel="Login"
+                showSocialButtons
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </Container>
     </Box>
   );

@@ -46,11 +46,16 @@ import {
   FieldError,
 } from "./CreateMeetState";
 import { useCurrentOrganization } from "../../context/organizationContext";
+import { LockedMeet } from "./LockedMeet";
+import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
 
 type CreateMeetModalProps = {
   open: boolean;
   onClose: () => void;
   onCreated?: () => void;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
+  isOrganizer?: boolean;
   meetId?: string | null;
 };
 
@@ -58,8 +63,11 @@ export function CreateMeetModal({
   open,
   onClose,
   onCreated,
+  isOrganizer,
+  canManageMeet,
   meetId: meetIdProp,
 }: CreateMeetModalProps) {
+  const requiredStepNumbers = new Set([1, 2, 9]);
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const [activeStep, setActiveStep] = useState(0);
@@ -98,6 +106,19 @@ export function CreateMeetModal({
     meetIdProp,
     Boolean(open && meetIdProp),
   );
+  const isOrganizerForEditingMeet = useMemo(() => {
+    if (!isEditing) {
+      return Boolean(isOrganizer);
+    }
+
+    return Boolean(
+      isOrganizer ||
+      (user?.id &&
+        fetchedMeet?.organizerId &&
+        fetchedMeet.organizerId === user.id),
+    );
+  }, [fetchedMeet?.organizerId, isEditing, isOrganizer, user?.id]);
+  const isMeetLocked = isEditing && !isOrganizerForEditingMeet;
 
   // Reset to first step when opened/closed
   useEffect(() => {
@@ -108,7 +129,6 @@ export function CreateMeetModal({
   useEffect(() => {
     if (open) setShowSteps(!fullScreen);
   }, [open, fullScreen]);
-
 
   // Set default organizerId and organizationId to current user and Org when available
   // We also have to set the baseline state here so that the form doesn't think it's dirty
@@ -265,8 +285,7 @@ export function CreateMeetModal({
     step: number,
   ): SaveMeetPayload => {
     const resolvedTimeZone =
-      Intl.DateTimeFormat().resolvedOptions().timeZone ||
-      "Africa/Johannesburg";
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Johannesburg";
     switch (step) {
       case 0:
         return {
@@ -442,16 +461,30 @@ export function CreateMeetModal({
       // Really should have a meet ID by now (if not something went horribly wrong)
       if (!meetId) throw new Error("Meet not created yet");
 
-      // If there is no opening date, set it to now to allow opening
-      if (!state.openingDate) {
+      const now = new Date();
+      const openingDateValue = state.openingDate
+        ? toIsoWithOffset(state.openingDate || undefined)
+        : null;
+      const closingDateValue = state.closingDate
+        ? toIsoWithOffset(state.closingDate || undefined)
+        : null;
+      const openingDateInPast = Boolean(
+        openingDateValue && new Date(openingDateValue) < now,
+      );
+      const closingDateInPast = Boolean(
+        closingDateValue && new Date(closingDateValue) < now,
+      );
+
+      // If there is no opening date, or it is already in the past, set it to now.
+      if (!state.openingDate || openingDateInPast) {
         const payload: SaveMeetPayload = {
-          openingDate: toIsoWithOffset(new Date().toISOString()),
+          openingDate: toIsoWithOffset(now.toISOString()),
         };
         await saveMeet(payload, meetId);
       }
 
-      // If there is no closing date, use the meet start date
-      if (!state.closingDate) {
+      // If there is no closing date, or it is already in the past, use the meet start date.
+      if (!state.closingDate || closingDateInPast) {
         const payload: SaveMeetPayload = {
           closingDate: toIsoWithOffset(state.startTime || undefined),
         };
@@ -459,7 +492,14 @@ export function CreateMeetModal({
       }
 
       // Publish the meet
-      await updateStatusAsync({ meetId, statusId: MeetStatusEnum.Published });
+      await updateStatusAsync({
+        meetId,
+        statusId: MeetStatusEnum.Published,
+        reconfirmAttendees:
+          state.statusId === MeetStatusEnum.Postponed
+            ? state.attendeeReconfirm
+            : undefined,
+      });
 
       // Clear everything
       onCreated?.();
@@ -483,7 +523,11 @@ export function CreateMeetModal({
     try {
       await handleSaveStep(activeStep);
       if (meetId && state.statusId === MeetStatusEnum.Postponed) {
-        await updateStatusAsync({ meetId, statusId: MeetStatusEnum.Published });
+        await updateStatusAsync({
+          meetId,
+          statusId: MeetStatusEnum.Published,
+          reconfirmAttendees: state.attendeeReconfirm,
+        });
       }
       setBaselineState(state);
       onCreated?.();
@@ -621,6 +665,7 @@ export function CreateMeetModal({
             state={state}
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
+            disabled={isMeetLocked}
           />
         );
       }
@@ -630,6 +675,7 @@ export function CreateMeetModal({
             state={state}
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
+            disabled={isMeetLocked}
           />
         );
       case 2:
@@ -637,25 +683,51 @@ export function CreateMeetModal({
           <IndemnityStep
             state={state}
             setState={(fn) => setState(fn)}
+            disabled={isMeetLocked}
             disableIndemnityText={isIndemnityLocked}
           />
         );
       case 3:
-        return <QuestionsStep state={state} setState={(fn) => setState(fn)} />;
+        return (
+          <QuestionsStep
+            state={state}
+            setState={(fn) => setState(fn)}
+            disabled={isMeetLocked}
+          />
+        );
       case 4:
         return (
           <LimitsStep
             state={state}
             setState={(fn) => setState(fn)}
             errors={fieldErrors}
+            disabled={isMeetLocked}
           />
         );
       case 5:
-        return <CostsStep state={state} setState={(fn) => setState(fn)} />;
+        return (
+          <CostsStep
+            state={state}
+            setState={(fn) => setState(fn)}
+            disabled={isMeetLocked}
+          />
+        );
       case 6:
-        return <ResponsesStep state={state} setState={(fn) => setState(fn)} />;
+        return (
+          <ResponsesStep
+            state={state}
+            setState={(fn) => setState(fn)}
+            disabled={isMeetLocked}
+          />
+        );
       case 7:
-        return <ImageStep state={state} setState={(fn) => setState(fn)} />;
+        return (
+          <ImageStep
+            state={state}
+            setState={(fn) => setState(fn)}
+            disabled={isMeetLocked}
+          />
+        );
       case 8:
         return (
           <FinishStep
@@ -663,6 +735,8 @@ export function CreateMeetModal({
             setState={(fn) => setState(fn)}
             errors={finalErrors}
             shareCode={shareCode}
+            disabled={isMeetLocked}
+            isEditing={isEditing}
           />
         );
       default:
@@ -707,9 +781,11 @@ export function CreateMeetModal({
             mb={2}
           >
             <Typography variant="h6" fontWeight={700}>
-              New meet
+              {meetId ? "Edit meet" : "New meet"}
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
+              {isMeetLocked ? <LockedMeet canUnlock={canManageMeet} /> : null}
+
               <IconButton
                 onClick={() => setShowSteps((prev) => !prev)}
                 aria-label={showSteps ? "Hide panel" : "Show panel"}
@@ -778,7 +854,23 @@ export function CreateMeetModal({
                           },
                         }}
                       >
-                        {label}
+                        <Box component="span">
+                          {label}
+                          {requiredStepNumbers.has(index + 1) ? (
+                            <Box
+                              component="span"
+                              aria-hidden="true"
+                              sx={{
+                                color: "error.main",
+                                ml: 0.25,
+                                fontSize: "1.35em",
+                                lineHeight: 1,
+                              }}
+                            >
+                              *
+                            </Box>
+                          ) : null}
+                        </Box>
                       </StepLabel>
                     </Step>
                   ))}
@@ -806,36 +898,39 @@ export function CreateMeetModal({
                   Previous
                 </Button>
                 <Stack direction="row" spacing={1}>
-                  <Button
-                    variant="contained"
-                    onClick={
-                      isLastStep
-                        ? isDraft
-                          ? handlePublish
-                          : isPostponed
+                  <LockedTooltipWrapper isReadOnly={isMeetLocked}>
+                    <Button
+                      variant="contained"
+                      onClick={
+                        isLastStep
+                          ? isDraft
                             ? handlePublish
-                            : handleSaveAndClose
-                        : handleNext
-                    }
-                    disabled={
-                      isSubmitting ||
-                      isLoadingMeet ||
-                      isPublishing ||
-                      (finalErrors && finalErrors.length > 0)
-                    }
-                  >
-                    {isLastStep
-                      ? isDraft || isPostponed
-                        ? isPublishing
-                          ? "Publishing..."
-                          : "Publish"
+                            : isPostponed
+                              ? handlePublish
+                              : handleSaveAndClose
+                          : handleNext
+                      }
+                      disabled={
+                        isMeetLocked ||
+                        isSubmitting ||
+                        isLoadingMeet ||
+                        isPublishing ||
+                        (finalErrors && finalErrors.length > 0)
+                      }
+                    >
+                      {isLastStep
+                        ? isDraft || isPostponed
+                          ? isPublishing
+                            ? "Publishing..."
+                            : "Publish"
+                          : isSubmitting
+                            ? "Saving..."
+                            : "Save & Close"
                         : isSubmitting
                           ? "Saving..."
-                          : "Save & Close"
-                      : isSubmitting
-                        ? "Saving..."
-                        : "Save & Continue"}
-                  </Button>
+                          : "Save & Continue"}
+                    </Button>
+                  </LockedTooltipWrapper>
                 </Stack>
               </Box>
             </Stack>

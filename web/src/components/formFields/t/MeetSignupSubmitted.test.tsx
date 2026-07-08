@@ -23,12 +23,15 @@ describe("MeetSignupSubmitted", () => {
 
   it("navigates to register with state when creating profile", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <AuthContext.Provider
           value={{
             user: undefined,
             isLoading: false,
             isAuthenticated: false,
+            meUpdatedAt: 0,
             refreshSession: vi.fn(),
             logout: vi.fn(),
           }}
@@ -65,12 +68,15 @@ describe("MeetSignupSubmitted", () => {
 
   it("shows status button for authenticated users", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <AuthContext.Provider
           value={{
             user: { id: "u1" } as any,
             isLoading: false,
             isAuthenticated: true,
+            meUpdatedAt: 0,
             refreshSession: vi.fn(),
             logout: vi.fn(),
           }}

@@ -18,21 +18,14 @@ services:
     env_file:
       - ./.env
     ports:
-      - "8005:8000"
+      - "8005:8080"
     networks:
       - adventuremeets
     deploy:
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 5s
-        order: start-first
-        failure_action: rollback
-        monitor: 30s
-        max_failure_ratio: 0.1
-      rollback_config:
-        parallelism: 1
-        order: start-first
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == webapps2
 
   worker:
     image: fringecoding/adventuremeets_worker:${VERSION:-latest}
@@ -49,14 +42,11 @@ services:
       - ./.env
     command: server /data --console-address ":9001"
     ports:
-      - target: 9000
-        published: 9005
-        protocol: tcp
-        mode: host
-    volumes:
-      - minio_data:/data
+      - "9005:9000"
     networks:
       - adventuremeets
+    volumes:
+      - minio_data:/data
     deploy:
       replicas: 1
       placement:

@@ -35,6 +35,16 @@ export function useApi(options: ApiOptions = {}) {
     typeof window !== "undefined"
       ? window.localStorage.getItem("refreshToken")
       : null;
+  const shouldSkipNavigation =
+    import.meta.env.MODE === "test" ||
+    (typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent));
+
+  const redirectToLogin = () => {
+    if (typeof window === "undefined") return;
+    if (window.location.pathname === "/login") return;
+    if (shouldSkipNavigation) return;
+    window.location.assign("/login");
+  };
 
   async function refreshToken(): Promise<string | null> {
     const refreshTokenValue = getRefreshToken();
@@ -100,9 +110,7 @@ export function useApi(options: ApiOptions = {}) {
       }
       window.localStorage.removeItem("accessToken");
       window.localStorage.removeItem("refreshToken");
-      if (window.location.pathname !== "/login") {
-        window.location.assign("/login");
-      }
+      redirectToLogin();
       throw new Error("Unauthorized");
     }
     if (!res.ok) {

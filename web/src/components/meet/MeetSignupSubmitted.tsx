@@ -22,7 +22,9 @@ type MeetSignupSubmittedProps = {
   meetId?: string;
   attendeeId?: string;
   shareCode?: string;
+  hasIndemnity: boolean;
   guests?: GuestInput[];
+  isGuest?: boolean;
   isOrganizationPrivate?: boolean;
   isPreview?: boolean;
 };
@@ -37,12 +39,15 @@ export function MeetSignupSubmitted({
   meetId,
   attendeeId,
   shareCode,
+  hasIndemnity,
+  isGuest = false,
   guests = [],
   isOrganizationPrivate = false,
   isPreview = false,
 }: MeetSignupSubmittedProps) {
   const nav = useNavigate();
   const { isAuthenticated } = useAuth();
+
   const handleCreateProfile = () => {
     nav("/register", {
       state: {
@@ -58,18 +63,31 @@ export function MeetSignupSubmitted({
       },
     });
   };
+
   const handleShowStatus = () => {
     if (!shareCode || !attendeeId) return;
     nav(`/meets/${shareCode}/${attendeeId}`);
   };
+
   const shareLink =
     shareCode && typeof window !== "undefined"
-      ? `${window.location.origin}/meets/${shareCode}`
+      ? `${window.location.origin}/meets/${shareCode}?guestOf=${attendeeId}`
       : "";
 
   const handleCopyLink = async () => {
     if (!shareLink || !navigator.clipboard) return;
     await navigator.clipboard.writeText(shareLink);
+  };
+
+  const handleSignIndemnity = (guestName: string) => {
+    if (!shareLink) return;
+    const url = new URL(shareLink);
+    url.searchParams.set("name", guestName);
+    url.searchParams.set("isMinor", "true");
+    url.searchParams.set("email", email || "");
+    url.searchParams.set("phoneCountry", phoneCountry || "");
+    url.searchParams.set("phoneLocal", phoneLocal || "");
+    nav(url.pathname + url.search);
   };
 
   const handleSendInvite = (guestName: string) => {
@@ -80,6 +98,9 @@ export function MeetSignupSubmitted({
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
+
+  const hasMinorIndemnity =
+    hasIndemnity && guests.some((guest) => guest.isMinor);
 
   return (
     <Container maxWidth="md" sx={{ py: 6 }}>
@@ -107,9 +128,7 @@ export function MeetSignupSubmitted({
           </Typography>
           {isAuthenticated ? (
             <Tooltip
-              title={
-                isPreview ? "Can't show status in preview mode" : ""
-              }
+              title={isPreview ? "Can't show status in preview mode" : ""}
               disableHoverListener={!isPreview}
             >
               <span>
@@ -125,20 +144,18 @@ export function MeetSignupSubmitted({
           ) : (
             <>
               <Typography color="text.secondary">
-                {isOrganizationPrivate
+                {isOrganizationPrivate || isGuest
                   ? "Use the link below to check the status of your application."
                   : "If you wish you can create a profile to make future meet signups faster and manage your applications. Alternatively just use the link below to check the status of your application."}
               </Typography>
               <Stack direction="row" spacing={2}>
-                {!isOrganizationPrivate && (
+                {!isOrganizationPrivate && !isGuest && (
                   <Button variant="contained" onClick={handleCreateProfile}>
                     Create Profile
                   </Button>
                 )}
                 <Tooltip
-                  title={
-                    isPreview ? "Can't show status in preview mode" : ""
-                  }
+                  title={isPreview ? "Can't show status in preview mode" : ""}
                   disableHoverListener={!isPreview}
                 >
                   <span>
@@ -155,34 +172,54 @@ export function MeetSignupSubmitted({
             </>
           )}
           {guests.length > 0 && (
-            <Stack spacing={1} sx={{ width: "100%", pt: 1 }}>
-              <Typography variant="subtitle2" fontWeight={700}>
-                Guests
+            <Box sx={{ width: "100%", pt: 1, textAlign: "left" }}>
+              <Typography variant="subtitle1" fontWeight={700}>
+                {hasIndemnity
+                  ? "Guest Indemnity Required"
+                  : "Guest Information"}
               </Typography>
-              {guests.map((guest, index) => (
-                <Stack
-                  key={`${guest.name || "guest"}-${index}`}
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  alignItems={{ xs: "flex-start", sm: "center" }}
-                  justifyContent="space-between"
-                  sx={{
-                    width: "100%",
-                    p: 1.5,
-                    borderRadius: 1,
-                    border: "1px solid",
-                    borderColor: "divider",
-                  }}
-                >
-                  <Typography variant="body2" fontWeight={600}>
-                    {guest.name || `Guest ${index + 1}`}
-                  </Typography>
-                  {guest.isMinor ? (
-                    <Typography variant="body2" color="text.secondary">
-                      Sign indemnity
+              {hasIndemnity && (
+                <Typography variant="body2" color="text.secondary">
+                  Guests need to sign an indemnity for this meet. Please use the
+                  buttons on the right to send them the link to sign up and sign
+                  the indemnity.{" "}
+                  {hasMinorIndemnity && (
+                    <strong>
+                      Minors need to have a parent or guardian fill in the form.
+                    </strong>
+                  )}
+                </Typography>
+              )}
+              <Stack spacing={1} sx={{ width: "100%", pt: 1 }}>
+                {guests.map((guest, index) => (
+                  <Stack
+                    key={`${guest.name || "guest"}-${index}`}
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    alignItems={{ xs: "flex-start", sm: "center" }}
+                    justifyContent="space-between"
+                    sx={{
+                      width: "100%",
+                      p: 1.5,
+                      borderRadius: 1,
+                      border: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  >
+                    <Typography variant="body2" fontWeight={600}>
+                      {guest.name || `Guest ${index + 1}`}
                     </Typography>
-                  ) : (
                     <Stack direction="row" spacing={1}>
+                      {guest.isMinor && hasIndemnity && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleSignIndemnity(guest.name)}
+                          disabled={!shareLink}
+                        >
+                          Sign indemnity
+                        </Button>
+                      )}
                       <Button
                         size="small"
                         variant="outlined"
@@ -193,17 +230,17 @@ export function MeetSignupSubmitted({
                       </Button>
                       <Button
                         size="small"
-                        variant="text"
+                        variant="outlined"
                         onClick={handleCopyLink}
                         disabled={!shareLink}
                       >
                         Copy link
                       </Button>
                     </Stack>
-                  )}
-                </Stack>
-              ))}
-            </Stack>
+                  </Stack>
+                ))}
+              </Stack>
+            </Box>
           )}
         </Stack>
       </Paper>

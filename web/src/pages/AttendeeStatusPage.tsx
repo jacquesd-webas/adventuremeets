@@ -2,21 +2,23 @@ import {
   Box,
   Button,
   Container,
+  IconButton,
   Paper,
   Stack,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import MeetSignupSheet from "./MeetSignupSheet";
 import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
 import { AttendeeStatusAlert } from "../components/attendeeStatus/AttendeeStatusAlert";
+import { AttendeeRsvp } from "../components/attendeeStatus/AttendeeRsvp";
 import { useFetchMeetAttendeeStatus } from "../hooks/useFetchMeetAttendeeStatus";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { FullPageSpinner } from "../components/FullPageSpinner";
-import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
 import { useEffect, useState } from "react";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
@@ -24,6 +26,7 @@ import { getOrganizationBackground } from "../helpers/organizationTheme";
 import { ContactOrganizerDialog } from "../components/attendeeStatus/ContactOrganizerDialog";
 import { WithdrawApplicationDialog } from "../components/attendeeStatus/WithdrawApplicationDialog";
 import { VerifyAttendeeEmailDialog } from "../components/attendeeStatus/VerifyAttendeeEmailDialog";
+import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 
 export default function AttendeeStatusPage() {
   const { code, attendeeId } = useParams<{
@@ -134,59 +137,76 @@ export default function AttendeeStatusPage() {
               showMoreChip
               showUserAction={false}
               actionSlot={
-                <MeetSignupUserAction
-                  formEmail={attendeeStatusData?.attendee.email}
-                />
+                <IconButton
+                  onClick={() => navigate("/")}
+                  size="small"
+                  aria-label="Back to dashboard"
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
               }
             />
-            <AttendeeStatusAlert status={attendeeStatusData?.attendee.status} />
+            {attendeeStatusData?.attendee.status &&
+            attendeeStatusData.attendee.status ===
+              AttendeeStatusEnum.Invited ? (
+              <AttendeeRsvp
+                meetCode={code}
+                attendeeId={attendeeId}
+                status={attendeeStatusData?.attendee.status}
+              />
+            ) : (
+              <>
+                <AttendeeStatusAlert
+                  status={attendeeStatusData?.attendee.status}
+                />
 
-            <Typography variant="body1">
-              You may choose to make changes to your application using any of
-              the links below:
-            </Typography>
+                <Typography variant="body1">
+                  You may choose to make changes to your application using any
+                  of the links below:
+                </Typography>
 
-            <Box sx={{ width: "100%" }}>
-              <Stack
-                direction={isMobile ? "column" : "row"}
-                spacing={2}
-                alignItems="center"
-                justifyContent="center"
-                sx={isMobile ? { width: "100%" } : undefined}
-              >
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => {
-                    setIsVerifyOpen(true);
-                  }}
-                  fullWidth={isMobile}
-                >
-                  Edit Application
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => {
-                    setIsWithdrawOpen(true);
-                  }}
-                  fullWidth={isMobile}
-                >
-                  Withdraw Application
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => {
-                    setIsContactOpen(true);
-                  }}
-                  fullWidth={isMobile}
-                >
-                  Contact Organiser
-                </Button>
-              </Stack>
-            </Box>
-
+                <Box sx={{ width: "100%" }}>
+                  <Stack
+                    direction={isMobile ? "column" : "row"}
+                    spacing={2}
+                    alignItems="center"
+                    justifyContent="center"
+                    sx={isMobile ? { width: "100%" } : undefined}
+                  >
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => {
+                        setIsVerifyOpen(true);
+                      }}
+                      fullWidth={isMobile}
+                    >
+                      Edit Application
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => {
+                        setIsWithdrawOpen(true);
+                      }}
+                      fullWidth={isMobile}
+                    >
+                      Withdraw Application
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => {
+                        setIsContactOpen(true);
+                      }}
+                      fullWidth={isMobile}
+                    >
+                      Contact Organiser
+                    </Button>
+                  </Stack>
+                </Box>
+              </>
+            )}
             <ContactOrganizerDialog
               open={isContactOpen}
               onClose={() => setIsContactOpen(false)}

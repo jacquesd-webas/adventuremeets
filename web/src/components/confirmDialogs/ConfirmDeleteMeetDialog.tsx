@@ -1,8 +1,12 @@
+import { useDeleteMeet } from "../../hooks/useDeleteMeet";
 import { ConfirmActionDialog } from "../ConfirmActionDialog";
+import { OrganizerOverrideWarning } from "../OrganizerOverrideWarning";
 
 type ConfirmDeleteMeetDialogProps = {
   open: boolean;
   meetId?: string | null;
+  canManageMeet?: boolean;
+  isOrganizer?: boolean;
   onClose: () => void;
   onConfirm: () => void;
   isLoading?: boolean;
@@ -10,13 +14,18 @@ type ConfirmDeleteMeetDialogProps = {
 
 export function ConfirmDeleteMeetDialog({
   open,
-  meetId: _meetId,
+  meetId,
   onClose,
   onConfirm,
-  isLoading = false
+  isOrganizer,
+  isLoading = false,
 }: ConfirmDeleteMeetDialogProps) {
+  const { deleteMeetAsync, isLoading: isSubmitting } = useDeleteMeet();
+
   const handleDelete = async () => {
-    // Defer to caller for actual deletion, but keep signature consistent
+    if (meetId) {
+      await deleteMeetAsync({ meetId });
+    }
     onConfirm();
   };
 
@@ -29,6 +38,9 @@ export function ConfirmDeleteMeetDialog({
       onClose={onClose}
       onConfirm={handleDelete}
       isLoading={isLoading}
-    />
+      isSubmitting={isSubmitting}
+    >
+      {!isOrganizer && <OrganizerOverrideWarning />}
+    </ConfirmActionDialog>
   );
 }

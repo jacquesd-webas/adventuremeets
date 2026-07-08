@@ -11,6 +11,14 @@ module.exports = [
   },
   js.configs.recommended,
   {
+    files: ["public/sw.js"],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+      },
+    },
+  },
+  {
     files: ["src/**/*.{ts,tsx}"],
     languageOptions: {
       parser: tsParser,

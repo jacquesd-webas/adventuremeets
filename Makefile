@@ -7,7 +7,7 @@ DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_
 .PHONY: db-up db-wait migrate stack-up stack-down clean env
 
 up:
-	$(COMPOSE) up -d db minio
+	$(COMPOSE) up -d db minio mailhog
 
 migrate:
 	$(COMPOSE) run --build --rm db_migrate

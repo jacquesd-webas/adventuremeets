@@ -14,6 +14,38 @@ vi.mock("../../../hooks/useLogin", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useGoogleAuthUrl", () => ({
+  useGoogleAuthUrl: () => ({
+    getGoogleAuthUrlAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useGoogleCodeLogin", () => ({
+  useGoogleCodeLogin: () => ({
+    googleCodeLoginAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useFacebookAuthUrl", () => ({
+  useFacebookAuthUrl: () => ({
+    getFacebookAuthUrlAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useFacebookCodeLogin", () => ({
+  useFacebookCodeLogin: () => ({
+    facebookCodeLoginAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
     refreshSession,
@@ -40,7 +72,9 @@ describe("LoginForm", () => {
   it("submits credentials and calls onSuccess", async () => {
     const onSuccess = vi.fn();
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <LoginForm onSuccess={onSuccess} />
       </MemoryRouter>
     );
@@ -66,7 +100,9 @@ describe("LoginForm", () => {
 
   it("navigates to home when onSuccess is not provided", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <LoginForm />
       </MemoryRouter>
     );

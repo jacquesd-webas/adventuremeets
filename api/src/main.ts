@@ -1,5 +1,5 @@
 import { NestFactory } from "@nestjs/core";
-import { ValidationPipe, Logger } from "@nestjs/common";
+import { ValidationPipe, Logger, RequestMethod } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import * as express from "express";
 import { AppModule } from "./app.module";
@@ -14,7 +14,10 @@ async function bootstrap() {
   const logger = bootstrapLogger;
 
   // Prefix all routes with /api/v1 to version the public surface
-  app.setGlobalPrefix("api/v1");
+  // Exclude share pages so crawlers can read OG tags from server-rendered HTML.
+  app.setGlobalPrefix("api/v1", {
+    exclude: [{ path: "share/:code", method: RequestMethod.GET }],
+  });
 
   app.use(
     "/api/v1/incoming",

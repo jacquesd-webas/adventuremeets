@@ -1,6 +1,7 @@
 import { Box, Button, ButtonGroup, Stack, Typography } from "@mui/material";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import DisabledByDefaultIcon from "@mui/icons-material/DisabledByDefault";
+import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
 
 type AttendeesIndemnityInfoProps = {
   hasIndemnity?: boolean;
@@ -13,6 +14,7 @@ type AttendeesIndemnityInfoProps = {
   onGuestIncrement: () => void;
   onGuestDecrement: () => void;
   onInvite: () => void;
+  canManageMeet?: boolean;
 };
 
 export function AttendeesIndemnityInfo({
@@ -26,6 +28,7 @@ export function AttendeesIndemnityInfo({
   onGuestIncrement,
   onGuestDecrement,
   onInvite,
+  canManageMeet = true,
 }: AttendeesIndemnityInfoProps) {
   const safeGuests = guests ?? 0;
   return (
@@ -69,38 +72,46 @@ export function AttendeesIndemnityInfo({
         ) : (
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="body2">{safeGuests}</Typography>
-            <ButtonGroup
-              size="small"
-              variant="outlined"
-              sx={{
-                "& .MuiButton-root": {
-                  minWidth: 24,
-                  px: 0.5,
-                  py: 0,
-                  fontSize: 12,
-                  lineHeight: 1.2,
-                },
-              }}
-            >
-              <Button
-                onClick={onGuestDecrement}
-                disabled={guestsUpdating || safeGuests <= 0}
+            <LockedTooltipWrapper isReadOnly={!canManageMeet}>
+              <ButtonGroup
+                size="small"
+                variant="outlined"
+                disabled={!canManageMeet}
+                sx={{
+                  "& .MuiButton-root": {
+                    minWidth: 24,
+                    px: 0.5,
+                    py: 0,
+                    fontSize: 12,
+                    lineHeight: 1.2,
+                  },
+                }}
               >
-                -
+                <Button
+                  onClick={onGuestDecrement}
+                  disabled={!canManageMeet || guestsUpdating || safeGuests <= 0}
+                >
+                  -
+                </Button>
+                <Button
+                  onClick={onGuestIncrement}
+                  disabled={!canManageMeet || guestsUpdating}
+                >
+                  +
+                </Button>
+              </ButtonGroup>
+            </LockedTooltipWrapper>
+            <LockedTooltipWrapper isReadOnly={!canManageMeet}>
+              <Button
+                size="small"
+                variant="text"
+                onClick={onInvite}
+                disabled={!canManageMeet || inviteDisabled}
+                sx={{ minWidth: "auto", px: 0.75 }}
+              >
+                Invite link
               </Button>
-              <Button onClick={onGuestIncrement} disabled={guestsUpdating}>
-                +
-              </Button>
-            </ButtonGroup>
-            <Button
-              size="small"
-              variant="text"
-              onClick={onInvite}
-              disabled={inviteDisabled}
-              sx={{ minWidth: "auto", px: 0.75 }}
-            >
-              Invite link
-            </Button>
+            </LockedTooltipWrapper>
           </Stack>
         )}
       </Box>

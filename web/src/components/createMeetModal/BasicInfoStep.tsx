@@ -6,7 +6,12 @@ import { useFetchOrganizers } from "../../hooks/useFetchOrganizers";
 import { useAuth } from "../../context/authContext";
 import { useCurrentOrganization } from "../../context/organizationContext";
 
-export const BasicInfoStep = ({ state, setState, errors }: StepProps) => {
+export const BasicInfoStep = ({
+  state,
+  setState,
+  errors,
+  disabled = false,
+}: StepProps) => {
   const { user } = useAuth();
   const { currentOrganizationId } = useCurrentOrganization();
   const { data: users } = useFetchOrganizers(currentOrganizationId);
@@ -36,6 +41,7 @@ export const BasicInfoStep = ({ state, setState, errors }: StepProps) => {
             setState((prev) => ({ ...prev, name: e.target.value }))
           }
           fullWidth
+          disabled={disabled}
         />
       </LabeledField>
       <LabeledField label="Description" required>
@@ -50,6 +56,7 @@ export const BasicInfoStep = ({ state, setState, errors }: StepProps) => {
           fullWidth
           multiline
           minRows={6}
+          disabled={disabled}
         />
       </LabeledField>
       <LabeledField label="Organizer" required>
@@ -62,6 +69,7 @@ export const BasicInfoStep = ({ state, setState, errors }: StepProps) => {
           currentUserId={user?.id}
           error={Boolean(getFieldError(errors, "organizerId"))}
           helperText={getFieldError(errors, "organizerId")}
+          disabled={disabled}
         />
       </LabeledField>
     </Stack>

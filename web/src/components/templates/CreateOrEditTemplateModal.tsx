@@ -495,7 +495,12 @@ export function CreateOrEditTemplateModal({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSave} disabled={busy}>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={busy}
+          data-testid="create-template-submit"
+        >
           {busy ? "Saving..." : actionLabel}
         </Button>
       </DialogActions>

@@ -21,6 +21,8 @@ import { RegisterDto } from "./dto/register.dto";
 import { GoogleAuthUrlDto } from "./dto/google-auth-url.dto";
 import { GoogleAuthCodeDto } from "./dto/google-auth-code.dto";
 import { GoogleIdTokenDto } from "./dto/google-id-token.dto";
+import { FacebookAuthUrlDto } from "./dto/facebook-auth-url.dto";
+import { FacebookAuthCodeDto } from "./dto/facebook-auth-code.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { VerifyEmailDto } from "./dto/verify-email.dto";
@@ -90,6 +92,22 @@ export class AuthController {
   }
 
   @Public()
+  @Get("facebook/url")
+  async facebookUrl(@Query() query: FacebookAuthUrlDto) {
+    const url = await this.authService.getFacebookAuthUrl(
+      query.redirectUri,
+      query.state,
+    );
+    return { url };
+  }
+
+  @Public()
+  @Post("facebook/token")
+  async facebookToken(@Body() dto: FacebookAuthCodeDto): Promise<TokenPair> {
+    return this.authService.facebookLoginWithCode(dto.code, dto.redirectUri);
+  }
+
+  @Public()
   @Post("refresh")
   async refresh(@Body() dto: RefreshDto): Promise<TokenPair> {
     return this.authService.refresh(dto);
@@ -144,6 +162,10 @@ export class AuthController {
       throw new ForbiddenException("User not found");
     }
     const orgRoles = await this.usersService.findOrganizationRoles(user.id);
+    const pendingInvites = await this.usersService.listPendingInvitesByEmail(
+      user.id,
+      fullUser.email,
+    );
     const organizations = orgRoles.reduce<Record<string, string>>(
       (acc, org) => {
         const role =
@@ -157,6 +179,7 @@ export class AuthController {
     return {
       ...fullUser,
       organizations,
+      pendingInvites,
     } as UserProfile;
   }
 }

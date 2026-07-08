@@ -7,17 +7,18 @@ import { ThemeModeProvider } from "../context/ThemeModeContext";
 import { NotistackProvider } from "../components/NotistackProvider";
 import { AuthContext } from "../context/authContext";
 import { OrganizationContext } from "../context/organizationContext";
+import { FilterContext } from "../context/filterContext";
 
 vi.mock("../hooks/useFetchMeets", () => ({
-  useFetchMeets: () => ({ data: [], isLoading: false, refetch: vi.fn() })
+  useFetchMeets: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
 }));
 
 vi.mock("../hooks/useFetchMeetStatuses", () => ({
-  useMeetStatusLookup: () => ({ getName: () => "Status" })
+  useMeetStatusLookup: () => ({ getName: () => "Status" }),
 }));
 
 vi.mock("../hooks/useUpdateMeetStatus", () => ({
-  useUpdateMeetStatus: () => ({ updateStatusAsync: vi.fn(), isLoading: false })
+  useUpdateMeetStatus: () => ({ updateStatusAsync: vi.fn(), isLoading: false }),
 }));
 
 vi.mock("../hooks/useApi", () => ({
@@ -25,8 +26,8 @@ vi.mock("../hooks/useApi", () => ({
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
-    del: vi.fn()
-  })
+    del: vi.fn(),
+  }),
 }));
 
 describe("App", () => {
@@ -41,6 +42,7 @@ describe("App", () => {
                 user: undefined,
                 isLoading: false,
                 isAuthenticated: false,
+                meUpdatedAt: 0,
                 refreshSession: vi.fn(),
                 logout: vi.fn(),
               }}
@@ -49,18 +51,33 @@ describe("App", () => {
                 value={{
                   organizationIds: [],
                   currentOrganizationId: null,
+                  currentOrganizationName: null,
                   currentOrganizationRole: null,
                   setCurrentOrganizationId: vi.fn(),
                 }}
               >
-                <MemoryRouter>
-                  <App />
-                </MemoryRouter>
+                <FilterContext.Provider
+                  value={{
+                    dashboardView: "all",
+                    listPageView: "upcoming",
+                    setDashboardView: vi.fn(),
+                    setListPageView: vi.fn(),
+                  }}
+                >
+                  <MemoryRouter
+                    future={{
+                      v7_startTransition: true,
+                      v7_relativeSplatPath: true,
+                    }}
+                  >
+                    <App />
+                  </MemoryRouter>
+                </FilterContext.Provider>
               </OrganizationContext.Provider>
             </AuthContext.Provider>
           </NotistackProvider>
         </QueryClientProvider>
-      </ThemeModeProvider>
+      </ThemeModeProvider>,
     );
     expect(screen.getAllByText(/Dashboard/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Upcoming Meets/i).length).toBeGreaterThan(0);

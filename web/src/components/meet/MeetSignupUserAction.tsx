@@ -19,7 +19,7 @@ import { useAuth } from "../../context/authContext";
 import { useLogin } from "../../hooks/useLogin";
 
 type MeetSignupUserActionProps = {
-  formEmail?: string;
+  formEmail?: string | null;
   onLoginClick?: () => void;
   onLogout?: () => void;
 };

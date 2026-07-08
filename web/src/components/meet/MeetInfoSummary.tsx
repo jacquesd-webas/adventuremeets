@@ -86,12 +86,7 @@ export function MeetInfoSummary({
           ? matchText
           : `https://${matchText}`;
         parts.push(
-          <Link
-            key={`${index}-${matchText}`}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <Link key={`${index}-${matchText}`} href={href}>
             {matchText}
           </Link>,
         );
@@ -175,7 +170,12 @@ export function MeetInfoSummary({
         {actionSlot ? (
           actionSlot
         ) : onClose ? (
-          <IconButton onClick={onClose} size="small" aria-label="Close">
+          <IconButton
+            onClick={onClose}
+            size="small"
+            aria-label="Close"
+            data-testid="close-meet-details-modal"
+          >
             <CloseIcon fontSize="small" />
           </IconButton>
         ) : showUserAction ? (

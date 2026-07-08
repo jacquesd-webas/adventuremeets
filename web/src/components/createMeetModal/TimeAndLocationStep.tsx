@@ -3,7 +3,12 @@ import { useEffect, useRef } from "react";
 import { LabeledField } from "./LabeledField";
 import { StepProps, getFieldError } from "./CreateMeetState";
 
-export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
+export const TimeAndLocationStep = ({
+  state,
+  setState,
+  errors,
+  disabled = false,
+}: StepProps) => {
   const lastGeocoded = useRef("");
   const startDateValue = state.startTime ? state.startTime.slice(0, 10) : "";
   const startInputValue = state.startTimeTbc ? startDateValue : state.startTime;
@@ -58,6 +63,7 @@ export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
             <Switch
               size="small"
               checked={state.useMap}
+              disabled={disabled}
               onChange={(event) =>
                 setState((prev) => ({ ...prev, useMap: event.target.checked }))
               }
@@ -85,6 +91,7 @@ export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
           fullWidth
           error={Boolean(getFieldError(errors, "location"))}
           helperText={getFieldError(errors, "location")}
+          disabled={disabled}
         />
       </LabeledField>
       <Stack
@@ -104,6 +111,7 @@ export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
               <Switch
                 size="small"
                 checked={!state.startTimeTbc}
+                disabled={disabled}
                 onChange={(event) => {
                   const showTime = event.target.checked;
                   setState((prev) => {
@@ -153,6 +161,7 @@ export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
             InputLabelProps={{ shrink: true }}
             error={Boolean(getFieldError(errors, "startTime"))}
             helperText={getFieldError(errors, "startTime")}
+            disabled={disabled}
           />
         </LabeledField>
         <LabeledField
@@ -167,7 +176,7 @@ export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
               <Switch
                 size="small"
                 checked={!state.endTimeTbc}
-                disabled={state.startTimeTbc}
+                disabled={disabled || state.startTimeTbc}
                 onChange={(event) => {
                   const showTime = event.target.checked;
                   setState((prev) => {
@@ -209,6 +218,7 @@ export const TimeAndLocationStep = ({ state, setState, errors }: StepProps) => {
             inputProps={{ "data-testid": "end-time-input" }}
             error={Boolean(getFieldError(errors, "endTime"))}
             helperText={getFieldError(errors, "endTime")}
+            disabled={disabled}
           />
         </LabeledField>
       </Stack>

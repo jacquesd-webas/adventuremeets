@@ -1,16 +1,11 @@
-import { useMemo, useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
+  Alert,
   Box,
-  Chip,
-  CircularProgress,
   Container,
-  Divider,
   IconButton,
   List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   Paper,
   Stack,
   Typography,
@@ -19,24 +14,52 @@ import {
 } from "@mui/material";
 import { useFetchMeetAttendees } from "../hooks/useFetchMeetAttendees";
 import { useCheckinAttendees } from "../hooks/useCheckinAttendees";
-import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
+import { useFetchMeet } from "../hooks/useFetchMeet";
+import { useAuth } from "../context/authContext";
+import CloseIcon from "@mui/icons-material/Close";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
+import { AttendeeCheckinItem } from "../components/attendeeCheckin/AttendeeCheckinItem";
+import { CheckinSearch } from "../components/attendeeCheckin/CheckinSearch";
+import { LockedMeet } from "../components/createMeetModal/LockedMeet";
+
+type MeetCheckinLocationState = {
+  returnTo?: string;
+};
 
 function MeetCheckinPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: attendees, isLoading } = useFetchMeetAttendees(id, "accepted");
-  const { checkinAttendeesAsync } = useCheckinAttendees();
+  const location = useLocation() as ReturnType<typeof useLocation> & {
+    state: MeetCheckinLocationState | null;
+  };
+  const { user } = useAuth();
+  const { data: meet } = useFetchMeet(id, Boolean(id));
+  const {
+    data: attendees,
+    isLoading,
+    isOfflineData,
+    error,
+  } = useFetchMeetAttendees(id, "accepted");
+  const {
+    checkinAttendeesAsync,
+    queuedStatusByAttendeeId,
+    failedStatusByAttendeeId,
+    isOffline,
+    pendingCount,
+    failedCount,
+  } = useCheckinAttendees(id);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const navigate = useNavigate();
   const [checkingIn, setCheckingIn] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState("");
   const [undoTarget, setUndoTarget] = useState<{
     id: string;
     name: string;
   } | null>(null);
+  const isReadOnly = Boolean(
+    user?.id && meet?.organizerId && user.id !== meet.organizerId,
+  );
 
   const attendeeList = useMemo(
     () =>
@@ -49,37 +72,45 @@ function MeetCheckinPage() {
           "Unnamed attendee",
         email: attendee.email || "",
         phone: attendee.phone || "",
-        status: attendee.status || "",
+        status: queuedStatusByAttendeeId[attendee.id] || attendee.status || "",
+        syncState: failedStatusByAttendeeId[attendee.id]
+          ? ("failed" as const)
+          : queuedStatusByAttendeeId[attendee.id]
+            ? ("queued" as const)
+            : undefined,
+        syncMessage: failedStatusByAttendeeId[attendee.id] || "",
       })),
-    [attendees],
+    [attendees, failedStatusByAttendeeId, queuedStatusByAttendeeId],
   );
 
-  useEffect(() => {
-    const initial = attendeeList.reduce<Record<string, boolean>>(
-      (acc, attendee) => {
-        if (attendee.status === AttendeeStatusEnum.CheckedIn) {
-          acc[attendee.id] = true;
-        }
-        return acc;
-      },
-      {},
-    );
-    setChecked(initial);
-  }, [attendeeList]);
+  const filteredAttendees = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return attendeeList;
+    return attendeeList.filter((attendee) => {
+      const name = attendee.name.toLowerCase();
+      const email = attendee.email.toLowerCase();
+      const phone = attendee.phone.toLowerCase();
+      return (
+        name.includes(term) || email.includes(term) || phone.includes(term)
+      );
+    });
+  }, [attendeeList, searchTerm]);
 
-  const handleTapCheckin = async (attendeeId: string) => {
+  const handleCheckin = async (attendeeId: string) => {
+    if (isReadOnly) return;
     if (!id || checkingIn[attendeeId]) return;
-    if (checked[attendeeId]) return;
+    const attendee = attendeeList.find((item) => item.id === attendeeId);
+    if (attendee?.status === AttendeeStatusEnum.CheckedIn) return;
     setCheckingIn((prev) => ({ ...prev, [attendeeId]: true }));
     try {
       await checkinAttendeesAsync({ meetId: id, attendeeIds: [attendeeId] });
-      setChecked((prev) => ({ ...prev, [attendeeId]: true }));
     } finally {
       setCheckingIn((prev) => ({ ...prev, [attendeeId]: false }));
     }
   };
 
   const handleUndoConfirm = async () => {
+    if (isReadOnly) return;
     if (!id || !undoTarget) return;
     setCheckingIn((prev) => ({ ...prev, [undoTarget.id]: true }));
     try {
@@ -88,11 +119,30 @@ function MeetCheckinPage() {
         attendeeIds: [undoTarget.id],
         status: "confirmed",
       });
-      setChecked((prev) => ({ ...prev, [undoTarget.id]: false }));
     } finally {
       setCheckingIn((prev) => ({ ...prev, [undoTarget.id]: false }));
       setUndoTarget(null);
     }
+  };
+
+  const handleClose = () => {
+    const fallbackPath =
+      location.state?.returnTo &&
+      location.state.returnTo.startsWith("/") &&
+      !location.state.returnTo.startsWith("//")
+        ? location.state.returnTo
+        : "/";
+
+    if (
+      typeof window !== "undefined" &&
+      import.meta.env.MODE !== "test" &&
+      (typeof navigator === "undefined" || !/jsdom/i.test(navigator.userAgent))
+    ) {
+      window.location.replace(fallbackPath);
+      return;
+    }
+
+    navigate(fallbackPath, { replace: true });
   };
 
   return (
@@ -108,16 +158,57 @@ function MeetCheckinPage() {
       }}
     >
       <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
-        <Box sx={{ px: isMobile ? 2 : 0, pt: isMobile ? 2 : 0 }}>
-          <Typography variant="h5" fontWeight={700}>
-            Meet Check-in
-          </Typography>
-          {!isMobile ? (
-            <Typography variant="body2" color="text.secondary">
-              Tap names to mark attendees as checked in.
+        <Box
+          sx={{
+            px: isMobile ? 2 : 0,
+            pt: isMobile ? 2 : 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="h5" fontWeight={700}>
+              Meet Check-in
             </Typography>
-          ) : null}
+            {!isMobile ? (
+              <Typography variant="body2" color="text.secondary">
+                Tap names to mark attendees as checked in.
+              </Typography>
+            ) : null}
+          </Box>
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            {isReadOnly ? <LockedMeet /> : null}
+            <IconButton aria-label="Close check-in" onClick={handleClose}>
+              <CloseIcon />
+            </IconButton>
+          </Stack>
         </Box>
+        <Box sx={{ px: isMobile ? 2 : 0 }}>
+          <CheckinSearch
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onClear={() => setSearchTerm("")}
+          />
+        </Box>
+        {isOffline || pendingCount > 0 || failedCount > 0 || isOfflineData ? (
+          <Box sx={{ px: isMobile ? 2 : 0 }}>
+            <Alert
+              severity={
+                failedCount > 0 ? "warning" : isOffline ? "info" : "success"
+              }
+            >
+              {failedCount > 0
+                ? `${failedCount} check-in change${failedCount === 1 ? "" : "s"} could not be synced yet.`
+                : pendingCount > 0
+                  ? `${pendingCount} check-in change${pendingCount === 1 ? "" : "s"} waiting to sync.`
+                  : isOfflineData
+                    ? "Showing the last saved attendee list while offline."
+                    : "Offline mode is active. New check-ins will queue on this device."}
+            </Alert>
+          </Box>
+        ) : null}
         <Paper
           variant="outlined"
           sx={{
@@ -132,76 +223,32 @@ function MeetCheckinPage() {
             <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
               Loading attendees...
             </Typography>
-          ) : attendeeList.length ? (
+          ) : error ? (
+            <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+              {error}
+            </Typography>
+          ) : filteredAttendees.length ? (
             <List>
-              {attendeeList.map((attendee, index) => (
-                <Box key={attendee.id}>
-                  <ListItem
-                    disableGutters
-                    secondaryAction={null}
-                    onClick={() => handleTapCheckin(attendee.id)}
-                    sx={{ borderRadius: 1, px: 1 }}
-                  >
-                    <ListItemIcon>
-                      {checkingIn[attendee.id] ? (
-                        <CircularProgress size={28} />
-                      ) : checked[attendee.id] ? (
-                        <CheckBoxIcon color="success" sx={{ fontSize: 32 }} />
-                      ) : (
-                        <HelpOutlineIcon
-                          color="disabled"
-                          sx={{ fontSize: 32 }}
-                        />
-                      )}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={attendee.name}
-                      primaryTypographyProps={{
-                        variant: "subtitle1",
-                        fontWeight: 600,
-                      }}
-                      secondaryTypographyProps={{ component: "div" }}
-                      secondary={
-                        <Box sx={{ mt: 0.5 }}>
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            sx={{ flexWrap: "wrap" }}
-                          >
-                            {attendee.email ? (
-                              <Chip
-                                size="small"
-                                label={attendee.email}
-                                color="default"
-                              />
-                            ) : null}
-                            {attendee.phone ? (
-                              <Chip
-                                size="small"
-                                label={attendee.phone}
-                                color="default"
-                              />
-                            ) : null}
-                          </Stack>
-                        </Box>
-                      }
-                    />
-                    {checked[attendee.id] ? (
-                      <IconButton
-                        edge="end"
-                        onClick={() => setUndoTarget(attendee)}
-                      >
-                        <UndoOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    ) : null}
-                  </ListItem>
-                  {index < attendeeList.length - 1 ? <Divider /> : null}
-                </Box>
+              {filteredAttendees.map((attendee, index) => (
+                <AttendeeCheckinItem
+                  key={attendee.id}
+                  attendee={attendee}
+                  isCheckingIn={Boolean(checkingIn[attendee.id])}
+                  isChecked={attendee.status === AttendeeStatusEnum.CheckedIn}
+                  syncState={attendee.syncState}
+                  syncMessage={attendee.syncMessage}
+                  showDivider={index < filteredAttendees.length - 1}
+                  disabled={isReadOnly}
+                  onCheckin={handleCheckin}
+                  onUndo={(target) => setUndoTarget(target)}
+                />
               ))}
             </List>
           ) : (
             <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-              No attendees yet.
+              {isOffline
+                ? "No cached attendees available offline."
+                : "No attendees yet."}
             </Typography>
           )}
         </Paper>

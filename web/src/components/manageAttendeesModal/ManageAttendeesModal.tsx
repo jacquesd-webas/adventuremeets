@@ -31,8 +31,8 @@ import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import CloseIcon from "@mui/icons-material/Close";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import { AttendeeItem } from "./AttendeeItem";
+import { AttendeeUploadButton } from "./AttendeeUploadButton";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
 import Meet from "../../types/MeetModel";
@@ -49,18 +49,26 @@ import { useFetchAttendeeMessages } from "../../hooks/useFetchAttendeeMessages";
 import { useSnackbar } from "notistack";
 import { useQueryClient } from "@tanstack/react-query";
 import { Attendee } from "../../types/AttendeeModel";
+import { useApi } from "../../hooks/useApi";
+import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
+import { LockedMeet } from "../createMeetModal/LockedMeet";
 
 type ManageAttendeesModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
   meet?: Meet | null;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
+  isOrganizer?: boolean;
 };
 
 export function ManageAttendeesModal({
   open,
   onClose,
   meetId,
+  isOrganizer,
+  canManageMeet,
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -75,6 +83,7 @@ export function ManageAttendeesModal({
     useNotifyAttendee();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
+  const api = useApi();
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
     null,
   );
@@ -124,6 +133,7 @@ export function ManageAttendeesModal({
     useState(false);
   const [messageDrawerIncludeRejected, setMessageDrawerIncludeRejected] =
     useState(false);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [detailView, setDetailView] = useState<"responses" | "messages">(
     "responses",
   );
@@ -219,7 +229,10 @@ export function ManageAttendeesModal({
         ].includes(status)
       )
         return true;
-      if (messageDrawerIncludeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
+      if (
+        messageDrawerIncludeWaitlisted &&
+        status === AttendeeStatusEnum.Waitlisted
+      )
         return true;
       if (
         messageDrawerIncludeRejected &&
@@ -372,11 +385,20 @@ export function ManageAttendeesModal({
   const getUnnotifiedAttendees = () =>
     attendees.filter((attendee) => {
       const status = attendee.status as AttendeeStatusEnum | undefined;
-      if (!status || status === AttendeeStatusEnum.Pending) return false;
+      if (
+        !status ||
+        status === AttendeeStatusEnum.Pending ||
+        status === AttendeeStatusEnum.Invited
+      )
+        return false;
       return !attendee.respondedAt;
     });
 
   const handleRequestClose = () => {
+    if (!isOrganizer || meetStatus === MeetStatusEnum.Completed) {
+      onClose();
+      return;
+    }
     const pending = getUnnotifiedAttendees();
     if (pending.length) {
       setNotifyBeforeCloseAttendees(pending);
@@ -411,18 +433,22 @@ export function ManageAttendeesModal({
         Partial<Record<AttendeeStatusEnum, string[]>>
       >((acc, attendee) => {
         const rawStatus = attendee.status as AttendeeStatusEnum | undefined;
-        if (!rawStatus || rawStatus === AttendeeStatusEnum.Pending) return acc;
-        const status =
-          rawStatus === AttendeeStatusEnum.CheckedIn ||
-          rawStatus === AttendeeStatusEnum.Attended
-            ? AttendeeStatusEnum.Confirmed
-            : rawStatus === AttendeeStatusEnum.Cancelled ||
-                rawStatus === AttendeeStatusEnum.NoShow
-              ? AttendeeStatusEnum.Rejected
-              : rawStatus;
-        if (!acc[status]) acc[status] = [];
-        acc[status]?.push(attendee.id);
-        return acc;
+        // We only care about Confirmed/Rejected/Waitlisted for messaging purposes
+        // any other message can be safely ignored
+        if (
+          rawStatus !== AttendeeStatusEnum.Confirmed &&
+          rawStatus !== AttendeeStatusEnum.Rejected &&
+          rawStatus !== AttendeeStatusEnum.Waitlisted
+        ) {
+          return acc;
+        }
+        return {
+          ...acc,
+          [AttendeeStatusEnum.Confirmed]: [
+            ...(acc[AttendeeStatusEnum.Confirmed] || []),
+            attendee.id,
+          ],
+        };
       }, {});
 
       for (const [statusKey, attendeeIds] of Object.entries(byStatus)) {
@@ -478,7 +504,7 @@ export function ManageAttendeesModal({
   );
   const baseInviteLink =
     meet?.shareCode && typeof window !== "undefined"
-      ? `${window.location.origin}/meets/${meet.shareCode}`
+      ? `${window.location.origin}/${meet.shareCode}`
       : "";
   const inviteLinkForAttendee = (attendeeId: string) =>
     baseInviteLink
@@ -576,9 +602,12 @@ export function ManageAttendeesModal({
     setMessageDrawerError(null);
   };
   const handleSendMobileMessage = async () => {
-    if (!meet?.id) return;
-    if (!messageDrawerSubject.trim() || !messageDrawerBody.trim()) {
-      setMessageDrawerError("Subject and message are required");
+    if (
+      !meet?.id ||
+      !messageDrawerSubject.trim() ||
+      !messageDrawerBody.trim()
+    ) {
+      setMessageDrawerError("Subject, message and meet ID are required");
       return;
     }
     const ids = messageDrawerSelectedAttendees.map((attendee) => attendee.id);
@@ -619,6 +648,49 @@ export function ManageAttendeesModal({
       setMessageDrawerOpen(false);
     } catch (err: any) {
       setMessageDrawerError(err?.message || "Failed to send message");
+    }
+  };
+
+  const handleDownloadAttendees = async () => {
+    if (!meetId || isDownloadingReport) return;
+    setIsDownloadingReport(true);
+    try {
+      const token =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("accessToken")
+          : null;
+      const res = await fetch(`${api.baseUrl}/meets/${meetId}/report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          sendEmail: false,
+          downloadReport: true,
+          isFinalReport: false,
+        }),
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || "Failed to download attendees");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${meet?.name || "meet"}-report.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || "Failed to download attendees", {
+        variant: "error",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+    } finally {
+      setIsDownloadingReport(false);
     }
   };
 
@@ -733,6 +805,7 @@ export function ManageAttendeesModal({
                   onPaid={handleAttendeePaid}
                   hasAmount={Boolean(meet?.costCents)}
                   hasDeposit={Boolean(meet?.depositCents)}
+                  canManageMeet={isOrganizer}
                 />
               )}
             </Stack>
@@ -775,6 +848,7 @@ export function ManageAttendeesModal({
             onGuestIncrement={() => handleGuestCountChange(1)}
             onGuestDecrement={() => handleGuestCountChange(-1)}
             onInvite={handleInviteMessage}
+            canManageMeet={isOrganizer}
           />
         </Box>
         <Divider />
@@ -789,10 +863,35 @@ export function ManageAttendeesModal({
         )}
         <Divider />
         <Box sx={{ display: "flex", justifyContent: "center" }}>
-          {isOrganizerSelected ? (
-            detailView === "messages" ? (
+          <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+            {isOrganizerSelected ? (
+              detailView === "messages" ? (
+                <Button
+                  variant="outlined"
+                  disabled={!isOrganizer}
+                  onClick={() =>
+                    openMessageModal({
+                      attendeeIds: selectedAttendee
+                        ? [selectedAttendee.id]
+                        : undefined,
+                    })
+                  }
+                >
+                  Message {attendeeLabel(selectedAttendee)}
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowEditMetaDialog(true)}
+                  disabled={!isOrganizer}
+                >
+                  Edit responses
+                </Button>
+              )
+            ) : (
               <Button
                 variant="outlined"
+                disabled={!selectedAttendee || !isOrganizer}
                 onClick={() =>
                   openMessageModal({
                     attendeeIds: selectedAttendee
@@ -803,29 +902,8 @@ export function ManageAttendeesModal({
               >
                 Message {attendeeLabel(selectedAttendee)}
               </Button>
-            ) : (
-              <Button
-                variant="outlined"
-                onClick={() => setShowEditMetaDialog(true)}
-              >
-                Edit responses
-              </Button>
-            )
-          ) : (
-            <Button
-              variant="outlined"
-              disabled={!selectedAttendee}
-              onClick={() =>
-                openMessageModal({
-                  attendeeIds: selectedAttendee
-                    ? [selectedAttendee.id]
-                    : undefined,
-                })
-              }
-            >
-              Message {attendeeLabel(selectedAttendee)}
-            </Button>
-          )}
+            )}
+          </LockedTooltipWrapper>
         </Box>
       </Stack>
     );
@@ -882,6 +960,7 @@ export function ManageAttendeesModal({
                   onPaid={handleAttendeePaid}
                   hasAmount={Boolean(meet?.costCents)}
                   hasDeposit={Boolean(meet?.depositCents)}
+                  canManageMeet={isOrganizer}
                 />
               )}
             </Stack>
@@ -907,6 +986,7 @@ export function ManageAttendeesModal({
               onGuestIncrement={() => handleGuestCountChange(1)}
               onGuestDecrement={() => handleGuestCountChange(-1)}
               onInvite={handleInviteMessage}
+              canManageMeet={isOrganizer}
             />
           </Box>
         </Box>
@@ -939,14 +1019,17 @@ export function ManageAttendeesModal({
           <Box sx={{ display: "flex", justifyContent: "center", pt: 2 }}>
             {isOrganizerSelected ? (
               detailView === "messages" ? (
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    openMobileMessageDrawerForSelectedAttendee();
-                  }}
-                >
-                  Message {attendeeLabel(selectedAttendee)}
-                </Button>
+                <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+                  <Button
+                    variant="outlined"
+                    disabled={!isOrganizer}
+                    onClick={() => {
+                      openMobileMessageDrawerForSelectedAttendee();
+                    }}
+                  >
+                    Message {attendeeLabel(selectedAttendee)}
+                  </Button>
+                </LockedTooltipWrapper>
               ) : (
                 <Button
                   variant="outlined"
@@ -956,15 +1039,17 @@ export function ManageAttendeesModal({
                 </Button>
               )
             ) : (
-              <Button
-                variant="outlined"
-                disabled={!selectedAttendee}
-                onClick={() => {
-                  openMobileMessageDrawerForSelectedAttendee();
-                }}
-              >
-                Message {attendeeLabel(selectedAttendee)}
-              </Button>
+              <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+                <Button
+                  variant="outlined"
+                  disabled={!selectedAttendee || !isOrganizer}
+                  onClick={() => {
+                    openMobileMessageDrawerForSelectedAttendee();
+                  }}
+                >
+                  Message {attendeeLabel(selectedAttendee)}
+                </Button>
+              </LockedTooltipWrapper>
             )}
           </Box>
         </Box>
@@ -1000,19 +1085,22 @@ export function ManageAttendeesModal({
       >
         <span>Manage attendees</span>
         <Stack direction="row" spacing={0.5} alignItems="center">
+          {!isOrganizer ? <LockedMeet canUnlock={canManageMeet} /> : null}
           <Tooltip title="Download attendees">
-            <IconButton aria-label="Download attendees" size="small">
+            <IconButton
+              aria-label="Download attendees"
+              size="small"
+              onClick={handleDownloadAttendees}
+              disabled={!meetId || isDownloadingReport}
+            >
               <FileDownloadOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Upload attendees">
-            <IconButton aria-label="Upload attendees" size="small">
-              <FileUploadOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <AttendeeUploadButton meetId={meetId} disabled={!meetId} />
           <IconButton
             onClick={handleRequestClose}
             aria-label="Close attendees modal"
+            data-testid="close-attendees-modal"
           >
             <CloseIcon fontSize="small" />
           </IconButton>
@@ -1054,15 +1142,18 @@ export function ManageAttendeesModal({
                 borderColor: "divider",
               }}
             >
-              <Button
-                variant="outlined"
-                sx={{ flex: 1 }}
-                onClick={() => {
-                  openMobileMessageDrawerForAllAttendees();
-                }}
-              >
-                Send Message to All Attendees
-              </Button>
+              <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+                <Button
+                  variant="outlined"
+                  sx={{ flex: 1 }}
+                  disabled={!isOrganizer}
+                  onClick={() => {
+                    openMobileMessageDrawerForAllAttendees();
+                  }}
+                >
+                  Send Message to All Attendees
+                </Button>
+              </LockedTooltipWrapper>
               <Button
                 variant="contained"
                 sx={{ flexShrink: 0 }}
@@ -1226,9 +1317,9 @@ export function ManageAttendeesModal({
                   {messageDrawerHasUnnotified && !messageDrawerAutoResponse && (
                     <Stack spacing={1}>
                       <Alert severity="info">
-                        Manual messages do not notify attendees of their
-                        status. Use the *Auto* switch to send a status
-                        notification, or mark them as notified below.
+                        Manual messages do not notify attendees of their status.
+                        Use the *Auto* switch to send a status notification, or
+                        mark them as notified below.
                       </Alert>
                       <FormControlLabel
                         control={
@@ -1289,12 +1380,15 @@ export function ManageAttendeesModal({
       {!fullScreen && (
         <DialogActions>
           <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>
-            <Button
-              variant="outlined"
-              onClick={() => openMessageModal({ attendeeIds: undefined })}
-            >
-              Send Message to All Attendees
-            </Button>
+            <LockedTooltipWrapper isReadOnly={!isOrganizer}>
+              <Button
+                variant="outlined"
+                disabled={!isOrganizer}
+                onClick={() => openMessageModal({ attendeeIds: undefined })}
+              >
+                Send Message to All Attendees
+              </Button>
+            </LockedTooltipWrapper>
           </Box>
           <Button variant="contained" onClick={handleRequestClose}>
             Close

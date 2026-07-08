@@ -31,6 +31,7 @@ import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetStatusDto } from "./dto/update-meet-status.dto";
 import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
+import { CloneMeetDto } from "./dto/clone-meet.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Public } from "../auth/decorators/public.decorator";
 import { User } from "../auth/decorators/user.decorator";
@@ -40,6 +41,7 @@ import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { DatabaseService } from "../database/database.service";
 import * as ExcelJS from "exceljs";
+import { MEET_STATUS } from "./constants/meet-status.enum";
 
 @ApiTags("Meets")
 @Controller("meets")
@@ -58,7 +60,13 @@ export class MeetsController {
     name: "view",
     required: false,
     type: String,
-    description: "Filter view: upcoming, past, draft, all",
+    description: "Filter view: upcoming, past, draft, all, calendar",
+  })
+  @ApiQuery({
+    name: "scope",
+    required: false,
+    type: String,
+    description: "Optional membership scope: my or all",
   })
   @ApiQuery({
     name: "page",
@@ -71,7 +79,7 @@ export class MeetsController {
     name: "limit",
     required: false,
     type: Number,
-    description: "Page size (max 100)",
+    description: "Page size (max 200)",
     example: 20,
   })
   @ApiQuery({
@@ -81,16 +89,16 @@ export class MeetsController {
     description: "Restrict to a specific organization",
   })
   @ApiQuery({
-    name: "fromTime",
+    name: "startDate",
     required: false,
     type: String,
-    description: "Filter meets starting from this time (ISO format)",
+    description: "Filter meets from this date/time (ISO format)",
   })
   @ApiQuery({
-    name: "toTime",
+    name: "endDate",
     required: false,
     type: String,
-    description: "Filter meets up to this time (ISO format)",
+    description: "Filter meets up to this date/time (ISO format)",
   })
   @ApiQuery({
     name: "search",
@@ -100,11 +108,12 @@ export class MeetsController {
   })
   async findAll(
     @Query("view") view = "all",
+    @Query("scope") scope?: "all" | "my",
     @Query("page") page = "1",
     @Query("limit") limit = "20",
     @Query("organizationId") organizationId?: string,
-    @Query("fromTime") fromTime?: string,
-    @Query("toTime") toTime?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
     @Query("search") search?: string,
     @User() user?: UserProfile,
   ) {
@@ -120,7 +129,7 @@ export class MeetsController {
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.max(
       1,
-      Math.min(100, parseInt(limit as string, 10) || 20),
+      Math.min(200, parseInt(limit as string, 10) || 20),
     );
     const isOrganizer = this.authService.hasRole(
       user,
@@ -135,9 +144,10 @@ export class MeetsController {
       [organizationId],
       isOrganizer,
       user.id,
-      fromTime ? new Date(fromTime) : null,
-      toTime ? new Date(toTime) : null,
+      startDate ? new Date(startDate) : null,
+      endDate ? new Date(endDate) : null,
       search?.trim() || null,
+      scope ?? null,
     );
     return meets;
   }
@@ -215,9 +225,22 @@ export class MeetsController {
     @Body() dto: UpdateMeetAttendeeDto,
   ) {
     const meet = await this.meetsService.findOne(code);
-    return this.meetsService.updateAttendee(meet.id, attendeeId, dto, {
-      resetCancelledToPending: true,
-    });
+    const updated = await this.meetsService.updateAttendee(
+      meet.id,
+      attendeeId,
+      dto,
+      {
+        resetCancelledToPending: true,
+      },
+    );
+    if (dto.status === "confirmed") {
+      const hasMissingFields = await this.meetsService.attendeeHasMissingFields(
+        meet.id,
+        attendeeId,
+      );
+      return { ...updated, hasMissingFields };
+    }
+    return updated;
   }
 
   @Post()
@@ -250,6 +273,29 @@ export class MeetsController {
     });
   }
 
+  @Post(":id/clone")
+  async clone(
+    @Param("id") id: string,
+    @Body() dto: CloneMeetDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        "Cannot clone a meet for an organization you do not belong to as an organizer",
+      );
+    }
+
+    return this.meetsService.clone(id, {
+      ...dto,
+      organizerId: user.id,
+    });
+  }
+
   @Patch(":id")
   async update(
     @Param("id") id: string,
@@ -261,11 +307,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     return this.meetsService.update(id, dto);
   }
@@ -284,10 +326,27 @@ export class MeetsController {
   ) {
     // Shortcut the entire process as worker API can do anything
     if (apiKey && apiKey === process.env.WORKER_API_KEY) {
+      const meet =
+        dto.notifyAttendees || dto.reconfirmAttendees
+          ? await this.meetsService.findOne(id)
+          : null;
+      if ((dto.notifyAttendees || dto.reconfirmAttendees) && !meet) {
+        throw new NotFoundException("Meet not found");
+      }
+      const attendeesToReconfirm = dto.reconfirmAttendees
+        ? await this.getAttendeesToReconfirm(meet!)
+        : [];
+
       const updated = await this.meetsService.updateStatus(id, dto.statusId);
-      if (dto.notifyAttendees && dto.statusId === 4) {
-        const meet = await this.meetsService.findOne(id);
-        await this.notifyAttendeesOfStatus(meet);
+      if (dto.reconfirmAttendees) {
+        await this.meetsService.resetConfirmedAttendeesToInvited(
+          id,
+          meet?.organizerId,
+        );
+        await this.notifyAttendeesToReconfirm(meet!, attendeesToReconfirm);
+      }
+      if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
+        await this.notifyAttendeesOfStatus(meet!);
       }
       return updated;
     }
@@ -298,17 +357,92 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const attendeesToReconfirm = dto.reconfirmAttendees
+      ? await this.getAttendeesToReconfirm(meet)
+      : [];
 
     const updated = await this.meetsService.updateStatus(id, dto.statusId);
-    if (dto.notifyAttendees && dto.statusId === 4) {
+    if (dto.reconfirmAttendees) {
+      await this.meetsService.resetConfirmedAttendeesToInvited(
+        id,
+        meet.organizerId,
+      );
+      await this.notifyAttendeesToReconfirm(meet, attendeesToReconfirm);
+    }
+    if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
       await this.notifyAttendeesOfStatus(meet);
     }
     return updated;
+  }
+
+  private async getAttendeesToReconfirm(meet: MeetDto) {
+    const { attendees } = await this.meetsService.listAttendees(meet.id);
+    return attendees.filter(
+      (attendee: any) =>
+        attendee.status === "confirmed" && attendee.userId !== meet.organizerId,
+    );
+  }
+
+  private async notifyAttendeesToReconfirm(meet: MeetDto, attendees: any[]) {
+    if (!attendees.length) return;
+    if (!process.env.MAIL_DOMAIN) {
+      throw new BadRequestException("Mail is not enabled");
+    }
+
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const notifiedIds: string[] = [];
+
+    await Promise.all(
+      attendees.map(async (attendee: any) => {
+        if (!attendee.email) return;
+
+        const statusUrl = meet.shareCode
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
+          : "";
+        const organizerName = meet.organizerName || "the organizer";
+        const organizerEmail = meet.organizerEmail || "";
+        const attendeeName =
+          attendee.name || attendee.email || attendee.phone || "there";
+
+        const { subject, text, html } = renderEmailTemplate("meet-reconfirm", {
+          meetName: meet.name,
+          attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
+          statusUrl,
+          organizerName,
+          organizerEmail,
+        });
+
+        await this.emailService.sendEmail({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        await this.emailService.saveMessage({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        notifiedIds.push(attendee.id);
+      }),
+    );
+
+    if (notifiedIds.length) {
+      await this.meetsService.updateAttendeesNotified(meet.id, notifiedIds);
+    }
   }
 
   private async notifyAttendeesOfStatus(meet: MeetDto) {
@@ -327,7 +461,11 @@ export class MeetsController {
         const status = attendee.status;
         let template: "meet-confirm" | "meet-reject" | "meet-waitlist" | null =
           null;
-        if (status === "confirmed" || status === "checked-in" || status === "attended") {
+        if (
+          status === "confirmed" ||
+          status === "checked-in" ||
+          status === "attended"
+        ) {
           template = "meet-confirm";
         } else if (status === "waitlisted") {
           template = "meet-waitlist";
@@ -390,11 +528,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot add an image to a meet for an organisation you do not belong to as an organizer",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     if (!file) {
       throw new BadRequestException("Image file is required");
@@ -412,12 +546,15 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot delete a meet for an organisation you do not belong to as an organizer",
+    this.assertCanModifyExistingMeet(user, meet, "delete");
+
+    if (meet.statusId === MEET_STATUS.Draft) {
+      return this.meetsService.remove(id);
+    } else {
+      throw new BadRequestException(
+        "Only meets in Draft status can be deleted",
       );
     }
-    return this.meetsService.remove(id);
   }
 
   @Post(":id/message")
@@ -454,11 +591,7 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You do not have permission to message attendees of this meet",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     // Sanity check
     if (!body.text && !body.html) {
@@ -608,14 +741,130 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You do not have permission to update attendee messages for this meet",
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     await this.meetsService.markAttendeeMessageRead(id, messageId);
     return { status: "ok" };
+  }
+
+  @Post(":id/attendees/upload")
+  @ApiOperation({ summary: "Upload attendees from an Excel sheet" })
+  @UseInterceptors(FileInterceptor("file"))
+  async uploadAttendees(
+    @Param("id") id: string,
+    @UploadedFile() file: any,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    if (!file) {
+      throw new BadRequestException("File is required");
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      throw new BadRequestException("No worksheet found in the uploaded file");
+    }
+
+    const headerRow = worksheet.getRow(1);
+    const headerMap = new Map<string, number>();
+    headerRow.eachCell((cell, colNumber) => {
+      const key = String(cell.text || cell.value || "")
+        .trim()
+        .toLowerCase();
+      if (key) headerMap.set(key, colNumber);
+    });
+
+    const nameCol = headerMap.get("name");
+    const emailCol = headerMap.get("email");
+    const phoneCol = headerMap.get("phone");
+    if (!nameCol || !emailCol || !phoneCol) {
+      throw new BadRequestException(
+        "Sheet must include columns: name, email, phone",
+      );
+    }
+
+    const metaDefinitions = await this.db
+      .getClient()("meet_meta_definitions")
+      .where({ meet_id: id })
+      .orderBy("position", "asc")
+      .select("id", "field_key", "label", "position");
+
+    const questionColumns = new Map<number, string>();
+    headerMap.forEach((col, key) => {
+      const match = key.match(/^q(\\d+)$/);
+      if (!match) return;
+      const index = Number(match[1]) - 1;
+      const definition = metaDefinitions[index];
+      if (definition) {
+        questionColumns.set(col, definition.id);
+      }
+    });
+
+    const getCellText = (row: any, col: number) => {
+      const cell = row.getCell(col);
+      const value = cell?.text ?? cell?.value ?? "";
+      return String(value).trim();
+    };
+
+    const attendees: Array<{
+      name: string;
+      email: string;
+      phone: string;
+      metaValues?: Array<{ definitionId: string; value: string }>;
+    }> = [];
+    const errors: string[] = [];
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const name = getCellText(row, nameCol);
+      const email = getCellText(row, emailCol);
+      const phone = getCellText(row, phoneCol);
+      if (!name && !email && !phone) return;
+      if (!name || !email || !phone) {
+        errors.push(
+          `Row ${rowNumber}: name, email, and phone are required for each attendee.`,
+        );
+        return;
+      }
+      const metaValues: Array<{ definitionId: string; value: string }> = [];
+      questionColumns.forEach((definitionId, col) => {
+        const value = getCellText(row, col);
+        if (value) {
+          metaValues.push({ definitionId, value });
+        }
+      });
+      attendees.push({
+        name,
+        email,
+        phone,
+        metaValues: metaValues.length ? metaValues : undefined,
+      });
+    });
+
+    if (errors.length) {
+      const preview = errors.slice(0, 5).join(" ");
+      throw new BadRequestException(
+        `Upload failed with ${errors.length} invalid row(s). ${preview}`,
+      );
+    }
+
+    if (!attendees.length) {
+      throw new BadRequestException("No valid attendee rows found to upload.");
+    }
+
+    const { created } = await this.meetsService.addInvitedAttendees(
+      id,
+      attendees,
+    );
+    return { created, skipped: 0 };
   }
 
   @Post(":id/report")
@@ -627,12 +876,14 @@ export class MeetsController {
     body?: {
       sendEmail?: boolean;
       downloadReport?: boolean;
+      isFinalReport?: boolean;
     },
     @Res({ passthrough: true }) res?: any,
   ) {
     if (!user) throw new UnauthorizedException();
     const sendEmail = body?.sendEmail ?? true;
     const downloadReport = body?.downloadReport ?? false;
+    const isFinalReport = body?.isFinalReport ?? true;
     if (!sendEmail && !downloadReport) {
       throw new BadRequestException("Select at least one delivery method");
     }
@@ -681,7 +932,10 @@ export class MeetsController {
         name: attendee.name ?? "",
         email: attendee.email ?? "",
         phone: attendee.phone ?? "",
-        status: attendee.status === "confirmed" ? "no-show" : attendee.status ?? "",
+        status:
+          isFinalReport && attendee.status === "confirmed"
+            ? "no-show"
+            : (attendee.status ?? ""),
         guests: attendee.guests ?? "",
         paidDepositAt: attendee.paidDepositAt ?? "",
         paidFullAt: attendee.paidFullAt ?? "",
@@ -724,5 +978,26 @@ export class MeetsController {
     }
 
     return { status: "sent", to: organizerEmail ?? undefined };
+  }
+
+  private assertCanModifyExistingMeet(
+    user: UserProfile,
+    meet: MeetDto,
+    action: "update" | "delete",
+  ) {
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        `Cannot ${action} a meet for an organization you do not belong to as an organizer`,
+      );
+    }
+
+    if (
+      !this.authService.hasRole(user, meet.organizationId!, "admin") &&
+      user.id !== meet.organizerId
+    ) {
+      throw new ForbiddenException(
+        `Cannot ${action} a meet you are not the organizer of`,
+      );
+    }
   }
 }

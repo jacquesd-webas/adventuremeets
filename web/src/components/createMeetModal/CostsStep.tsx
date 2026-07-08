@@ -3,12 +3,17 @@ import { CurrencySelect, getCurrencySymbol } from "./CurrencySelect";
 import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 
-export const CostsStep = ({ state, setState }: StepProps) => (
+export const CostsStep = ({
+  state,
+  setState,
+  disabled = false,
+}: StepProps) => (
   <Stack spacing={2}>
     <LabeledField label="Currency">
       <CurrencySelect
         value={state.currency}
         onChange={(value) => setState((prev) => ({ ...prev, currency: value }))}
+        disabled={disabled}
       />
     </LabeledField>
     <LabeledField label="Cost">
@@ -22,6 +27,7 @@ export const CostsStep = ({ state, setState }: StepProps) => (
           startAdornment: <InputAdornment position="start">{getCurrencySymbol(state.currency)}</InputAdornment>
         }}
         fullWidth
+        disabled={disabled}
       />
     </LabeledField>
     <LabeledField label="Deposit">
@@ -35,6 +41,7 @@ export const CostsStep = ({ state, setState }: StepProps) => (
           startAdornment: <InputAdornment position="start">{getCurrencySymbol(state.currency)}</InputAdornment>
         }}
         fullWidth
+        disabled={disabled}
       />
     </LabeledField>
   </Stack>

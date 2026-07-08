@@ -35,17 +35,23 @@ const apiBase = (
 ).replace(/\/$/, "");
 const workerApiKey = process.env.WORKER_API_KEY || "";
 
+function buildApiPath(path: string) {
+  if (!apiBase) return path;
+  const normalizedBase = apiBase.replace(/\/api\/v1$/i, "");
+  return `${normalizedBase}/api/v1${path}`;
+}
+
 async function updateStatusViaApi(ids: string[], statusId: number) {
   if (!apiBase || !workerApiKey) {
     console.error(
-      "API_BASE_URL or WORKER_API_KEY is not set; skipping status updates"
+      "API_BASE_URL or WORKER_API_KEY is not set; skipping status updates",
     );
     return 0;
   }
   let updated = 0;
   for (const id of ids) {
     try {
-      const res = await fetch(`${apiBase}/api/v1/meets/${id}/status`, {
+      const res = await fetch(buildApiPath(`/meets/${id}/status`), {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
@@ -56,7 +62,7 @@ async function updateStatusViaApi(ids: string[], statusId: number) {
       if (!res.ok) {
         const text = await res.text();
         console.error(
-          `Failed to update meet ${id} status: ${res.status} ${text}`
+          `Failed to update meet ${id} status: ${res.status} ${text}`,
         );
       } else {
         updated += 1;
@@ -103,37 +109,24 @@ async function closeWhenWaitlistFull(db: Knex) {
   return updateStatusViaApi(ids, STATUS.Closed);
 }
 
-async function archiveEndedMeets(db: Knex) {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 7);
-  const ids = await db("meets")
-    .whereNotNull("end_time")
-    .where("end_time", "<=", cutoff.toISOString())
-    .whereIn("status_id", [STATUS.Open, STATUS.Closed, STATUS.Published])
-    .pluck<string>("id");
-  return updateStatusViaApi(ids, STATUS.Completed);
-}
-
 export async function runMeetScheduler() {
   const db = createDb();
   try {
     const opened = await openScheduledMeets(db);
     const closed = await closeOpenMeets(db);
     const waitlistClosed = await closeWhenWaitlistFull(db);
-    const archived = await archiveEndedMeets(db);
 
-    console.log(
+    console.info(
       JSON.stringify(
         {
           opened,
           closed,
           waitlistClosed,
-          archived,
           timestamp: new Date().toISOString(),
         },
         null,
-        2
-      )
+        2,
+      ),
     );
   } finally {
     await db.destroy();

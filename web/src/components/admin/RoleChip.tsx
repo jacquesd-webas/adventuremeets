@@ -1,7 +1,9 @@
 import { Chip, useTheme } from "@mui/material";
+import { useFetchRoles } from "../../hooks/useFetchRoles";
 
 type RoleChipProps = {
   role?: string;
+  roleId?: number;
 };
 
 const roleColors: Record<string, string> = {
@@ -10,8 +12,15 @@ const roleColors: Record<string, string> = {
   member: "#1e88e5",
 };
 
-export function RoleChip({ role }: RoleChipProps) {
+export function RoleChip({ role, roleId }: RoleChipProps) {
   const theme = useTheme();
+  const { data: roles } = useFetchRoles();
+
+  if (!role && roleId && roles) {
+    const matchedRole = roles.find((r) => r.id === roleId);
+    role = matchedRole ? matchedRole.name : "member";
+  }
+
   const normalizedRole = role?.toLowerCase() || "member";
   const color = roleColors[normalizedRole] || roleColors.member;
   const isDark = theme.palette.mode === "dark";

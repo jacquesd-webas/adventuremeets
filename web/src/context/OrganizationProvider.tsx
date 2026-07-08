@@ -9,6 +9,9 @@ import {
   OrganizationContext,
   OrganizationContextValue,
 } from "./organizationContext";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
+import { useLocation } from "react-router-dom";
+import { isPublicRoutePath } from "../helpers/publicRoutes";
 
 type OrganizationProviderProps = {
   children: ReactNode;
@@ -18,6 +21,8 @@ const storageKey = "currentOrganizationId";
 
 export function OrganizationProvider({ children }: OrganizationProviderProps) {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
+  const isPublicRoute = isPublicRoutePath(location.pathname);
 
   const [currentOrganizationId, setCurrentOrganizationId] = useState<
     string | null
@@ -30,6 +35,11 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     if (!user?.organizations) return [];
     return Object.keys(user.organizations);
   }, [user]);
+
+  const canFetchOrganization = Boolean(user) && !isPublicRoute;
+  const { data: organization } = useFetchOrganization(
+    canFetchOrganization ? currentOrganizationId || undefined : undefined,
+  );
 
   // Set or clear current organization based on user's organizations
   useEffect(() => {
@@ -73,12 +83,14 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     () => ({
       organizationIds,
       currentOrganizationId,
+      currentOrganizationName: organization?.name || null,
       currentOrganizationRole,
       setCurrentOrganizationId,
     }),
     [
       organizationIds,
       currentOrganizationId,
+      organization?.name,
       currentOrganizationRole,
       setCurrentOrganizationId,
     ]

@@ -25,12 +25,14 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type MeetActionsMenuProps = {
   meetId: string;
   statusId?: number;
   isOrganizer?: boolean;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
   setSelectedMeetId: (meetId: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   previewLinkCode?: string;
@@ -42,6 +44,8 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
   switch (action) {
     case "create":
       return false;
+    case "clone":
+      return true;
     case "attendees":
       return (
         statusId === MeetStatusEnum.Open ||
@@ -105,7 +109,8 @@ const shouldShow = (action: MeetActionsEnum, statusId: number) => {
 export function MeetActionsMenu({
   meetId,
   statusId,
-  isOrganizer,
+  canViewMeet,
+  canManageMeet,
   setSelectedMeetId,
   setPendingAction,
   previewLinkCode,
@@ -116,6 +121,10 @@ export function MeetActionsMenu({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const nav = useNavigate();
+  const location = useLocation();
+
+  // Undefined or status should not happen, if it does just render nothing
+  if (!statusId) return null;
 
   const handleOpen = (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
@@ -142,6 +151,20 @@ export function MeetActionsMenu({
     handleClose();
   };
 
+  const handleNavigateToSignup = (
+    event: MouseEvent<HTMLElement>,
+    isPreview = false,
+  ) => {
+    event.stopPropagation();
+    if (previewLinkCode) {
+      const path = isPreview
+        ? `/meets/${previewLinkCode}?preview=true`
+        : `/meets/${previewLinkCode}`;
+      nav(path);
+    }
+    handleClose();
+  };
+
   const handleAction = (
     event: MouseEvent<HTMLElement>,
     action: MeetActionsEnum,
@@ -164,7 +187,7 @@ export function MeetActionsMenu({
     ) => void,
   ) => (
     <>
-      {!isOrganizer ? (
+      {!canViewMeet && !canManageMeet ? (
         <>
           {shouldShow(MeetActionsEnum.Details, statusId) && (
             <MenuItem
@@ -179,23 +202,7 @@ export function MeetActionsMenu({
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Apply, statusId) && (
-            <MenuItem
-              onClick={(event) =>
-                (onItemClick || handleAction)(
-                  event,
-                  MeetActionsEnum.Apply,
-                  () => {
-                    if (previewLinkCode) {
-                      window.open(
-                        `/meets/${previewLinkCode}`,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }
-                  },
-                )
-              }
-            >
+            <MenuItem onClick={(event) => handleNavigateToSignup(event, false)}>
               <ListItemIcon>
                 <HowToRegOutlinedIcon fontSize="small" />
               </ListItemIcon>
@@ -234,6 +241,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Open)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <LockOpenOutlinedIcon fontSize="small" />
@@ -246,23 +254,7 @@ export function MeetActionsMenu({
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Preview, statusId) && (
-            <MenuItem
-              onClick={(event) =>
-                (onItemClick || handleAction)(
-                  event,
-                  MeetActionsEnum.Preview,
-                  () => {
-                    if (previewLinkCode) {
-                      window.open(
-                        `/meets/${previewLinkCode}?preview=true`,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }
-                  },
-                )
-              }
-            >
+            <MenuItem onClick={(event) => handleNavigateToSignup(event, true)}>
               <ListItemIcon>
                 <OpenInNewOutlinedIcon fontSize="small" />
               </ListItemIcon>
@@ -275,6 +267,19 @@ export function MeetActionsMenu({
                 <ContentCopyOutlinedIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText>Copy link</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow(MeetActionsEnum.Clone, statusId) && (
+            <MenuItem
+              onClick={(event) =>
+                (onItemClick || handleAction)(event, MeetActionsEnum.Clone)
+              }
+              disabled={!canManageMeet}
+            >
+              <ListItemIcon>
+                <ContentCopyOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Create a copy</ListItemText>
             </MenuItem>
           )}
           {shouldShow(MeetActionsEnum.Edit, statusId) && (
@@ -294,10 +299,15 @@ export function MeetActionsMenu({
               onClick={(event) => {
                 event.stopPropagation();
                 if (meetId) {
-                  nav(`/meet/${meetId}/checkin`);
+                  nav(`/meet/${meetId}/checkin`, {
+                    state: {
+                      returnTo: `${location.pathname}${location.search}`,
+                    },
+                  });
                 }
                 handleClose();
               }}
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <FactCheckOutlinedIcon fontSize="small" />
@@ -310,6 +320,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Close)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <FactCheckOutlinedIcon fontSize="small" />
@@ -322,6 +333,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Postpone)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <PauseCircleOutlineIcon fontSize="small" />
@@ -334,6 +346,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Cancel)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <BlockOutlinedIcon fontSize="small" />
@@ -358,6 +371,7 @@ export function MeetActionsMenu({
               onClick={(event) =>
                 (onItemClick || handleAction)(event, MeetActionsEnum.Delete)
               }
+              disabled={!canManageMeet}
             >
               <ListItemIcon>
                 <DeleteOutlineIcon fontSize="small" />

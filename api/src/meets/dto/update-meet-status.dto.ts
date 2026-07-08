@@ -11,4 +11,9 @@ export class UpdateMeetStatusDto {
   @IsOptional()
   @IsBoolean()
   notifyAttendees?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  reconfirmAttendees?: boolean;
 }

@@ -107,7 +107,7 @@ describe("Meet signup edit", () => {
     cy.get('input[placeholder="Mobile phone number"]').type(randomPhone2);
     cy.contains("h6", "Dietary notes")
       .closest(".MuiStack-root")
-      .find("input[type=\"text\"]")
+      .find('input[type="text"]')
       .first()
       .type("No nuts");
 
@@ -134,13 +134,14 @@ describe("Meet signup edit", () => {
     cy.contains("button", "Show Status").click();
 
     cy.contains("button", "Edit Application").click();
-    cy.get('input[placeholder="Enter the email used for this application"]')
-      .type(`attendee.${unique}@example.com`);
+    cy.get(
+      'input[placeholder="Enter the email used for this application"]',
+    ).type(`attendee.${unique}@example.com`);
     cy.contains("button", "Continue").click();
 
     cy.contains("h6", "Dietary notes")
       .closest(".MuiStack-root")
-      .find("input[type=\"text\"]")
+      .find('input[type="text"]')
       .first()
       .clear()
       .type("No nuts please");
@@ -148,12 +149,13 @@ describe("Meet signup edit", () => {
 
     cy.contains("button", "Show Status").click();
     cy.contains("button", "Edit Application").click();
-    cy.get('input[placeholder="Enter the email used for this application"]')
-      .type(`attendee.${unique}@example.com`);
+    cy.get(
+      'input[placeholder="Enter the email used for this application"]',
+    ).type(`attendee.${unique}@example.com`);
     cy.contains("button", "Continue").click();
     cy.contains("h6", "Dietary notes")
       .closest(".MuiStack-root")
-      .find("input[type=\"text\"]")
+      .find('input[type="text"]')
       .first()
       .should("have.value", "No nuts please");
   });
