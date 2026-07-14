@@ -8,7 +8,9 @@ export type EmailTemplateName =
   | "meet-reject"
   | "meet-waitlist"
   | "meet-message"
-  | "organization-invite";
+  | "organization-invite"
+  | "organiser-reminder-responses-needed"
+  | "organizer-reminder-checkin-needed";
 
 export type PasswordResetTemplateVars = {
   resetUrl: string;
@@ -65,6 +67,21 @@ export type OrganizationInviteTemplateVars = {
   organizationName: string;
   registerUrl?: string;
   expiresAt?: string;
+  logoUrl?: string;
+};
+
+export type OrganiserReminderResponsesNeededTemplateVars = {
+  meetName: string;
+  organizerName?: string;
+  meetUrl?: string;
+  responseCount: number;
+  logoUrl?: string;
+};
+
+export type OrganizerReminderCheckinNeededTemplateVars = {
+  meetName: string;
+  organizerName?: string;
+  checkinUrl?: string;
   logoUrl?: string;
 };
 

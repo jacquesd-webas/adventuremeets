@@ -10,6 +10,7 @@ import {
 const buildBuilder = () => {
   const builder: any = {};
   builder.select = jest.fn().mockReturnValue(builder);
+  builder.distinctOn = jest.fn().mockReturnValue(builder);
   builder.count = jest.fn().mockReturnValue(builder);
   builder.groupBy = jest.fn().mockReturnValue(builder);
   builder.as = jest.fn().mockReturnValue(builder);
@@ -170,6 +171,52 @@ describe("MeetsService", () => {
         url: "https://cdn.example.com/meet.jpg",
         isPrimary: true,
         aspect: "W",
+      }),
+    ]);
+  });
+
+  it("classifies attendee thread messages as sent or received using the attendee email", async () => {
+    const messagesBuilder = buildBuilder();
+    messagesBuilder.select.mockResolvedValue([
+      {
+        message_id: "message-1",
+        timestamp: "2026-06-19T10:00:00.000Z",
+        from: "noreply@adventuremeets.apps.fringecoding.com",
+        to: "Alex <alex@example.com>",
+        is_read: true,
+        content: "Subject: Update\n\nSee you there",
+        attendee_email: "alex@example.com",
+      },
+      {
+        message_id: "message-2",
+        timestamp: "2026-06-19T11:00:00.000Z",
+        from: "Alex <alex@example.com>",
+        to: "organizer@example.com",
+        is_read: false,
+        content: "Subject: Re: Update\n\nThanks",
+        attendee_email: "alex@example.com",
+      },
+    ]);
+
+    const client: any = (table: string) => {
+      if (table === "messages as m") return messagesBuilder;
+      return buildBuilder();
+    };
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    const result = await service.listAttendeeMessages("meet-1", "attendee-1");
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "message-1",
+        direction: "sent",
+      }),
+      expect.objectContaining({
+        id: "message-2",
+        direction: "received",
       }),
     ]);
   });
@@ -450,6 +497,12 @@ describe("MeetsService", () => {
 
   it("uses overlap filtering for calendar view and excludes drafts", async () => {
     const meetsBuilder = buildBuilder();
+    meetsBuilder.modify.mockImplementation(
+      (callback: (builder: any) => void) => {
+        callback(meetsBuilder);
+        return meetsBuilder;
+      },
+    );
     meetsBuilder.limit.mockReturnValue(meetsBuilder);
     meetsBuilder.offset.mockResolvedValue([]);
 
@@ -540,6 +593,63 @@ describe("MeetsService", () => {
     expect(totalBuilder.where).toHaveBeenCalledWith("status_id", "!=", 1);
     expect(meetsBuilder.where).not.toHaveBeenCalledWith("m.is_hidden", false);
     expect(totalBuilder.where).not.toHaveBeenCalledWith("is_hidden", false);
+  });
+
+  it('deduplicates "my" attendee meets when a user has both adult and minor attendee rows', async () => {
+    const organizationsBuilder = buildBuilder();
+    organizationsBuilder.select.mockResolvedValue([]);
+
+    const myAttendeeStatusBuilder = buildBuilder();
+    myAttendeeStatusBuilder.as.mockReturnValue(myAttendeeStatusBuilder);
+
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.modify.mockImplementation(
+      (callback: (builder: any) => void) => {
+        callback(meetsBuilder);
+        return meetsBuilder;
+      },
+    );
+    meetsBuilder.limit.mockReturnValue(meetsBuilder);
+    meetsBuilder.offset.mockResolvedValue([]);
+
+    const totalBuilder = buildBuilder();
+    totalBuilder.count.mockReturnValue(totalBuilder);
+    totalBuilder.then = (resolve: (value: { count: string }[]) => void) =>
+      resolve([{ count: "0" }]);
+
+    const attendeeCountsBuilder = buildBuilder();
+
+    const client: any = (table: string) => {
+      if (table === "organizations") return organizationsBuilder;
+      if (table === "meet_attendees as ua") return myAttendeeStatusBuilder;
+      if (table === "meet_attendees") return attendeeCountsBuilder;
+      if (table === "meets as m") return meetsBuilder;
+      if (table === "meets") return totalBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn((sql: string) => sql);
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await service.findAll("my", 1, 20, ["org-1"], false, "user-1");
+
+    expect(myAttendeeStatusBuilder.distinctOn).toHaveBeenCalledWith(
+      "ua.meet_id",
+    );
+    expect(myAttendeeStatusBuilder.where).toHaveBeenCalledWith(
+      "ua.user_id",
+      "user-1",
+    );
+    expect(myAttendeeStatusBuilder.orderByRaw).toHaveBeenCalledWith(
+      "case when coalesce(ua.is_minor, false) then 1 else 0 end asc",
+    );
+    expect(meetsBuilder.leftJoin).toHaveBeenCalledWith(
+      myAttendeeStatusBuilder,
+      "ua.meet_id",
+      "m.id",
+    );
   });
 
   it("rejects duplicate adult attendee inserts with a conflict error", async () => {

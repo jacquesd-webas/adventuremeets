@@ -1,0 +1,11 @@
+Hi {{organizerName}},
+
+{{messageBody}}
+
+{{#ifMeetUrl}}
+Open meet:
+{{meetUrl}}
+{{/ifMeetUrl}}
+
+Best regards,
+{{fromName}}

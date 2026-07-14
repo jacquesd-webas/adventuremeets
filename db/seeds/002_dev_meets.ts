@@ -105,6 +105,7 @@ export async function seed(knex: Knex): Promise<void> {
       cost_cents: 2000,
       deposit_cents: 1000,
       status_id: 3, // Open
+      auto_placement: false,
       allow_guests: true,
       max_guests: 2,
       is_virtual: false,
@@ -165,7 +166,7 @@ export async function seed(knex: Knex): Promise<void> {
       capacity: meet.capacity,
       waitlist_size: meet.waitlist_size,
       status_id: meet.status_id,
-      auto_placement: true,
+      auto_placement: meet.auto_placement ?? true,
       auto_promote_waitlist: true,
       allow_guests: meet.allow_guests ?? false,
       max_guests: meet.max_guests ?? null,
@@ -218,6 +219,43 @@ export async function seed(knex: Knex): Promise<void> {
       });
     });
   });
+
+  const campingMeetId = meetByName.get("Camping Meet");
+  if (campingMeetId) {
+    [
+      {
+        name: "Mia Lantern",
+        email: "mia.lantern@example.com",
+        phone: "+1-555-0111",
+      },
+      {
+        name: "Noah Timber",
+        email: "noah.timber@example.com",
+        phone: "+1-555-0112",
+      },
+      {
+        name: "Zoe Ember",
+        email: "zoe.ember@example.com",
+        phone: "+1-555-0113",
+      },
+    ].forEach((user, sequence) => {
+      attendeeRows.push({
+        meet_id: campingMeetId,
+        user_id: null,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        guests: 0,
+        indemnity_accepted: true,
+        indemnity_minors: "No minors",
+        status: "pending",
+        sequence,
+        responded_at: null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+    });
+  }
 
   if (attendeeRows.length) {
     await knex("meet_attendees").insert(attendeeRows);

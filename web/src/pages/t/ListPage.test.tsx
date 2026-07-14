@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import ListPage from "../ListPage";
 
@@ -41,6 +42,13 @@ vi.mock("../../hooks/useFetchMeets", () => ({
   useFetchMeets: () => ({
     data: [mockMeet],
     total: 1,
+    isLoading: false,
+  }),
+}));
+
+vi.mock("../../hooks/useFetchMeet", () => ({
+  useFetchMeet: () => ({
+    data: null,
     isLoading: false,
   }),
 }));
@@ -101,7 +109,11 @@ describe("ListPage", () => {
   it("passes isOrganizer to the actions dialogs for the selected organizer-owned meet", async () => {
     const user = userEvent.setup();
 
-    render(<ListPage />);
+    render(
+      <MemoryRouter>
+        <ListPage />
+      </MemoryRouter>,
+    );
 
     await user.click(screen.getByRole("button", { name: "Select meet" }));
 

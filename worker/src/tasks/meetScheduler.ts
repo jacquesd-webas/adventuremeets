@@ -75,24 +75,38 @@ async function updateStatusViaApi(ids: string[], statusId: number) {
 }
 
 async function openScheduledMeets(db: Knex) {
-  const ids = await db("meets")
+  const rows = await db("meets")
     .where({ status_id: STATUS.Published })
     .whereNotNull("opening_date")
     .where("opening_date", "<=", db.fn.now())
-    .pluck<string>("id");
-  return updateStatusViaApi(ids, STATUS.Open);
+    .select("id", "name");
+
+  for (const { id, name } of rows) {
+    console.info(`Opening meet: ${id} (${name})`);
+    updateStatusViaApi([id], STATUS.Open).catch((err) => {
+      console.error(`Error opening meet ${id} (${name})`, err);
+    });
+  }
+  return rows.length;
 }
 
 async function closeOpenMeets(db: Knex) {
-  const ids = await db("meets")
+  const rows = (await db("meets")
     .where({ status_id: STATUS.Open })
     .where((queryBuilder) => {
       queryBuilder
         .where("closing_date", "<=", db.fn.now())
         .orWhere("start_time", "<=", db.fn.now());
     })
-    .pluck<string>("id");
-  return updateStatusViaApi(ids, STATUS.Closed);
+    .select("id", "name")) as { id: string; name: string }[];
+
+  rows.forEach(({ id, name }) => {
+    console.info(`Closing meet: ${id} (${name})`);
+    updateStatusViaApi([id], STATUS.Closed).catch((err) => {
+      console.error(`Error closing meet ${id} (${name})`, err);
+    });
+  });
+  return rows.length;
 }
 
 async function closeWhenWaitlistFull(db: Knex) {
@@ -111,7 +125,7 @@ async function closeWhenWaitlistFull(db: Knex) {
     .groupBy("meet_id")
     .as("ma");
 
-  const ids = await db("meets as m")
+  const rows = await db("meets as m")
     .leftJoin(attendeeCountsSubquery, "m.id", "ma.meet_id")
     .where("m.status_id", STATUS.Open)
     .where("m.capacity", ">", 0)
@@ -119,8 +133,16 @@ async function closeWhenWaitlistFull(db: Knex) {
     .whereRaw(
       "coalesce(ma.confirmed_count, 0) + coalesce(ma.waitlist_count, 0) >= m.capacity + m.waitlist_size",
     )
-    .pluck<string>("m.id");
-  return updateStatusViaApi(ids, STATUS.Closed);
+    .select("m.id", "m.name");
+
+  rows.forEach(({ id, name }) => {
+    console.info(`Closing meet due to full waitlist: ${id} (${name})`);
+    updateStatusViaApi([id], STATUS.Closed).catch((err) => {
+      console.error(`Error closing meet ${id} (${name})`, err);
+    });
+  });
+
+  return rows.length;
 }
 
 export async function runMeetScheduler() {
@@ -130,18 +152,13 @@ export async function runMeetScheduler() {
     const closed = await closeOpenMeets(db);
     const waitlistClosed = await closeWhenWaitlistFull(db);
 
-    console.info(
-      JSON.stringify(
-        {
-          opened,
-          closed,
-          waitlistClosed,
-          timestamp: new Date().toISOString(),
-        },
-        null,
-        2,
-      ),
-    );
+    if (opened === 0 && closed === 0 && waitlistClosed === 0) {
+      console.info("Heartbeat: no meets opened or closed");
+    } else {
+      console.info(
+        `Meets opened: ${opened}, closed: ${closed}, waitlist closed: ${waitlistClosed}`,
+      );
+    }
   } finally {
     await db.destroy();
   }

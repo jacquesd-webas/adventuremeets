@@ -33,6 +33,23 @@ export class MeetsService {
     private readonly minio: MinioService,
   ) {}
 
+  private buildMyAttendeeStatusSubquery(userId: string) {
+    return this.db
+      .getClient()("meet_attendees as ua")
+      .distinctOn("ua.meet_id")
+      .select("ua.meet_id")
+      .select(this.db.getClient().raw("ua.status as my_attendee_status"))
+      .where("ua.user_id", userId)
+      .orderBy("ua.meet_id", "asc")
+      .orderByRaw(
+        "case when coalesce(ua.is_minor, false) then 1 else 0 end asc",
+      )
+      .orderBy("ua.updated_at", "desc")
+      .orderBy("ua.created_at", "desc")
+      .orderBy("ua.id", "desc")
+      .as("ua");
+  }
+
   private buildAttendeeIdentityKey(attendee: {
     name?: string | null;
     email?: string | null;
@@ -146,18 +163,16 @@ export class MeetsService {
       .groupBy("meet_id")
       .as("ma");
 
+    const myAttendeeStatus = userId
+      ? this.buildMyAttendeeStatusSubquery(userId)
+      : null;
+
     const query = this.db
       .getClient()("meets as m")
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
       .modify((builder) => {
-        if (!userId) return;
-        builder.leftJoin("meet_attendees as ua", function () {
-          this.on("ua.meet_id", "=", "m.id").andOn(
-            "ua.user_id",
-            "=",
-            builder.client.raw("?", [userId]),
-          );
-        });
+        if (!myAttendeeStatus) return;
+        builder.leftJoin(myAttendeeStatus, "ua.meet_id", "m.id");
       })
       .select(
         "m.*",
@@ -179,7 +194,7 @@ export class MeetsService {
           .getClient()
           .raw("coalesce(ma.checked_in_count, 0) as checked_in_count"),
         userId
-          ? this.db.getClient().raw("ua.status as my_attendee_status")
+          ? this.db.getClient().raw("ua.my_attendee_status")
           : this.db.getClient().raw("null as my_attendee_status"),
       );
 
@@ -334,6 +349,9 @@ export class MeetsService {
       )
       .groupBy("meet_id")
       .as("ma");
+    const myAttendeeStatus = userId
+      ? this.buildMyAttendeeStatusSubquery(userId)
+      : null;
     let query = this.db
       .getClient()("meets as m")
       .leftJoin("users as u", "u.id", "m.organizer_id")
@@ -341,14 +359,8 @@ export class MeetsService {
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
       .leftJoin("currencies as c", "c.id", "m.currency_id")
       .modify((builder) => {
-        if (!userId) return;
-        builder.leftJoin("meet_attendees as ua", function () {
-          this.on("ua.meet_id", "=", "m.id").andOn(
-            "ua.user_id",
-            "=",
-            builder.client.raw("?", [userId]),
-          );
-        });
+        if (!myAttendeeStatus) return;
+        builder.leftJoin(myAttendeeStatus, "ua.meet_id", "m.id");
       })
       .select(
         "m.*",
@@ -380,7 +392,7 @@ export class MeetsService {
         "o.custom_field1_helper_text",
         "o.custom_field2_helper_text",
         userId
-          ? this.db.getClient().raw("ua.status as my_attendee_status")
+          ? this.db.getClient().raw("ua.my_attendee_status")
           : this.db.getClient().raw("null as my_attendee_status"),
       );
 
@@ -2429,6 +2441,7 @@ export class MeetsService {
     const rows = await this.db
       .getClient()("messages as m")
       .join("message_contents as mc", "mc.id", "m.message_content_id")
+      .join("meet_attendees as ma", "ma.id", "m.attendee_id")
       .where("m.meet_id", meetId)
       .andWhere("m.attendee_id", attendeeId)
       .orderBy("m.timestamp", "desc")
@@ -2439,6 +2452,7 @@ export class MeetsService {
         "m.to",
         "m.is_read",
         "mc.content",
+        "ma.email as attendee_email",
       );
     return rows.map((row: any) => ({
       id: row.message_id,
@@ -2447,7 +2461,41 @@ export class MeetsService {
       to: row.to,
       isRead: row.is_read ?? false,
       content: row.content,
+      direction: this.getAttendeeMessageDirection(
+        row.from,
+        row.to,
+        row.attendee_email,
+      ),
     }));
+  }
+
+  private getAttendeeMessageDirection(
+    from: string | null | undefined,
+    to: string | null | undefined,
+    attendeeEmail: string | null | undefined,
+  ): "received" | "sent" {
+    const normalizedAttendeeEmail = attendeeEmail?.trim().toLowerCase();
+    if (!normalizedAttendeeEmail) return "sent";
+
+    const fromEmails = this.extractEmailAddresses(from);
+    if (fromEmails.includes(normalizedAttendeeEmail)) {
+      return "received";
+    }
+
+    const toEmails = this.extractEmailAddresses(to);
+    if (toEmails.includes(normalizedAttendeeEmail)) {
+      return "sent";
+    }
+
+    return "sent";
+  }
+
+  private extractEmailAddresses(value: string | null | undefined) {
+    if (!value) return [];
+
+    const matches =
+      value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [];
+    return matches.map((email) => email.trim().toLowerCase());
   }
 
   async listAttendeeHistory(meetId: string, attendeeId: string) {

@@ -9,6 +9,7 @@ import MeetSignupSheet from "./pages/MeetSignupSheet";
 import MeetCheckinPage from "./pages/MeetCheckinPage";
 import MeetSelfCheckinPage from "./pages/MeetSelfCheckinPage";
 import AttendeeStatusPage from "./pages/AttendeeStatusPage";
+import MeetAttendeesPage from "./pages/MeetAttendeesPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SplashPage from "./pages/SplashPage";
@@ -35,6 +36,7 @@ function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/plan" element={withPageLoader(<ListPage />)} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/meet/:id/attendees" element={<MeetAttendeesPage />} />
           <Route
             path="/admin/organizations"
             element={withPageLoader(<OrganisationsPage />)}

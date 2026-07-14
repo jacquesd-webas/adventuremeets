@@ -199,4 +199,65 @@ describe("renderEmailTemplate", () => {
       '<img src="https://app.example.com/static/adventuremeets-logo.png"',
     );
   });
+
+  it("renders organiser response reminders with the shared branded template and meet button", () => {
+    const result = renderEmailTemplate(
+      "organiser-reminder-responses-needed",
+      {
+        meetName: 'River <Escape> & "Climb"',
+        organizerName: "Taylor & Co",
+        meetUrl: "https://app.example.com/meets/share-123",
+        responseCount: 3,
+      },
+    );
+
+    expect(result.subject).toBe(
+      'Reminder: responses needed for River <Escape> & "Climb"',
+    );
+    expect(result.text).toContain("Hi Taylor &amp; Co,");
+    expect(result.text).toContain(
+      "3 attendees have applied to your meet and are awaiting your response!",
+    );
+    expect(result.text).toContain(
+      "Open meet:\nhttps://app.example.com/meets/share-123",
+    );
+    expect(result.html).toContain(
+      '<img src="https://app.example.com/static/adventuremeets-logo.png"',
+    );
+    expect(result.html).toContain("Taylor &amp; Co");
+    expect(result.html).toContain(
+      "3 attendees have applied to your meet and are awaiting your response!",
+    );
+    expect(result.html).toContain(
+      'href="https://app.example.com/meets/share-123"',
+    );
+    expect(result.html).toContain(">Open meet<");
+  });
+
+  it("renders organiser check-in reminders with the shared branded template and check-in button", () => {
+    const result = renderEmailTemplate("organizer-reminder-checkin-needed", {
+      meetName: "River Camp",
+      organizerName: "Taylor & Co",
+      checkinUrl: "https://app.example.com/meet/meet-1/checkin",
+    });
+
+    expect(result.subject).toBe(
+      "Reminder: check in attendees for River Camp",
+    );
+    expect(result.text).toContain("Hi Taylor &amp; Co,");
+    expect(result.text).toContain(
+      "No attendees have been checked in for your meet yet. Open check-in to start recording arrivals.",
+    );
+    expect(result.text).toContain(
+      "Open check-in:\nhttps://app.example.com/meet/meet-1/checkin",
+    );
+    expect(result.html).toContain("Taylor &amp; Co");
+    expect(result.html).toContain(
+      "No attendees have been checked in for your meet yet. Open check-in to start recording arrivals.",
+    );
+    expect(result.html).toContain(
+      'href="https://app.example.com/meet/meet-1/checkin"',
+    );
+    expect(result.html).toContain(">Open check-in<");
+  });
 });

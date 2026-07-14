@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const buildMockDb = (pluckResults: string[][]) => {
+const buildMockDb = (
+  selectResults: Array<Array<{ id: string; name: string }>>,
+) => {
   const builder: any = {
     where: vi.fn().mockReturnThis(),
     orWhere: vi.fn().mockReturnThis(),
@@ -8,11 +10,20 @@ const buildMockDb = (pluckResults: string[][]) => {
     whereIn: vi.fn().mockReturnThis(),
     whereRaw: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
+    select: vi.fn().mockImplementation((...args: string[]) => {
+      const isTerminalMeetSelect =
+        (args[0] === "id" && args[1] === "name") ||
+        (args[0] === "m.id" && args[1] === "m.name");
+
+      if (isTerminalMeetSelect) {
+        return Promise.resolve(selectResults.shift() || []);
+      }
+
+      return builder;
+    }),
     count: vi.fn().mockReturnThis(),
     groupBy: vi.fn().mockReturnThis(),
     as: vi.fn().mockReturnThis(),
-    pluck: vi.fn().mockImplementation(async () => pluckResults.shift() || []),
   };
 
   const db: any = vi.fn(() => builder);
@@ -43,8 +54,11 @@ describe("runMeetScheduler", () => {
 
   it("runs all scheduler steps and calls status updates", async () => {
     vi.resetModules();
-    const pluckResults = [["m1"], ["m2"], ["m3"]];
-    const { db } = buildMockDb(pluckResults);
+    const { db } = buildMockDb([
+      [{ id: "m1", name: "Open Soon" }],
+      [{ id: "m2", name: "Already Started" }],
+      [{ id: "m3", name: "Packed Meet" }],
+    ]);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
 
@@ -68,7 +82,11 @@ describe("runMeetScheduler", () => {
   it("does not duplicate the api version prefix when API_BASE_URL already includes /api/v1", async () => {
     vi.resetModules();
     process.env.API_BASE_URL = "http://api.test/api/v1";
-    const { db } = buildMockDb([["m1"], [], []]);
+    const { db } = buildMockDb([
+      [{ id: "m1", name: "Open Soon" }],
+      [],
+      [],
+    ]);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
 
@@ -91,7 +109,11 @@ describe("runMeetScheduler", () => {
     vi.resetModules();
     process.env.API_BASE_URL = "";
     process.env.WORKER_API_KEY = "";
-    const { db } = buildMockDb([["m1"], ["m2"], ["m3"]]);
+    const { db } = buildMockDb([
+      [{ id: "m1", name: "Open Soon" }],
+      [{ id: "m2", name: "Already Started" }],
+      [{ id: "m3", name: "Packed Meet" }],
+    ]);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
 
@@ -107,7 +129,11 @@ describe("runMeetScheduler", () => {
 
   it("closes meets only when confirmed plus waitlisted attendees fill capacity and waitlist", async () => {
     vi.resetModules();
-    const { db, builder } = buildMockDb([[], [], ["m3"]]);
+    const { db, builder } = buildMockDb([
+      [],
+      [],
+      [{ id: "m3", name: "Packed Meet" }],
+    ]);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
 
@@ -132,7 +158,11 @@ describe("runMeetScheduler", () => {
 
   it("closes open meets when either the closing date or start date has passed", async () => {
     vi.resetModules();
-    const { db, builder } = buildMockDb([[], ["m2"], []]);
+    const { db, builder } = buildMockDb([
+      [],
+      [{ id: "m2", name: "Already Started" }],
+      [],
+    ]);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
 

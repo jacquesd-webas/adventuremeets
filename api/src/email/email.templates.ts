@@ -1,4 +1,3 @@
-import e from "express";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -15,6 +14,8 @@ import {
   MeetStatusTemplateVars,
   MeetMessageTemplateVars,
   OrganizationInviteTemplateVars,
+  OrganiserReminderResponsesNeededTemplateVars,
+  OrganizerReminderCheckinNeededTemplateVars,
 } from "./email.types";
 import {
   escapeHtml,
@@ -220,6 +221,16 @@ export function renderEmailTemplate(
   vars: OrganizationInviteTemplateVars,
 ): { subject: string; text: string; html: string };
 
+export function renderEmailTemplate(
+  name: "organiser-reminder-responses-needed",
+  vars: OrganiserReminderResponsesNeededTemplateVars,
+): { subject: string; text: string; html: string };
+
+export function renderEmailTemplate(
+  name: "organizer-reminder-checkin-needed",
+  vars: OrganizerReminderCheckinNeededTemplateVars,
+): { subject: string; text: string; html: string };
+
 // Main function implementation
 
 export function renderEmailTemplate(
@@ -230,7 +241,9 @@ export function renderEmailTemplate(
     | VerifyEmailTemplateVars
     | MeetStatusTemplateVars
     | MeetMessageTemplateVars
-    | OrganizationInviteTemplateVars,
+    | OrganizationInviteTemplateVars
+    | OrganiserReminderResponsesNeededTemplateVars
+    | OrganizerReminderCheckinNeededTemplateVars,
 ) {
   if (name === "password-reset") {
     const resetVars = vars as PasswordResetTemplateVars | undefined;
@@ -537,6 +550,90 @@ export function renderEmailTemplate(
       flags,
     );
     return { subject, text, html: wrapHtml(htmlBody, inviteVars.logoUrl) };
+  }
+
+  if (name === "organiser-reminder-responses-needed") {
+    const reminderVars =
+      vars as OrganiserReminderResponsesNeededTemplateVars | undefined;
+    if (!reminderVars?.meetName || reminderVars.responseCount == null) {
+      throw new Error(
+        "Missing meetName or responseCount for organiser-reminder-responses-needed template",
+      );
+    }
+
+    const responseCount = Number(reminderVars.responseCount);
+    const messageBody =
+      responseCount === 1
+        ? "1 attendee has applied to your meet and is awaiting your response!"
+        : `${responseCount} attendees have applied to your meet and are awaiting your response!`;
+    const subject = `Reminder: responses needed for ${reminderVars.meetName}`;
+    const varsMap = escapeAllHtml({
+      ...baseVarsMap,
+      meetName: reminderVars.meetName,
+      organizerName: reminderVars.organizerName || "organiser",
+      meetUrl: reminderVars.meetUrl || "",
+      messageBody,
+    });
+    const flags = {
+      ifMeetUrl: Boolean(reminderVars.meetUrl),
+    };
+    const text = renderTemplate(
+      "organiser-reminder-responses-needed",
+      "txt",
+      varsMap,
+      flags,
+    );
+    const htmlBody = renderTemplate(
+      "organiser-reminder-responses-needed",
+      "html",
+      varsMap,
+      flags,
+    );
+    return {
+      subject,
+      text,
+      html: wrapHtml(htmlBody, reminderVars.logoUrl),
+    };
+  }
+
+  if (name === "organizer-reminder-checkin-needed") {
+    const reminderVars =
+      vars as OrganizerReminderCheckinNeededTemplateVars | undefined;
+    if (!reminderVars?.meetName) {
+      throw new Error(
+        "Missing meetName for organizer-reminder-checkin-needed template",
+      );
+    }
+
+    const subject = `Reminder: check in attendees for ${reminderVars.meetName}`;
+    const varsMap = escapeAllHtml({
+      ...baseVarsMap,
+      meetName: reminderVars.meetName,
+      organizerName: reminderVars.organizerName || "organiser",
+      checkinUrl: reminderVars.checkinUrl || "",
+      messageBody:
+        "No attendees have been checked in for your meet yet. Open check-in to start recording arrivals.",
+    });
+    const flags = {
+      ifCheckinUrl: Boolean(reminderVars.checkinUrl),
+    };
+    const text = renderTemplate(
+      "organizer-reminder-checkin-needed",
+      "txt",
+      varsMap,
+      flags,
+    );
+    const htmlBody = renderTemplate(
+      "organizer-reminder-checkin-needed",
+      "html",
+      varsMap,
+      flags,
+    );
+    return {
+      subject,
+      text,
+      html: wrapHtml(htmlBody, reminderVars.logoUrl),
+    };
   }
 }
 

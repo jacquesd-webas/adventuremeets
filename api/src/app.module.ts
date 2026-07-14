@@ -10,6 +10,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { EmailModule } from './email/email.module';
 import { TypesModule } from './types/types.module';
 import { AuditLogModule } from './audit/audit-log.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuditLogModule } from './audit/audit-log.module';
     EmailModule,
     TypesModule,
     AuditLogModule,
+    NotificationsModule,
   ],
   controllers: [],
   providers: [

@@ -21,6 +21,46 @@ describe("EmailService.parseMessageContent", () => {
     expect(parsed.pertinentBody).toBe("Hello team,\n\nThanks,\nAlex");
     expect(parsed.body).toContain("On Tue, Jan 1, 2025");
   });
+
+  it("extracts and decodes the plain-text part from multipart quoted-printable emails", () => {
+    const raw =
+      "Subject: Re: Test\r\n" +
+      'Content-Type: multipart/alternative; boundary="Apple-Mail=_19E10742-C83D-429C-8710-EAF852B8D951"\r\n' +
+      "\r\n" +
+      "--Apple-Mail=_19E10742-C83D-429C-8710-EAF852B8D951\r\n" +
+      "Content-Transfer-Encoding: quoted-printable\r\n" +
+      "Content-Type: text/plain;\r\n" +
+      "charset=utf-8\r\n" +
+      "\r\n" +
+      "This is a test reply\r\n" +
+      "--Apple-Mail=_19E10742-C83D-429C-8710-EAF852B8D951--";
+
+    const parsed = service.parseMessageContent(raw);
+
+    expect(parsed.subject).toBe("Re: Test");
+    expect(parsed.body).toBe("This is a test reply");
+    expect(parsed.pertinentBody).toBe("This is a test reply");
+  });
+
+  it("decodes emoji in MIME-encoded subjects and quoted-printable bodies", () => {
+    const raw =
+      "Subject: =?UTF-8?Q?Test_=F0=9F=98=80?=\r\n" +
+      'Content-Type: multipart/alternative; boundary="emoji-boundary"\r\n' +
+      "\r\n" +
+      "--emoji-boundary\r\n" +
+      "Content-Transfer-Encoding: quoted-printable\r\n" +
+      "Content-Type: text/plain;\r\n" +
+      "charset=utf-8\r\n" +
+      "\r\n" +
+      "Hello =F0=9F=98=80\r\n" +
+      "--emoji-boundary--";
+
+    const parsed = service.parseMessageContent(raw);
+
+    expect(parsed.subject).toBe("Test 😀");
+    expect(parsed.body).toBe("Hello 😀");
+    expect(parsed.pertinentBody).toBe("Hello 😀");
+  });
 });
 
 describe("EmailService.saveMessage", () => {

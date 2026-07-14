@@ -1,0 +1,24 @@
+<p style="margin: 0 0 16px 0">Hi {{organizerName}},</p>
+<p style="margin: 0 0 16px 0">{{messageBody}}</p>
+{{#ifCheckinUrl}}
+<p style="margin: 0 0 16px 0; text-align: center">
+  <a
+    href="{{checkinUrl}}"
+    style="display:inline-block;background:{{primaryColor}};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;"
+    >Open check-in</a
+  >
+</p>
+<p style="margin: 0 0 16px 0; font-size: 13px; color: #475569">
+  If the button doesn't work, copy and paste this link into your browser:
+</p>
+<p
+  style="
+    word-break: break-all;
+    font-size: 13px;
+    color: #475569;
+    margin: 0;
+  "
+>
+  {{checkinUrl}}
+</p>
+{{/ifCheckinUrl}}

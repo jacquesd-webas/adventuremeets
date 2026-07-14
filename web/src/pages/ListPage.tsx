@@ -9,13 +9,14 @@ import {
 } from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { Heading } from "../components/Heading";
 import { MeetStatus } from "../components/meet/MeetStatus";
 import { MeetActionsMenu } from "../components/meet/MeetActionsMenu";
 import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { MeetFilterButtonGroup } from "../components/meet/MeetFilterButtonGroup";
 import { useFetchMeets } from "../hooks/useFetchMeets";
+import { useFetchMeet } from "../hooks/useFetchMeet";
 import { defaultPendingAction } from "../helpers/defaultPendingAction";
 import { MeetActionsEnum } from "../types/MeetActionsEnum";
 import { useCurrentOrganization } from "../context/organizationContext";
@@ -33,6 +34,7 @@ function ListPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down(820));
   const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<MeetActionsEnum | null>(
     null,
@@ -62,6 +64,12 @@ function ListPage() {
     organizationId: currentOrganizationId,
     search: debouncedSearch.trim() || undefined,
   });
+  const {
+    data: selectedMeetFromRoute,
+  } = useFetchMeet(
+    selectedMeetId,
+    Boolean(selectedMeetId && pendingAction === MeetActionsEnum.Attendees),
+  );
 
   const columns = useMemo<GridColDef[]>(
     () => [
@@ -192,6 +200,23 @@ function ListPage() {
     }
   }, [isMobile]);
 
+  useEffect(() => {
+    const action = searchParams.get("action");
+    const meetId = searchParams.get("meetId");
+
+    if (action !== MeetActionsEnum.Attendees || !meetId) {
+      return;
+    }
+
+    setSelectedMeetId(meetId);
+    setPendingAction(MeetActionsEnum.Attendees);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("action");
+    nextParams.delete("meetId");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const handleNewMeet = useCallback(() => {
     if (!canManageMeets) return;
     setPendingAction(MeetActionsEnum.Create);
@@ -232,7 +257,8 @@ function ListPage() {
       };
     }
 
-    const selectedMeet = meets.find((meet) => meet.id === selectedMeetId);
+    const selectedMeet =
+      meets.find((meet) => meet.id === selectedMeetId) || selectedMeetFromRoute;
     if (!selectedMeet) {
       return {
         isOrganizerForMeet: false,
@@ -246,7 +272,14 @@ function ListPage() {
       currentOrganizationRole,
       organizerId: selectedMeet.organizerId,
     });
-  }, [currentOrganizationRole, meets, pendingAction, selectedMeetId, user?.id]);
+  }, [
+    currentOrganizationRole,
+    meets,
+    pendingAction,
+    selectedMeetFromRoute,
+    selectedMeetId,
+    user?.id,
+  ]);
 
   return (
     <Stack spacing={2}>
