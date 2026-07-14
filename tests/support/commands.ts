@@ -16,6 +16,9 @@ type CreateMinimalMeetOptions = {
   meetName: string;
   description?: string;
   start?: Date | string;
+  capacity?: number;
+  waitlistSize?: number;
+  autoApprove?: boolean;
   requireIndemnity?: boolean;
   includeQuestions?: boolean;
   questions?: CreateMinimalMeetQuestion[];
@@ -159,6 +162,31 @@ Cypress.Commands.add(
       cy.get(`input[aria-label="${label}"]`).check({ force: true });
     });
     cy.contains("button", "Save & Continue").click();
+
+    if (
+      options.capacity !== undefined ||
+      options.waitlistSize !== undefined ||
+      options.autoApprove
+    ) {
+      cy.contains("Limits").click();
+    }
+    if (options.capacity !== undefined) {
+      cy.get('input[placeholder="Maximum participants"]')
+        .clear()
+        .type(String(options.capacity));
+    }
+    if (options.waitlistSize !== undefined) {
+      cy.get('input[placeholder="How many on the waitlist?"]')
+        .clear()
+        .type(String(options.waitlistSize));
+    }
+    if (options.autoApprove) {
+      cy.get(
+        'input[aria-label="Automatically approve applications"]',
+      ).check({
+        force: true,
+      });
+    }
 
     if (options.allowGuests) {
       cy.get('input[aria-label="Allow attendees to bring guests"]').check({
