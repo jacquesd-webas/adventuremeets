@@ -19,9 +19,7 @@ describe("IncomingMailController", () => {
       select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhereRaw:
-        table === "meetAttendees"
-          ? jest.fn().mockReturnThis()
-          : undefined,
+        table === "meetAttendees" ? jest.fn().mockReturnThis() : undefined,
       first: firstMocks[table],
     };
     return builder;
@@ -172,7 +170,7 @@ describe("IncomingMailController", () => {
     );
     expect(emailService.sendEmail).toHaveBeenCalledWith({
       to: "organizer@example.com",
-      subject: "You received a message from Alex Rider about meet Sunrise Hike",
+      subject: "Message for meet: Sunrise Hike",
       text:
         "You received a message from Alex Rider about meet Sunrise Hike.\n\n" +
         "From: sender@example.com\n" +
@@ -231,8 +229,7 @@ describe("IncomingMailController", () => {
 
     expect(emailService.sendEmail).toHaveBeenCalledWith({
       to: "organizer@example.com",
-      subject:
-        "You received a message from unknown@example.com about meet Sunrise Hike",
+      subject: "Message for meet: Sunrise Hike",
       text:
         "You received a message from unknown@example.com about meet Sunrise Hike.\n\n" +
         "From: unknown@example.com\n" +
