@@ -134,6 +134,16 @@ describe("ManageAttendeesModal", () => {
 
   beforeEach(() => {
     setMatchMedia(false);
+    vi.stubGlobal("fetch", vi.fn());
+    (fetch as any).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({
+        created: 0,
+        skipped: 0,
+        conflicts: [],
+      }),
+    });
     vi.useRealTimers();
     updateMeetAttendeeAsync.mockReset();
     notifyAttendeeAsync.mockReset();
@@ -161,6 +171,7 @@ describe("ManageAttendeesModal", () => {
   afterEach(() => {
     vi.clearAllTimers();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("shows attendees and updates status", async () => {
@@ -417,6 +428,183 @@ describe("ManageAttendeesModal", () => {
       expect(
         screen.getByRole("button", { name: "Upload attendees" }),
       ).not.toHaveAttribute("aria-disabled");
+    });
+  });
+
+  it("shows upload conflicts returned by the attendee upload endpoint", async () => {
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({
+        created: 1,
+        skipped: 0,
+        conflicts: [
+          {
+            rowNumber: 4,
+            email: "alex@example.com",
+            uploadedName: "Alex Rider",
+            conflictingNames: ["Alex"],
+            existingAttendeeId: "a1",
+            attendee: {
+              rowNumber: 4,
+              name: "Alex Rider",
+              email: "alex@example.com",
+              phone: "+27123456789",
+            },
+          },
+        ],
+      }),
+    });
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({
+        replaced: 1,
+        addedAsMinor: 0,
+        ignored: 0,
+      }),
+    });
+
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
+      </QueryClientProvider>,
+    );
+
+    const uploadButton = screen.getByRole("button", {
+      name: "Upload attendees",
+    });
+    const fileInput = uploadButton.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement | null;
+
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput!, {
+      target: {
+        files: [
+          new File(["sheet"], "attendees.xlsx", {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          }),
+        ],
+      },
+    });
+
+    expect(
+      await screen.findByText("Conflicting attendee rows"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Row 4")).toBeInTheDocument();
+    expect(screen.getByText("Email: alex@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Imported name: Alex Rider")).toBeInTheDocument();
+    expect(screen.getByText("Existing name: Alex")).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("combobox", { name: "Action" }),
+    ).toHaveTextContent("Ignore");
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Action" }));
+    fireEvent.click(screen.getByRole("option", { name: "Replace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply actions" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    const resolveCall = (fetch as any).mock.calls[1];
+    expect(resolveCall[0]).toContain(
+      "/api/v1/meets/m1/attendees/upload-conflicts/resolve",
+    );
+    expect(JSON.parse(resolveCall[1].body)).toEqual({
+      resolutions: [
+        {
+          action: "replace",
+          existingAttendeeId: "a1",
+          attendee: {
+            rowNumber: 4,
+            name: "Alex Rider",
+            email: "alex@example.com",
+            phone: "+27123456789",
+          },
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Conflicting attendee rows"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows an upload error dialog when attendee upload fails", async () => {
+    (fetch as any).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: vi
+        .fn()
+        .mockResolvedValue(
+          "Upload failed with 1 invalid row(s). Row 2: name, email, and phone are required for each attendee.",
+        ),
+    });
+
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManageAttendeesModal
+          open
+          onClose={onClose}
+          meetId="m1"
+          isOrganizer
+          canManageMeet
+        />
+      </QueryClientProvider>,
+    );
+
+    const uploadButton = screen.getByRole("button", {
+      name: "Upload attendees",
+    });
+    const fileInput = uploadButton.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement | null;
+
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput!, {
+      target: {
+        files: [
+          new File(["sheet"], "attendees.xlsx", {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          }),
+        ],
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "The uploaded document does not have the required fields and could not be imported. The headings must be exact and can also contain the questions. Please download the existing list as a sample to see what headings should be.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Note: Leaving the status column blank will default to "invited". Any invalid status is ignored and any change to existing status is also ignored.',
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText(
+          "The uploaded document does not have the required fields and could not be imported. The headings must be exact and can also contain the questions. Please download the existing list as a sample to see what headings should be.",
+        ),
+      ).not.toBeInTheDocument();
     });
   });
 });

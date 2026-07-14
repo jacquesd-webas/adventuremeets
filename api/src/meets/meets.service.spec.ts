@@ -857,13 +857,15 @@ describe("MeetsService", () => {
     ).resolves.toBe(true);
   });
 
-  it("skips duplicate invited attendees by name, email, and phone", async () => {
+  it("skips exact email-name duplicates and returns email conflicts with different names", async () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.select.mockResolvedValue([
       {
+        id: "attendee-existing-1",
         name: "Existing Person",
         email: "existing@example.com",
         phone: "+27110000000",
+        is_minor: false,
       },
     ]);
     attendeeBuilder.first.mockResolvedValue({ max: 4 });
@@ -885,24 +887,43 @@ describe("MeetsService", () => {
     await expect(
       service.addInvitedAttendees("meet-1", [
         {
+          rowNumber: 2,
           name: "Existing Person",
           email: "EXISTING@example.com",
           phone: "+27110000000",
         },
         {
+          rowNumber: 3,
           name: "New Person",
           email: "new@example.com",
           phone: "+27220000000",
         },
         {
-          name: " new person ",
-          email: "NEW@example.com",
-          phone: "+27220000000",
+          rowNumber: 4,
+          name: "Different Person",
+          email: "EXISTING@example.com",
+          phone: "+27330000000",
         },
       ]),
     ).resolves.toEqual({
       created: 1,
-      skipped: 2,
+      skipped: 1,
+      conflicts: [
+        {
+          rowNumber: 4,
+          email: "EXISTING@example.com",
+          uploadedName: "Different Person",
+          conflictingNames: ["Existing Person"],
+          existingAttendeeId: "attendee-existing-1",
+          attendee: {
+            rowNumber: 4,
+            name: "Different Person",
+            email: "EXISTING@example.com",
+            phone: "+27330000000",
+            metaValues: undefined,
+          },
+        },
+      ],
     });
 
     expect(attendeeBuilder.insert).toHaveBeenCalledTimes(1);
@@ -918,6 +939,107 @@ describe("MeetsService", () => {
       ["id"],
     );
     expect(metaValuesBuilder.insert).not.toHaveBeenCalled();
+  });
+
+  it("resolves uploaded attendee conflicts by replacing or adding a minor", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first
+      .mockResolvedValueOnce({ max: 7 })
+      .mockResolvedValueOnce({
+        id: "attendee-existing-1",
+        name: "Existing Person",
+        status: "invited",
+      })
+      .mockResolvedValueOnce({
+        id: "attendee-existing-2",
+        name: "Alex Adult",
+        status: "invited",
+      });
+    attendeeBuilder.insert.mockResolvedValue([{ id: "attendee-new-minor" }]);
+    attendeeBuilder.update.mockResolvedValue([{ id: "attendee-existing-1" }]);
+
+    const metaValuesBuilder = buildBuilder();
+    metaValuesBuilder.insert.mockResolvedValue(undefined);
+    metaValuesBuilder.del.mockResolvedValue(undefined);
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_meta_values") return metaValuesBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await expect(
+      service.resolveInvitedAttendeeUploadConflicts("meet-1", [
+        {
+          action: "replace",
+          existingAttendeeId: "attendee-existing-1",
+          attendee: {
+            name: "Updated Person",
+            email: "updated@example.com",
+            phone: "+27111111111",
+            metaValues: [{ definitionId: "meta-1", value: "Strong" }],
+          },
+        },
+        {
+          action: "add_as_minor",
+          existingAttendeeId: "attendee-existing-2",
+          attendee: {
+            name: "Alex Child",
+            email: "alex@example.com",
+            phone: "+27222222222",
+            metaValues: [{ definitionId: "meta-2", value: "Vegetarian" }],
+          },
+        },
+      ]),
+    ).resolves.toEqual({
+      replaced: 1,
+      addedAsMinor: 1,
+      ignored: 0,
+    });
+
+    expect(attendeeBuilder.update).toHaveBeenCalledWith({
+      name: "Updated Person",
+      phone: "+27111111111",
+      email: "updated@example.com",
+      is_minor: false,
+      guardian_name: null,
+      updated_at: expect.any(String),
+    });
+    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meet_id: "meet-1",
+        name: "Alex Child",
+        email: "alex@example.com",
+        phone: "+27222222222",
+        status: "invited",
+        sequence: 8,
+        is_minor: true,
+        guardian_name: "Alex Adult",
+      }),
+      ["id"],
+    );
+    expect(metaValuesBuilder.del).toHaveBeenCalled();
+    expect(metaValuesBuilder.insert).toHaveBeenNthCalledWith(1, [
+      {
+        meet_id: "meet-1",
+        attendee_id: "attendee-existing-1",
+        meta_definition_id: "meta-1",
+        value: "Strong",
+      },
+    ]);
+    expect(metaValuesBuilder.insert).toHaveBeenNthCalledWith(2, [
+      {
+        meet_id: "meet-1",
+        attendee_id: "attendee-new-minor",
+        meta_definition_id: "meta-2",
+        value: "Vegetarian",
+      },
+    ]);
   });
 
   it("matches attendees by name and sorts unchecked matches before checked-in ones", async () => {

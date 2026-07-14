@@ -7,56 +7,74 @@ import { useApi } from "../../hooks/useApi";
 type AttendeeUploadButtonProps = {
   meetId?: string | null;
   disabled?: boolean;
+  onUploadSuccess?: (data: AttendeeUploadResponse) => void;
+  onUploadError?: () => void;
 };
 
-type UploadResponse = {
+export type AttendeeUploadConflict = {
+  rowNumber?: number;
+  email: string;
+  uploadedName: string;
+  conflictingNames: string[];
+  existingAttendeeId: string;
+  attendee: {
+    name: string;
+    email: string;
+    phone: string;
+    rowNumber?: number;
+    metaValues?: Array<{ definitionId: string; value: string }>;
+  };
+};
+
+export type AttendeeUploadResponse = {
   created: number;
   skipped?: number;
+  conflicts?: AttendeeUploadConflict[];
 };
+
+export type AttendeeUploadConflictAction =
+  | "ignore"
+  | "replace"
+  | "add_as_minor";
 
 export function AttendeeUploadButton({
   meetId,
   disabled = false,
+  onUploadSuccess,
+  onUploadError,
 }: AttendeeUploadButtonProps) {
   const api = useApi();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
 
-  const mutation = useMutation<UploadResponse, Error, File>({
+  const mutation = useMutation<AttendeeUploadResponse, Error, File>({
     mutationFn: async (file) => {
       if (!meetId) {
         throw new Error("Meet is required for uploads");
       }
       const formData = new FormData();
       formData.append("file", file);
-      const token =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem("accessToken")
-          : null;
-      const res = await fetch(
-        `${api.baseUrl}/meets/${meetId}/attendees/upload`,
-        {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          body: formData,
-        }
+      return api.postForm<AttendeeUploadResponse>(
+        `/meets/${meetId}/attendees/upload`,
+        formData,
       );
-      if (!res.ok) {
-        const message = await res.text();
-        throw new Error(message || "Failed to upload attendees");
-      }
-      return (await res.json()) as UploadResponse;
     },
     onSuccess: (data) => {
       const created = data?.created ?? 0;
       const skipped = data?.skipped ?? 0;
-      const message = skipped
-        ? `Uploaded ${created} attendee(s). Skipped ${skipped} row(s).`
-        : `Uploaded ${created} attendee(s).`;
-      enqueueSnackbar(message, {
-        variant: "success",
+      const conflictCount = data?.conflicts?.length ?? 0;
+      const messageParts = [`Uploaded ${created} attendee(s).`];
+      if (skipped) {
+        messageParts.push(`Skipped ${skipped} row(s).`);
+      }
+      if (conflictCount) {
+        messageParts.push(`${conflictCount} conflicted row(s) need review.`);
+      }
+      enqueueSnackbar(messageParts.join(" "), {
+        variant: conflictCount ? "warning" : "success",
         anchorOrigin: { vertical: "bottom", horizontal: "right" },
       });
+      onUploadSuccess?.(data);
       if (meetId) {
         queryClient.invalidateQueries({
           queryKey: ["meet-attendees", meetId],
@@ -64,11 +82,8 @@ export function AttendeeUploadButton({
         });
       }
     },
-    onError: (error) => {
-      enqueueSnackbar(error.message || "Failed to upload attendees", {
-        variant: "error",
-        anchorOrigin: { vertical: "bottom", horizontal: "right" },
-      });
+    onError: () => {
+      onUploadError?.();
     },
   });
 

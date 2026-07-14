@@ -90,6 +90,7 @@ describe("MeetsController", () => {
     listImages: jest.fn(),
     addImage: jest.fn(),
     addInvitedAttendees: jest.fn(),
+    resolveInvitedAttendeeUploadConflicts: jest.fn(),
     updateImage: jest.fn(),
     removeImage: jest.fn(),
     updateStatus: jest.fn(),
@@ -238,11 +239,7 @@ describe("MeetsController", () => {
     [
       "updateImage",
       () =>
-        controller.updateImage(
-          "meet-1",
-          "image-1",
-          { isPrimary: true } as any,
-        ),
+        controller.updateImage("meet-1", "image-1", { isPrimary: true } as any),
     ],
     ["removeImage", () => controller.removeImage("meet-1", "image-1")],
     ["remove", () => controller.remove("meet-1")],
@@ -267,11 +264,10 @@ describe("MeetsController", () => {
     [
       "createReport",
       () =>
-        controller.createReport(
-          "meet-1",
-          undefined,
-          { sendEmail: true, downloadReport: false },
-        ),
+        controller.createReport("meet-1", undefined, {
+          sendEmail: true,
+          downloadReport: false,
+        }),
     ],
   ])("rejects unauthenticated %s access", async (_name, action) => {
     await expect(action()).rejects.toBeInstanceOf(UnauthorizedException);
@@ -1362,6 +1358,7 @@ describe("MeetsController", () => {
         name: "Alex",
         email: "alex@example.com",
         phone: "+27123456789",
+        rowNumber: 2,
         metaValues: [
           { definitionId: "meta-3", value: "Sam 0821234567" },
           { definitionId: "meta-1", value: "Strong" },
@@ -1432,12 +1429,96 @@ describe("MeetsController", () => {
         name: "Jamie",
         email: "jamie@example.com",
         phone: "+27129876543",
+        rowNumber: 2,
         metaValues: [
           { definitionId: "meta-1", value: "Easy" },
           { definitionId: "meta-2", value: "Vegan" },
         ],
       },
     ]);
+  });
+
+  it("resolves uploaded attendee conflicts", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (
+      meetsService.resolveInvitedAttendeeUploadConflicts as jest.Mock
+    ).mockResolvedValue({
+      replaced: 1,
+      addedAsMinor: 1,
+      ignored: 0,
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.resolveUploadedAttendeeConflicts(
+        "meet-1",
+        {
+          resolutions: [
+            {
+              action: "replace",
+              existingAttendeeId: "attendee-1",
+              attendee: {
+                name: "Alex Rider",
+                email: "alex@example.com",
+                phone: "+27123456789",
+                rowNumber: 4,
+                metaValues: [{ definitionId: "meta-1", value: "Strong" }],
+              },
+            },
+            {
+              action: "add_as_minor",
+              existingAttendeeId: "attendee-2",
+              attendee: {
+                name: "Sam Rider",
+                email: "alex@example.com",
+                phone: "+27123456789",
+                rowNumber: 5,
+              },
+            },
+          ],
+        },
+        user,
+      ),
+    ).resolves.toEqual({
+      replaced: 1,
+      addedAsMinor: 1,
+      ignored: 0,
+    });
+
+    expect(
+      meetsService.resolveInvitedAttendeeUploadConflicts,
+    ).toHaveBeenCalledWith("meet-1", [
+      {
+        action: "replace",
+        existingAttendeeId: "attendee-1",
+        attendee: {
+          name: "Alex Rider",
+          email: "alex@example.com",
+          phone: "+27123456789",
+          rowNumber: 4,
+          metaValues: [{ definitionId: "meta-1", value: "Strong" }],
+        },
+      },
+      {
+        action: "add_as_minor",
+        existingAttendeeId: "attendee-2",
+        attendee: {
+          name: "Sam Rider",
+          email: "alex@example.com",
+          phone: "+27123456789",
+          rowNumber: 5,
+          metaValues: undefined,
+        },
+      },
+    ]);
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: null,
+      meetId: "meet-1",
+      action: "resolved uploaded attendee conflicts for",
+      target: "meet Sunrise Hike",
+    });
   });
 
   it("marks a message as read and writes an audit log", async () => {

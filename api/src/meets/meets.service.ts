@@ -26,6 +26,29 @@ import { MEET_STATUS } from "./constants/meet-status.enum";
 import { type WallItemReaction } from "./dto/update-wall-item-reaction.dto";
 import { WallItemDto } from "./dto/wall-item.dto";
 
+type InvitedAttendeeUploadInput = {
+  name: string;
+  email: string;
+  phone: string;
+  rowNumber?: number;
+  metaValues?: Array<{ definitionId: string; value: string }>;
+};
+
+type InvitedAttendeeUploadConflict = {
+  rowNumber?: number;
+  email: string;
+  uploadedName: string;
+  conflictingNames: string[];
+  existingAttendeeId: string;
+  attendee: InvitedAttendeeUploadInput;
+};
+
+type InvitedAttendeeUploadConflictResolution = {
+  action: "replace" | "add_as_minor";
+  existingAttendeeId: string;
+  attendee: InvitedAttendeeUploadInput;
+};
+
 @Injectable()
 export class MeetsService {
   constructor(
@@ -50,15 +73,27 @@ export class MeetsService {
       .as("ua");
   }
 
-  private buildAttendeeIdentityKey(attendee: {
+  private normalizeAttendeeName(name?: string | null) {
+    return name?.trim().toLowerCase() ?? "";
+  }
+
+  private normalizeAttendeeEmail(email?: string | null) {
+    return email?.trim().toLowerCase() ?? "";
+  }
+
+  private buildAttendeeEmailNameKey(attendee: {
     name?: string | null;
     email?: string | null;
-    phone?: string | null;
   }) {
-    const name = attendee.name?.trim().toLowerCase() ?? "";
-    const email = attendee.email?.trim().toLowerCase() ?? "";
-    const phone = attendee.phone?.trim() ?? "";
-    return `${name}::${email}::${phone}`;
+    const name = this.normalizeAttendeeName(attendee.name);
+    const email = this.normalizeAttendeeEmail(attendee.email);
+    return `${email}::${name}`;
+  }
+
+  private pickPreferredConflictTarget(
+    attendees: Array<{ id: string; is_minor?: boolean | null }>,
+  ) {
+    return attendees.find((attendee) => !attendee.is_minor) ?? attendees[0];
   }
 
   private isAttendeeDuplicateError(error: any) {
@@ -1252,23 +1287,49 @@ export class MeetsService {
 
   async addInvitedAttendees(
     meetId: string,
-    attendees: Array<{
-      name: string;
-      email: string;
-      phone: string;
-      metaValues?: Array<{ definitionId: string; value: string }>;
-    }>,
+    attendees: InvitedAttendeeUploadInput[],
   ) {
-    if (!attendees.length) return { created: 0, skipped: 0 };
+    if (!attendees.length) return { created: 0, skipped: 0, conflicts: [] };
     return this.db.getClient().transaction(async (trx) => {
       const existingAttendees = await trx("meet_attendees")
         .where({ meet_id: meetId })
-        .select("name", "email", "phone");
-      const seenIdentityKeys = new Set(
+        .select("id", "name", "email", "phone", "is_minor");
+
+      const seenEmailNameKeys = new Set(
         existingAttendees.map((attendee: any) =>
-          this.buildAttendeeIdentityKey(attendee),
+          this.buildAttendeeEmailNameKey(attendee),
         ),
       );
+      const seenNamesByEmail = new Map<string, Set<string>>();
+      const displayNamesByEmail = new Map<string, Set<string>>();
+      const existingAttendeesByEmail = new Map<string, any[]>();
+      const trackKnownAttendee = (attendee: {
+        name?: string | null;
+        email?: string | null;
+      }) => {
+        const emailKey = this.normalizeAttendeeEmail(attendee.email);
+        const nameKey = this.normalizeAttendeeName(attendee.name);
+        const displayName = attendee.name?.trim();
+        if (!emailKey || !nameKey) return;
+
+        const knownNames = seenNamesByEmail.get(emailKey) ?? new Set<string>();
+        knownNames.add(nameKey);
+        seenNamesByEmail.set(emailKey, knownNames);
+
+        if (displayName) {
+          const displayNames =
+            displayNamesByEmail.get(emailKey) ?? new Set<string>();
+          displayNames.add(displayName);
+          displayNamesByEmail.set(emailKey, displayNames);
+        }
+      };
+      existingAttendees.forEach((attendee: any) => {
+        trackKnownAttendee(attendee);
+        const emailKey = this.normalizeAttendeeEmail(attendee.email);
+        const rows = existingAttendeesByEmail.get(emailKey) ?? [];
+        rows.push(attendee);
+        existingAttendeesByEmail.set(emailKey, rows);
+      });
       const sequenceRow = await trx("meet_attendees")
         .where({ meet_id: meetId })
         .max("sequence as max")
@@ -1286,13 +1347,53 @@ export class MeetsService {
       }> = [];
       let created = 0;
       let skipped = 0;
+      const conflicts: InvitedAttendeeUploadConflict[] = [];
       for (const attendee of attendees) {
-        const identityKey = this.buildAttendeeIdentityKey(attendee);
-        if (seenIdentityKeys.has(identityKey)) {
+        const emailKey = this.normalizeAttendeeEmail(attendee.email);
+        const nameKey = this.normalizeAttendeeName(attendee.name);
+        const emailNameKey = this.buildAttendeeEmailNameKey(attendee);
+        const knownNames = seenNamesByEmail.get(emailKey);
+
+        if (seenEmailNameKeys.has(emailNameKey)) {
           skipped += 1;
           continue;
         }
-        seenIdentityKeys.add(identityKey);
+        if (
+          emailKey &&
+          knownNames &&
+          knownNames.size > 0 &&
+          !knownNames.has(nameKey)
+        ) {
+          const matchingExistingAttendees =
+            existingAttendeesByEmail.get(emailKey) ?? [];
+          const preferredTarget = this.pickPreferredConflictTarget(
+            matchingExistingAttendees,
+          );
+          if (!preferredTarget) {
+            skipped += 1;
+            continue;
+          }
+          conflicts.push({
+            rowNumber: attendee.rowNumber,
+            email: attendee.email,
+            uploadedName: attendee.name,
+            conflictingNames: Array.from(
+              displayNamesByEmail.get(emailKey) ?? [],
+            ),
+            existingAttendeeId: preferredTarget.id,
+            attendee: {
+              name: attendee.name,
+              email: attendee.email,
+              phone: attendee.phone,
+              rowNumber: attendee.rowNumber,
+              metaValues: attendee.metaValues,
+            },
+          });
+          continue;
+        }
+
+        seenEmailNameKeys.add(emailNameKey);
+        trackKnownAttendee(attendee);
         const [row] = await trx("meet_attendees").insert(
           {
             meet_id: meetId,
@@ -1329,7 +1430,125 @@ export class MeetsService {
       if (metaRecords.length) {
         await trx("meet_meta_values").insert(metaRecords);
       }
-      return { created, skipped };
+      return { created, skipped, conflicts };
+    });
+  }
+
+  async resolveInvitedAttendeeUploadConflicts(
+    meetId: string,
+    resolutions: InvitedAttendeeUploadConflictResolution[],
+  ) {
+    if (!resolutions.length) {
+      return { replaced: 0, addedAsMinor: 0, ignored: 0 };
+    }
+
+    return this.db.getClient().transaction(async (trx) => {
+      const sequenceRow = await trx("meet_attendees")
+        .where({ meet_id: meetId })
+        .max("sequence as max")
+        .first();
+      const maxSequence =
+        sequenceRow && (sequenceRow as any).max != null
+          ? Number((sequenceRow as any).max)
+          : 0;
+      let nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
+      let replaced = 0;
+      let addedAsMinor = 0;
+
+      for (const resolution of resolutions) {
+        const existingAttendee = await trx("meet_attendees")
+          .where({ meet_id: meetId, id: resolution.existingAttendeeId })
+          .first("id", "name", "status");
+
+        if (!existingAttendee) {
+          throw new NotFoundException("Conflicting attendee not found");
+        }
+
+        if (resolution.action === "replace") {
+          await trx("meet_attendees")
+            .where({ meet_id: meetId, id: resolution.existingAttendeeId })
+            .update({
+              name: resolution.attendee.name,
+              phone: resolution.attendee.phone,
+              email: resolution.attendee.email,
+              is_minor: false,
+              guardian_name: null,
+              updated_at: new Date().toISOString(),
+            });
+
+          await trx("meet_meta_values")
+            .where({
+              meet_id: meetId,
+              attendee_id: resolution.existingAttendeeId,
+            })
+            .del();
+
+          const records =
+            resolution.attendee.metaValues
+              ?.filter(
+                (value) =>
+                  value.value !== undefined &&
+                  value.value !== null &&
+                  String(value.value).trim() !== "",
+              )
+              .map((value) => ({
+                meet_id: meetId,
+                attendee_id: resolution.existingAttendeeId,
+                meta_definition_id: value.definitionId,
+                value: String(value.value),
+              })) ?? [];
+
+          if (records.length) {
+            await trx("meet_meta_values").insert(records);
+          }
+
+          replaced += 1;
+          continue;
+        }
+
+        const [row] = await trx("meet_attendees").insert(
+          {
+            meet_id: meetId,
+            user_id: null,
+            name: resolution.attendee.name,
+            phone: resolution.attendee.phone,
+            email: resolution.attendee.email,
+            status: "invited",
+            sequence: nextSequence,
+            is_minor: true,
+            guardian_name: existingAttendee.name ?? null,
+          },
+          ["id"],
+        );
+        nextSequence += 1;
+
+        const records =
+          resolution.attendee.metaValues
+            ?.filter(
+              (value) =>
+                value.value !== undefined &&
+                value.value !== null &&
+                String(value.value).trim() !== "",
+            )
+            .map((value) => ({
+              meet_id: meetId,
+              attendee_id: row.id,
+              meta_definition_id: value.definitionId,
+              value: String(value.value),
+            })) ?? [];
+
+        if (records.length) {
+          await trx("meet_meta_values").insert(records);
+        }
+
+        addedAsMinor += 1;
+      }
+
+      return {
+        replaced,
+        addedAsMinor,
+        ignored: 0,
+      };
     });
   }
 

@@ -16,6 +16,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
@@ -23,7 +24,13 @@ import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import CloseIcon from "@mui/icons-material/Close";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import { AttendeeUploadButton } from "./AttendeeUploadButton";
+import {
+  AttendeeUploadButton,
+  AttendeeUploadConflict,
+  AttendeeUploadConflictAction,
+} from "./AttendeeUploadButton";
+import { AttendeeUploadConflictsDialog } from "./AttendeeUploadConflictsDialog";
+import { AttendeeUploadErrorDialog } from "./AttendeeUploadErrorDialog";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
 import Meet from "../../types/MeetModel";
@@ -64,6 +71,7 @@ export function ManageAttendeesModal({
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+  const queryClient = useQueryClient();
   const {
     data: attendees,
     isLoading: attendeesLoading,
@@ -109,6 +117,13 @@ export function ManageAttendeesModal({
   const [detailView, setDetailView] = useState<"responses" | "messages">(
     "responses",
   );
+  const [uploadConflicts, setUploadConflicts] = useState<
+    AttendeeUploadConflict[]
+  >([]);
+  const [uploadConflictActions, setUploadConflictActions] = useState<
+    AttendeeUploadConflictAction[]
+  >([]);
+  const [uploadErrorOpen, setUploadErrorOpen] = useState(false);
   const canManageAttendees = isOrganizerForMeet || isAdminUnlockEnabled;
   const mobileMessageTimeoutMs = theme.transitions.duration.leavingScreen;
   const messageOpenTimeoutRef = useRef<number | null>(null);
@@ -126,6 +141,9 @@ export function ManageAttendeesModal({
     if (!open) {
       setSelectedAttendeeId(null);
       setIsAdminUnlockEnabled(false);
+      setUploadConflicts([]);
+      setUploadConflictActions([]);
+      setUploadErrorOpen(false);
       return;
     }
     const selectedIsValid = attendees.some(
@@ -274,6 +292,106 @@ export function ManageAttendeesModal({
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const handleAttendeeUploadSuccess = (result: {
+    conflicts?: AttendeeUploadConflict[];
+  }) => {
+    const conflicts = result.conflicts ?? [];
+    setUploadErrorOpen(false);
+    setUploadConflicts(conflicts);
+    setUploadConflictActions(conflicts.map(() => "ignore"));
+  };
+
+  const handleAttendeeUploadError = () => {
+    setUploadErrorOpen(true);
+  };
+
+  const resolveUploadConflictsMutation = useMutation<
+    { replaced: number; addedAsMinor: number; ignored: number },
+    Error,
+    Array<{
+      action: Exclude<AttendeeUploadConflictAction, "ignore">;
+      existingAttendeeId: string;
+      attendee: AttendeeUploadConflict["attendee"];
+    }>
+  >({
+    mutationFn: async (resolutions) => {
+      if (!meetId) {
+        throw new Error("Meet is required for conflict resolution");
+      }
+      return api.post<{
+        replaced: number;
+        addedAsMinor: number;
+        ignored: number;
+      }>(`/meets/${meetId}/attendees/upload-conflicts/resolve`, {
+        resolutions,
+      });
+    },
+    onSuccess: (data) => {
+      const messageParts: string[] = [];
+      if (data.replaced) {
+        messageParts.push(`Replaced ${data.replaced} attendee(s).`);
+      }
+      if (data.addedAsMinor) {
+        messageParts.push(`Added ${data.addedAsMinor} attendee(s) as minors.`);
+      }
+      enqueueSnackbar(messageParts.join(" ") || "Conflict actions applied.", {
+        variant: "success",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+      setUploadConflicts([]);
+      setUploadConflictActions([]);
+      if (meetId) {
+        queryClient.invalidateQueries({
+          queryKey: ["meet-attendees", meetId],
+          exact: false,
+        });
+      }
+    },
+    onError: (error) => {
+      enqueueSnackbar(error.message || "Failed to resolve upload conflicts", {
+        variant: "error",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+    },
+  });
+
+  const handleUploadConflictActionChange = (
+    index: number,
+    action: AttendeeUploadConflictAction,
+  ) => {
+    setUploadConflictActions((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? action : item)),
+    );
+  };
+
+  const handleUploadConflictsClose = () => {
+    setUploadConflicts([]);
+    setUploadConflictActions([]);
+  };
+
+  const handleUploadConflictsConfirm = () => {
+    const resolutions = uploadConflicts.flatMap((conflict, index) => {
+      const action = uploadConflictActions[index] ?? "ignore";
+      if (action === "ignore") {
+        return [];
+      }
+      return [
+        {
+          action,
+          existingAttendeeId: conflict.existingAttendeeId,
+          attendee: conflict.attendee,
+        },
+      ];
+    });
+
+    if (!resolutions.length) {
+      handleUploadConflictsClose();
+      return;
+    }
+
+    resolveUploadConflictsMutation.mutate(resolutions);
   };
   const handleGuestCountChange = async (delta: number) => {
     if (!meetId || !selectedAttendee) return;
@@ -859,6 +977,8 @@ export function ManageAttendeesModal({
           <AttendeeUploadButton
             meetId={meetId}
             disabled={!meetId || !canManageAttendees}
+            onUploadSuccess={handleAttendeeUploadSuccess}
+            onUploadError={handleAttendeeUploadError}
           />
           <IconButton
             onClick={handleRequestClose}
@@ -983,6 +1103,19 @@ export function ManageAttendeesModal({
           </Stack>
         )}
       </DialogContent>
+      <AttendeeUploadConflictsDialog
+        open={uploadConflicts.length > 0}
+        conflicts={uploadConflicts}
+        actions={uploadConflictActions}
+        isSubmitting={resolveUploadConflictsMutation.isPending}
+        onActionChange={handleUploadConflictActionChange}
+        onConfirm={handleUploadConflictsConfirm}
+        onClose={handleUploadConflictsClose}
+      />
+      <AttendeeUploadErrorDialog
+        open={uploadErrorOpen}
+        onClose={() => setUploadErrorOpen(false)}
+      />
       {!fullScreen && (
         <DialogActions>
           <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>

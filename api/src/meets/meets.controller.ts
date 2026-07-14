@@ -30,6 +30,7 @@ import { MeetDto } from "./dto/meet.dto";
 import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetStatusDto } from "./dto/update-meet-status.dto";
 import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
+import { ResolveInvitedAttendeeUploadConflictsDto } from "./dto/resolve-invited-attendee-upload-conflicts.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
 import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
 import { CloneMeetDto } from "./dto/clone-meet.dto";
@@ -1103,6 +1104,7 @@ export class MeetsController {
       name: string;
       email: string;
       phone: string;
+      rowNumber: number;
       metaValues?: Array<{ definitionId: string; value: string }>;
     }> = [];
     const errors: string[] = [];
@@ -1130,6 +1132,7 @@ export class MeetsController {
         name,
         email,
         phone,
+        rowNumber,
         metaValues: metaValues.length ? metaValues : undefined,
       });
     });
@@ -1145,10 +1148,7 @@ export class MeetsController {
       throw new BadRequestException("No valid attendee rows found to upload.");
     }
 
-    const { created, skipped } = await this.meetsService.addInvitedAttendees(
-      id,
-      attendees,
-    );
+    const result = await this.meetsService.addInvitedAttendees(id, attendees);
     await this.logMeetAuditAction({
       orgId: meet.organizationId,
       meetId: meet.id,
@@ -1156,7 +1156,48 @@ export class MeetsController {
       userId: user.id,
       action: "uploaded attendees for",
     });
-    return { created, skipped };
+    return result;
+  }
+
+  @Post(":id/attendees/upload-conflicts/resolve")
+  @ApiOperation({ summary: "Resolve uploaded attendee conflicts" })
+  async resolveUploadedAttendeeConflicts(
+    @Param("id") id: string,
+    @Body() body: ResolveInvitedAttendeeUploadConflictsDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const result =
+      await this.meetsService.resolveInvitedAttendeeUploadConflicts(
+        id,
+        body.resolutions.map((resolution) => ({
+          action: resolution.action,
+          existingAttendeeId: resolution.existingAttendeeId,
+          attendee: {
+            name: resolution.attendee.name,
+            email: resolution.attendee.email,
+            phone: resolution.attendee.phone,
+            rowNumber: resolution.attendee.rowNumber,
+            metaValues: resolution.attendee.metaValues,
+          },
+        })),
+      );
+
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "resolved uploaded attendee conflicts for",
+    });
+
+    return result;
   }
 
   @Post(":id/report")
