@@ -18,6 +18,7 @@ import { QuestionField, StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
 import { HelpBanner } from "./HelpBanner";
 import { useFetchOrganization } from "../../hooks/useFetchOrganization";
+import { mergeImportedQuestions } from "./mergeImportedQuestions";
 
 export const QuestionsStep = ({
   state,
@@ -95,7 +96,10 @@ export const QuestionsStep = ({
               organizationId={state.organizationId || undefined}
               disabled={disabled}
               onApply={(questions) =>
-                setState((prev) => ({ ...prev, questions }))
+                setState((prev) => ({
+                  ...prev,
+                  questions: mergeImportedQuestions(prev.questions, questions),
+                }))
               }
             />
           </Box>
