@@ -117,7 +117,7 @@ export class IncomingMailController {
 
     const attendee = await this.db
       .getClient()("meet_attendees")
-      .select("id")
+      .select("id", "name", "email")
       .where("meet_id", meetId)
       .andWhereRaw("lower(email) = lower(?)", [sender])
       .first();
@@ -131,11 +131,22 @@ export class IncomingMailController {
       pertinentBody,
       body: fullBody,
     } = this.emailService.parseMessageContent(rawBody);
+    const attendeeLabel = attendee?.name?.trim() || sender;
+    const forwardedBody = [
+      `You received a message from ${attendeeLabel} about meet ${meet.name}.`,
+      "",
+      `From: ${sender}`,
+      `Meet: ${meet.name}`,
+      `Original subject: ${subject || "No subject"}`,
+      "",
+      pertinentBody || fullBody || "",
+    ].join("\n");
 
     await this.emailService.sendEmail({
       to: organizer.email,
-      subject: subject || `Message for meet: ${meet.name}`,
-      text: pertinentBody || fullBody,
+      subject: `Message for meet: ${meet.name}`,
+      text: forwardedBody,
+      replyTo: sender,
       meetId: meet.id,
     });
 

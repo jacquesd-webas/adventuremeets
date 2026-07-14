@@ -10,6 +10,7 @@ set -eu
 : "${DKIM_SELECTOR:=default}"
 : "${DKIM_PRIVATE_KEY:=}"
 : "${DKIM_PRIVATE_KEY_BASE64:=}"
+: "${MAILHOOK_LOCALPART_PREFIX:=meet+}"
 
 HOST_IP="$(getent hosts host.docker.internal 2>/dev/null | awk 'NR==1{print $1}')"
 if [ -n "${HOST_IP}" ] && echo "${HOST_IP}" | grep -q '\.'; then
@@ -19,7 +20,8 @@ fi
 postconf -e "myhostname = ${MAIL_SMTP_HELO}"
 postconf -e "mydomain = ${MAIL_DOMAIN}"
 postconf -e "myorigin = ${MAIL_DOMAIN}"
-postconf -e "mydestination = ${MAIL_HOSTNAME}, localhost.${MAIL_DOMAIN}, localhost, ${MAIL_DOMAIN}"
+postconf -e "mydestination = ${MAIL_HOSTNAME}, localhost.${MAIL_DOMAIN}, localhost"
+postconf -e "relay_domains = ${MAIL_DOMAIN}"
 postconf -e "mynetworks = ${MYNETWORKS}"
 postconf -e "inet_interfaces = all"
 postconf -e "inet_protocols = all"
@@ -30,7 +32,7 @@ postconf -e "smtpd_sasl_auth_enable = no"
 postconf -e "debug_peer_level = 2"
 postconf -e "smtpd_tls_loglevel = 1"
 postconf -e "local_recipient_maps="
-postconf -e "local_transport = mailhook"
+postconf -e "transport_maps = regexp:/etc/postfix/transport_regexp"
 
 if [ -n "${DKIM_DOMAIN}" ]; then
   mkdir -p /etc/opendkim/keys/${DKIM_DOMAIN}
@@ -97,6 +99,13 @@ if [ -z "${MAILHOOK_URL:-}" ]; then
   echo "MAILHOOK_URL must be set" >&2
   exit 1
 fi
+
+MAIL_DOMAIN_REGEX="$(printf '%s' "${MAIL_DOMAIN}" | sed 's/[.[\*^$()+?{|]/\\&/g')"
+MAILHOOK_LOCALPART_REGEX="$(printf '%s' "${MAILHOOK_LOCALPART_PREFIX}" | sed 's/[.[\*^$()+?{|]/\\&/g')"
+
+cat > /etc/postfix/transport_regexp <<EOF
+/^${MAILHOOK_LOCALPART_REGEX}[^@]*@${MAIL_DOMAIN_REGEX}$/ mailhook:
+EOF
 
 if ! grep -q "^mailhook" /etc/postfix/master.cf; then
   cat >> /etc/postfix/master.cf <<EOF

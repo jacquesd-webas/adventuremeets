@@ -8,13 +8,14 @@ export type AttendeeMessage = {
   to?: string;
   isRead?: boolean;
   content?: string;
+  direction?: "received" | "sent";
 };
 
 type MessagesResponse = { messages: AttendeeMessage[] } | AttendeeMessage[];
 
 export function useFetchAttendeeMessages(
   meetId?: string | null,
-  attendeeId?: string | null
+  attendeeId?: string | null,
 ) {
   const api = useApi();
   const query = useQuery({
@@ -22,7 +23,7 @@ export function useFetchAttendeeMessages(
     enabled: Boolean(meetId && attendeeId),
     queryFn: async () => {
       const res = await api.get<MessagesResponse>(
-        `/meets/${meetId}/attendees/${attendeeId}/messages`
+        `/meets/${meetId}/attendees/${attendeeId}/messages`,
       );
       if (Array.isArray(res)) return res;
       return (res as any).messages ?? [];

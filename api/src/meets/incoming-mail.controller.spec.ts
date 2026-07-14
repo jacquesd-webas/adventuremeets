@@ -142,6 +142,8 @@ describe("IncomingMailController", () => {
     });
     firstMocks.meetAttendees.mockResolvedValue({
       id: "attendee-1",
+      name: "Alex Rider",
+      email: "sender@example.com",
     });
     (emailService.parseMessageContent as jest.Mock).mockReturnValue({
       subject: "Need to cancel",
@@ -170,8 +172,14 @@ describe("IncomingMailController", () => {
     );
     expect(emailService.sendEmail).toHaveBeenCalledWith({
       to: "organizer@example.com",
-      subject: "Need to cancel",
-      text: "Please cancel my spot",
+      subject: "You received a message from Alex Rider about meet Sunrise Hike",
+      text:
+        "You received a message from Alex Rider about meet Sunrise Hike.\n\n" +
+        "From: sender@example.com\n" +
+        "Meet: Sunrise Hike\n" +
+        "Original subject: Need to cancel\n\n" +
+        "Please cancel my spot",
+      replyTo: "sender@example.com",
       meetId: "meet-1",
     });
     expect(emailService.saveIncomingMessage).toHaveBeenCalledWith({
@@ -223,8 +231,15 @@ describe("IncomingMailController", () => {
 
     expect(emailService.sendEmail).toHaveBeenCalledWith({
       to: "organizer@example.com",
-      subject: "Message for meet: Sunrise Hike",
-      text: "Full parsed body",
+      subject:
+        "You received a message from unknown@example.com about meet Sunrise Hike",
+      text:
+        "You received a message from unknown@example.com about meet Sunrise Hike.\n\n" +
+        "From: unknown@example.com\n" +
+        "Meet: Sunrise Hike\n" +
+        "Original subject: No subject\n\n" +
+        "Full parsed body",
+      replyTo: "unknown@example.com",
       meetId: "meet-1",
     });
     expect(emailService.saveIncomingMessage).toHaveBeenCalledWith({

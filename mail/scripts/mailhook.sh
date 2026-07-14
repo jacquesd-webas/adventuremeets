@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+TEMPFAIL_EXIT_CODE=75
 RECIPIENT=""
 SENDER=""
 CLIENT=""
@@ -24,8 +25,13 @@ cleanup() {
   [[ -n "${TMP:-}" && -f "$TMP" ]] && rm -f "$TMP"
 }
 
+handle_error() {
+  exit "${TEMPFAIL_EXIT_CODE}"
+}
+
 # Always clean up on any exit path
 trap cleanup EXIT INT TERM HUP
+trap handle_error ERR
 
 # Read full raw email from stdin
 cat > "$TMP"
@@ -33,7 +39,7 @@ cat > "$TMP"
 # Call adventuremeets API (public endpoint)
 if [[ -z "${MAILHOOK_URL:-}" ]]; then
   echo "MAILHOOK_URL must be provided to mailhook" >&2
-  exit 1
+  exit "${TEMPFAIL_EXIT_CODE}"
 fi
 
 curl --fail -sS -X POST "${MAILHOOK_URL}" \
