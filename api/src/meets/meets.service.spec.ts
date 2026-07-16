@@ -1970,6 +1970,7 @@ describe("MeetsService", () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.first.mockResolvedValue({
       email: "alex@example.com",
+      organization_id: "org-1",
     });
 
     const historyBuilder = buildBuilder();
@@ -2017,12 +2018,22 @@ describe("MeetsService", () => {
         attendeeStatus: "waitlisted",
       },
     ]);
+
+    expect(historyBuilder.andWhere).toHaveBeenCalledWith(
+      "m.organization_id",
+      "org-1",
+    );
+    expect(historyBuilder.andWhere).toHaveBeenCalledWith(
+      "ma.is_minor",
+      false,
+    );
   });
 
   it("returns empty attendee history when the attendee has no email address", async () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.first.mockResolvedValue({
       email: null,
+      organization_id: "org-1",
     });
 
     const historyBuilder = buildBuilder();
@@ -2068,6 +2079,7 @@ describe("MeetsService", () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.first.mockResolvedValue({
       email: "alex@example.com",
+      organization_id: "org-1",
     });
 
     const historyBuilder = buildBuilder();
@@ -2089,6 +2101,35 @@ describe("MeetsService", () => {
     expect(historyBuilder.andWhereNot).toHaveBeenCalledWith(
       "ma.id",
       "attendee-1",
+    );
+  });
+
+  it("does not include attendee history from a different organization", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      email: "alex@example.com",
+      organization_id: "org-1",
+    });
+
+    const historyBuilder = buildBuilder();
+    historyBuilder.select.mockResolvedValue([]);
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_attendees as ma") return historyBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const minio = {} as MinioService;
+    const service = new MeetsService(db, minio);
+
+    await service.listAttendeeHistory("meet-1", "attendee-1");
+
+    expect(historyBuilder.andWhere).toHaveBeenCalledWith(
+      "m.organization_id",
+      "org-1",
     );
   });
 });

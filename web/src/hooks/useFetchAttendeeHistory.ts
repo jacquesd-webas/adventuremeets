@@ -8,15 +8,16 @@ type AttendeeHistoryResponse =
 
 export function useFetchAttendeeHistory(
   attendeeId?: string | null,
-  meetId?: string | null
+  meetId?: string | null,
 ) {
   const api = useApi();
   const query = useQuery({
     queryKey: ["attendee-history", meetId, attendeeId],
     enabled: Boolean(meetId && attendeeId),
+    refetchOnMount: "always",
     queryFn: async () => {
       const res = await api.get<AttendeeHistoryResponse>(
-        `/meets/${meetId}/attendees/${attendeeId}/history`
+        `/meets/${meetId}/attendees/${attendeeId}/history`,
       );
       if (Array.isArray(res)) return res;
       return (res as any).history ?? [];

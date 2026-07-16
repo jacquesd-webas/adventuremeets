@@ -2720,14 +2720,19 @@ export class MeetsService {
   async listAttendeeHistory(meetId: string, attendeeId: string) {
     const attendee = await this.db
       .getClient()("meet_attendees")
-      .where({ meet_id: meetId, id: attendeeId })
-      .first("email");
+      .join("meets", "meets.id", "meet_attendees.meet_id")
+      .where({
+        "meet_attendees.meet_id": meetId,
+        "meet_attendees.id": attendeeId,
+      })
+      .first("meet_attendees.email", "meets.organization_id");
 
     if (!attendee) {
       throw new NotFoundException("Attendee not found");
     }
 
     const email = attendee.email?.trim().toLowerCase();
+    const organizationId = attendee.organization_id;
     if (!email) {
       return [];
     }
@@ -2736,6 +2741,8 @@ export class MeetsService {
       .getClient()("meet_attendees as ma")
       .join("meets as m", "m.id", "ma.meet_id")
       .whereRaw("LOWER(ma.email) = ?", [email])
+      .andWhere("m.organization_id", organizationId)
+      .andWhere("ma.is_minor", false)
       .andWhereNot("ma.id", attendeeId)
       .orderBy("m.start_time", "desc")
       .select(
