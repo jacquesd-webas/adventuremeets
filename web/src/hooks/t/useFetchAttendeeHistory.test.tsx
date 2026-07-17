@@ -4,6 +4,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useFetchAttendeeHistory } from "../useFetchAttendeeHistory";
 
+function getExpectedApiBaseUrl() {
+  const envBaseUrl =
+    import.meta.env.VITE_API_BASEURL || import.meta.env.API_BASEURL;
+  const baseNoSlash = (envBaseUrl || "http://localhost:3000").replace(
+    /\/+$/,
+    "",
+  );
+
+  return baseNoSlash.endsWith("/api/v1")
+    ? baseNoSlash
+    : `${baseNoSlash}/api/v1`;
+}
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -66,6 +79,7 @@ describe("useFetchAttendeeHistory", () => {
       );
 
     vi.stubGlobal("fetch", fetchMock);
+    const expectedApiBaseUrl = getExpectedApiBaseUrl();
 
     const { result, rerender } = renderHook(
       ({ attendeeId, meetId }) => useFetchAttendeeHistory(attendeeId, meetId),
@@ -101,10 +115,10 @@ describe("useFetchAttendeeHistory", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "http://localhost:8000/api/v1/meets/meet-1/attendees/attendee-1/history",
+      `${expectedApiBaseUrl}/meets/meet-1/attendees/attendee-1/history`,
     );
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
-      "http://localhost:8000/api/v1/meets/meet-1/attendees/attendee-2/history",
+      `${expectedApiBaseUrl}/meets/meet-1/attendees/attendee-2/history`,
     );
   });
 });
