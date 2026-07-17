@@ -28,6 +28,10 @@ import MeetActionsEnum from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { useLocation, useNavigate } from "react-router-dom";
 import { isSameMeetDayOrLater } from "../../helpers/defaultPendingAction";
+import {
+  navigateToMeetCheckin,
+  navigateToMeetSignup,
+} from "../../helpers/meetNavigation";
 
 type MeetActionsMenuProps = {
   meetId: string;
@@ -183,10 +187,11 @@ export function MeetActionsMenu({
   ) => {
     event.stopPropagation();
     if (previewLinkCode) {
-      const path = isPreview
-        ? `/meets/${previewLinkCode}?preview=true`
-        : `/meets/${previewLinkCode}`;
-      nav(path);
+      navigateToMeetSignup({
+        shareCode: previewLinkCode,
+        navigate: nav,
+        isPreview,
+      });
     }
     handleClose();
   };
@@ -332,10 +337,10 @@ export function MeetActionsMenu({
               onClick={(event) => {
                 event.stopPropagation();
                 if (meetId) {
-                  nav(`/meet/${meetId}/checkin`, {
-                    state: {
-                      returnTo: `${location.pathname}${location.search}`,
-                    },
+                  navigateToMeetCheckin({
+                    meetId,
+                    navigate: nav,
+                    returnTo: `${location.pathname}${location.search}`,
                   });
                 }
                 handleClose();

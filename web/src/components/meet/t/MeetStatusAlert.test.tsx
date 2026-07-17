@@ -8,9 +8,10 @@ import { MeetStatusEnum } from "../../../types/MeetStatusEnum";
 const navigate = vi.fn();
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom",
-  );
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom",
+    );
   return {
     ...actual,
     MemoryRouter: ({
@@ -58,7 +59,9 @@ describe("MeetStatusAlert", () => {
     });
   });
 
-  it("shows apply now for open meets without an existing application", () => {
+  it("shows apply now for open meets without an existing application", async () => {
+    const user = userEvent.setup();
+
     render(
       <MemoryRouter>
         <MeetStatusAlert
@@ -73,6 +76,10 @@ describe("MeetStatusAlert", () => {
     expect(
       screen.getByRole("button", { name: /apply now/i }),
     ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /apply now/i }));
+
+    expect(navigate).toHaveBeenCalledWith("/meets/share-1");
   });
 
   it("shows view your application and sign up minor guest for signed-in users with an application", async () => {
@@ -164,7 +171,9 @@ describe("MeetStatusAlert", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/already rsvp'd for this meet/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/already rsvp'd for this meet/i),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /view your rsvp/i }),
     ).toBeInTheDocument();

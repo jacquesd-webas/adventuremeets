@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   Alert,
   Box,
@@ -30,6 +35,7 @@ import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
 import { AttendeeCheckinItem } from "../components/attendeeCheckin/AttendeeCheckinItem";
 import { CheckinSearch } from "../components/attendeeCheckin/CheckinSearch";
 import { LockedMeet } from "../components/createMeetModal/LockedMeet";
+import { getMeetCheckinReturnTo } from "../helpers/meetNavigation";
 
 type MeetCheckinLocationState = {
   returnTo?: string;
@@ -44,6 +50,7 @@ function MeetCheckinPage() {
   const location = useLocation() as ReturnType<typeof useLocation> & {
     state: MeetCheckinLocationState | null;
   };
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { data: meet } = useFetchMeet(id, Boolean(id));
   const {
@@ -199,12 +206,9 @@ function MeetCheckinPage() {
   };
 
   const handleClose = () => {
-    const fallbackPath =
-      location.state?.returnTo &&
-      location.state.returnTo.startsWith("/") &&
-      !location.state.returnTo.startsWith("//")
-        ? location.state.returnTo
-        : "/";
+    const fallbackPath = getMeetCheckinReturnTo(
+      location.state?.returnTo ?? searchParams.get("returnTo"),
+    );
 
     if (
       typeof window !== "undefined" &&

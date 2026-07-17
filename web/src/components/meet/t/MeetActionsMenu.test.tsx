@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { MeetActionsMenu } from "../MeetActionsMenu";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
@@ -233,4 +233,83 @@ describe("MeetActionsMenu", () => {
       expect(setPendingAction).toHaveBeenCalledWith("details");
     });
   }, 10000);
+
+  it("navigates to check-in using the explicit check-in path", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter
+        initialEntries={["/plan?view=list"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route
+            path="/plan"
+            element={
+              <MeetActionsMenu
+                meetId="meet-1"
+                statusId={MeetStatusEnum.Closed}
+                isUpcoming={true}
+                startTime={null}
+                canAccessManageMenu={true}
+                canViewMeet={true}
+                canManageMeet={true}
+                setSelectedMeetId={vi.fn()}
+                setPendingAction={vi.fn()}
+              />
+            }
+          />
+          <Route
+            path="/meet/:id/checkin"
+            element={<div data-testid="checkin-page" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByText("Check-in"));
+
+    expect(await screen.findByTestId("checkin-page")).toBeInTheDocument();
+  });
+
+  it("navigates to preview using the explicit public meet path", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter
+        initialEntries={["/plan"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route
+            path="/plan"
+            element={
+              <MeetActionsMenu
+                meetId="meet-1"
+                statusId={MeetStatusEnum.Draft}
+                isUpcoming={true}
+                startTime={null}
+                canAccessManageMenu={true}
+                canViewMeet={true}
+                canManageMeet={true}
+                previewLinkCode="share-123"
+                setSelectedMeetId={vi.fn()}
+                setPendingAction={vi.fn()}
+              />
+            }
+          />
+          <Route
+            path="/meets/:code"
+            element={<div data-testid="preview-page" />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByText("Preview"));
+
+    expect(await screen.findByTestId("preview-page")).toBeInTheDocument();
+  });
 });

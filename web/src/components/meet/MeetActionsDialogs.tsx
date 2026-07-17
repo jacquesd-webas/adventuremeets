@@ -16,6 +16,7 @@ import {
   clearCreateMeetPreviewRestore,
   readCreateMeetPreviewRestore,
 } from "../createMeetModal/createMeetPreviewRestore";
+import { navigateToMeetCheckin } from "../../helpers/meetNavigation";
 
 type MeetActionsDialogsProps = {
   meetId: string | null;
@@ -155,10 +156,10 @@ function MeetActionsDialogs({
         break;
       case "checkin":
         if (meetId) {
-          nav(`/meet/${meetId}/checkin`, {
-            state: {
-              returnTo: `${location.pathname}${location.search}`,
-            },
+          navigateToMeetCheckin({
+            meetId,
+            navigate: nav,
+            returnTo: `${location.pathname}${location.search}`,
           });
           setPendingAction(null);
           setSelectedMeetId(null);

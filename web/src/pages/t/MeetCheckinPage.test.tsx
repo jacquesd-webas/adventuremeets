@@ -149,6 +149,26 @@ describe("MeetCheckinPage", () => {
     expect(await screen.findByText("List Page")).toBeInTheDocument();
   });
 
+  it("returns to the launching route when returnTo is provided in the url", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter
+        initialEntries={["/meet/meet-1/checkin?returnTo=%2Fplan%3Fview%3Dlist"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+          <Route path="/plan" element={<div>List Page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByLabelText("Close check-in"));
+
+    expect(await screen.findByText("List Page")).toBeInTheDocument();
+  });
+
   it("returns to the dashboard when finishing check-in", async () => {
     const user = userEvent.setup();
 

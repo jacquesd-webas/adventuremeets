@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/authContext";
 import { useFetchMyMeetAttendee } from "../../hooks/useFetchMyMeetAttendee";
 import { getMeetResponseWording } from "../../helpers/meetResponseWording";
+import { navigateToMeetSignup } from "../../helpers/meetNavigation";
 
 type MeetStatusAlertProps = {
   meetId?: string;
@@ -123,7 +124,11 @@ export function MeetStatusAlert({
                 color="primary"
                 sx={{ ml: 2 }}
                 onClick={() => {
-                  nav(`/meets/${shareCode}`);
+                  if (!shareCode) return;
+                  navigateToMeetSignup({
+                    shareCode,
+                    navigate: nav,
+                  });
                 }}
                 disabled={!shareCode}
               >
