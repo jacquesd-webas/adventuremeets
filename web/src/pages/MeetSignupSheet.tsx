@@ -565,7 +565,13 @@ function MeetSignupSheet() {
 
   if (submitted) {
     return (
-      <Box sx={{ height: "100vh", position: "relative" }}>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          height: "100dvh",
+          position: "relative",
+        }}
+      >
         {isPreview ? (
           <Box
             sx={{
@@ -822,13 +828,20 @@ function MeetSignupSheet() {
   };
 
   return (
-    <Box sx={{ height: "100vh", position: "relative" }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        height: "100dvh",
+        position: "relative",
+      }}
+    >
       {isPreview ? <PreviewBanner /> : null}
       <Container
         maxWidth={isMobile ? false : "md"}
         disableGutters={isMobile}
         sx={{
           py: isMobile ? 0 : 6,
+          pb: isMobile ? "calc(24px + env(safe-area-inset-bottom))" : 6,
           pt: isPreview
             ? isMobile
               ? mobilePreviewTopOffset
@@ -836,7 +849,7 @@ function MeetSignupSheet() {
             : isMobile
               ? 0
               : 6,
-          minHeight: "100vh",
+          minHeight: "100%",
           height: "100%",
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
