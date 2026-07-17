@@ -132,6 +132,8 @@ describe("MeetsService", () => {
       organizer_id: "org-1",
       organization_id: "org-2",
       status_id: 2,
+      confirmed_count: 4,
+      rejected_count: 2,
     };
     const imageRow = {
       id: "image-1",
@@ -164,6 +166,8 @@ describe("MeetsService", () => {
 
     const result = await service.findOne("meet-1");
     expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
+    expect(result.confirmedCount).toBe(4);
+    expect(result.rejectedCount).toBe(2);
     expect(result.images).toEqual([
       expect.objectContaining({
         id: "image-1",
@@ -2023,10 +2027,7 @@ describe("MeetsService", () => {
       "m.organization_id",
       "org-1",
     );
-    expect(historyBuilder.andWhere).toHaveBeenCalledWith(
-      "ma.is_minor",
-      false,
-    );
+    expect(historyBuilder.andWhere).toHaveBeenCalledWith("ma.is_minor", false);
   });
 
   it("returns empty attendee history when the attendee has no email address", async () => {

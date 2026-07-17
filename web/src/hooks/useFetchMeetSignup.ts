@@ -103,6 +103,7 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     attendeeCount: apiMeet.attendeeCount ?? apiMeet.attendee_count ?? null,
     waitlistCount: apiMeet.waitlistCount ?? null,
     confirmedCount: apiMeet.confirmedCount ?? null,
+    rejectedCount: apiMeet.rejectedCount ?? null,
     checkedInCount: apiMeet.checkedInCount ?? null,
     isHidden: apiMeet.isHidden ?? null,
     myAttendeeStatus: apiMeet.myAttendeeStatus ?? null,

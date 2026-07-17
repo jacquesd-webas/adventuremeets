@@ -192,6 +192,13 @@ export class MeetsService {
         this.db
           .getClient()
           .raw(
+            `sum(case when status = 'rejected' then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
+          ),
+      )
+      .select(
+        this.db
+          .getClient()
+          .raw(
             `sum(case when status in ('checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as checked_in_count`,
           ),
       )
@@ -225,6 +232,9 @@ export class MeetsService {
         this.db
           .getClient()
           .raw("coalesce(ma.waitlist_count, 0) as waitlist_count"),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.rejected_count, 0) as rejected_count"),
         this.db
           .getClient()
           .raw("coalesce(ma.checked_in_count, 0) as checked_in_count"),
@@ -379,6 +389,13 @@ export class MeetsService {
         this.db
           .getClient()
           .raw(
+            `sum(case when status = 'rejected' then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
+          ),
+      )
+      .select(
+        this.db
+          .getClient()
+          .raw(
             `sum(case when status in ('checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as checked_in_count`,
           ),
       )
@@ -410,6 +427,9 @@ export class MeetsService {
         this.db
           .getClient()
           .raw("coalesce(ma.waitlist_count, 0) as waitlist_count"),
+        this.db
+          .getClient()
+          .raw("coalesce(ma.rejected_count, 0) as rejected_count"),
         this.db
           .getClient()
           .raw("coalesce(ma.checked_in_count, 0) as checked_in_count"),
@@ -2297,6 +2317,7 @@ export class MeetsService {
       attendeeCount: Number(meet.attendee_count ?? 0),
       confirmedCount: Number(meet.confirmed_count ?? 0),
       waitlistCount: Number(meet.waitlist_count ?? 0),
+      rejectedCount: Number(meet.rejected_count ?? 0),
       checkedInCount: Number(meet.checked_in_count ?? 0),
       startTimeTbc:
         meet.start_time_tbc ?? meet.startTimeTbc ?? meet.times_tbc ?? undefined,

@@ -74,6 +74,7 @@ export type Meet = {
   attendeeCount?: number;
   waitlistCount?: number;
   confirmedCount?: number;
+  rejectedCount?: number;
   checkedInCount?: number;
   isHidden?: boolean;
   myAttendeeStatus?: string;

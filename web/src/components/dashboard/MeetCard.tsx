@@ -12,7 +12,6 @@ import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
 import PlaceIcon from "@mui/icons-material/Place";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import Meet from "../../types/MeetModel";
 import { MeetActionsMenu } from "../meet/MeetActionsMenu";
 import { MeetActionsEnum } from "../../types/MeetActionsEnum";
@@ -20,6 +19,8 @@ import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../meet/MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useRef } from "react";
+import type { OverridableStringUnion } from "@mui/types";
+import type { SvgIconPropsColorOverrides } from "@mui/material/SvgIcon";
 import { getCardRangeLabel, isMeetUpcoming } from "../../helpers/meetTime";
 import { useAuth } from "../../context/authContext";
 
@@ -34,9 +35,40 @@ type MeetCardProps = {
   canAccessManageMenu?: boolean;
 };
 
-type CountProps = { count1?: number; count2?: number };
+type StatItemProps = {
+  count?: number | string;
+  label: string;
+  color: OverridableStringUnion<
+    | "inherit"
+    | "action"
+    | "disabled"
+    | "primary"
+    | "secondary"
+    | "error"
+    | "info"
+    | "success"
+    | "warning",
+    SvgIconPropsColorOverrides
+  >;
+};
 
 const DraftCardCount = () => <></>;
+
+const StatItem = ({ count, label, color }: StatItemProps) => (
+  <Stack direction="row" spacing={0.5} alignItems="center">
+    <GroupOutlinedIcon fontSize="small" color={color} />
+    <Typography variant="body2" fontWeight={600} color="text.secondary">
+      {count ?? 0}
+    </Typography>
+    <Typography variant="caption" color="text.secondary">
+      {label}
+    </Typography>
+  </Stack>
+);
+
+function hasApplicants(attendeeCount?: number) {
+  return (attendeeCount ?? 0) > 0;
+}
 
 const AttendeeStatus = ({
   status,
@@ -87,52 +119,76 @@ const AttendeeStatus = ({
   );
 };
 
-const UpcomingCardCount = ({ count1, count2 }: CountProps) => {
+const UpcomingCardCount = ({
+  attendeeCount,
+  confirmedCount,
+  waitlistCount,
+  rejectedCount,
+}: {
+  attendeeCount?: number;
+  confirmedCount?: number;
+  waitlistCount?: number;
+  rejectedCount?: number;
+}) => {
+  const showAdditionalStats = hasApplicants(attendeeCount);
+
   return (
-    <Stack direction="row" spacing={2} alignItems="center" mt={1.5}>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <GroupOutlinedIcon fontSize="small" color="primary" />
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          {count1 ?? 0}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          applicants
-        </Typography>
-      </Stack>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <GroupOutlinedIcon fontSize="small" color="disabled" />
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          {count2 ?? 0}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          waitlist
-        </Typography>
-      </Stack>
+    <Stack
+      direction="row"
+      spacing={2}
+      alignItems="center"
+      mt={1.5}
+      useFlexGap
+      flexWrap="wrap"
+    >
+      <StatItem count={attendeeCount} label="applicants" color="primary" />
+      {showAdditionalStats ? (
+        <>
+          <StatItem count={confirmedCount} label="approved" color="success" />
+          <StatItem count={waitlistCount} label="waitlist" color="disabled" />
+          <StatItem count={rejectedCount} label="rejected" color="error" />
+        </>
+      ) : null}
     </Stack>
   );
 };
 
-const PastCardCount = ({ count1, count2 }: CountProps) => {
+const PastCardCount = ({
+  attendeeCount,
+  confirmedCount,
+  waitlistCount,
+  rejectedCount,
+  checkedInCount,
+}: {
+  attendeeCount?: number;
+  confirmedCount?: number;
+  waitlistCount?: number;
+  rejectedCount?: number;
+  checkedInCount?: number;
+}) => {
+  const attendedRatio =
+    (confirmedCount ?? 0 > 0)
+      ? `${checkedInCount ?? 0}/${confirmedCount ?? 0}`
+      : "0";
+  const showAdditionalStats = hasApplicants(attendeeCount);
+
   return (
-    <Stack direction="row" spacing={2} alignItems="center" mt={1.5}>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <CheckCircleOutlineIcon fontSize="small" color="primary" />
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          {count1 ?? 0}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          confirmed
-        </Typography>
-      </Stack>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <GroupOutlinedIcon fontSize="small" color="disabled" />
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          {count2 ?? 0}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          attended
-        </Typography>
-      </Stack>
+    <Stack
+      direction="row"
+      spacing={2}
+      alignItems="center"
+      mt={1.5}
+      useFlexGap
+      flexWrap="wrap"
+    >
+      <StatItem count={attendeeCount} label="applicants" color="primary" />
+      {showAdditionalStats ? (
+        <>
+          <StatItem count={attendedRatio} label="attended" color="disabled" />
+          <StatItem count={waitlistCount} label="waitlist" color="disabled" />
+          <StatItem count={rejectedCount} label="rejected" color="error" />
+        </>
+      ) : null}
     </Stack>
   );
 };
@@ -232,13 +288,18 @@ export function MeetCard({
         <DraftCardCount />
       ) : isUpcoming ? (
         <UpcomingCardCount
-          count1={meet.attendeeCount}
-          count2={meet.waitlistCount}
+          attendeeCount={meet.attendeeCount}
+          confirmedCount={meet.confirmedCount}
+          waitlistCount={meet.waitlistCount}
+          rejectedCount={meet.rejectedCount}
         />
       ) : (
         <PastCardCount
-          count1={meet.confirmedCount}
-          count2={meet.checkedInCount}
+          attendeeCount={meet.attendeeCount}
+          confirmedCount={meet.confirmedCount}
+          waitlistCount={meet.waitlistCount}
+          rejectedCount={meet.rejectedCount}
+          checkedInCount={meet.checkedInCount}
         />
       )}
     </Paper>

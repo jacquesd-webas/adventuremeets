@@ -279,6 +279,10 @@ export class MeetDto {
 
   @ApiPropertyOptional()
   @IsNumber()
+  rejectedCount?: number;
+
+  @ApiPropertyOptional()
+  @IsNumber()
   checkedInCount?: number;
 
   @ApiPropertyOptional()
