@@ -144,8 +144,12 @@ export function ManageAttendeesModal({
       setUploadConflicts([]);
       setUploadConflictActions([]);
       setUploadErrorOpen(false);
-      return;
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
     const selectedIsValid = attendees.some(
       (attendee) => attendee.id === selectedAttendeeId,
     );

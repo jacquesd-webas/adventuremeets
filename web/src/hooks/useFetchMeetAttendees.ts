@@ -8,6 +8,7 @@ import {
 } from "../helpers/checkinOfflineStore";
 
 type AttendeeFilter = "all" | "accepted";
+const EMPTY_ATTENDEES: Attendee[] = [];
 
 export function useFetchMeetAttendees(
   meetId?: string | null,
@@ -44,7 +45,7 @@ export function useFetchMeetAttendees(
   });
 
   return {
-    data: query.data?.attendees ?? [],
+    data: query.data?.attendees ?? EMPTY_ATTENDEES,
     isLoading: query.isLoading,
     isOfflineData: query.data?.source === "cache",
     error: query.error ? (query.error as Error).message : null,
