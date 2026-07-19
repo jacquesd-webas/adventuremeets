@@ -4,6 +4,10 @@ import { MeetCard } from "../MeetCard";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
 import type Meet from "../../../types/MeetModel";
 
+function buildRelativeIso(offsetMs: number) {
+  return new Date(Date.now() + offsetMs).toISOString();
+}
+
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
     user: { id: "organizer-1" },
@@ -26,8 +30,8 @@ function makeMeet(overrides: Partial<Meet> = {}): Meet {
     name: "Mountain Hike",
     organizerId: "organizer-1",
     location: "Cape Town",
-    startTime: "2026-07-18T08:00:00.000Z",
-    endTime: "2026-07-18T10:00:00.000Z",
+    startTime: buildRelativeIso(24 * 60 * 60 * 1000),
+    endTime: buildRelativeIso(26 * 60 * 60 * 1000),
     statusId: MeetStatusEnum.Open,
     attendeeCount: 12,
     confirmedCount: 7,
@@ -71,8 +75,8 @@ describe("MeetCard", () => {
         <MeetCard
           meet={makeMeet({
             statusId: MeetStatusEnum.Completed,
-            startTime: "2026-07-16T08:00:00.000Z",
-            endTime: "2026-07-16T10:00:00.000Z",
+            startTime: buildRelativeIso(-48 * 60 * 60 * 1000),
+            endTime: buildRelativeIso(-46 * 60 * 60 * 1000),
           })}
           {...baseProps}
         />
