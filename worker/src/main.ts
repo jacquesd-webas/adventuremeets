@@ -7,7 +7,7 @@ import { runMeetReminderJob } from "./tasks/meetReminder";
 const SCHEDULER_INTERVAL_SECONDS =
   Number(process.env.SCHEDULER_INTERVAL_SECONDS) * 1000 || 10000;
 const RESPONSE_REMINDER_INTERVAL_MS =
-  (Number(process.env.RESPONSE_REMINDER_INTERVAL_SECONDS) || 6 * 60 * 60) *
+  (Number(process.env.RESPONSE_REMINDER_INTERVAL_SECONDS) || 24 * 60 * 60) *
   1000;
 const MAX_CONSECUTIVE_SKIPS = 3;
 let isRunning = false;
