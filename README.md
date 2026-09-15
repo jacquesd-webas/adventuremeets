@@ -170,6 +170,34 @@ Testing migrations:
 
 ## Contributing
 
+## AI-assisted code navigation
+
+This repository can be indexed with [graphify](https://github.com/graphify/graphify) to give coding agents a structural view of the API, web app, worker, and database migrations.
+
+Install `uv`, then build the local graph from the repository root:
+
+```bash
+make graphify
+```
+
+The default target uses graphify's deterministic code-only extractor, so it does not require an API key. The generated report and JSON graph are written to `graphify-out/` and are intentionally ignored by git. After changing the code, refresh only changed files with:
+
+```bash
+make graphify-update
+```
+
+Useful local queries include:
+
+```bash
+uv tool run --from graphifyy graphify query "How does a meet signup move from the web app through the API to the database?"
+uv tool run --from graphifyy graphify path "Meet" "Notification"
+uv tool run --from graphifyy graphify explain "AuthModule"
+```
+
+To include documentation and images, run graphify with a configured supported LLM backend; this is optional and may send scanned content to that provider.
+
+If you use a graphify release that exposes its MCP server, configure that server in your AI client with the repository root as its working directory. Check the installed release with `uv tool run --from graphifyy graphify --help`; the current CLI supports direct graph queries, while MCP availability may vary by release. Keep graphify local unless you have reviewed the generated graph and source-data handling; do not scan `.env` files, secrets, database dumps, uploads, or production data.
+
 Contributions are welcome — whether that’s:
 
 - Features

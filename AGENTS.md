@@ -19,6 +19,29 @@ This file defines implementation standards for this codebase. Follow these rules
 - Database access: Knex
 - Database: PostgreSQL
 
+## AI-assisted code navigation
+
+- Use graphify for repository-wide architecture questions, dependency tracing, and locating related symbols before doing broad manual searches.
+- From the repository root, run `make graphify` when `graphify-out/graph.json` is absent or stale. Use `make graphify-update` after code changes to refresh the index incrementally.
+- Prefer focused graphify queries for unfamiliar flows, for example:
+  - `uv tool run --from graphifyy graphify query "How does meet signup flow from the web app to the API and database?"`
+  - `uv tool run --from graphifyy graphify path "Meet" "Notification"`
+  - `uv tool run --from graphifyy graphify explain "AuthModule"`
+- Treat graphify results as navigation and context, not as proof. Open the referenced source files and verify behavior, types, tests, and authorization rules before changing code.
+- The default project target uses deterministic code-only extraction. Do not scan `.env` files, secrets, database dumps, uploads, or production data. Semantic extraction and MCP availability depend on the installed graphify release and configured provider.
+
+## General engineering practices
+
+- Start from the narrowest relevant file, symbol, failing test, or runtime error. State a concrete hypothesis before changing code.
+- Keep changes minimal and local. Preserve public APIs, existing conventions, and unrelated user changes.
+- Prefer explicit data flow, typed boundaries, and existing project helpers over new abstractions or duplicated state.
+- Validate the smallest affected behavior immediately after editing, then run the broader relevant test, lint, build, or typecheck command before finishing.
+- Add or update focused tests for changed behavior, especially for authorization, persistence, migrations, API contracts, and user-visible workflows.
+- Treat all external input as untrusted: validate it at boundaries, authorize access server-side, parameterize database queries, and avoid logging credentials or personal data.
+- Do not commit generated artifacts, local environment files, secrets, build output, or production data.
+- For migrations and multi-step writes, consider rollback behavior, transaction boundaries, existing deployed data, and backwards compatibility before implementation.
+- When a command cannot be run, report the exact limitation and identify the next practical validation step.
+
 ## React best practices
 
 - Use function components and hooks.
