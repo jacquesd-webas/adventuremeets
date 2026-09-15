@@ -12,8 +12,8 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import type { Request } from "express";
-import { MeetAttendeesController } from "./meet-attendees.controller";
-import { MeetsService } from "./meets.service";
+import { AttendeesController } from "./attendees.controller";
+import { MeetsService } from "../meets/meets.service";
 import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
@@ -22,8 +22,8 @@ import { UsersService } from "../users/users.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import { OrganizationsService } from "../organizations/organizations.service";
 
-describe("MeetAttendeesController", () => {
-  let controller: MeetAttendeesController;
+describe("AttendeesController", () => {
+  let controller: AttendeesController;
 
   const meetsService = {
     findOne: jest.fn(),
@@ -93,7 +93,7 @@ describe("MeetAttendeesController", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new MeetAttendeesController(
+    controller = new AttendeesController(
       meetsService,
       authService,
       emailService,

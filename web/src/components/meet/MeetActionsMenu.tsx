@@ -38,6 +38,7 @@ type MeetActionsMenuProps = {
   statusId?: number;
   isUpcoming: boolean;
   startTime?: string | null;
+  reportingEnabled?: boolean;
   isOrganizer?: boolean;
   canViewMeet?: boolean;
   canManageMeet?: boolean;
@@ -127,6 +128,7 @@ export function MeetActionsMenu({
   statusId,
   isUpcoming,
   startTime,
+  reportingEnabled,
   canViewMeet,
   canManageMeet,
   canAccessManageMenu,
@@ -406,16 +408,17 @@ export function MeetActionsMenu({
             statusId,
             isUpcoming,
             startTime,
-          ) && (
+          ) &&
+            reportingEnabled && (
             <MenuItem
               onClick={(event) => handleAction(event, MeetActionsEnum.Report)}
             >
               <ListItemIcon>
                 <AssessmentOutlinedIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Generate Report</ListItemText>
+              <ListItemText>Reports</ListItemText>
             </MenuItem>
-          )}
+            )}
           {shouldShow(
             MeetActionsEnum.Delete,
             statusId,

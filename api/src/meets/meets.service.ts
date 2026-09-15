@@ -13,18 +13,18 @@ import {
 } from "./dto/create-meet.dto";
 import { MeetDto } from "./dto/meet.dto";
 import { MeetImageDto } from "./dto/meet-image.dto";
-import { CreateMeetAttendeeDto } from "./dto/create-meet-attendee.dto";
+import { CreateMeetAttendeeDto } from "../attendees/dto/create-meet-attendee.dto";
 import { UpdateMeetDto } from "./dto/update-meet.dto";
-import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
+import { UpdateMeetAttendeeDto } from "../attendees/dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
 import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
-import { CreateWallItemDto } from "./dto/create-wall-item.dto";
+import { CreateWallItemDto } from "../wall/dto/create-wall-item.dto";
 import { MinioService } from "../storage/minio.service";
 import { detectMeetImageAspect } from "./image-aspect";
 import { v4 as uuid } from "uuid";
 import { MEET_STATUS } from "./constants/meet-status.enum";
-import { type WallItemReaction } from "./dto/update-wall-item-reaction.dto";
-import { WallItemDto } from "./dto/wall-item.dto";
+import { type WallItemReaction } from "../wall/dto/update-wall-item-reaction.dto";
+import { WallItemDto } from "../wall/dto/wall-item.dto";
 
 type InvitedAttendeeUploadInput = {
   name: string;

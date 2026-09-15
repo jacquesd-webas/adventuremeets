@@ -3,14 +3,14 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { MeetWallController } from "./meet-wall.controller";
-import { MeetsService } from "./meets.service";
+import { WallController } from "./wall.controller";
+import { MeetsService } from "../meets/meets.service";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuditLogService } from "../audit/audit-log.service";
 
-describe("MeetWallController", () => {
-  let controller: MeetWallController;
+describe("WallController", () => {
+  let controller: WallController;
 
   const meetsService = {
     findOne: jest.fn(),
@@ -48,7 +48,7 @@ describe("MeetWallController", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new MeetWallController(
+    controller = new WallController(
       meetsService,
       authService,
       auditLogService,

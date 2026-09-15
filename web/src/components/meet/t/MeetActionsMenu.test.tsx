@@ -26,6 +26,7 @@ describe("MeetActionsMenu", () => {
     statusId?: number;
     isUpcoming?: boolean;
     startTime?: string | null;
+    reportingEnabled?: boolean;
     canViewMeet?: boolean;
     canManageMeet?: boolean;
     canAccessManageMenu?: boolean;
@@ -39,6 +40,7 @@ describe("MeetActionsMenu", () => {
           statusId={props?.statusId ?? MeetStatusEnum.Draft}
           isUpcoming={props?.isUpcoming ?? false}
           startTime={props?.startTime}
+          reportingEnabled={props?.reportingEnabled}
           canAccessManageMenu={props?.canAccessManageMenu}
           canViewMeet={props?.canViewMeet}
           canManageMeet={props?.canManageMeet ?? true}
@@ -180,7 +182,7 @@ describe("MeetActionsMenu", () => {
     });
   });
 
-  it("shows Generate Report for closed meets on the same day even if still upcoming", () => {
+  it("shows Reports for closed meets on the same day when advanced reporting is enabled", () => {
     const now = new Date();
     const sameDayStart = new Date(
       now.getFullYear(),
@@ -195,10 +197,33 @@ describe("MeetActionsMenu", () => {
       statusId: MeetStatusEnum.Closed,
       isUpcoming: true,
       startTime: sameDayStart,
+      reportingEnabled: true,
       canManageMeet: true,
     });
 
-    expect(screen.getByText("Generate Report")).toBeInTheDocument();
+    expect(screen.getByText("Reports")).toBeInTheDocument();
+  });
+
+  it("hides Reports when advanced reporting is disabled", () => {
+    const now = new Date();
+    const sameDayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      0,
+      0,
+    ).toISOString();
+
+    renderMenu({
+      statusId: MeetStatusEnum.Closed,
+      isUpcoming: true,
+      startTime: sameDayStart,
+      reportingEnabled: false,
+      canManageMeet: true,
+    });
+
+    expect(screen.queryByText("Reports")).not.toBeInTheDocument();
   });
 
   it("closes the mobile action drawer before dispatching meet details", async () => {
@@ -251,6 +276,7 @@ describe("MeetActionsMenu", () => {
                 statusId={MeetStatusEnum.Closed}
                 isUpcoming={true}
                 startTime={null}
+                reportingEnabled={true}
                 canAccessManageMenu={true}
                 canViewMeet={true}
                 canManageMeet={true}
@@ -290,6 +316,7 @@ describe("MeetActionsMenu", () => {
                 statusId={MeetStatusEnum.Draft}
                 isUpcoming={true}
                 startTime={null}
+                reportingEnabled={true}
                 canAccessManageMenu={true}
                 canViewMeet={true}
                 canManageMeet={true}

@@ -13,7 +13,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { MeetsService } from "./meets.service";
+import { MeetsService } from "../meets/meets.service";
 import { CreateMeetAttendeeDto } from "./dto/create-meet-attendee.dto";
 import { Public } from "../auth/decorators/public.decorator";
 import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
@@ -28,9 +28,9 @@ import { UsersService } from "../users/users.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import { OrganizationsService } from "../organizations/organizations.service";
 
-@ApiTags("Meet Attendees")
+@ApiTags("Attendees")
 @Controller("meets/:meetId/attendees")
-export class MeetAttendeesController {
+export class AttendeesController {
   constructor(
     private readonly meetsService: MeetsService,
     private readonly authService: AuthService,

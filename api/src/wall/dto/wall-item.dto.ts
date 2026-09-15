@@ -10,7 +10,7 @@ import {
   Max,
   Min,
 } from "class-validator";
-import { MeetImageAspect } from "../image-aspect";
+import { MeetImageAspect } from "../../meets/image-aspect";
 import {
   wallItemReactionValues,
   type WallItemReaction,

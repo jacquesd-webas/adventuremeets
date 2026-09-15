@@ -44,6 +44,14 @@ vi.mock("../../hooks/useFetchMeetStatuses", () => ({
   }),
 }));
 
+vi.mock("../../hooks/useFetchOrganization", () => ({
+  useFetchOrganization: () => ({
+    data: { reportingEnabled: true },
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../../context/organizationContext", () => ({
   useCurrentOrganization: () => ({
     currentOrganizationId: "org-1",

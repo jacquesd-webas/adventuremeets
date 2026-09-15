@@ -33,6 +33,7 @@ type MeetCardProps = {
   canViewMeet: boolean;
   canManageMeet: boolean;
   canAccessManageMenu?: boolean;
+  reportingEnabled?: boolean;
 };
 
 type StatItemProps = {
@@ -202,6 +203,7 @@ export function MeetCard({
   canViewMeet,
   canManageMeet,
   canAccessManageMenu,
+  reportingEnabled,
 }: MeetCardProps) {
   const { user } = useAuth();
   const theme = useTheme();
@@ -251,6 +253,7 @@ export function MeetCard({
             canAccessManageMenu={canAccessManageMenu}
             canViewMeet={canViewMeet}
             canManageMeet={canManageMeet}
+            reportingEnabled={reportingEnabled}
             statusId={meet.statusId}
             isUpcoming={isUpcoming}
             startTime={

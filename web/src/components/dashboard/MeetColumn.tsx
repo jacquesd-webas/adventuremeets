@@ -11,6 +11,7 @@ type MeetColumnProps = {
   statusFallback: string;
   currentUserId?: string | null;
   currentOrganizationRole?: string | null;
+  reportingEnabled?: boolean;
   setSelectedMeetId: (id: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   isLoading?: boolean;
@@ -24,6 +25,7 @@ export function MeetColumn({
   statusFallback,
   currentUserId,
   currentOrganizationRole,
+  reportingEnabled,
   setSelectedMeetId,
   setPendingAction,
   isLoading = false,
@@ -70,6 +72,7 @@ export function MeetColumn({
                 canAccessManageMenu={canAccessManageMenu}
                 canManageMeet={canManageMeet}
                 canViewMeet={canViewMeet}
+                reportingEnabled={reportingEnabled}
                 statusLabel={getStatusLabel(meet.statusId, statusFallback)}
                 onClick={() => {
                   setSelectedMeetId(meet.id);

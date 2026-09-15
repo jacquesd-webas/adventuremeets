@@ -476,6 +476,12 @@ function MainLayout() {
                 >
                   Users
                 </MenuItem>
+                <MenuItem
+                  onClick={() => handleAdminNavigate("/admin/reports")}
+                  disabled={!currentOrganizationId || !isCurrentOrgAdmin}
+                >
+                  Reports
+                </MenuItem>
               </Menu>
             )}
           </Toolbar>
@@ -634,6 +640,13 @@ function MainLayout() {
                         <ListItemText primary="Organisation" />
                       </ListItemButton>
                     ) : null}
+                    {isCurrentOrgAdmin && (
+                      <ListItemButton
+                        onClick={() => handleMobileNavigate("/admin/reports")}
+                      >
+                        <ListItemText primary="Reports" />
+                      </ListItemButton>
+                    )}
                     <ListItemButton onClick={handleMobileLogout}>
                       <ListItemIcon>
                         <LogoutIcon fontSize="small" />

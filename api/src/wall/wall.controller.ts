@@ -17,7 +17,7 @@ import {
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { MeetsService } from "./meets.service";
+import { MeetsService } from "../meets/meets.service";
 import { User } from "../auth/decorators/user.decorator";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuthService } from "../auth/auth.service";
@@ -30,9 +30,9 @@ import { UpdateWallItemReactionDto } from "./dto/update-wall-item-reaction.dto";
 import { UpdateWallItemFavouriteDto } from "./dto/update-wall-item-favourite.dto";
 import { AuditLogService } from "../audit/audit-log.service";
 
-@ApiTags("Meet Wall")
+@ApiTags("Wall")
 @Controller("meets/:meetId/wall")
-export class MeetWallController {
+export class WallController {
   constructor(
     private readonly meetsService: MeetsService,
     private readonly authService: AuthService,

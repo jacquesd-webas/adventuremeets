@@ -14,6 +14,7 @@ import { useOutletContext } from "react-router-dom";
 import { Heading } from "../components/Heading";
 import { useInfiniteFetchMeets } from "../hooks/useInfiniteFetchMeets";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import Meet from "../types/MeetModel";
 import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
@@ -40,6 +41,9 @@ function DashboardPage() {
   const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
+  const { data: currentOrganization } = useFetchOrganization(
+    currentOrganizationId || undefined,
+  );
   const { user } = useAuth();
   const { dashboardView, setDashboardView } = useFilters();
   const [searchQuery, setSearchQuery] = useState("");
@@ -318,6 +322,7 @@ function DashboardPage() {
                 statusFallback="Draft"
                 currentUserId={user?.id}
                 currentOrganizationRole={currentOrganizationRole}
+                reportingEnabled={currentOrganization?.reportingEnabled}
                 getStatusLabel={getStatusName}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}
@@ -334,6 +339,7 @@ function DashboardPage() {
               statusFallback="Scheduled"
               currentUserId={user?.id}
               currentOrganizationRole={currentOrganizationRole}
+              reportingEnabled={currentOrganization?.reportingEnabled}
               getStatusLabel={getStatusName}
               setSelectedMeetId={setSelectedMeetId}
               setPendingAction={setPendingAction}
@@ -349,6 +355,7 @@ function DashboardPage() {
                 statusFallback="Closed"
                 currentUserId={user?.id}
                 currentOrganizationRole={currentOrganizationRole}
+                reportingEnabled={currentOrganization?.reportingEnabled}
                 getStatusLabel={getStatusName}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}

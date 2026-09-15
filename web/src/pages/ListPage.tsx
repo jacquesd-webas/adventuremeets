@@ -7,9 +7,10 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import { GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
+import { DataTable } from "../components/DataTable";
 import { Heading } from "../components/Heading";
 import { MeetStatus } from "../components/meet/MeetStatus";
 import { MeetActionsMenu } from "../components/meet/MeetActionsMenu";
@@ -17,6 +18,7 @@ import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { MeetFilterButtonGroup } from "../components/meet/MeetFilterButtonGroup";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useFetchMeet } from "../hooks/useFetchMeet";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { defaultPendingAction } from "../helpers/defaultPendingAction";
 import { MeetActionsEnum } from "../types/MeetActionsEnum";
 import { useCurrentOrganization } from "../context/organizationContext";
@@ -48,6 +50,9 @@ function ListPage() {
   const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
+  const { data: currentOrganization } = useFetchOrganization(
+    currentOrganizationId || undefined,
+  );
   const { user } = useAuth();
   const { listPageView, setListPageView } = useFilters();
   const canManageMeets =
@@ -164,6 +169,7 @@ function ListPage() {
                   canAccessManageMenu={canAccessManageMenu}
                   canViewMeet={canViewMeet}
                   canManageMeet={canManageMeet}
+                  reportingEnabled={currentOrganization?.reportingEnabled}
                   isUpcoming={isMeetUpcoming(params.row)}
                   startTime={params.row.startTime}
                   setSelectedMeetId={setSelectedMeetId}
@@ -329,71 +335,46 @@ function ListPage() {
         }
       />
       {!isMobile ? (
-        <Paper
-          variant="outlined"
-          sx={{ width: "100%", bgcolor: "transparent" }}
-        >
-          <DataGrid
-            autoHeight
-            rows={meets}
-            columns={columns}
-            getRowId={(row) => row.id}
-            loading={isLoading}
-            pagination
-            paginationMode="server"
-            rowCount={total}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            pageSizeOptions={[10, 25, 50]}
-            disableColumnFilter
-            disableRowSelectionOnClick
-            onRowClick={(params) => {
-              const { canManageMeet } = getMeetPermissions({
-                currentUserId: user?.id,
-                currentOrganizationRole,
-                organizerId: params.row.organizerId,
-              });
-              setSelectedMeetId(params.row.id);
-              setPendingAction(
-                defaultPendingAction(
-                  params.row.statusId,
-                  params.row.organizerId === user?.id,
-                  params.row,
-                  { canManageMeet },
-                ),
-              );
-            }}
-            sx={(theme) => ({
-              bgcolor:
-                theme.palette.mode === "dark"
-                  ? "rgba(16, 16, 16, 0.7)"
-                  : "rgba(255, 255, 255, 0.7)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-              "& .MuiDataGrid-cell:first-of-type": {
-                pl: 2,
-              },
-              "& .MuiDataGrid-cell:last-of-type": {
-                pr: 2,
-              },
-              "& .MuiDataGrid-columnHeader:first-of-type": {
-                pl: 2,
-              },
-              "& .MuiDataGrid-columnHeader:last-of-type": {
-                pr: 2,
-              },
-            })}
-            slots={{
-              noRowsOverlay: () => (
-                <Box sx={{ p: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No meets found.
-                  </Typography>
-                </Box>
+        <DataTable
+          autoHeight
+          rows={meets}
+          columns={columns}
+          getRowId={(row) => row.id}
+          loading={isLoading}
+          pagination
+          paginationMode="server"
+          rowCount={total}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
+          pageSizeOptions={[10, 25, 50]}
+          disableColumnFilter
+          disableRowSelectionOnClick
+          onRowClick={(params) => {
+            const { canManageMeet } = getMeetPermissions({
+              currentUserId: user?.id,
+              currentOrganizationRole,
+              organizerId: params.row.organizerId,
+            });
+            setSelectedMeetId(params.row.id);
+            setPendingAction(
+              defaultPendingAction(
+                params.row.statusId,
+                params.row.organizerId === user?.id,
+                params.row,
+                { canManageMeet },
               ),
-            }}
-          />
-        </Paper>
+            );
+          }}
+          slots={{
+            noRowsOverlay: () => (
+              <Box sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  No meets found.
+                </Typography>
+              </Box>
+            ),
+          }}
+        />
       ) : (
         <Stack spacing={1.5}>
           {meets.length === 0 && !isLoading && (
@@ -452,6 +433,7 @@ function ListPage() {
                           canAccessManageMenu={canAccessManageMenu}
                           canViewMeet={canViewMeet}
                           canManageMeet={canManageMeet}
+                          reportingEnabled={currentOrganization?.reportingEnabled}
                           isUpcoming={isMeetUpcoming(meet)}
                           startTime={
                             meet.startTime instanceof Date

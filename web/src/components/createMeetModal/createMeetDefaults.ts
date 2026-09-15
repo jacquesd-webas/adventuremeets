@@ -55,6 +55,8 @@ type OrganizationDefaults = {
   defaultAllowGuests?: boolean;
   defaultAllowSelfCheckin?: boolean;
   defaultAllowWalkins?: boolean;
+  customField1Name?: string;
+  customField2Name?: string;
 };
 
 export function buildCreateMeetStateFromOrganizationDefaults({
@@ -70,6 +72,9 @@ export function buildCreateMeetStateFromOrganizationDefaults({
   template?: Template | null;
   userId: string;
 }): CreateMeetState {
+  const hasCustomField1 = Boolean(organization.customField1Name?.trim());
+  const hasCustomField2 = Boolean(organization.customField2Name?.trim());
+
   return applyDefaultTemplateToState(
     {
       ...initialState,
@@ -81,6 +86,8 @@ export function buildCreateMeetStateFromOrganizationDefaults({
       allowGuests: Boolean(organization.defaultAllowGuests),
       allowSelfCheckin: Boolean(organization.defaultAllowSelfCheckin),
       allowWalkins: Boolean(organization.defaultAllowWalkins),
+      requireOrg1: hasCustomField1,
+      requireOrg2: hasCustomField2,
     },
     template,
   );

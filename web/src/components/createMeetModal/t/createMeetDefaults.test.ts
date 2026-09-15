@@ -12,6 +12,8 @@ describe("createMeetDefaults", () => {
         defaultAllowGuests: true,
         defaultAllowSelfCheckin: true,
         defaultAllowWalkins: true,
+        customField1Name: "Club",
+        customField2Name: "Region",
       },
       template: {
         id: "template-1",
@@ -45,6 +47,8 @@ describe("createMeetDefaults", () => {
     expect(state.allowGuests).toBe(true);
     expect(state.allowSelfCheckin).toBe(true);
     expect(state.allowWalkins).toBe(true);
+    expect(state.requireOrg1).toBe(true);
+    expect(state.requireOrg2).toBe(true);
     expect(state.indemnityText).toBe("Default indemnity text");
     expect(state.approvedResponse).toBe("Approved by default");
     expect(state.rejectResponse).toBe("Rejected by default");
@@ -57,5 +61,21 @@ describe("createMeetDefaults", () => {
         type: "text",
       }),
     ]);
+  });
+
+  it("leaves org field switches off when the organization has not configured them", () => {
+    const state = buildCreateMeetStateFromOrganizationDefaults({
+      currency: "USD",
+      currentOrganizationId: "org-1",
+      organization: {
+        customField1Name: "   ",
+        customField2Name: undefined,
+      },
+      template: null,
+      userId: "organizer-1",
+    });
+
+    expect(state.requireOrg1).toBe(false);
+    expect(state.requireOrg2).toBe(false);
   });
 });

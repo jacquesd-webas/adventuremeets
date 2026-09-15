@@ -23,6 +23,7 @@ const ListPage = lazy(() => import("./pages/ListPage"));
 const OrganisationsPage = lazy(() => import("./pages/OrganisationsPage"));
 const MembersPage = lazy(() => import("./pages/MembersPage"));
 const TemplatesPage = lazy(() => import("./pages/TemplatesPage"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 
 function withPageLoader(element: ReactNode) {
   return <Suspense fallback={<FullPageSpinner />}>{element}</Suspense>;
@@ -46,6 +47,8 @@ function App() {
             element={withPageLoader(<MembersPage />)}
           />
           <Route path="/admin/users" element={withPageLoader(<MembersPage />)} />
+          <Route path="/admin/reports" element={withPageLoader(<ReportsPage />)} />
+          <Route path="/admin/reports/:type" element={withPageLoader(<ReportsPage />)} />
           <Route
             path="/admin/organizations/:id/templates"
             element={withPageLoader(<TemplatesPage />)}
