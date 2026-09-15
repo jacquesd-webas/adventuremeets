@@ -69,9 +69,7 @@ function ListPage() {
     organizationId: currentOrganizationId,
     search: debouncedSearch.trim() || undefined,
   });
-  const {
-    data: selectedMeetFromRoute,
-  } = useFetchMeet(
+  const { data: selectedMeetFromRoute } = useFetchMeet(
     selectedMeetId,
     Boolean(selectedMeetId && pendingAction === MeetActionsEnum.Attendees),
   );
@@ -149,10 +147,10 @@ function ListPage() {
           (() => {
             const { canManageMeet, canViewMeet, canAccessManageMenu } =
               getMeetPermissions({
-              currentUserId: user?.id,
-              currentOrganizationRole,
-              organizerId: params.row.organizerId,
-            });
+                currentUserId: user?.id,
+                currentOrganizationRole,
+                organizerId: params.row.organizerId,
+              });
 
             return (
               <Box
@@ -181,7 +179,13 @@ function ListPage() {
           })(),
       },
     ],
-    [currentOrganizationRole, setPendingAction, setSelectedMeetId, user?.id],
+    [
+      currentOrganizationRole,
+      currentOrganization?.reportingEnabled,
+      setPendingAction,
+      setSelectedMeetId,
+      user?.id,
+    ],
   );
 
   useEffect(() => {
@@ -388,10 +392,10 @@ function ListPage() {
             (() => {
               const { canManageMeet, canViewMeet, canAccessManageMenu } =
                 getMeetPermissions({
-                currentUserId: user?.id,
-                currentOrganizationRole,
-                organizerId: meet.organizerId,
-              });
+                  currentUserId: user?.id,
+                  currentOrganizationRole,
+                  organizerId: meet.organizerId,
+                });
 
               return (
                 <Paper
@@ -433,7 +437,9 @@ function ListPage() {
                           canAccessManageMenu={canAccessManageMenu}
                           canViewMeet={canViewMeet}
                           canManageMeet={canManageMeet}
-                          reportingEnabled={currentOrganization?.reportingEnabled}
+                          reportingEnabled={
+                            currentOrganization?.reportingEnabled
+                          }
                           isUpcoming={isMeetUpcoming(meet)}
                           startTime={
                             meet.startTime instanceof Date
