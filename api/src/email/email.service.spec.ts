@@ -1,7 +1,8 @@
 import { EmailMessagesRepository } from "./email-messages.repository";
 import { DatabaseService } from "../database/database.service";
 
-const createEmailService = (db: DatabaseService) => new EmailService(db, new EmailMessagesRepository(db));
+const createEmailService = (db: DatabaseService) =>
+  new EmailService(db, new EmailMessagesRepository(db));
 import { EmailService } from "./email.service";
 
 describe("EmailService.parseMessageContent", () => {
@@ -152,6 +153,8 @@ describe("EmailService.saveMessage", () => {
 
 describe("EmailService.sendEmail", () => {
   it("succeeds only when SMTP accepts every intended recipient", async () => {
+    const expectedMailDomain =
+      process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";
     const outboundEmailsInsert = {
       returning: jest.fn().mockResolvedValue([
         {
@@ -201,10 +204,7 @@ describe("EmailService.sendEmail", () => {
       expect.objectContaining({
         html: expect.stringContaining("/api/v1/email/open/" + "a".repeat(48)),
         envelope: {
-          from:
-            "bounce+" +
-            "a".repeat(48) +
-            "@adventuremeets.apps.fringecoding.com",
+          from: "bounce+" + "a".repeat(48) + `@${expectedMailDomain}`,
           to: "alex@example.com",
         },
       }),
@@ -216,7 +216,9 @@ describe("EmailService.sendEmail", () => {
       }),
     ]);
     const envelopeFrom = sendMail.mock.calls[0][0].envelope.from;
-    expect(Buffer.byteLength(envelopeFrom.split("@")[0])).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(envelopeFrom.split("@")[0])).toBeLessThanOrEqual(
+      64,
+    );
     expect(outboundEmailsQuery.update).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "sent",
@@ -379,17 +381,30 @@ describe("EmailService.sendEmail", () => {
   });
 });
 
-
 describe("EmailService message status association", () => {
   it("links saved messages before a failed SMTP send", async () => {
     const query = {
       insert: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockResolvedValue([{ id: "outbound-1", recipient_email: "alex@example.com", tracking_token: "a".repeat(48) }]),
-      whereIn: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(),
+      returning: jest
+        .fn()
+        .mockResolvedValue([
+          {
+            id: "outbound-1",
+            recipient_email: "alex@example.com",
+            tracking_token: "a".repeat(48),
+          },
+        ]),
+      whereIn: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
       update: jest.fn().mockResolvedValue(1),
     };
-    const repository = { linkOutboundEmails: jest.fn().mockResolvedValue(undefined) };
-    const service = new EmailService({ getClient: () => () => query } as unknown as DatabaseService, repository as unknown as EmailMessagesRepository);
+    const repository = {
+      linkOutboundEmails: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new EmailService(
+      { getClient: () => () => query } as unknown as DatabaseService,
+      repository as unknown as EmailMessagesRepository,
+    );
     const sendMail = jest.fn().mockImplementation(async () => {
       expect(repository.linkOutboundEmails).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ id: "outbound-1" })]),
@@ -398,10 +413,18 @@ describe("EmailService message status association", () => {
       throw new Error("SMTP rejected");
     });
     (service as any).transporter = { sendMail };
-    await expect(service.sendEmail({
-      to: "alex@example.com", subject: "Test", text: "Body",
-      messageReferences: [{ messageId: "message-1", recipient: "alex@example.com" }],
-    })).rejects.toThrow("SMTP rejected");
-    expect(query.update).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" }));
+    await expect(
+      service.sendEmail({
+        to: "alex@example.com",
+        subject: "Test",
+        text: "Body",
+        messageReferences: [
+          { messageId: "message-1", recipient: "alex@example.com" },
+        ],
+      }),
+    ).rejects.toThrow("SMTP rejected");
+    expect(query.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed" }),
+    );
   });
 });

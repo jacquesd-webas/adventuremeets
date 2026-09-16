@@ -66,7 +66,7 @@ export class IncomingMailController {
   ) {
     const rcpt = Array.isArray(rcptTo) ? rcptTo[0] : rcptTo;
     const sender = Array.isArray(mailFrom) ? mailFrom[0] : mailFrom;
-    const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp;
+    //const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp;
 
     const mailDomain =
       process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";

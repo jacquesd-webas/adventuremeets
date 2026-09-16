@@ -204,7 +204,7 @@ describe("OrganizationsService", () => {
       user_organization_memberships: membershipsBuilder,
     });
 
-    const client: any = (table: string) => buildBuilder();
+    const client: any = (_: string) => buildBuilder();
     client.transaction = jest.fn().mockResolvedValue(trx);
 
     const db = { getClient: () => client } as unknown as DatabaseService;

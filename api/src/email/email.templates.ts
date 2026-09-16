@@ -183,68 +183,35 @@ function getMeetResponseWording(isRsvpMode?: boolean) {
   };
 }
 
-// Overloads for type safety on vars for each template
-
-export function renderEmailTemplate(
-  name: "password-reset",
-  vars: PasswordResetTemplateVars,
-): { subject: string; text: string; html: string };
-
-export function renderEmailTemplate(name: "password-reset-confirmation"): {
+type RenderedEmailTemplate = {
   subject: string;
   text: string;
   html: string;
 };
 
-export function renderEmailTemplate(
-  name: "meet-signup",
-  vars: MeetSignupTemplateVars,
-): { subject: string; text: string; html: string };
+type RenderEmailTemplateArgs =
+  | [name: "password-reset", vars: PasswordResetTemplateVars]
+  | [name: "password-reset-confirmation"]
+  | [name: "meet-signup", vars: MeetSignupTemplateVars]
+  | [name: "verify-email", vars: VerifyEmailTemplateVars]
+  | [
+      name: "meet-confirm" | "meet-reconfirm" | "meet-reject" | "meet-waitlist",
+      vars: MeetStatusTemplateVars,
+    ]
+  | [name: "meet-message", vars: MeetMessageTemplateVars]
+  | [name: "organization-invite", vars: OrganizationInviteTemplateVars]
+  | [
+      name: "organiser-reminder-responses-needed",
+      vars: OrganiserReminderResponsesNeededTemplateVars,
+    ]
+  | [
+      name: "organizer-reminder-checkin-needed",
+      vars: OrganizerReminderCheckinNeededTemplateVars,
+    ];
 
 export function renderEmailTemplate(
-  name: "verify-email",
-  vars: VerifyEmailTemplateVars,
-): { subject: string; text: string; html: string };
-
-export function renderEmailTemplate(
-  name: "meet-confirm" | "meet-reconfirm" | "meet-reject" | "meet-waitlist",
-  vars: MeetStatusTemplateVars,
-): { subject: string; text: string; html: string };
-
-export function renderEmailTemplate(
-  name: "meet-message",
-  vars: MeetMessageTemplateVars,
-): { subject: string; text: string; html: string };
-
-export function renderEmailTemplate(
-  name: "organization-invite",
-  vars: OrganizationInviteTemplateVars,
-): { subject: string; text: string; html: string };
-
-export function renderEmailTemplate(
-  name: "organiser-reminder-responses-needed",
-  vars: OrganiserReminderResponsesNeededTemplateVars,
-): { subject: string; text: string; html: string };
-
-export function renderEmailTemplate(
-  name: "organizer-reminder-checkin-needed",
-  vars: OrganizerReminderCheckinNeededTemplateVars,
-): { subject: string; text: string; html: string };
-
-// Main function implementation
-
-export function renderEmailTemplate(
-  name: EmailTemplateName,
-  vars?:
-    | PasswordResetTemplateVars
-    | MeetSignupTemplateVars
-    | VerifyEmailTemplateVars
-    | MeetStatusTemplateVars
-    | MeetMessageTemplateVars
-    | OrganizationInviteTemplateVars
-    | OrganiserReminderResponsesNeededTemplateVars
-    | OrganizerReminderCheckinNeededTemplateVars,
-) {
+  ...[name, vars]: RenderEmailTemplateArgs
+): RenderedEmailTemplate {
   if (name === "password-reset") {
     const resetVars = vars as PasswordResetTemplateVars | undefined;
     if (!resetVars?.resetUrl) {
@@ -553,8 +520,9 @@ export function renderEmailTemplate(
   }
 
   if (name === "organiser-reminder-responses-needed") {
-    const reminderVars =
-      vars as OrganiserReminderResponsesNeededTemplateVars | undefined;
+    const reminderVars = vars as
+      | OrganiserReminderResponsesNeededTemplateVars
+      | undefined;
     if (!reminderVars?.meetName || reminderVars.responseCount == null) {
       throw new Error(
         "Missing meetName or responseCount for organiser-reminder-responses-needed template",
@@ -597,8 +565,9 @@ export function renderEmailTemplate(
   }
 
   if (name === "organizer-reminder-checkin-needed") {
-    const reminderVars =
-      vars as OrganizerReminderCheckinNeededTemplateVars | undefined;
+    const reminderVars = vars as
+      | OrganizerReminderCheckinNeededTemplateVars
+      | undefined;
     if (!reminderVars?.meetName) {
       throw new Error(
         "Missing meetName for organizer-reminder-checkin-needed template",
@@ -635,6 +604,8 @@ export function renderEmailTemplate(
       html: wrapHtml(htmlBody, reminderVars.logoUrl),
     };
   }
+
+  throw new Error(`Unsupported email template: ${name}`);
 }
 
 function getMeetTemplateContext(
