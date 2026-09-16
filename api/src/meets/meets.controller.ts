@@ -46,6 +46,7 @@ import { OrganizationsService } from "../organizations/organizations.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import * as ExcelJS from "exceljs";
 import { MEET_STATUS } from "./constants/meet-status.enum";
+import { parseAttendeeWorkbook } from "./attendee-upload-workbook";
 
 @ApiTags("Meets")
 @Controller("meets")
@@ -563,7 +564,9 @@ export class MeetsController {
           html,
           meetId: meet.id,
           attendeeId: attendee.id,
-          messageReferences: messageId ? [{ messageId, recipient: attendee.email }] : [],
+          messageReferences: messageId
+            ? [{ messageId, recipient: attendee.email }]
+            : [],
         });
         notifiedIds.push(attendee.id);
       }),
@@ -638,7 +641,9 @@ export class MeetsController {
           html,
           meetId: meet.id,
           attendeeId: attendee.id,
-          messageReferences: messageId ? [{ messageId, recipient: attendee.email }] : [],
+          messageReferences: messageId
+            ? [{ messageId, recipient: attendee.email }]
+            : [],
         });
         notifiedIds.push(attendee.id);
       }),
@@ -851,7 +856,11 @@ export class MeetsController {
       body.sendAsGroup === true ? false : body.includeStatusUrl !== false;
     const meetReplyTo = `meet+${meet.id}@${process.env.MAIL_DOMAIN}`;
 
-    const messageReferences: Array<{ messageId: string; recipient: string; attendeeId: string }> = [];
+    const messageReferences: Array<{
+      messageId: string;
+      recipient: string;
+      attendeeId: string;
+    }> = [];
     await Promise.all(
       Array.from(recipients.keys()).map(async (attendeeId) => {
         const attendee =
@@ -887,7 +896,12 @@ export class MeetsController {
           meetId: meet.id,
           attendeeId,
         });
-        if (messageId) messageReferences.push({ messageId, recipient: recipients.get(attendeeId)!, attendeeId });
+        if (messageId)
+          messageReferences.push({
+            messageId,
+            recipient: recipients.get(attendeeId)!,
+            attendeeId,
+          });
       }),
     );
 
@@ -942,7 +956,9 @@ export class MeetsController {
             meetId: meet.id,
             attendeeId,
             replyTo: meetReplyTo,
-            messageReferences: messageReferences.filter((reference) => reference.attendeeId === attendeeId),
+            messageReferences: messageReferences.filter(
+              (reference) => reference.attendeeId === attendeeId,
+            ),
           });
         }),
       );
@@ -1030,12 +1046,7 @@ export class MeetsController {
       throw new BadRequestException("File is required");
     }
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(file.buffer);
-    const worksheet = workbook.worksheets[0];
-    if (!worksheet) {
-      throw new BadRequestException("No worksheet found in the uploaded file");
-    }
+    const worksheetRows = parseAttendeeWorkbook(file.buffer);
 
     const normalizeColumnKey = (value: string) =>
       value
@@ -1043,21 +1054,19 @@ export class MeetsController {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "");
 
-    const headerRow = worksheet.getRow(1);
+    const headerRow = worksheetRows[0] || [];
     const headerMap = new Map<string, number>();
-    headerRow.eachCell((cell, colNumber) => {
-      const rawKey = String(cell.text || cell.value || "");
+    headerRow.forEach((value, index) => {
+      const rawKey = String(value ?? "");
       const key = normalizeColumnKey(rawKey);
-      if (key) headerMap.set(key, colNumber);
+      if (key) headerMap.set(key, index + 1);
     });
 
     const nameCol = headerMap.get("name");
     const emailCol = headerMap.get("email");
     const phoneCol = headerMap.get("phone");
-    if (!nameCol || !emailCol || !phoneCol) {
-      throw new BadRequestException(
-        "Sheet must include columns: name, email, phone",
-      );
+    if (!nameCol || !emailCol) {
+      throw new BadRequestException("Sheet must include columns: name, email");
     }
 
     const metaDefinitions = await this.db
@@ -1100,11 +1109,10 @@ export class MeetsController {
       assignedDefinitionIds.add(definitionId);
     });
 
-    const getCellText = (row: any, col: number) => {
-      const cell = row.getCell(col);
-      const value = cell?.text ?? cell?.value ?? "";
-      return String(value).trim();
-    };
+    const getCellText = (
+      row: Array<string | number | boolean>,
+      col?: number,
+    ) => (col ? String(row[col - 1] ?? "").trim() : "");
 
     const attendees: Array<{
       name: string;
@@ -1115,15 +1123,16 @@ export class MeetsController {
     }> = [];
     const errors: string[] = [];
 
-    worksheet.eachRow((row, rowNumber) => {
+    worksheetRows.forEach((row, index) => {
+      const rowNumber = index + 1;
       if (rowNumber === 1) return;
       const name = getCellText(row, nameCol);
       const email = getCellText(row, emailCol);
       const phone = getCellText(row, phoneCol);
       if (!name && !email && !phone) return;
-      if (!name || !email || !phone) {
+      if (!name || !email) {
         errors.push(
-          `Row ${rowNumber}: name, email, and phone are required for each attendee.`,
+          `Row ${rowNumber}: name and email are required for each attendee.`,
         );
         return;
       }

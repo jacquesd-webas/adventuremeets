@@ -79,6 +79,9 @@ importers:
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
+      xlsx:
+        specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+        version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
     devDependencies:
       "@nestjs/testing":
         specifier: ^10.2.0
@@ -5689,6 +5692,9 @@ packages:
       }
     engines: { node: ^12.13.0 || ^14.15.0 || >=16.0.0 }
 
+  xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz:
+    resolution: { tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz }
+
   xml2js@0.6.2:
     resolution:
       {
@@ -9716,6 +9722,8 @@ snapshots:
     dependencies:
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
+
+  xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz: {}
 
   xml2js@0.6.2:
     dependencies:

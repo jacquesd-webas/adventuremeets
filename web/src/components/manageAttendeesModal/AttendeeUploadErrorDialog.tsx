@@ -30,15 +30,13 @@ export function AttendeeUploadErrorDialog({
       <DialogContent dividers>
         <Stack spacing={2}>
           <Typography variant="body2">
-            The uploaded document does not have the required fields and could
-            not be imported. The headings must be exact and can also contain
-            the questions. Please download the existing list as a sample to see
-            what headings should be.
+            The uploaded document could not be imported. Use a valid .xlsx or
+            .xls workbook and ensure each attendee row contains a name and email
+            address.
           </Typography>
           <Alert severity="info">
-            Note: Leaving the status column blank will default to "invited".
-            Any invalid status is ignored and any change to existing status is
-            also ignored.
+            Unfamiliar column headings can be matched to Name, Email, and Phone
+            before the file is uploaded.
           </Alert>
         </Stack>
       </DialogContent>

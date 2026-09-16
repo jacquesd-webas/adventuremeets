@@ -99,6 +99,33 @@ vi.mock("notistack", () => ({
   SnackbarProvider: ({ children }: { children: any }) => children,
 }));
 
+vi.mock("../attendeeUploadWorkbook", () => ({
+  inspectAttendeeWorkbook: vi.fn(async () => ({
+    columns: [
+      { columnIndex: 0, header: "Name", previewValues: ["Alex"] },
+      {
+        columnIndex: 1,
+        header: "Email",
+        previewValues: ["alex@example.com"],
+      },
+      { columnIndex: 2, header: "Phone", previewValues: ["+27123456789"] },
+    ],
+    headerRowIndex: 0,
+    workbook: {},
+    worksheetName: "Attendees",
+  })),
+  guessAttendeeColumnAssignments: vi.fn(() => ["name", "email", "phone"]),
+  assignmentsMatchRequiredHeaders: vi.fn(() => true),
+  createMappedAttendeeWorkbook: vi.fn(),
+  attendeeColumnLabels: {
+    name: "Name",
+    email: "Email",
+    phone: "Phone",
+  },
+  attendeeColumnRoles: ["name", "email", "phone"],
+  requiredAttendeeColumnRoles: ["name", "email"],
+}));
+
 describe("ManageAttendeesModal", () => {
   beforeAll(() => {
     Object.defineProperty(window, "matchMedia", {
@@ -505,9 +532,9 @@ describe("ManageAttendeesModal", () => {
     expect(screen.getByText("Imported name: Alex Rider")).toBeInTheDocument();
     expect(screen.getByText("Existing name: Alex")).toBeInTheDocument();
 
-    expect(
-      screen.getByRole("combobox", { name: "Action" }),
-    ).toHaveTextContent("Ignore");
+    expect(screen.getByRole("combobox", { name: "Action" })).toHaveTextContent(
+      "Ignore",
+    );
 
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "Action" }));
     fireEvent.click(screen.getByRole("option", { name: "Replace" }));
@@ -550,7 +577,7 @@ describe("ManageAttendeesModal", () => {
       text: vi
         .fn()
         .mockResolvedValue(
-          "Upload failed with 1 invalid row(s). Row 2: name, email, and phone are required for each attendee.",
+          "Upload failed with 1 invalid row(s). Row 2: name and email are required for each attendee.",
         ),
     });
 
@@ -588,12 +615,12 @@ describe("ManageAttendeesModal", () => {
 
     expect(
       await screen.findByText(
-        "The uploaded document does not have the required fields and could not be imported. The headings must be exact and can also contain the questions. Please download the existing list as a sample to see what headings should be.",
+        "The uploaded document could not be imported. Use a valid .xlsx or .xls workbook and ensure each attendee row contains a name and email address.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Note: Leaving the status column blank will default to "invited". Any invalid status is ignored and any change to existing status is also ignored.',
+        "Unfamiliar column headings can be matched to Name, Email, and Phone before the file is uploaded.",
       ),
     ).toBeInTheDocument();
 
@@ -602,7 +629,7 @@ describe("ManageAttendeesModal", () => {
     await waitFor(() => {
       expect(
         screen.queryByText(
-          "The uploaded document does not have the required fields and could not be imported. The headings must be exact and can also contain the questions. Please download the existing list as a sample to see what headings should be.",
+          "The uploaded document could not be imported. Use a valid .xlsx or .xls workbook and ensure each attendee row contains a name and email address.",
         ),
       ).not.toBeInTheDocument();
     });

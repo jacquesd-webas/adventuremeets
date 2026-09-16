@@ -14,33 +14,12 @@ const workbookState: {
   uploadRows: [],
 };
 
-const createMockCell = (value: any) => ({
-  text: value == null ? "" : String(value),
-  value,
-});
-
-const createMockRow = (values: any[]) => ({
-  eachCell: (callback: (cell: any, colNumber: number) => void) => {
-    values.forEach((value, index) => {
-      callback(createMockCell(value), index + 1);
-    });
-  },
-  getCell: (colNumber: number) => createMockCell(values[colNumber - 1]),
-});
-
-const createMockWorksheet = (rows: Array<Array<any>>) => ({
-  getRow: (rowNumber: number) => createMockRow(rows[rowNumber - 1] || []),
-  eachRow: (callback: (row: any, rowNumber: number) => void) => {
-    rows.forEach((rowValues, index) => {
-      callback(createMockRow(rowValues), index + 1);
-    });
-  },
-});
+jest.mock("./attendee-upload-workbook", () => ({
+  parseAttendeeWorkbook: jest.fn(() => workbookState.uploadRows),
+}));
 
 jest.mock("exceljs", () => ({
   Workbook: class MockWorkbook {
-    worksheets: any[] = [];
-
     addWorksheet() {
       workbookState.rows = [];
       workbookState.columns = [];
@@ -58,12 +37,6 @@ jest.mock("exceljs", () => ({
     }
 
     xlsx = {
-      load: jest.fn().mockImplementation(async () => {
-        this.worksheets =
-          workbookState.uploadRows.length > 0
-            ? [createMockWorksheet(workbookState.uploadRows)]
-            : [];
-      }),
       writeBuffer: jest.fn().mockResolvedValue(Buffer.from("xlsx")),
     };
   },
@@ -1281,6 +1254,66 @@ describe("MeetsController", () => {
         to: ["alex@example.com", "jamie@example.com"],
       }),
     );
+  });
+
+  it("imports attendees without a phone column", async () => {
+    workbookState.uploadRows = [
+      ["Name", "Email"],
+      ["Alex", "alex@example.com"],
+    ];
+
+    const metaDefinitionsBuilder = {
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue([]),
+    };
+    const client: any = (table: string) => {
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    };
+
+    (db.getClient as jest.Mock).mockReturnValue(client);
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.addInvitedAttendees as jest.Mock).mockResolvedValue({
+      created: 1,
+      skipped: 0,
+    });
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.uploadAttendees(
+        "meet-1",
+        { buffer: Buffer.from("xlsx") },
+        user,
+      ),
+    ).resolves.toEqual({ created: 1, skipped: 0 });
+
+    expect(meetsService.addInvitedAttendees).toHaveBeenCalledWith("meet-1", [
+      {
+        name: "Alex",
+        email: "alex@example.com",
+        phone: "",
+        rowNumber: 2,
+        metaValues: undefined,
+      },
+    ]);
+  });
+
+  it("requires name and email upload columns", async () => {
+    workbookState.uploadRows = [
+      ["Email", "Phone"],
+      ["alex@example.com", "+27123456789"],
+    ];
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.uploadAttendees(
+        "meet-1",
+        { buffer: Buffer.from("xlsx") },
+        user,
+      ),
+    ).rejects.toThrow("Sheet must include columns: name, email");
   });
 
   it("maps extra upload columns to matching meta field labels and field keys", async () => {
