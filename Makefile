@@ -20,7 +20,7 @@ build:
 
 test:
 	@echo Running linters...
-	cd api @@ pnpm lint
+	cd api && pnpm lint
 	cd web && pnpm lint
 	cd worker && pnpm lint
 	@echo Testing build...
