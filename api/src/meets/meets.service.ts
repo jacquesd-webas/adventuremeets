@@ -2682,6 +2682,7 @@ export class MeetsService {
       .getClient()("messages as m")
       .join("message_contents as mc", "mc.id", "m.message_content_id")
       .join("meet_attendees as ma", "ma.id", "m.attendee_id")
+      .leftJoin("outbound_emails as oe", "oe.id", "m.outbound_email_id")
       .where("m.meet_id", meetId)
       .andWhere("m.attendee_id", attendeeId)
       .orderBy("m.timestamp", "desc")
@@ -2693,6 +2694,8 @@ export class MeetsService {
         "m.is_read",
         "mc.content",
         "ma.email as attendee_email",
+        "oe.status as email_status",
+        "oe.opened_at",
       );
     return rows.map((row: any) => ({
       id: row.message_id,
@@ -2701,6 +2704,8 @@ export class MeetsService {
       to: row.to,
       isRead: row.is_read ?? false,
       content: row.content,
+      emailStatus: row.email_status ?? null,
+      openedAt: row.opened_at ?? null,
       direction: this.getAttendeeMessageDirection(
         row.from,
         row.to,

@@ -1,3 +1,4 @@
+import { EmailMessagesRepository, EmailMessageReference } from "./email-messages.repository";
 import { Injectable, Logger } from "@nestjs/common";
 import * as nodemailer from "nodemailer";
 import * as crypto from "crypto";
@@ -12,8 +13,12 @@ export type SendEmailOptions = {
   from?: string;
   replyTo?: string;
   attachments?: Attachment[];
+  organizationId?: string;
+  userId?: string;
   attendeeId?: string;
   meetId?: string;
+  templateName?: string;
+  messageReferences?: EmailMessageReference[];
 };
 
 @Injectable()
@@ -23,7 +28,10 @@ export class EmailService {
   private readonly defaultFrom: string;
   private readonly mailDomain: string;
 
-  constructor(private readonly db: DatabaseService) {
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly messagesRepository: EmailMessagesRepository,
+  ) {
     const host = process.env.MAIL_SMTP_HOST;
     const port = Number(process.env.MAIL_SMTP_PORT || 587);
     const secure = process.env.MAIL_SMTP_SECURE === "true" || port === 465;
@@ -68,14 +76,15 @@ export class EmailService {
       return;
     }
 
-    await this.db.getClient()("messages").insert({
+    const [message] = await this.db.getClient()("messages").insert({
       meet_id: meetId,
       attendee_id: attendeeId,
       from: sender,
       to: recipients,
       message_content_id: contentId,
       is_read: true,
-    });
+    }).returning("message_id");
+    return message?.message_id as string | undefined;
   }
 
   async saveIncomingMessage(payload: {
@@ -272,41 +281,255 @@ export class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions) {
-    const { to, subject, text, html, from, replyTo, attachments, meetId } =
-      options;
-    const resolvedFrom = meetId ? this.defaultFrom : from || this.defaultFrom;
-    const resolvedReplyTo = meetId
-      ? replyTo || `meet+${meetId}@${this.mailDomain}`
-      : replyTo;
-    const mailOptions = {
+    const {
       to,
       subject,
       text,
       html,
-      from: resolvedFrom,
-      replyTo: resolvedReplyTo,
+      from,
+      replyTo,
       attachments,
-    };
+      organizationId,
+      userId,
+      attendeeId,
+      meetId,
+      templateName,
+    } = options;
+    const expectedRecipients = [...new Set(this.normalizeRecipientList(to))];
+    const outboundEmails = await this.db
+      .getClient()("outbound_emails")
+      .insert(
+        expectedRecipients.map((recipientEmail) => ({
+          organization_id: organizationId ?? null,
+          meet_id: meetId ?? null,
+          attendee_id: attendeeId ?? null,
+          user_id: userId ?? null,
+          recipient_email: recipientEmail,
+          subject,
+          template_name: templateName ?? null,
+          tracking_token: this.createTrackingToken(),
+        })),
+      )
+      .returning(["id", "recipient_email", "tracking_token"]);
+    const outboundEmailRecords = outboundEmails as Array<{
+      id: string;
+      recipient_email: string;
+      tracking_token: string;
+    }>;
+    if (options.messageReferences?.length) {
+      await this.messagesRepository.linkOutboundEmails(outboundEmailRecords, options.messageReferences);
+    }
+    const outboundEmailIds = new Map(
+      outboundEmailRecords.map((email) => [email.recipient_email, email.id]),
+    );
+    const outboundEmailTokens = new Map(
+      outboundEmailRecords.map((email) => [
+        email.recipient_email,
+        email.tracking_token,
+      ]),
+    );
+    const resolvedFrom = meetId ? this.defaultFrom : from || this.defaultFrom;
+    const resolvedReplyTo = meetId
+      ? replyTo || `meet+${meetId}@${this.mailDomain}`
+      : replyTo;
     this.logger.log(
       `Sending email to ${
         Array.isArray(to) ? to.join(",") : to
       } subject="${subject}"`,
     );
-    const info = await this.transporter.sendMail(mailOptions);
-    const expectedRecipients = this.normalizeRecipientList(to);
-    const acceptedRecipients = this.normalizeRecipientList(
-      ((info as any)?.accepted ?? []) as Array<string | { address?: string }>,
-    );
+    const failures: Error[] = [];
+    for (const recipient of expectedRecipients) {
+      const trackingToken = outboundEmailTokens.get(recipient);
+      const mailOptions = {
+        to: recipient,
+        subject,
+        text,
+        html: html
+          ? this.addTrackingPixel(html, this.buildTrackingUrl(trackingToken!))
+          : html,
+        from: resolvedFrom,
+        replyTo: resolvedReplyTo,
+        attachments,
+        envelope: {
+          from: this.buildBounceAddress(trackingToken!),
+          to: recipient,
+        },
+      };
 
-    const missingRecipients = expectedRecipients.filter(
-      (recipient) => !acceptedRecipients.includes(recipient),
-    );
+      try {
+        const info = await this.transporter.sendMail(mailOptions);
+        const acceptedRecipients = this.normalizeRecipientList(
+          ((info as any)?.accepted ?? []) as Array<
+            string | { address?: string }
+          >,
+        );
+        if (!acceptedRecipients.includes(recipient)) {
+          throw new Error(`SMTP did not accept recipient(s): ${recipient}`);
+        }
 
-    if (missingRecipients.length > 0) {
-      throw new Error(
-        `SMTP did not accept recipient(s): ${missingRecipients.join(", ")}`,
-      );
+        await this.updateOutboundEmailRecords(
+          [recipient],
+          outboundEmailIds,
+          "sent",
+          (info as any)?.messageId,
+        );
+      } catch (error) {
+        const failureReason =
+          error instanceof Error ? error.message : String(error);
+        await this.updateOutboundEmailRecords(
+          [recipient],
+          outboundEmailIds,
+          "failed",
+          undefined,
+          failureReason,
+        );
+        failures.push(
+          error instanceof Error ? error : new Error(failureReason),
+        );
+      }
     }
+
+    if (failures.length > 0) {
+      throw failures[0];
+    }
+  }
+
+  async recordOpened(trackingToken: string) {
+    const now = new Date();
+    return this.db
+      .getClient()("outbound_emails")
+      .where({ tracking_token: trackingToken })
+      .whereNull("opened_at")
+      .whereIn("status", ["sent", "delivered", "opened"])
+      .update({
+        status: "opened",
+        opened_at: now,
+        updated_at: now,
+      });
+  }
+
+  async recordBounce(trackingToken: string, rawContent: string) {
+    const status = rawContent.match(/^Status:\s*([245]\.\d+\.\d+)/im)?.[1];
+    const diagnostic = rawContent
+      .match(/^Diagnostic-Code:\s*(.+)$/im)?.[1]
+      ?.trim();
+    const action = rawContent.match(/^Action:\s*(.+)$/im)?.[1]?.trim();
+    const failureReason =
+      [
+        action && `action: ${action}`,
+        status && `status: ${status}`,
+        diagnostic && `diagnostic: ${diagnostic}`,
+      ]
+        .filter(Boolean)
+        .join("; ") || "Bounce notification received";
+    const bounceType = status?.startsWith("5.")
+      ? "hard"
+      : status?.startsWith("4.")
+        ? "soft"
+        : "unknown";
+    const now = new Date();
+
+    const [bouncedEmail] = await this.db
+      .getClient()("outbound_emails")
+      .where({ tracking_token: trackingToken })
+      .whereNot("status", "bounced")
+      .update({
+        status: "bounced",
+        bounce_type: bounceType,
+        failure_reason: failureReason,
+        bounced_at: now,
+        updated_at: now,
+      })
+      .returning([
+        "organization_id",
+        "meet_id",
+        "recipient_email",
+        "subject",
+        "failure_reason",
+      ]);
+
+    if (!bouncedEmail?.meet_id) return bouncedEmail;
+
+    const organizer = await this.db
+      .getClient()("meets as m")
+      .leftJoin("users as u", "u.id", "m.organizer_id")
+      .where("m.id", bouncedEmail.meet_id)
+      .select("u.email")
+      .first();
+    const organizerEmail = organizer?.email?.trim().toLowerCase();
+    if (
+      !organizerEmail ||
+      organizerEmail === bouncedEmail.recipient_email.trim().toLowerCase()
+    ) {
+      return bouncedEmail;
+    }
+
+    await this.sendEmail({
+      to: organizer.email,
+      subject: `Email bounced: ${bouncedEmail.subject}`,
+      text: [
+        `An email to ${bouncedEmail.recipient_email} bounced.`,
+        `Subject: ${bouncedEmail.subject}`,
+        `Reason: ${bouncedEmail.failure_reason}`,
+      ].join("\n"),
+      organizationId: bouncedEmail.organization_id ?? undefined,
+      meetId: bouncedEmail.meet_id,
+    });
+
+    return bouncedEmail;
+  }
+
+  private createTrackingToken() {
+    return crypto.randomBytes(24).toString("hex");
+  }
+
+  private buildTrackingUrl(trackingToken: string) {
+    const configuredBaseUrl = (
+      process.env.API_BASEURL || "http://localhost:8000"
+    ).replace(/\/+$/, "");
+    const apiBaseUrl = configuredBaseUrl.endsWith("/api/v1")
+      ? configuredBaseUrl
+      : `${configuredBaseUrl}/api/v1`;
+    return `${apiBaseUrl}/email/open/${trackingToken}`;
+  }
+
+  private buildBounceAddress(trackingToken: string) {
+    return `bounce+${trackingToken}@${this.mailDomain}`;
+  }
+
+  private addTrackingPixel(html: string, trackingUrl: string) {
+    const trackingPixel = `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0" />`;
+    const closingBodyTag = html.search(/<\/body>/i);
+    if (closingBodyTag === -1) return `${html}${trackingPixel}`;
+    return `${html.slice(0, closingBodyTag)}${trackingPixel}${html.slice(
+      closingBodyTag,
+    )}`;
+  }
+
+  private async updateOutboundEmailRecords(
+    recipients: string[],
+    outboundEmailIds: Map<string, string>,
+    status: "sent" | "failed",
+    transportMessageId?: string,
+    failureReason?: string,
+  ) {
+    const ids = recipients
+      .map((recipient) => outboundEmailIds.get(recipient))
+      .filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+
+    const now = new Date();
+    await this.db
+      .getClient()("outbound_emails")
+      .whereIn("id", ids)
+      .where("status", "pending")
+      .update({
+        status,
+        transport_message_id: transportMessageId ?? null,
+        failure_reason: failureReason ?? null,
+        ...(status === "sent" ? { sent_at: now } : {}),
+        updated_at: now,
+      });
   }
 
   private normalizeRecipientList(

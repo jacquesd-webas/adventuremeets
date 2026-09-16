@@ -1,3 +1,4 @@
+import { attendeeMessageQueryKeys } from "./attendeeMessageQueryKeys";
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 
@@ -8,6 +9,8 @@ export type AttendeeMessage = {
   to?: string;
   isRead?: boolean;
   content?: string;
+  emailStatus?: "pending" | "sent" | "delivered" | "opened" | "bounced" | "failed" | "complained" | null;
+  openedAt?: string | null;
   direction?: "received" | "sent";
 };
 
@@ -19,8 +22,9 @@ export function useFetchAttendeeMessages(
 ) {
   const api = useApi();
   const query = useQuery({
-    queryKey: ["attendee-messages", meetId, attendeeId],
+    queryKey: attendeeMessageQueryKeys.attendee(meetId, attendeeId),
     enabled: Boolean(meetId && attendeeId),
+    refetchInterval: 15000,
     queryFn: async () => {
       const res = await api.get<MessagesResponse>(
         `/meets/${meetId}/attendees/${attendeeId}/messages`,

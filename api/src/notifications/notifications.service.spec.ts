@@ -26,15 +26,15 @@ describe("NotificationsService", () => {
       where: jest.fn().mockReturnThis(),
       whereNull: jest.fn().mockReturnThis(),
       count: jest.fn().mockReturnThis(),
-      first: jest.fn().mockResolvedValue({ count: String(outstandingResponses) }),
+      first: jest
+        .fn()
+        .mockResolvedValue({ count: String(outstandingResponses) }),
     };
 
     const attendeeHashBuilder = {
       where: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
-      select: jest
-        .fn()
-        .mockResolvedValue(attendeeIds.map((id) => ({ id }))),
+      select: jest.fn().mockResolvedValue(attendeeIds.map((id) => ({ id }))),
     };
 
     const latestNotificationBuilder = {
@@ -98,15 +98,13 @@ describe("NotificationsService", () => {
     });
 
     const result = await service.sendNotification({
-      notificationType:
-        NotificationTypeName.OrganiserReminderResponsesNeeded,
+      notificationType: NotificationTypeName.OrganiserReminderResponsesNeeded,
       meetId: "meet-1",
     });
 
     expect(result).toEqual({
       status: "skipped",
-      notificationType:
-        NotificationTypeName.OrganiserReminderResponsesNeeded,
+      notificationType: NotificationTypeName.OrganiserReminderResponsesNeeded,
       notificationId: "notif-1",
       to: "taylor@example.com",
     });
@@ -121,8 +119,7 @@ describe("NotificationsService", () => {
     });
 
     const result = await service.sendNotification({
-      notificationType:
-        NotificationTypeName.OrganiserReminderResponsesNeeded,
+      notificationType: NotificationTypeName.OrganiserReminderResponsesNeeded,
       meetId: "meet-1",
     });
 
@@ -132,12 +129,17 @@ describe("NotificationsService", () => {
 
     expect(result).toEqual({
       status: "sent",
-      notificationType:
-        NotificationTypeName.OrganiserReminderResponsesNeeded,
+      notificationType: NotificationTypeName.OrganiserReminderResponsesNeeded,
       notificationId: "notif-2",
       to: "taylor@example.com",
     });
     expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        meetId: "meet-1",
+      }),
+    );
     expect(notificationsInsertBuilder.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         meet_id: "meet-1",
@@ -159,19 +161,20 @@ describe("NotificationsService", () => {
     const attendeeHashBuilder = {
       where: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
-      select: jest
-        .fn()
-        .mockResolvedValue([{ id: "att-1" }, { id: "att-2" }]),
+      select: jest.fn().mockResolvedValue([{ id: "att-1" }, { id: "att-2" }]),
     };
     const latestNotificationBuilder = {
       join: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
-      first: jest.fn().mockResolvedValue({ id: "notif-9", hash: unchangedHash }),
+      first: jest
+        .fn()
+        .mockResolvedValue({ id: "notif-9", hash: unchangedHash }),
     };
     const client: any = (table: string) => {
       if (table === "meet_attendees") {
-        if (!client._builders) client._builders = [countBuilder, attendeeHashBuilder];
+        if (!client._builders)
+          client._builders = [countBuilder, attendeeHashBuilder];
         return client._builders.shift();
       }
       if (table === "notifications as n") return latestNotificationBuilder;
@@ -206,9 +209,7 @@ describe("NotificationsService", () => {
     const attendeeHashBuilder = {
       where: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
-      select: jest
-        .fn()
-        .mockResolvedValue([{ id: "att-1" }, { id: "att-2" }]),
+      select: jest.fn().mockResolvedValue([{ id: "att-1" }, { id: "att-2" }]),
     };
     const latestNotificationBuilder = {
       join: jest.fn().mockReturnThis(),
@@ -237,7 +238,8 @@ describe("NotificationsService", () => {
 
     const client: any = (table: string) => {
       if (table === "meet_attendees") {
-        if (!client._builders) client._builders = [countBuilder, attendeeHashBuilder];
+        if (!client._builders)
+          client._builders = [countBuilder, attendeeHashBuilder];
         return client._builders.shift();
       }
       if (table === "notifications as n") return latestNotificationBuilder;

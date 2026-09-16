@@ -11,6 +11,7 @@ set -eu
 : "${DKIM_PRIVATE_KEY:=}"
 : "${DKIM_PRIVATE_KEY_BASE64:=}"
 : "${MAILHOOK_LOCALPART_PREFIX:=meet+}"
+: "${MAILHOOK_BOUNCE_LOCALPART_PREFIX:=bounce+}"
 
 HOST_IP="$(getent hosts host.docker.internal 2>/dev/null | awk 'NR==1{print $1}')"
 if [ -n "${HOST_IP}" ] && echo "${HOST_IP}" | grep -q '\.'; then
@@ -102,9 +103,10 @@ fi
 
 MAIL_DOMAIN_REGEX="$(printf '%s' "${MAIL_DOMAIN}" | sed 's/[.[\*^$()+?{|]/\\&/g')"
 MAILHOOK_LOCALPART_REGEX="$(printf '%s' "${MAILHOOK_LOCALPART_PREFIX}" | sed 's/[.[\*^$()+?{|]/\\&/g')"
+MAILHOOK_BOUNCE_LOCALPART_REGEX="$(printf '%s' "${MAILHOOK_BOUNCE_LOCALPART_PREFIX}" | sed 's/[.[\*^$()+?{|]/\\&/g')"
 
 cat > /etc/postfix/transport_regexp <<EOF
-/^${MAILHOOK_LOCALPART_REGEX}[^@]*@${MAIL_DOMAIN_REGEX}$/ mailhook:
+/^(${MAILHOOK_LOCALPART_REGEX}|${MAILHOOK_BOUNCE_LOCALPART_REGEX})[^@]*@${MAIL_DOMAIN_REGEX}$/ mailhook:
 EOF
 
 if ! grep -q "^mailhook" /etc/postfix/master.cf; then

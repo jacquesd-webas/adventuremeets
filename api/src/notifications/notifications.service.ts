@@ -76,9 +76,8 @@ export class NotificationsService {
         email = await this.sendOrganizerNewAttendeeNotification(meet, dto);
         break;
       case NotificationTypeName.OrganiserReminderResponsesNeeded:
-        email = await this.sendOrganiserReminderResponsesNeededNotification(
-          meet,
-        );
+        email =
+          await this.sendOrganiserReminderResponsesNeededNotification(meet);
         shouldDeduplicateByHash = true;
         break;
       case NotificationTypeName.OrganizerReminderCheckinNeeded:
@@ -119,6 +118,8 @@ export class NotificationsService {
       subject: email.subject,
       text: email.text,
       html: email.html,
+      organizationId: meet.organizationId ?? undefined,
+      userId: email.userId ?? undefined,
       meetId: meet.id,
       attendeeId: email.attendeeId,
     });

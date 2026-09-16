@@ -162,8 +162,7 @@ export class AttendeesController {
               isRsvpMode: meet.autoPlacement,
             });
 
-      // Send the e-mail
-      await this.emailService.sendEmail({
+      const messageId = await this.emailService.saveMessage({
         to: dto.email,
         subject,
         text,
@@ -171,15 +170,14 @@ export class AttendeesController {
         attendeeId: attendee.id,
         meetId,
       });
-
-      // Save the message in the DB for the organiser to confirm that it's sent
-      await this.emailService.saveMessage({
+      await this.emailService.sendEmail({
         to: dto.email,
         subject,
         text,
         html,
         attendeeId: attendee.id,
         meetId,
+        messageReferences: messageId ? [{ messageId, recipient: dto.email }] : [],
       });
 
       // A plain signup acknowledgement is not an organizer response.

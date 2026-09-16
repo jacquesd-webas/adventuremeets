@@ -1,3 +1,4 @@
+import { EmailDeliveryStatus } from "./EmailDeliveryStatus";
 import { Box, CircularProgress, Paper, Stack, Typography } from "@mui/material";
 import CallReceivedOutlinedIcon from "@mui/icons-material/CallReceivedOutlined";
 import CallMadeOutlinedIcon from "@mui/icons-material/CallMadeOutlined";
@@ -190,7 +191,7 @@ export function AttendeeMessages({
         <Paper
           key={message.id}
           variant="outlined"
-          sx={{ p: 2, cursor: "pointer" }}
+          sx={{ p: 2, pb: 1, cursor: "pointer" }}
           onClick={() => {
             setExpandedIds((prev) => {
               const next = new Set(prev);
@@ -245,11 +246,13 @@ export function AttendeeMessages({
                   />
                 ) : null}
               </Stack>
-              <Typography variant="caption" color="text.secondary">
-                {message.timestamp
-                  ? new Date(message.timestamp).toLocaleString()
-                  : "—"}
-              </Typography>
+              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+                <Typography variant="caption" color="text.secondary">
+                  {message.timestamp
+                    ? new Date(message.timestamp).toLocaleString()
+                    : "—"}
+                </Typography>
+              </Stack>
             </Stack>
             <Typography
               variant="body2"
@@ -273,6 +276,11 @@ export function AttendeeMessages({
                 {message.body || "—"}
               </Box>
             </Typography>
+            {message.direction === "sent" && (
+              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                <EmailDeliveryStatus status={message.emailStatus} />
+              </Box>
+            )}
           </Stack>
         </Paper>
       ))}

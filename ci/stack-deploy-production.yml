@@ -22,10 +22,7 @@ services:
     networks:
       - adventuremeets
     deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.hostname == webapps2
+      replicas: 2
 
   worker:
     image: fringecoding/adventuremeets_worker:${VERSION:-latest}
@@ -51,7 +48,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.hostname == webapps2
+          - node.hostname == webapps4
 
   mail:
     image: fringecoding/adventuremeets_mail:${VERSION:-latest}
@@ -65,7 +62,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.hostname == webapps2
+          - node.hostname == webapps4
 
 networks:
   adventuremeets:

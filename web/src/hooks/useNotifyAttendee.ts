@@ -1,3 +1,4 @@
+import { attendeeMessageQueryKeys } from "./attendeeMessageQueryKeys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import { useNotistack } from "./useNotistack";
@@ -33,13 +34,13 @@ export function useNotifyAttendee() {
     onError: (err) => {
       error(`Failed to notify attendee: ${err.message}`);
     },
-    onSuccess: async (_data, variables) => {
+    onSettled: async (_data, _error, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ["meet-attendees", variables.meetId],
         }),
         queryClient.invalidateQueries({
-          queryKey: ["attendee-messages", variables.meetId],
+          queryKey: attendeeMessageQueryKeys.meet(variables.meetId),
         }),
       ]);
     },

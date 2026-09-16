@@ -87,7 +87,21 @@ export class IncomingMailController {
           ? JSON.stringify(body)
           : "");
 
-    if (!meetId || !sender || !rawBody) {
+    if (!rcptLocal || !rawBody) {
+      res.status(HttpStatus.OK);
+      return { status: "ignored" };
+    }
+
+    if (rcptLocal.startsWith("bounce+")) {
+      await this.emailService.recordBounce(
+        rcptLocal.slice("bounce+".length),
+        rawBody,
+      );
+      res.status(HttpStatus.OK);
+      return { status: "bounce recorded" };
+    }
+
+    if (!meetId || !sender) {
       res.status(HttpStatus.OK);
       return { status: "ignored" };
     }

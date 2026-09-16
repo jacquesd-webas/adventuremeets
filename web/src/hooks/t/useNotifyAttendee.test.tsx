@@ -19,8 +19,9 @@ vi.mock("../useNotistack", () => ({
 }));
 
 describe("useNotifyAttendee", () => {
-  it("invalidates attendee lists and message queries after sending", async () => {
-    post.mockResolvedValueOnce({ ok: true });
+  it.each([false, true])("invalidates message queries after a send attempt (failure=%s)", async (fails) => {
+    if (fails) post.mockRejectedValueOnce(new Error("SMTP rejected"));
+    else post.mockResolvedValueOnce({ ok: true });
 
     const queryClient = new QueryClient();
     const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
@@ -30,12 +31,14 @@ describe("useNotifyAttendee", () => {
 
     const { result } = renderHook(() => useNotifyAttendee(), { wrapper });
 
-    await result.current.notifyAttendeeAsync({
+    const send = result.current.notifyAttendeeAsync({
       meetId: "meet-1",
       subject: "Hello",
       text: "Body",
       attendeeIds: ["attendee-1"],
     });
+    if (fails) await expect(send).rejects.toThrow("SMTP rejected");
+    else await send;
 
     expect(post).toHaveBeenCalledWith("/meets/meet-1/message", {
       subject: "Hello",

@@ -548,7 +548,7 @@ export class MeetsController {
           isRsvpMode: meet.autoPlacement,
         });
 
-        await this.emailService.sendEmail({
+        const messageId = await this.emailService.saveMessage({
           to: attendee.email,
           subject,
           text,
@@ -556,13 +556,14 @@ export class MeetsController {
           meetId: meet.id,
           attendeeId: attendee.id,
         });
-        await this.emailService.saveMessage({
+        await this.emailService.sendEmail({
           to: attendee.email,
           subject,
           text,
           html,
           meetId: meet.id,
           attendeeId: attendee.id,
+          messageReferences: messageId ? [{ messageId, recipient: attendee.email }] : [],
         });
         notifiedIds.push(attendee.id);
       }),
@@ -622,7 +623,7 @@ export class MeetsController {
           logoUrl,
           isRsvpMode: meet.autoPlacement,
         });
-        await this.emailService.sendEmail({
+        const messageId = await this.emailService.saveMessage({
           to: attendee.email,
           subject,
           text,
@@ -630,13 +631,14 @@ export class MeetsController {
           meetId: meet.id,
           attendeeId: attendee.id,
         });
-        await this.emailService.saveMessage({
+        await this.emailService.sendEmail({
           to: attendee.email,
           subject,
           text,
           html,
           meetId: meet.id,
           attendeeId: attendee.id,
+          messageReferences: messageId ? [{ messageId, recipient: attendee.email }] : [],
         });
         notifiedIds.push(attendee.id);
       }),
@@ -849,6 +851,46 @@ export class MeetsController {
       body.sendAsGroup === true ? false : body.includeStatusUrl !== false;
     const meetReplyTo = `meet+${meet.id}@${process.env.MAIL_DOMAIN}`;
 
+    const messageReferences: Array<{ messageId: string; recipient: string; attendeeId: string }> = [];
+    await Promise.all(
+      Array.from(recipients.keys()).map(async (attendeeId) => {
+        const attendee =
+          await this.meetsService.getAttendeeContactById(attendeeId);
+        const statusUrl = includeStatusUrl
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
+          : "";
+        const attendeeName =
+          attendee?.name || attendee?.email || attendee?.phone || "there";
+        const organizerName = meet.organizerName || "the organiser";
+        const organizerEmail = meet.organizerEmail || "";
+        const { text } = renderEmailTemplate("meet-message", {
+          meetName: meet.name,
+          attendeeName,
+          statusUrl,
+          includeStatusUrl,
+          organizerName,
+          organizerEmail,
+          messageBody: body.text ?? body.html ?? "",
+          logoUrl,
+          isRsvpMode: meet.autoPlacement,
+        });
+        const textWithoutStatus = text
+          .split(/\n\nView your (?:application|RSVP) status:/)[0]
+          .trim();
+        const messageId = await this.emailService.saveMessage({
+          to: body.sendAsGroup
+            ? Array.from(recipients.values())
+            : recipients.get(attendeeId)!,
+          subject: body.subject,
+          text: textWithoutStatus,
+          html: "",
+          meetId: meet.id,
+          attendeeId,
+        });
+        if (messageId) messageReferences.push({ messageId, recipient: recipients.get(attendeeId)!, attendeeId });
+      }),
+    );
+
     if (body.sendAsGroup) {
       const { text, html } = renderEmailTemplate("meet-message", {
         meetName: meet.name,
@@ -869,6 +911,7 @@ export class MeetsController {
         text,
         html,
         replyTo: meetReplyTo,
+        messageReferences,
       });
     } else {
       await Promise.all(
@@ -899,48 +942,11 @@ export class MeetsController {
             meetId: meet.id,
             attendeeId,
             replyTo: meetReplyTo,
+            messageReferences: messageReferences.filter((reference) => reference.attendeeId === attendeeId),
           });
         }),
       );
     }
-
-    await Promise.all(
-      Array.from(recipients.keys()).map(async (attendeeId) => {
-        const attendee =
-          await this.meetsService.getAttendeeContactById(attendeeId);
-        const statusUrl = includeStatusUrl
-          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
-          : "";
-        const attendeeName =
-          attendee?.name || attendee?.email || attendee?.phone || "there";
-        const organizerName = meet.organizerName || "the organiser";
-        const organizerEmail = meet.organizerEmail || "";
-        const { text } = renderEmailTemplate("meet-message", {
-          meetName: meet.name,
-          attendeeName,
-          statusUrl,
-          includeStatusUrl,
-          organizerName,
-          organizerEmail,
-          messageBody: body.text ?? body.html ?? "",
-          logoUrl,
-          isRsvpMode: meet.autoPlacement,
-        });
-        const textWithoutStatus = text
-          .split(/\n\nView your (?:application|RSVP) status:/)[0]
-          .trim();
-        await this.emailService.saveMessage({
-          to: body.sendAsGroup
-            ? Array.from(recipients.values())
-            : recipients.get(attendeeId)!,
-          subject: body.subject,
-          text: textWithoutStatus,
-          html: "",
-          meetId: meet.id,
-          attendeeId,
-        });
-      }),
-    );
 
     if (body.markNotified !== false) {
       await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);

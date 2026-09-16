@@ -1,3 +1,4 @@
+import { attendeeMessageQueryKeys } from "./attendeeMessageQueryKeys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 
@@ -17,7 +18,7 @@ export function useMarkAttendeeMessageRead() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["attendee-messages", variables.meetId, variables.attendeeId],
+        queryKey: attendeeMessageQueryKeys.attendee(variables.meetId, variables.attendeeId),
       });
     },
   });

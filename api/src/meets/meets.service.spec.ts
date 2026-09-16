@@ -188,6 +188,8 @@ describe("MeetsService", () => {
         from: "noreply@adventuremeets.apps.fringecoding.com",
         to: "Alex <alex@example.com>",
         is_read: true,
+        email_status: "opened",
+        opened_at: "2026-06-19T10:05:00.000Z",
         content: "Subject: Update\n\nSee you there",
         attendee_email: "alex@example.com",
       },
@@ -217,6 +219,8 @@ describe("MeetsService", () => {
       expect.objectContaining({
         id: "message-1",
         direction: "sent",
+        emailStatus: "opened",
+        openedAt: "2026-06-19T10:05:00.000Z",
       }),
       expect.objectContaining({
         id: "message-2",

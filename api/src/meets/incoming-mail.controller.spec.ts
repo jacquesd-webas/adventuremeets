@@ -40,6 +40,7 @@ describe("IncomingMailController", () => {
     parseMessageContent: jest.fn(),
     sendEmail: jest.fn(),
     saveIncomingMessage: jest.fn(),
+    recordBounce: jest.fn(),
   } as unknown as EmailService;
 
   const auditLogService = {
@@ -98,6 +99,31 @@ describe("IncomingMailController", () => {
     expect(res.status).toHaveBeenCalledWith(HttpStatus.NOT_FOUND);
     expect(firstMocks.meets).toHaveBeenCalled();
     expect(emailService.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("records bounce notifications without looking up a meet", async () => {
+    const res = response();
+    const trackingToken = "a".repeat(48);
+    const rawBounce =
+      "Action: failed\r\nStatus: 5.1.1\r\nDiagnostic-Code: smtp; 550 user unknown";
+
+    await expect(
+      controller.handleIncoming(
+        `bounce+${trackingToken}@adventuremeets.apps.fringecoding.com`,
+        "MAILER-DAEMON@adventuremeets.apps.fringecoding.com",
+        undefined as any,
+        rawBounce,
+        {} as Request,
+        res,
+      ),
+    ).resolves.toEqual({ status: "bounce recorded" });
+
+    expect(emailService.recordBounce).toHaveBeenCalledWith(
+      trackingToken,
+      rawBounce,
+    );
+    expect(db.getClient).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
   });
 
   it("returns not found when the meet organizer has no email", async () => {
