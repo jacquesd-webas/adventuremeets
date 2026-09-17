@@ -1,10 +1,12 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./authContext";
 import {
   OrganizationContext,
   OrganizationContextValue,
 } from "./organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
+import { organizationQueryKeys } from "../hooks/organizationQueryKeys";
 import { useLocation } from "react-router-dom";
 import { isPublicRoutePath } from "../helpers/publicRoutes";
 
@@ -15,7 +17,8 @@ type OrganizationProviderProps = {
 const storageKey = "currentOrganizationId";
 
 export function OrganizationProvider({ children }: OrganizationProviderProps) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, meUpdatedAt } = useAuth();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const isPublicRoute = isPublicRoutePath(location.pathname);
 
@@ -54,8 +57,21 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
 
   const canFetchOrganization = Boolean(user) && !isPublicRoute;
   const { data: organization } = useFetchOrganization(
-    canFetchOrganization ? currentOrganizationId || undefined : undefined,
+    user ? currentOrganizationId || undefined : undefined,
+    { enabled: canFetchOrganization },
   );
+
+  useEffect(() => {
+    if (!meUpdatedAt || !canFetchOrganization || !currentOrganizationId) return;
+    const queryKey = organizationQueryKeys.detail(currentOrganizationId);
+    // A recovered session must also retry organisation requests that failed earlier.
+    if (queryClient.getQueryState(queryKey)?.status === "error") {
+      void queryClient.invalidateQueries(
+        { queryKey, exact: true },
+        { cancelRefetch: false },
+      );
+    }
+  }, [meUpdatedAt, canFetchOrganization, currentOrganizationId, queryClient]);
 
   // Set or clear current organization based on user's organizations
   useEffect(() => {

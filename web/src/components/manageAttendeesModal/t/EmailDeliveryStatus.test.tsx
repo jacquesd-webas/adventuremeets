@@ -19,6 +19,20 @@ describe("EmailDeliveryStatus", () => {
   });
 
   it.each([
+    ["bounced", "Bounced"],
+    ["failed", "Failed to send"],
+  ] as const)("shows the %s label in red", (status, label) => {
+    render(<EmailDeliveryStatus status={status} />);
+
+    const labelElement = screen
+      .getAllByText(label)
+      .find((element) => element.tagName === "SPAN");
+    expect(labelElement).toHaveStyle({
+      color: "rgb(211, 47, 47)",
+    });
+  });
+
+  it.each([
     ["sent", "Sent", "successfully been sent to the attendee"],
     ["delivered", "Sent", "successfully been sent to the attendee"],
     ["opened", "Delivered", "mail program has accessed the email"],

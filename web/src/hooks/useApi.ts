@@ -84,7 +84,10 @@ export function useApi(options: ApiOptions = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken: refreshTokenValue }),
       });
-      if (!res.ok) return null;
+      if (res.status === 401) return null;
+      if (!res.ok) {
+        throw new ApiError(res.status, await readErrorMessage(res));
+      }
       const data = await res.json();
       if (
         data?.accessToken &&
@@ -152,8 +155,12 @@ export function useApi(options: ApiOptions = {}) {
       headers,
     });
     if (res.status === 401 && typeof window !== "undefined") {
-      if (!isRetry && getRefreshToken()) {
-        const newToken = await refreshToken();
+      if (!isRetry) {
+        const currentToken = getAccessToken();
+        const newToken =
+          currentToken && currentToken !== token
+            ? currentToken
+            : await refreshToken();
         if (newToken) {
           return request<T>(
             path,

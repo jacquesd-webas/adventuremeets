@@ -20,6 +20,7 @@ export type Attendee = {
   indemnityMinors?: string;
   paidFullAt?: string;
   paidDepositAt?: string;
+  hasUnreadMessages: boolean;
   createdAt: string;
   updatedAt: string;
   metaValues: Array<MetaValue>;

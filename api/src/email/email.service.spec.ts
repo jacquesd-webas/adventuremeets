@@ -69,7 +69,7 @@ describe("EmailService.parseMessageContent", () => {
 });
 
 describe("EmailService.saveMessage", () => {
-  it("prefers text over html when saving message content", async () => {
+  it("saves outgoing messages as read and prefers text over html", async () => {
     const messageContentsInsert = {
       insert: jest.fn().mockReturnThis(),
       onConflict: jest.fn().mockReturnThis(),
@@ -109,6 +109,7 @@ describe("EmailService.saveMessage", () => {
       expect.objectContaining({
         meet_id: "meet-1",
         attendee_id: "attendee-1",
+        is_read: true,
       }),
     );
   });
@@ -291,13 +292,14 @@ describe("EmailService.sendEmail", () => {
     );
   });
 
-  it("marks an email as bounced using DSN details", async () => {
+  it("marks an email as bounced and its linked message as unread", async () => {
     const outboundEmailsQuery = {
       where: jest.fn().mockReturnThis(),
       whereNot: jest.fn().mockReturnThis(),
       update: jest.fn().mockReturnThis(),
       returning: jest.fn().mockResolvedValue([
         {
+          id: "outbound-1",
           organization_id: "org-1",
           meet_id: "meet-1",
           recipient_email: "attendee@example.com",
@@ -313,9 +315,16 @@ describe("EmailService.sendEmail", () => {
       select: jest.fn().mockReturnThis(),
       first: jest.fn().mockResolvedValue({ email: "organizer@example.com" }),
     };
+    const messagesQuery = {
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(1),
+    };
     const service = createEmailService({
-      getClient: () => (table: string) =>
-        table === "outbound_emails" ? outboundEmailsQuery : organizerQuery,
+      getClient: () => (table: string) => {
+        if (table === "outbound_emails") return outboundEmailsQuery;
+        if (table === "messages") return messagesQuery;
+        return organizerQuery;
+      },
     } as any);
     jest.spyOn(service, "sendEmail").mockResolvedValue(undefined);
 
@@ -335,6 +344,10 @@ describe("EmailService.sendEmail", () => {
           "action: failed; status: 5.1.1; diagnostic: smtp; 550 user unknown",
       }),
     );
+    expect(messagesQuery.where).toHaveBeenCalledWith({
+      outbound_email_id: "outbound-1",
+    });
+    expect(messagesQuery.update).toHaveBeenCalledWith({ is_read: false });
     expect(service.sendEmail).toHaveBeenCalledWith({
       to: "organizer@example.com",
       subject: "Email bounced: Meet confirmation",
@@ -355,6 +368,7 @@ describe("EmailService.sendEmail", () => {
       update: jest.fn().mockReturnThis(),
       returning: jest.fn().mockResolvedValue([
         {
+          id: "outbound-1",
           organization_id: "org-1",
           meet_id: "meet-1",
           recipient_email: "organizer@example.com",
@@ -369,9 +383,16 @@ describe("EmailService.sendEmail", () => {
       select: jest.fn().mockReturnThis(),
       first: jest.fn().mockResolvedValue({ email: "organizer@example.com" }),
     };
+    const messagesQuery = {
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(1),
+    };
     const service = createEmailService({
-      getClient: () => (table: string) =>
-        table === "outbound_emails" ? outboundEmailsQuery : organizerQuery,
+      getClient: () => (table: string) => {
+        if (table === "outbound_emails") return outboundEmailsQuery;
+        if (table === "messages") return messagesQuery;
+        return organizerQuery;
+      },
     } as any);
     jest.spyOn(service, "sendEmail").mockResolvedValue(undefined);
 
@@ -385,15 +406,13 @@ describe("EmailService message status association", () => {
   it("links saved messages before a failed SMTP send", async () => {
     const query = {
       insert: jest.fn().mockReturnThis(),
-      returning: jest
-        .fn()
-        .mockResolvedValue([
-          {
-            id: "outbound-1",
-            recipient_email: "alex@example.com",
-            tracking_token: "a".repeat(48),
-          },
-        ]),
+      returning: jest.fn().mockResolvedValue([
+        {
+          id: "outbound-1",
+          recipient_email: "alex@example.com",
+          tracking_token: "a".repeat(48),
+        },
+      ]),
       whereIn: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       update: jest.fn().mockResolvedValue(1),

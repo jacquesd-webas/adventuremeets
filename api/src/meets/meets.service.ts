@@ -820,7 +820,18 @@ export class MeetsService {
         { column: "sequence", order: "asc" },
         { column: "created_at", order: "asc" },
       ])
-      .select("*");
+      .select(
+        "meet_attendees.*",
+        this.db.getClient().raw(`
+          EXISTS (
+            SELECT 1
+            FROM messages
+            WHERE messages.attendee_id = meet_attendees.id
+              AND messages.meet_id = meet_attendees.meet_id
+              AND messages.is_read = FALSE
+          ) AS has_unread_messages
+        `),
+      );
     const metaDefinitions = await this.db
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
@@ -2820,6 +2831,7 @@ export class MeetsService {
       indemnityMinors: attendee.indemnity_minors ?? undefined,
       paidFullAt: attendee.paid_full_at ?? undefined,
       paidDepositAt: attendee.paid_deposit_at ?? undefined,
+      hasUnreadMessages: attendee.has_unread_messages === true,
       createdAt: attendee.created_at ?? undefined,
       updatedAt: attendee.updated_at ?? undefined,
     };

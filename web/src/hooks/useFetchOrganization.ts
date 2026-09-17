@@ -1,8 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import { Organization } from "../types/OrganizationModel";
+import { organizationQueryKeys } from "./organizationQueryKeys";
 
-export function useFetchOrganization(orgId?: string) {
+export function useFetchOrganization(
+  orgId?: string,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   const api = useApi();
 
   const mapOrganization = (org: any): Organization => ({
@@ -134,8 +138,8 @@ export function useFetchOrganization(orgId?: string) {
   });
 
   const query = useQuery({
-    queryKey: ["organization", orgId],
-    enabled: Boolean(orgId),
+    queryKey: organizationQueryKeys.detail(orgId),
+    enabled: Boolean(orgId) && enabled,
     queryFn: async () => {
       const res = await api.get<{ organization: Organization }>(
         `/organizations/${orgId}`,

@@ -13,6 +13,7 @@ import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import CancelIcon from "@mui/icons-material/Cancel";
 import QuestionMarkOutlinedIcon from "@mui/icons-material/QuestionMarkOutlined";
 import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccountOutlined";
+import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import Meet from "../../types/MeetModel";
 
@@ -58,7 +59,31 @@ export function AttendeeItem({
     <ListItemButton
       selected={attendee.id === selectedAttendeeId}
       onClick={() => onSelect(attendee.id)}
+      sx={{
+        position: "relative",
+        ...(attendee.hasUnreadMessages ? { pr: 4 } : {}),
+      }}
     >
+      {attendee.hasUnreadMessages ? (
+        <MailOutlineIcon
+          titleAccess="Unread messages"
+          sx={{
+            position: "absolute",
+            top: 6,
+            right: 8,
+            fontSize: "1rem",
+            color: "#1976d2",
+            animation: "unreadMessagePulse 2.4s ease-in-out infinite",
+            "@keyframes unreadMessagePulse": {
+              "0%, 100%": { opacity: 1 },
+              "50%": { opacity: 0.3 },
+            },
+            "@media (prefers-reduced-motion: reduce)": {
+              animation: "none",
+            },
+          }}
+        />
+      ) : null}
       {!isPending && !isInvited ? (
         <Box
           sx={{

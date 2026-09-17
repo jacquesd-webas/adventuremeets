@@ -1,4 +1,7 @@
-import { EmailMessagesRepository, EmailMessageReference } from "./email-messages.repository";
+import {
+  EmailMessagesRepository,
+  EmailMessageReference,
+} from "./email-messages.repository";
 import { Injectable, Logger } from "@nestjs/common";
 import * as nodemailer from "nodemailer";
 import * as crypto from "crypto";
@@ -76,14 +79,17 @@ export class EmailService {
       return;
     }
 
-    const [message] = await this.db.getClient()("messages").insert({
-      meet_id: meetId,
-      attendee_id: attendeeId,
-      from: sender,
-      to: recipients,
-      message_content_id: contentId,
-      is_read: true,
-    }).returning("message_id");
+    const [message] = await this.db
+      .getClient()("messages")
+      .insert({
+        meet_id: meetId,
+        attendee_id: attendeeId,
+        from: sender,
+        to: recipients,
+        message_content_id: contentId,
+        is_read: true,
+      })
+      .returning("message_id");
     return message?.message_id as string | undefined;
   }
 
@@ -317,7 +323,10 @@ export class EmailService {
       tracking_token: string;
     }>;
     if (options.messageReferences?.length) {
-      await this.messagesRepository.linkOutboundEmails(outboundEmailRecords, options.messageReferences);
+      await this.messagesRepository.linkOutboundEmails(
+        outboundEmailRecords,
+        options.messageReferences,
+      );
     }
     const outboundEmailIds = new Map(
       outboundEmailRecords.map((email) => [email.recipient_email, email.id]),
@@ -441,12 +450,20 @@ export class EmailService {
         updated_at: now,
       })
       .returning([
+        "id",
         "organization_id",
         "meet_id",
         "recipient_email",
         "subject",
         "failure_reason",
       ]);
+
+    if (bouncedEmail?.id) {
+      await this.db
+        .getClient()("messages")
+        .where({ outbound_email_id: bouncedEmail.id })
+        .update({ is_read: false });
+    }
 
     if (!bouncedEmail?.meet_id) return bouncedEmail;
 

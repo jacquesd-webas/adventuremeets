@@ -193,6 +193,7 @@ export function AttendeeMessages({
           variant="outlined"
           sx={{ p: 2, pb: 1, cursor: "pointer" }}
           onClick={() => {
+            const isExpanding = !expandedIds.has(message.id);
             setExpandedIds((prev) => {
               const next = new Set(prev);
               if (next.has(message.id)) {
@@ -202,11 +203,7 @@ export function AttendeeMessages({
               }
               return next;
             });
-            if (
-              message.isRead === false &&
-              meetId &&
-              message.direction === "received"
-            ) {
+            if (isExpanding && message.isRead === false && meetId) {
               markRead({ meetId, messageId: message.id, attendeeId });
             }
           }}
@@ -246,7 +243,12 @@ export function AttendeeMessages({
                   />
                 ) : null}
               </Stack>
-              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+              <Stack
+                direction="row"
+                spacing={0.75}
+                alignItems="center"
+                sx={{ flexShrink: 0 }}
+              >
                 <Typography variant="caption" color="text.secondary">
                   {message.timestamp
                     ? new Date(message.timestamp).toLocaleString()

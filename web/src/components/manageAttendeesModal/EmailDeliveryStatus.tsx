@@ -18,7 +18,7 @@ export function EmailDeliveryStatus({
     return (
       <Tooltip title={tooltipText} arrow>
         <Stack direction="row" spacing={0.75} alignItems="center">
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="error.main">
             {label}
           </Typography>
           <CancelOutlinedIcon

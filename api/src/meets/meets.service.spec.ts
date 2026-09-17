@@ -45,6 +45,53 @@ const buildBuilder = () => {
 };
 
 describe("MeetsService", () => {
+  it("includes whether each attendee has unread messages", async () => {
+    const attendeesBuilder = buildBuilder();
+    attendeesBuilder.select.mockResolvedValue([
+      {
+        id: "attendee-1",
+        meet_id: "meet-1",
+        has_unread_messages: true,
+      },
+      {
+        id: "attendee-2",
+        meet_id: "meet-1",
+        has_unread_messages: false,
+      },
+    ]);
+    const metaDefinitionsBuilder = buildBuilder();
+    metaDefinitionsBuilder.select.mockResolvedValue([]);
+    const metaValuesBuilder = buildBuilder();
+    metaValuesBuilder.select.mockResolvedValue([]);
+
+    const client: any = (table: string) => {
+      if (table === "meet_attendees") return attendeesBuilder;
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      if (table === "meet_meta_values") return metaValuesBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn((sql: string) => sql);
+
+    const db = { getClient: () => client } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as MinioService);
+
+    await expect(service.listAttendees("meet-1")).resolves.toEqual({
+      attendees: [
+        expect.objectContaining({
+          id: "attendee-1",
+          hasUnreadMessages: true,
+        }),
+        expect.objectContaining({
+          id: "attendee-2",
+          hasUnreadMessages: false,
+        }),
+      ],
+    });
+    expect(client.raw).toHaveBeenCalledWith(
+      expect.stringContaining("messages.is_read = FALSE"),
+    );
+  });
+
   it("creates a meet with mapped fields", async () => {
     const meetsInsert = buildBuilder();
     meetsInsert.insert.mockImplementation(async (record: any) => [record]);

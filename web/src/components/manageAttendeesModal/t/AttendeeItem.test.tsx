@@ -38,4 +38,41 @@ describe("AttendeeItem", () => {
       backgroundColor: "rgb(189, 189, 189)",
     });
   });
+
+  it("shows a blue envelope for an attendee with unread messages", () => {
+    render(
+      <AttendeeItem
+        attendee={{
+          id: "a1",
+          status: AttendeeStatusEnum.Pending,
+          hasUnreadMessages: true,
+        }}
+        label="Alex"
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Unread messages" })).toHaveStyle({
+      color: "rgb(25, 118, 210)",
+      animation: "unreadMessagePulse 2.4s ease-in-out infinite",
+    });
+  });
+
+  it("does not show an envelope when all messages are read", () => {
+    render(
+      <AttendeeItem
+        attendee={{
+          id: "a1",
+          status: AttendeeStatusEnum.Pending,
+          hasUnreadMessages: false,
+        }}
+        label="Alex"
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("img", { name: "Unread messages" }),
+    ).not.toBeInTheDocument();
+  });
 });
