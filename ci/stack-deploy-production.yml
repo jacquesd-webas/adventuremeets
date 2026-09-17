@@ -34,7 +34,7 @@ services:
       replicas: 1
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     env_file:
       - ./.env
     command: server /data --console-address ":9001"
