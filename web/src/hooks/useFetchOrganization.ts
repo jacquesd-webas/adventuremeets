@@ -5,7 +5,10 @@ import { organizationQueryKeys } from "./organizationQueryKeys";
 
 export function useFetchOrganization(
   orgId?: string,
-  { enabled = true }: { enabled?: boolean } = {},
+  {
+    enabled = true,
+    refetchWhenMissing = false,
+  }: { enabled?: boolean; refetchWhenMissing?: boolean } = {},
 ) {
   const api = useApi();
 
@@ -140,6 +143,10 @@ export function useFetchOrganization(
   const query = useQuery({
     queryKey: organizationQueryKeys.detail(orgId),
     enabled: Boolean(orgId) && enabled,
+    // Keep recovering even if the request fails after the session has refreshed.
+    refetchInterval: refetchWhenMissing
+      ? (query) => (query.state.data?.name ? false : 10_000)
+      : false,
     queryFn: async () => {
       const res = await api.get<{ organization: Organization }>(
         `/organizations/${orgId}`,

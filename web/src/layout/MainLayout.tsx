@@ -2,7 +2,6 @@ import {
   AppBar,
   Avatar,
   Box,
-  Button,
   Container,
   Divider,
   Drawer,
@@ -46,6 +45,7 @@ import { useAuth } from "../context/authContext";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { ChooseOrganizationModal } from "../components/auth/ChooseOrganizationModal";
+import { OrganizationSwitcherButton } from "./OrganizationSwitcherButton";
 import { PendingInvitePromptModal } from "../components/auth/PendingInvitePromptModal";
 import {
   getAllowedThemeModes,
@@ -81,14 +81,10 @@ function MainLayout() {
     return "light";
   });
 
-  const { user, meUpdatedAt, logout } = useAuth();
+  const { user, logout } = useAuth();
 
-  const {
-    currentOrganizationId,
-    currentOrganizationName,
-    organizationIds,
-    currentOrganizationRole,
-  } = useCurrentOrganization();
+  const { currentOrganizationId, organizationIds, currentOrganizationRole } =
+    useCurrentOrganization();
 
   const { data: organization } = useFetchOrganization(
     currentOrganizationId || undefined,
@@ -395,43 +391,7 @@ function MainLayout() {
               )}
             </Stack>
             <Box sx={{ flexGrow: 1 }} />
-            {Boolean(user) && organizationIds.length > 1 && (
-              <Button
-                key={`organization-switcher-${meUpdatedAt}`}
-                onClick={() => setOrgModalOpen(true)}
-                variant="outlined"
-                color="primary"
-                size="small"
-                data-testid="organization-switcher-button"
-                sx={{
-                  mr: 2,
-                  maxWidth: 240,
-                  textTransform: "none",
-                  fontWeight: 600,
-                  justifyContent: "flex-start",
-                  ...(theme.palette.mode === "light"
-                    ? {
-                        borderColor: "#000000",
-                        color: "#000000",
-                        "&:hover": {
-                          borderColor: "#000000",
-                          backgroundColor: "rgba(0, 0, 0, 0.06)",
-                        },
-                        "&.Mui-focusVisible": {
-                          outline: "2px solid #000000",
-                          outlineOffset: 2,
-                        },
-                      }
-                    : {}),
-                }}
-              >
-                <Typography variant="body2" noWrap>
-                  {currentOrganizationId
-                    ? currentOrganizationName || "Organisation"
-                    : "No Organisation"}
-                </Typography>
-              </Button>
-            )}
+            <OrganizationSwitcherButton onClick={() => setOrgModalOpen(true)} />
             {user ? (
               <Tooltip title="Account">
                 <IconButton
