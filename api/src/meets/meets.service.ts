@@ -19,7 +19,7 @@ import { UpdateMeetAttendeeDto } from "../attendees/dto/update-meet-attendee.dto
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
 import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
 import { CreateWallItemDto } from "../wall/dto/create-wall-item.dto";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import { detectMeetImageAspect } from "./image-aspect";
 import { v4 as uuid } from "uuid";
 import { MEET_STATUS } from "./constants/meet-status.enum";
@@ -53,7 +53,7 @@ type InvitedAttendeeUploadConflictResolution = {
 export class MeetsService {
   constructor(
     private readonly db: DatabaseService,
-    private readonly minio: MinioService,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   private buildMyAttendeeStatusSubquery(userId: string) {
@@ -1692,7 +1692,7 @@ export class MeetsService {
     const extension = file.mimetype.split("/")[1] || "jpg";
     const objectKey = `meets/${meetId}/${uuid()}.${extension}`;
     const aspect = detectMeetImageAspect(file.buffer);
-    const uploaded = await this.minio.upload(
+    const uploaded = await this.objectStorage.upload(
       objectKey,
       file.buffer,
       file.mimetype,
@@ -1794,7 +1794,7 @@ export class MeetsService {
     });
 
     if (objectKeyToRemove) {
-      await this.minio.remove(objectKeyToRemove);
+      await this.objectStorage.remove(objectKeyToRemove);
     }
 
     return result;
@@ -1843,7 +1843,7 @@ export class MeetsService {
     if (file) {
       const extension = this.getFileExtension(file.originalname);
       const objectKey = `wall/${meetId}/${uuid()}${extension}`;
-      uploaded = await this.minio.upload(
+      uploaded = await this.objectStorage.upload(
         objectKey,
         file.buffer,
         file.mimetype || "application/octet-stream",

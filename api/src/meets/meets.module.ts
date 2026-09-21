@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { MeetsService } from "./meets.service";
 import { MeetsController } from "./meets.controller";
 import { DatabaseModule } from "../database/database.module";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import { IncomingMailController } from "./incoming-mail.controller";
 import { EmailModule } from "../email/email.module";
 import { AuthModule } from "../auth/auth.module";
@@ -20,12 +20,8 @@ import { AuditLogModule } from "../audit/audit-log.module";
     OrganizationsModule,
     AuditLogModule,
   ],
-  controllers: [
-    MeetsController,
-    IncomingMailController,
-    MeetShareController,
-  ],
-  providers: [MeetsService, MinioService],
+  controllers: [MeetsController, IncomingMailController, MeetShareController],
+  providers: [MeetsService, ObjectStorageService],
   exports: [MeetsService],
 })
 export class MeetsModule {}

@@ -5,7 +5,7 @@ import { DatabaseModule } from "../database/database.module";
 import { AuthModule } from "../auth/auth.module";
 import { EmailModule } from "../email/email.module";
 import { AuditLogModule } from "../audit/audit-log.module";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import { MinioService } from "../storage/minio.service";
     AuditLogModule,
   ],
   controllers: [OrganizationsController],
-  providers: [OrganizationsService, MinioService],
+  providers: [OrganizationsService, ObjectStorageService],
   exports: [OrganizationsService],
 })
 export class OrganizationsModule {}

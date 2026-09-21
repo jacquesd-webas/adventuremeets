@@ -5,7 +5,7 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { UpdateUserIceInfoDto } from "./dto/update-user-ice-info.dto";
 import { v4 as uuid } from "uuid";
 import * as bcrypt from "bcryptjs";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import sharp = require("sharp");
 
 export type PendingInviteSummary = {
@@ -22,7 +22,7 @@ export type PendingInviteSummary = {
 export class UsersService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly minio: MinioService,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   async create(dto: CreateUserDto) {
@@ -446,7 +446,7 @@ export class UsersService {
       .toBuffer();
 
     const objectKey = `avatars/${userId}/${uuid()}.webp`;
-    const uploaded = await this.minio.upload(
+    const uploaded = await this.objectStorage.upload(
       objectKey,
       normalized,
       "image/webp",

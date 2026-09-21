@@ -3,7 +3,7 @@ import { Test } from "@nestjs/testing";
 import { UsersController } from "./users.controller";
 import { UsersService } from "./users.service";
 import { DatabaseService } from "../database/database.service";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import { AuthService } from "../auth/auth.service";
 import { AuditLogService } from "../audit/audit-log.service";
 
@@ -18,31 +18,35 @@ const buildReadBuilder = (rows: any[]) => {
   let filtered = [...rows];
   const builder: any = {};
 
-  builder.where = jest.fn().mockImplementation((criteria: Record<string, any>) => {
-    filtered = filtered.filter((row) =>
-      Object.entries(criteria).every(([key, value]) => row[key] === value),
-    );
-    return builder;
-  });
+  builder.where = jest
+    .fn()
+    .mockImplementation((criteria: Record<string, any>) => {
+      filtered = filtered.filter((row) =>
+        Object.entries(criteria).every(([key, value]) => row[key] === value),
+      );
+      return builder;
+    });
   builder.whereIn = jest
     .fn()
     .mockImplementation((key: string, values: any[]) => {
       filtered = filtered.filter((row) => values.includes(row[key]));
       return builder;
     });
-  builder.orderBy = jest.fn().mockImplementation((key: string, direction: string) => {
-    filtered = [...filtered].sort((a, b) => {
-      if (a[key] === b[key]) return 0;
-      return direction === "desc"
-        ? a[key] < b[key]
-          ? 1
-          : -1
-        : a[key] > b[key]
-          ? 1
-          : -1;
+  builder.orderBy = jest
+    .fn()
+    .mockImplementation((key: string, direction: string) => {
+      filtered = [...filtered].sort((a, b) => {
+        if (a[key] === b[key]) return 0;
+        return direction === "desc"
+          ? a[key] < b[key]
+            ? 1
+            : -1
+          : a[key] > b[key]
+            ? 1
+            : -1;
+      });
+      return builder;
     });
-    return builder;
-  });
   builder.first = jest.fn().mockImplementation(async (...columns: string[]) => {
     const row = filtered[0];
     if (!row) return undefined;
@@ -53,16 +57,18 @@ const buildReadBuilder = (rows: any[]) => {
     });
     return picked;
   });
-  builder.select = jest.fn().mockImplementation(async (...columns: string[]) => {
-    if (!columns.length) return filtered;
-    return filtered.map((row) => {
-      const picked: Record<string, any> = {};
-      columns.forEach((column) => {
-        picked[column] = row[column];
+  builder.select = jest
+    .fn()
+    .mockImplementation(async (...columns: string[]) => {
+      if (!columns.length) return filtered;
+      return filtered.map((row) => {
+        const picked: Record<string, any> = {};
+        columns.forEach((column) => {
+          picked[column] = row[column];
+        });
+        return picked;
       });
-      return picked;
     });
-  });
 
   return builder;
 };
@@ -195,7 +201,7 @@ describe("Users remember answers integration", () => {
             getClient: () => client,
           },
         },
-        { provide: MinioService, useValue: {} },
+        { provide: ObjectStorageService, useValue: {} },
         { provide: AuthService, useValue: {} },
         { provide: AuditLogService, useValue: { addRecord: jest.fn() } },
       ],

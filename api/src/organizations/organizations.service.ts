@@ -14,7 +14,7 @@ import { CreateInviteLinkDto } from "./dto/create-invite-link.dto";
 import { InviteLinkDto } from "./dto/invite-link.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import sharp = require("sharp");
 import { v4 as uuid } from "uuid";
 
@@ -25,7 +25,7 @@ export class OrganizationsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly emailService: EmailService,
-    private readonly minio: MinioService,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   private static readonly inviteCodeChars =
@@ -866,14 +866,14 @@ export class OrganizationsService {
       .toBuffer();
 
     const objectKey = `logos/${id}/${uuid()}.webp`;
-    const uploaded = await this.minio.upload(
+    const uploaded = await this.objectStorage.upload(
       objectKey,
       normalized,
       "image/webp",
     );
 
     if (organization.logo_object_key) {
-      await this.minio
+      await this.objectStorage
         .remove(organization.logo_object_key)
         .catch(() => undefined);
     }
@@ -1239,13 +1239,11 @@ export class OrganizationsService {
       customField1HelperText: row.custom_field1_helper_text ?? undefined,
       customField2HelperText: row.custom_field2_helper_text ?? undefined,
       defaultTemplateId: row.default_template_id ?? undefined,
-      defaultRequireIndemnity:
-        row.default_require_indemnity ?? undefined,
+      defaultRequireIndemnity: row.default_require_indemnity ?? undefined,
       defaultAutoApproveAttendees:
         row.default_auto_approve_attendees ?? undefined,
       defaultAllowGuests: row.default_allow_guests ?? undefined,
-      defaultAllowSelfCheckin:
-        row.default_allow_self_checkin ?? undefined,
+      defaultAllowSelfCheckin: row.default_allow_self_checkin ?? undefined,
       defaultAllowWalkins: row.default_allow_walkins ?? undefined,
       meetCountLast90Days:
         typeof row.meet_count_last_90_days === "number"

@@ -63,7 +63,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     command: server /data --console-address ":9001"
     ports:
-      - "${MINIO_PORT:-9000}:9000"
+      - "${S3_PORT:-9000}:9000"
       - "9001:9001"
     volumes:
       - minio_data:/data
@@ -77,6 +77,10 @@ services:
       - ./env/development.env
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-adventuremeets}@${DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME:-adventuremeets}
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: http://localhost:${S3_PORT:-9000}/meet-images
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
