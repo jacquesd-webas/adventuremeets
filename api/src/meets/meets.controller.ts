@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Headers,
+  Res,
   UnauthorizedException,
   UploadedFile,
   UseInterceptors,
@@ -28,16 +29,24 @@ import { CreateMeetDto } from "./dto/create-meet.dto";
 import { MeetDto } from "./dto/meet.dto";
 import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetStatusDto } from "./dto/update-meet-status.dto";
-import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
+import { UpdateMeetAttendeeDto } from "../attendees/dto/update-meet-attendee.dto";
+import { ResolveInvitedAttendeeUploadConflictsDto } from "../attendees/dto/resolve-invited-attendee-upload-conflicts.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
+import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
+import { CloneMeetDto } from "./dto/clone-meet.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Public } from "../auth/decorators/public.decorator";
 import { User } from "../auth/decorators/user.decorator";
 import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { EmailService } from "../email/email.service";
+import { renderEmailTemplate } from "../email/email.templates";
 import { DatabaseService } from "../database/database.service";
+import { OrganizationsService } from "../organizations/organizations.service";
+import { AuditLogService } from "../audit/audit-log.service";
 import * as ExcelJS from "exceljs";
+import { MEET_STATUS } from "./constants/meet-status.enum";
+import { parseAttendeeWorkbook } from "./attendee-upload-workbook";
 
 @ApiTags("Meets")
 @Controller("meets")
@@ -46,17 +55,55 @@ export class MeetsController {
 
   constructor(
     private readonly meetsService: MeetsService,
+    private readonly organizationService: OrganizationsService,
+    private readonly auditLogService: AuditLogService,
     private readonly emailService: EmailService,
     private readonly db: DatabaseService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
   ) {}
+
+  private async getOrganizationLogoUrl(organizationId?: string | null) {
+    if (!organizationId) return undefined;
+    return this.organizationService.findLogoUrlById(organizationId);
+  }
+
+  private async logMeetAuditAction({
+    orgId,
+    meetId,
+    target,
+    userId,
+    attendeeId,
+    action,
+  }: {
+    orgId?: string | null;
+    meetId?: string | null;
+    target: string;
+    userId?: string | null;
+    attendeeId?: string | null;
+    action: string;
+  }) {
+    await this.auditLogService.addRecord({
+      orgId: orgId ?? "",
+      userId: userId ?? null,
+      attendeeId: attendeeId ?? null,
+      meetId: meetId ?? null,
+      action,
+      target,
+    });
+  }
 
   @Get()
   @ApiQuery({
     name: "view",
     required: false,
     type: String,
-    description: "Filter view: reports, plan, all",
+    description: "Filter view: upcoming, past, draft, all, calendar",
+  })
+  @ApiQuery({
+    name: "scope",
+    required: false,
+    type: String,
+    description: "Optional membership scope: my or all",
   })
   @ApiQuery({
     name: "page",
@@ -69,7 +116,7 @@ export class MeetsController {
     name: "limit",
     required: false,
     type: Number,
-    description: "Page size (max 100)",
+    description: "Page size (max 200)",
     example: 20,
   })
   @ApiQuery({
@@ -78,12 +125,34 @@ export class MeetsController {
     type: String,
     description: "Restrict to a specific organization",
   })
+  @ApiQuery({
+    name: "startDate",
+    required: false,
+    type: String,
+    description: "Filter meets from this date/time (ISO format)",
+  })
+  @ApiQuery({
+    name: "endDate",
+    required: false,
+    type: String,
+    description: "Filter meets up to this date/time (ISO format)",
+  })
+  @ApiQuery({
+    name: "search",
+    required: false,
+    type: String,
+    description: "Search meets by name, location, or description",
+  })
   async findAll(
     @Query("view") view = "all",
+    @Query("scope") scope?: "all" | "my",
     @Query("page") page = "1",
     @Query("limit") limit = "20",
     @Query("organizationId") organizationId?: string,
-    @User() user?: UserProfile
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+    @Query("search") search?: string,
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
     if (!organizationId)
@@ -94,31 +163,47 @@ export class MeetsController {
     }
 
     let normalizedView = String(view || "all").toLowerCase();
+
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.max(
       1,
-      Math.min(100, parseInt(limit as string, 10) || 20)
+      Math.min(200, parseInt(limit as string, 10) || 20),
     );
+
     const isOrganizer = this.authService.hasRole(
       user,
       organizationId,
-      "organizer"
+      "organizer",
     );
 
-    return await this.meetsService.findAll(
+    // Force scope to "my" if just a member and org does not share all meets
+    if (!isOrganizer) {
+      const canOrganizationShareMeets =
+        await this.organizationService.canOrganizationShareMeets(
+          organizationId,
+        );
+      if (!canOrganizationShareMeets) scope = "my";
+    }
+
+    const meets = await this.meetsService.findAll(
       normalizedView,
       pageNum,
       limitNum,
       [organizationId],
       isOrganizer,
-      user.id
+      user.id,
+      startDate ? new Date(startDate) : null,
+      endDate ? new Date(endDate) : null,
+      search?.trim() || null,
+      scope ?? null,
     );
+    return meets;
   }
 
   @Get(":id([0-9a-fA-F-]{36})")
   async findOne(
     @Param("id") id: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ): Promise<MeetDto> {
     if (!user) throw new UnauthorizedException();
 
@@ -128,6 +213,26 @@ export class MeetsController {
     }
     if (!this.authService.hasRole(user, meet.organizationId!, "member")) {
       throw new NotFoundException("Meet not found in your organizations");
+    }
+    const canManageMeet =
+      this.authService.hasRole(user, meet.organizationId!, "organizer") ||
+      this.authService.hasRole(user, meet.organizationId!, "admin");
+    if (!canManageMeet) {
+      const canViewAllMeets =
+        await this.organizationService.canOrganizationShareMeets(
+          meet.organizationId!,
+        );
+      const isPublicMeet =
+        meet.statusId === MEET_STATUS.Published ||
+        meet.statusId === MEET_STATUS.Open;
+      const isAttending = Boolean(meet.myAttendeeStatus);
+      const canViewMeet =
+        (canViewAllMeets && meet.statusId !== MEET_STATUS.Draft) ||
+        (!meet.isHidden && (isPublicMeet || isAttending));
+
+      if (!canViewMeet) {
+        throw new NotFoundException("Meet not found in your organizations");
+      }
     }
     return meet;
   }
@@ -144,11 +249,11 @@ export class MeetsController {
   @Get(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
   async findAttendeeStatus(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const attendee = await this.meetsService.findAttendeeStatus(
       code,
-      attendeeId
+      attendeeId,
     );
     if (!attendee) throw new NotFoundException("Meet attendee not found");
     return attendee;
@@ -158,11 +263,11 @@ export class MeetsController {
   @Get(":code/attendee/:attendeeId([0-9a-fA-F-]{36})")
   async findAttendeeForEdit(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const attendee = await this.meetsService.findAttendeeForEdit(
       code,
-      attendeeId
+      attendeeId,
     );
     if (!attendee) throw new NotFoundException("Meet attendee not found");
     return attendee;
@@ -172,12 +277,24 @@ export class MeetsController {
   @Patch(":code/attendeeStatus/:attendeeId([0-9a-fA-F-]{36})")
   async withdrawAttendee(
     @Param("code") code: string,
-    @Param("attendeeId") attendeeId: string
+    @Param("attendeeId") attendeeId: string,
   ) {
     const meet = await this.meetsService.findOne(code);
-    return this.meetsService.updateAttendee(meet.id, attendeeId, {
-      status: "cancelled",
+    const updated = await this.meetsService.updateAttendee(
+      meet.id,
+      attendeeId,
+      {
+        status: "cancelled",
+      },
+    );
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      attendeeId,
+      action: "withdrew from",
     });
+    return updated;
   }
 
   @Public()
@@ -185,12 +302,34 @@ export class MeetsController {
   async updateAttendeeByCode(
     @Param("code") code: string,
     @Param("attendeeId") attendeeId: string,
-    @Body() dto: UpdateMeetAttendeeDto
+    @Body() dto: UpdateMeetAttendeeDto,
   ) {
     const meet = await this.meetsService.findOne(code);
-    return this.meetsService.updateAttendee(meet.id, attendeeId, dto, {
-      resetCancelledToPending: true,
+    const updated = await this.meetsService.updateAttendee(
+      meet.id,
+      attendeeId,
+      dto,
+      {
+        resetCancelledToPending: true,
+      },
+    );
+
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      attendeeId,
+      action: "updated application for",
     });
+
+    if (dto.status === "confirmed") {
+      const hasMissingFields = await this.meetsService.attendeeHasMissingFields(
+        meet.id,
+        attendeeId,
+      );
+      return { ...updated, hasMissingFields };
+    }
+    return updated;
   }
 
   @Post()
@@ -200,34 +339,42 @@ export class MeetsController {
     // Set default organizationId if user belongs to only one organization
     const organizerOrgIds = this.authService.getUserOrganizationIds(
       user,
-      "organizer"
+      "organizer",
     );
     if (!dto.organizationId && organizerOrgIds.length === 1) {
       dto.organizationId = organizerOrgIds[0];
     }
     if (!dto.organizationId) {
       throw new BadRequestException(
-        "Must specify organizationId when belonging to multiple organizations"
+        "Must specify organizationId when belonging to multiple organizations",
       );
     }
     if (!this.authService.hasRole(user, dto.organizationId, "organizer")) {
       throw new ForbiddenException(
-        "Cannot create a meet for an organization you do not belong to as an organizer"
+        "Cannot create a meet for an organisation you do not belong to as an organiser",
       );
     }
 
-    return await this.meetsService.create({
+    const created = await this.meetsService.create({
       ...dto,
       organizerId: dto.organizerId || user.id,
       organizationId: dto.organizationId,
     });
+    await this.logMeetAuditAction({
+      orgId: dto.organizationId,
+      meetId: created.id,
+      target: `meet ${created.name ?? dto.name ?? "meet"}`,
+      userId: user.id,
+      action: "created",
+    });
+    return created;
   }
 
-  @Patch(":id")
-  async update(
+  @Post(":id/clone")
+  async clone(
     @Param("id") id: string,
-    @Body() dto: UpdateMeetDto,
-    @User() user?: UserProfile
+    @Body() dto: CloneMeetDto,
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -236,11 +383,46 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer"
+        "Cannot clone a meet for an organisation you do not belong to as an organiser",
       );
     }
 
-    return this.meetsService.update(id, dto);
+    const cloned = await this.meetsService.clone(id, {
+      ...dto,
+      organizerId: user.id,
+    });
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: cloned.id,
+      target: `meet ${cloned.name ?? dto.name ?? meet.name ?? "meet"}`,
+      userId: user.id,
+      action: "cloned",
+    });
+    return cloned;
+  }
+
+  @Patch(":id")
+  async update(
+    @Param("id") id: string,
+    @Body() dto: UpdateMeetDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const updated = await this.meetsService.update(id, dto);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${updated.name ?? dto.name ?? meet.name ?? "meet"}`,
+      userId: user.id,
+      action: "edited",
+    });
+    return updated;
   }
 
   @Patch(":id/status")
@@ -253,11 +435,37 @@ export class MeetsController {
     @Param("id") id: string,
     @Body() dto: UpdateMeetStatusDto,
     @Headers("x-api-key") apiKey?: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     // Shortcut the entire process as worker API can do anything
     if (apiKey && apiKey === process.env.WORKER_API_KEY) {
-      return await this.meetsService.updateStatus(id, dto.statusId);
+      const meet = await this.meetsService.findOne(id);
+      if (!meet) {
+        throw new NotFoundException("Meet not found");
+      }
+      const attendeesToReconfirm = dto.reconfirmAttendees
+        ? await this.getAttendeesToReconfirm(meet!)
+        : [];
+
+      const updated = await this.meetsService.updateStatus(id, dto.statusId);
+      if (dto.reconfirmAttendees) {
+        await this.meetsService.resetConfirmedAttendeesToInvited(
+          id,
+          meet?.organizerId,
+        );
+        await this.notifyAttendeesToReconfirm(meet!, attendeesToReconfirm);
+      }
+      if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
+        await this.notifyAttendeesOfStatus(meet!);
+      }
+      await this.auditLogService.addRecord({
+        orgId: meet.organizationId ?? "",
+        meetId: meet.id,
+        description: `Worker changed status of ${meet.name ? meet.name : "meet"} to ${
+          MEET_STATUS[dto.statusId] ?? `Status ${dto.statusId}`
+        }`,
+      });
+      return updated;
     }
 
     // Otherwise authorize normally
@@ -266,13 +474,183 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot update a meet for an organization you do not belong to as an organizer"
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const attendeesToReconfirm = dto.reconfirmAttendees
+      ? await this.getAttendeesToReconfirm(meet)
+      : [];
+
+    const updated = await this.meetsService.updateStatus(id, dto.statusId);
+    await this.auditLogService.addRecord({
+      orgId: meet.organizationId ?? "",
+      userId: user.id,
+      meetId: meet.id,
+      action: "changed status of",
+      target: `meet ${meet.name || "meet"} to ${
+        MEET_STATUS[dto.statusId] ?? `Status ${dto.statusId}`
+      }`,
+    });
+    if (dto.reconfirmAttendees) {
+      await this.meetsService.resetConfirmedAttendeesToInvited(
+        id,
+        meet.organizerId,
       );
+      await this.notifyAttendeesToReconfirm(meet, attendeesToReconfirm);
+    }
+    if (dto.notifyAttendees && dto.statusId === MEET_STATUS.Closed) {
+      await this.notifyAttendeesOfStatus(meet);
+    }
+    return updated;
+  }
+
+  private async getAttendeesToReconfirm(meet: MeetDto) {
+    const { attendees } = await this.meetsService.listAttendees(meet.id);
+    return attendees.filter(
+      (attendee: any) =>
+        attendee.status === "confirmed" && attendee.userId !== meet.organizerId,
+    );
+  }
+
+  private async notifyAttendeesToReconfirm(meet: MeetDto, attendees: any[]) {
+    if (!attendees.length) return;
+    if (!process.env.MAIL_DOMAIN) {
+      throw new BadRequestException("Mail is not enabled");
     }
 
-    return await this.meetsService.updateStatus(id, dto.statusId);
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
+    const notifiedIds: string[] = [];
+
+    await Promise.all(
+      attendees.map(async (attendee: any) => {
+        if (!attendee.email) return;
+
+        const statusUrl = meet.shareCode
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
+          : "";
+        const organizerName = meet.organizerName || "the organiser";
+        const organizerEmail = meet.organizerEmail || "";
+        const attendeeName =
+          attendee.name || attendee.email || attendee.phone || "there";
+
+        const { subject, text, html } = renderEmailTemplate("meet-reconfirm", {
+          meetName: meet.name,
+          attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
+          statusUrl,
+          organizerName,
+          organizerEmail,
+          logoUrl,
+          isRsvpMode: meet.autoPlacement,
+        });
+
+        const messageId = await this.emailService.saveMessage({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        await this.emailService.sendEmail({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+          messageReferences: messageId
+            ? [{ messageId, recipient: attendee.email }]
+            : [],
+        });
+        notifiedIds.push(attendee.id);
+      }),
+    );
+
+    if (notifiedIds.length) {
+      await this.meetsService.updateAttendeesNotified(meet.id, notifiedIds);
+    }
+  }
+
+  private async notifyAttendeesOfStatus(meet: MeetDto) {
+    if (!process.env.MAIL_DOMAIN) {
+      throw new BadRequestException("Mail is not enabled");
+    }
+    const { attendees } = await this.meetsService.listAttendees(meet.id);
+    if (!attendees.length) return;
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
+    const notifiedIds: string[] = [];
+    await Promise.all(
+      attendees.map(async (attendee: any) => {
+        if (!attendee.email) return;
+        const status = attendee.status;
+        let template: "meet-confirm" | "meet-reject" | "meet-waitlist" | null =
+          null;
+        if (
+          status === "confirmed" ||
+          status === "checked-in" ||
+          status === "attended"
+        ) {
+          template = "meet-confirm";
+        } else if (status === "waitlisted") {
+          template = "meet-waitlist";
+        } else if (status === "rejected" || status === "cancelled") {
+          template = "meet-reject";
+        }
+        if (!template) return;
+        const statusUrl = meet.shareCode
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendee.id}`
+          : "";
+        const organizerName = meet.organizerName || "the organiser";
+        const organizerEmail = meet.organizerEmail || "";
+        const attendeeName =
+          attendee.name || attendee.email || attendee.phone || "there";
+        const { subject, text, html } = renderEmailTemplate(template, {
+          meetName: meet.name,
+          attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
+          statusUrl,
+          organizerName,
+          organizerEmail,
+          logoUrl,
+          isRsvpMode: meet.autoPlacement,
+        });
+        const messageId = await this.emailService.saveMessage({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+        });
+        await this.emailService.sendEmail({
+          to: attendee.email,
+          subject,
+          text,
+          html,
+          meetId: meet.id,
+          attendeeId: attendee.id,
+          messageReferences: messageId
+            ? [{ messageId, recipient: attendee.email }]
+            : [],
+        });
+        notifiedIds.push(attendee.id);
+      }),
+    );
+    if (notifiedIds.length) {
+      await this.meetsService.updateAttendeesNotified(meet.id, notifiedIds);
+    }
   }
 
   @Post(":id/images")
@@ -281,18 +659,14 @@ export class MeetsController {
     @Param("id") id: string,
     @UploadedFile() file: any,
     @Body() dto: CreateMeetImageDto,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot add an image to a meet for an organisation you do not belong to as an organizer"
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     if (!file) {
       throw new BadRequestException("Image file is required");
@@ -300,7 +674,76 @@ export class MeetsController {
     if (!file.mimetype?.startsWith("image/")) {
       throw new BadRequestException("Only image uploads are allowed");
     }
-    return this.meetsService.addImage(id, file, dto);
+    const image = await this.meetsService.addImage(id, file, dto);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "added image to",
+    });
+    return image;
+  }
+
+  @Get(":id/images")
+  async listImages(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    return this.meetsService.listImages(id);
+  }
+
+  @Patch(":id/images/:imageId")
+  async updateImage(
+    @Param("id") id: string,
+    @Param("imageId") imageId: string,
+    @Body() dto: UpdateMeetImageDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const updated = await this.meetsService.updateImage(id, imageId, dto);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "updated image for",
+    });
+    return updated;
+  }
+
+  @Delete(":id/images/:imageId")
+  async removeImage(
+    @Param("id") id: string,
+    @Param("imageId") imageId: string,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const result = await this.meetsService.removeImage(id, imageId);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "removed image from",
+    });
+    return result;
   }
 
   @Delete(":id")
@@ -310,12 +753,23 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "Cannot delete a meet for an organisation you do not belong to as an organizer"
+    this.assertCanModifyExistingMeet(user, meet, "delete");
+
+    if (meet.statusId === MEET_STATUS.Draft) {
+      const result = await this.meetsService.remove(id);
+      await this.logMeetAuditAction({
+        orgId: meet.organizationId,
+        meetId: meet.id,
+        target: `meet ${meet.name || "meet"}`,
+        userId: user.id,
+        action: "deleted",
+      });
+      return result;
+    } else {
+      throw new BadRequestException(
+        "Only meets in Draft status can be deleted",
       );
     }
-    return this.meetsService.remove(id);
   }
 
   @Post(":id/message")
@@ -328,6 +782,9 @@ export class MeetsController {
         attendeeIds: { type: "array", items: { type: "string" } },
         text: { type: "string" },
         html: { type: "string" },
+        markNotified: { type: "boolean" },
+        includeStatusUrl: { type: "boolean" },
+        sendAsGroup: { type: "boolean" },
       },
       required: ["subject"],
     },
@@ -340,19 +797,18 @@ export class MeetsController {
       text?: string;
       html?: string;
       attendeeIds?: string[];
+      markNotified?: boolean;
+      includeStatusUrl?: boolean;
+      sendAsGroup?: boolean;
     },
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You do not have permission to message attendees of this meet"
-      );
-    }
+    this.assertCanModifyExistingMeet(user, meet, "update");
 
     // Sanity check
     if (!body.text && !body.html) {
@@ -374,48 +830,150 @@ export class MeetsController {
         if (attendedContactInfo?.email) {
           recipients.set(attendeeId, attendedContactInfo.email);
         }
-      })
+      }),
     );
 
     if (!recipients.size) {
       throw new BadRequestException(
-        "No recipients email addresses found for attendees"
+        "No recipients email addresses found for attendees",
       );
     }
 
     if (recipients.size !== body.attendeeIds.length) {
       throw new BadRequestException(
-        "One or more attendees do not have email addresses"
+        "One or more attendees do not have email addresses",
       );
     }
 
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
     // Send all the emails (just skip any nulls it's fine)
-    await Promise.all(
-      Array.from(recipients.entries()).map(([, email]) => {
-        return this.emailService.sendEmail({
-          to: email,
-          subject: body.subject,
-          text: body.text ?? "",
-          html: body.html ?? "",
-          meetId: meet.id,
-        });
-      })
-    );
+    const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
+    const organizerName = meet.organizerName || "the organiser";
+    const organizerEmail = meet.organizerEmail || "";
+    const includeStatusUrl =
+      body.sendAsGroup === true ? false : body.includeStatusUrl !== false;
+    const meetReplyTo = `meet+${meet.id}@${process.env.MAIL_DOMAIN}`;
 
+    const messageReferences: Array<{
+      messageId: string;
+      recipient: string;
+      attendeeId: string;
+    }> = [];
     await Promise.all(
       Array.from(recipients.keys()).map(async (attendeeId) => {
-        await this.emailService.saveMessage({
-          to: recipients.get(attendeeId)!,
+        const attendee =
+          await this.meetsService.getAttendeeContactById(attendeeId);
+        const statusUrl = includeStatusUrl
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
+          : "";
+        const attendeeName =
+          attendee?.name || attendee?.email || attendee?.phone || "there";
+        const organizerName = meet.organizerName || "the organiser";
+        const organizerEmail = meet.organizerEmail || "";
+        const { text } = renderEmailTemplate("meet-message", {
+          meetName: meet.name,
+          attendeeName,
+          statusUrl,
+          includeStatusUrl,
+          organizerName,
+          organizerEmail,
+          messageBody: body.text ?? body.html ?? "",
+          logoUrl,
+          isRsvpMode: meet.autoPlacement,
+        });
+        const textWithoutStatus = text
+          .split(/\n\nView your (?:application|RSVP) status:/)[0]
+          .trim();
+        const messageId = await this.emailService.saveMessage({
+          to: body.sendAsGroup
+            ? Array.from(recipients.values())
+            : recipients.get(attendeeId)!,
           subject: body.subject,
-          text: body.text ?? "",
-          html: body.html ?? "",
+          text: textWithoutStatus,
+          html: "",
           meetId: meet.id,
           attendeeId,
         });
-      })
+        if (messageId)
+          messageReferences.push({
+            messageId,
+            recipient: recipients.get(attendeeId)!,
+            attendeeId,
+          });
+      }),
     );
 
-    await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
+    if (body.sendAsGroup) {
+      const { text, html } = renderEmailTemplate("meet-message", {
+        meetName: meet.name,
+        attendeeName: "everyone",
+        statusUrl: "",
+        includeStatusUrl: false,
+        isGroupedMessage: true,
+        organizerName,
+        organizerEmail,
+        messageBody: body.text ?? body.html ?? "",
+        logoUrl,
+        isRsvpMode: meet.autoPlacement,
+      });
+
+      await this.emailService.sendEmail({
+        to: Array.from(recipients.values()),
+        subject: body.subject,
+        text,
+        html,
+        replyTo: meetReplyTo,
+        messageReferences,
+      });
+    } else {
+      await Promise.all(
+        Array.from(recipients.entries()).map(async ([attendeeId, email]) => {
+          const attendee =
+            await this.meetsService.getAttendeeContactById(attendeeId);
+          const statusUrl = includeStatusUrl
+            ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
+            : "";
+          const attendeeName =
+            attendee?.name || attendee?.email || attendee?.phone || "there";
+          const { text, html } = renderEmailTemplate("meet-message", {
+            meetName: meet.name,
+            attendeeName,
+            statusUrl,
+            includeStatusUrl,
+            organizerName,
+            organizerEmail,
+            messageBody: body.text ?? body.html ?? "",
+            logoUrl,
+            isRsvpMode: meet.autoPlacement,
+          });
+          return this.emailService.sendEmail({
+            to: email,
+            subject: body.subject,
+            text,
+            html,
+            meetId: meet.id,
+            attendeeId,
+            replyTo: meetReplyTo,
+            messageReferences: messageReferences.filter(
+              (reference) => reference.attendeeId === attendeeId,
+            ),
+          });
+        }),
+      );
+    }
+
+    if (body.markNotified !== false) {
+      await this.meetsService.updateAttendeesNotified(id, body.attendeeIds);
+    }
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "messaged attendees for",
+    });
     return { status: "sent", count: recipients.size };
   }
 
@@ -424,7 +982,7 @@ export class MeetsController {
   async listAttendeeMessages(
     @Param("id") id: string,
     @Param("attendeeId") attendeeId: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
@@ -433,13 +991,13 @@ export class MeetsController {
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "You do not have permission to view attendee messages for this meet"
+        "You do not have permission to view attendee messages for this meet",
       );
     }
 
     const messages = await this.meetsService.listAttendeeMessages(
       id,
-      attendeeId
+      attendeeId,
     );
     return { messages };
   }
@@ -449,67 +1007,380 @@ export class MeetsController {
   async markMessageRead(
     @Param("id") id: string,
     @Param("messageId") messageId: string,
-    @User() user?: UserProfile
+    @User() user?: UserProfile,
   ) {
     if (!user) throw new UnauthorizedException();
 
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
-      throw new ForbiddenException(
-        "You do not have permission to update attendee messages for this meet"
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    await this.meetsService.markAttendeeMessageRead(id, messageId);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "marked message read for",
+    });
+    return { status: "ok" };
+  }
+
+  @Post(":id/attendees/:attendeeId/messages/:messageId/resend")
+  @ApiOperation({ summary: "Resend a failed attendee email" })
+  async resendFailedAttendeeEmail(
+    @Param("id") id: string,
+    @Param("attendeeId") attendeeId: string,
+    @Param("messageId") messageId: string,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const messages = await this.meetsService.listAttendeeMessages(
+      id,
+      attendeeId,
+    );
+    const failedMessage = messages.find(
+      (message) =>
+        message.id === messageId &&
+        message.direction === "sent" &&
+        message.emailStatus === "failed",
+    );
+    const recipient = failedMessage?.recipientEmail || failedMessage?.to;
+    if (!recipient || !failedMessage.content) {
+      throw new BadRequestException(
+        "Only failed attendee emails can be resent",
       );
     }
 
-    await this.meetsService.markAttendeeMessageRead(id, messageId);
-    return { status: "ok" };
+    const { subject, body } = this.emailService.parseMessageContent(
+      failedMessage.content,
+    );
+    const newMessageId = await this.emailService.saveMessage({
+      to: recipient,
+      subject,
+      text: body,
+      attendeeId,
+      meetId: id,
+    });
+    await this.emailService.sendEmail({
+      to: recipient,
+      subject,
+      text: body,
+      attendeeId,
+      meetId: id,
+      messageReferences: newMessageId
+        ? [{ messageId: newMessageId, recipient }]
+        : [],
+    });
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      attendeeId,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "resent failed email to",
+    });
+    return { status: "sent" };
+  }
+
+  @Post(":id/attendees/upload")
+  @ApiOperation({ summary: "Upload attendees from an Excel sheet" })
+  @UseInterceptors(FileInterceptor("file"))
+  async uploadAttendees(
+    @Param("id") id: string,
+    @UploadedFile() file: any,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    if (!file) {
+      throw new BadRequestException("File is required");
+    }
+
+    const worksheetRows = parseAttendeeWorkbook(file.buffer);
+
+    const normalizeColumnKey = (value: string) =>
+      value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "");
+
+    const headerRow = worksheetRows[0] || [];
+    const headerMap = new Map<string, number>();
+    headerRow.forEach((value, index) => {
+      const rawKey = String(value ?? "");
+      const key = normalizeColumnKey(rawKey);
+      if (key) headerMap.set(key, index + 1);
+    });
+
+    const nameCol = headerMap.get("name");
+    const emailCol = headerMap.get("email");
+    const phoneCol = headerMap.get("phone");
+    if (!nameCol || !emailCol) {
+      throw new BadRequestException("Sheet must include columns: name, email");
+    }
+
+    const metaDefinitions = await this.db
+      .getClient()("meet_meta_definitions")
+      .where({ meet_id: id })
+      .orderBy("position", "asc")
+      .select("id", "field_key", "label", "position");
+
+    const questionColumns = new Map<number, string>();
+    const assignedDefinitionIds = new Set<string>();
+    headerMap.forEach((col, key) => {
+      const match = key.match(/^q(\d+)$/);
+      if (!match) return;
+      const index = Number(match[1]) - 1;
+      const definition = metaDefinitions[index];
+      if (definition) {
+        questionColumns.set(col, definition.id);
+        assignedDefinitionIds.add(definition.id);
+      }
+    });
+
+    const metaDefinitionByKey = new Map<string, string>();
+    metaDefinitions.forEach((definition) => {
+      const labelKey = normalizeColumnKey(definition.label || "");
+      const fieldKey = normalizeColumnKey(definition.field_key || "");
+      if (labelKey && !metaDefinitionByKey.has(labelKey)) {
+        metaDefinitionByKey.set(labelKey, definition.id);
+      }
+      if (fieldKey && !metaDefinitionByKey.has(fieldKey)) {
+        metaDefinitionByKey.set(fieldKey, definition.id);
+      }
+    });
+
+    headerMap.forEach((col, key) => {
+      if (key === "name" || key === "email" || key === "phone") return;
+      if (/^q\d+$/.test(key)) return;
+      const definitionId = metaDefinitionByKey.get(key);
+      if (!definitionId || assignedDefinitionIds.has(definitionId)) return;
+      questionColumns.set(col, definitionId);
+      assignedDefinitionIds.add(definitionId);
+    });
+
+    const getCellText = (
+      row: Array<string | number | boolean>,
+      col?: number,
+    ) => (col ? String(row[col - 1] ?? "").trim() : "");
+
+    const attendees: Array<{
+      name: string;
+      email: string;
+      phone: string;
+      rowNumber: number;
+      metaValues?: Array<{ definitionId: string; value: string }>;
+    }> = [];
+    const errors: string[] = [];
+
+    worksheetRows.forEach((row, index) => {
+      const rowNumber = index + 1;
+      if (rowNumber === 1) return;
+      const name = getCellText(row, nameCol);
+      const email = getCellText(row, emailCol);
+      const phone = getCellText(row, phoneCol);
+      if (!name && !email && !phone) return;
+      if (!name || !email) {
+        errors.push(
+          `Row ${rowNumber}: name and email are required for each attendee.`,
+        );
+        return;
+      }
+      const metaValues: Array<{ definitionId: string; value: string }> = [];
+      questionColumns.forEach((definitionId, col) => {
+        const value = getCellText(row, col);
+        if (value) {
+          metaValues.push({ definitionId, value });
+        }
+      });
+      attendees.push({
+        name,
+        email,
+        phone,
+        rowNumber,
+        metaValues: metaValues.length ? metaValues : undefined,
+      });
+    });
+
+    if (errors.length) {
+      const preview = errors.slice(0, 5).join(" ");
+      throw new BadRequestException(
+        `Upload failed with ${errors.length} invalid row(s). ${preview}`,
+      );
+    }
+
+    if (!attendees.length) {
+      throw new BadRequestException("No valid attendee rows found to upload.");
+    }
+
+    const result = await this.meetsService.addInvitedAttendees(id, attendees);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "uploaded attendees for",
+    });
+    return result;
+  }
+
+  @Post(":id/attendees/upload-conflicts/resolve")
+  @ApiOperation({ summary: "Resolve uploaded attendee conflicts" })
+  async resolveUploadedAttendeeConflicts(
+    @Param("id") id: string,
+    @Body() body: ResolveInvitedAttendeeUploadConflictsDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const result =
+      await this.meetsService.resolveInvitedAttendeeUploadConflicts(
+        id,
+        body.resolutions.map((resolution) => ({
+          action: resolution.action,
+          existingAttendeeId: resolution.existingAttendeeId,
+          attendee: {
+            name: resolution.attendee.name,
+            email: resolution.attendee.email,
+            phone: resolution.attendee.phone,
+            rowNumber: resolution.attendee.rowNumber,
+            metaValues: resolution.attendee.metaValues,
+          },
+        })),
+      );
+
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "resolved uploaded attendee conflicts for",
+    });
+
+    return result;
   }
 
   @Post(":id/report")
   @ApiOperation({ summary: "Create attendee report and email organizer" })
-  async createReport(@Param("id") id: string, @User() user?: UserProfile) {
+  async createReport(
+    @Param("id") id: string,
+    @User() user?: UserProfile,
+    @Body()
+    body?: {
+      sendEmail?: boolean;
+      downloadReport?: boolean;
+      isFinalReport?: boolean;
+    },
+    @Res({ passthrough: true }) res?: any,
+  ) {
     if (!user) throw new UnauthorizedException();
+    const sendEmail = body?.sendEmail ?? true;
+    const downloadReport = body?.downloadReport ?? false;
+    const isFinalReport = body?.isFinalReport ?? true;
+    if (!sendEmail && !downloadReport) {
+      throw new BadRequestException("Select at least one delivery method");
+    }
 
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
     if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
       throw new ForbiddenException(
-        "Cannot create a report for a meet you do not organize"
+        "Cannot create a report for a meet you do not organize",
       );
     }
 
-    const organizerEmail = await this.meetsService.getOrganizerEmail(meet.id);
-    if (!organizerEmail) {
+    const organizerEmail = sendEmail
+      ? await this.meetsService.getOrganizerEmail(meet.id)
+      : null;
+    if (sendEmail && !organizerEmail) {
       throw new BadRequestException("Organizer email not found");
     }
 
     const { attendees, metaDefinitions } =
       await this.meetsService.getReportData(meet.id);
+    const organization = meet.organizationId
+      ? ((await this.organizationService.findById(meet.organizationId)) as {
+          customField1Name?: string;
+          customField2Name?: string;
+          custom_field1_name?: string;
+          custom_field2_name?: string;
+        } | null)
+      : null;
+    const customField1Name =
+      organization?.customField1Name ?? organization?.custom_field1_name;
+    const customField2Name =
+      organization?.customField2Name ?? organization?.custom_field2_name;
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Attendees");
+    const hasCosts =
+      (meet.costCents != null && Number(meet.costCents) > 0) ||
+      (meet.depositCents != null && Number(meet.depositCents) > 0);
 
     const baseColumns = [
-      { header: "Attendee ID", key: "id" },
-      { header: "Name", key: "name" },
-      { header: "Email", key: "email" },
-      { header: "Phone", key: "phone" },
-      { header: "Status", key: "status" },
-      { header: "Guests", key: "guests" },
-      { header: "Responded At", key: "respondedAt" },
-      { header: "Notified At", key: "notifiedAt" },
-      { header: "Paid Deposit At", key: "paidDepositAt" },
-      { header: "Paid Full At", key: "paidFullAt" },
-      { header: "Created At", key: "createdAt" },
-      { header: "Updated At", key: "updatedAt" },
+      { header: "Name", key: "name", width: 24 },
+      { header: "Email", key: "email", width: 30 },
+      { header: "Phone", key: "phone", width: 18 },
+      { header: "Status", key: "status", width: 14 },
+      { header: "Guests", key: "guests", width: 10 },
+      ...(hasCosts
+        ? [
+            { header: "Paid Deposit At", key: "paidDepositAt", width: 20 },
+            { header: "Paid Full At", key: "paidFullAt", width: 20 },
+          ]
+        : []),
     ];
-    const metaColumns = metaDefinitions.map((definition) => ({
+    const organizationFieldColumns = [
+      customField1Name
+        ? {
+            header: customField1Name,
+            key: "org1Value",
+            width: 24,
+          }
+        : null,
+      customField2Name
+        ? {
+            header: customField2Name,
+            key: "org2Value",
+            width: 24,
+          }
+        : null,
+    ].filter(
+      (column): column is { header: string; key: string; width: number } =>
+        Boolean(column),
+    );
+    const reportMetaDefinitions = metaDefinitions.filter((definition: any) =>
+      Boolean(definition.config?.includeInReports),
+    );
+    const metaColumns = reportMetaDefinitions.map((definition) => ({
       header: definition.label,
       key: `meta_${definition.id}`,
+      width: 28,
     }));
-    worksheet.columns = [...baseColumns, ...metaColumns];
+    worksheet.columns = [
+      ...baseColumns,
+      ...organizationFieldColumns,
+      ...metaColumns,
+    ];
 
     attendees.forEach((attendee: any) => {
       const row: Record<string, any> = {
@@ -517,17 +1388,24 @@ export class MeetsController {
         name: attendee.name ?? "",
         email: attendee.email ?? "",
         phone: attendee.phone ?? "",
-        status: attendee.status ?? "",
+        status:
+          isFinalReport && attendee.status === "confirmed"
+            ? "no-show"
+            : (attendee.status ?? ""),
         guests: attendee.guests ?? "",
-        respondedAt: attendee.respondedAt ?? "",
-        notifiedAt: attendee.notifiedAt ?? "",
         paidDepositAt: attendee.paidDepositAt ?? "",
         paidFullAt: attendee.paidFullAt ?? "",
-        createdAt: attendee.createdAt ?? "",
-        updatedAt: attendee.updatedAt ?? "",
+        org1Value: attendee.org1Value ?? "",
+        org2Value: attendee.org2Value ?? "",
       };
       attendee.metaValues?.forEach((meta: any) => {
-        row[`meta_${meta.definitionId}`] = meta.value ?? "";
+        if (
+          reportMetaDefinitions.some(
+            (definition) => definition.id === meta.definitionId,
+          )
+        ) {
+          row[`meta_${meta.definitionId}`] = meta.value ?? "";
+        }
       });
       worksheet.addRow(row);
     });
@@ -544,14 +1422,54 @@ export class MeetsController {
       contentDisposition: "attachment" as const,
     };
 
-    await this.emailService.sendEmail({
-      to: organizerEmail,
-      subject: `${meet.name} attendee report`,
-      text: `Attached is the attendee report for ${meet.name}.`,
-      attachments: [attachment],
+    if (sendEmail && organizerEmail) {
+      await this.emailService.sendEmail({
+        to: organizerEmail,
+        subject: `${meet.name} attendee report`,
+        text: `Attached is the attendee report for ${meet.name}.`,
+        attachments: [attachment],
+        meetId: meet.id,
+      });
+    }
+
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
       meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "created report for",
     });
 
-    return { status: "sent", to: organizerEmail };
+    if (downloadReport && res) {
+      res.set({
+        "Content-Type": attachment.contentType,
+        "Content-Disposition": `attachment; filename="${attachment.filename}"`,
+      });
+      res.send(content);
+      return;
+    }
+
+    return { status: "sent", to: organizerEmail ?? undefined };
+  }
+
+  private assertCanModifyExistingMeet(
+    user: UserProfile,
+    meet: MeetDto,
+    action: "update" | "delete",
+  ) {
+    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+      throw new ForbiddenException(
+        `Cannot ${action} a meet for an organization you do not belong to as an organizer`,
+      );
+    }
+
+    if (
+      !this.authService.hasRole(user, meet.organizationId!, "admin") &&
+      user.id !== meet.organizerId
+    ) {
+      throw new ForbiddenException(
+        `Cannot ${action} a meet you are not the organiser of`,
+      );
+    }
   }
 }

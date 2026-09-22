@@ -4,6 +4,9 @@ import { MeetSignupSubmitted } from "../../meet/MeetSignupSubmitted";
 import { AuthContext } from "../../../context/authContext";
 
 const navigate = vi.fn();
+const copyMyMetaValuesFromAttendeeAsync = vi.fn().mockResolvedValue({});
+const success = vi.fn();
+const error = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual =
@@ -16,19 +19,40 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
+vi.mock("../../../hooks/useCopyMyMetaValuesFromAttendee", () => ({
+  useCopyMyMetaValuesFromAttendee: () => ({
+    copyMyMetaValuesFromAttendeeAsync,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useNotistack", () => ({
+  useNotistack: () => ({
+    success,
+    error,
+  }),
+}));
+
 describe("MeetSignupSubmitted", () => {
   beforeEach(() => {
     navigate.mockClear();
+    copyMyMetaValuesFromAttendeeAsync.mockClear();
+    success.mockClear();
+    error.mockClear();
   });
 
   it("navigates to register with state when creating profile", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <AuthContext.Provider
           value={{
             user: undefined,
             isLoading: false,
             isAuthenticated: false,
+            meUpdatedAt: 0,
             refreshSession: vi.fn(),
             logout: vi.fn(),
           }}
@@ -65,12 +89,15 @@ describe("MeetSignupSubmitted", () => {
 
   it("shows status button for authenticated users", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <AuthContext.Provider
           value={{
             user: { id: "u1" } as any,
             isLoading: false,
             isAuthenticated: true,
+            meUpdatedAt: 0,
             refreshSession: vi.fn(),
             logout: vi.fn(),
           }}

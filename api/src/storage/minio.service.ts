@@ -54,6 +54,16 @@ export class MinioService {
     }
   }
 
+  async remove(objectKey: string) {
+    try {
+      await this.ensureBucket();
+      await this.client.removeObject(this.bucket, objectKey);
+    } catch (error: any) {
+      const message = error?.message || "Failed to remove object";
+      throw new BadRequestException(message);
+    }
+  }
+
   private async ensureBucket() {
     if (this.bucketReady) return;
     const exists = await this.client.bucketExists(this.bucket);

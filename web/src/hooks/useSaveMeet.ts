@@ -14,6 +14,7 @@ export type CreateMeetPayload = {
   startTimeTbc?: boolean;
   endTime?: string;
   endTimeTbc?: boolean;
+  timeZone?: string;
   useMap?: boolean;
   openingDate?: string | null;
   closingDate?: string | null;
@@ -25,6 +26,12 @@ export type CreateMeetPayload = {
   autoPlacement?: boolean;
   autoPromoteWaitlist?: boolean;
   allowGuests?: boolean;
+  allowSelfCheckin?: boolean;
+  allowWalkins?: boolean;
+  requireEmail?: boolean;
+  requirePhone?: boolean;
+  requireOrg1?: boolean;
+  requireOrg2?: boolean;
   maxGuests?: number;
   isVirtual?: boolean;
   accessLink?: string;

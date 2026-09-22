@@ -14,6 +14,38 @@ vi.mock("../../../hooks/useLogin", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useGoogleAuthUrl", () => ({
+  useGoogleAuthUrl: () => ({
+    getGoogleAuthUrlAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useGoogleCodeLogin", () => ({
+  useGoogleCodeLogin: () => ({
+    googleCodeLoginAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useFacebookAuthUrl", () => ({
+  useFacebookAuthUrl: () => ({
+    getFacebookAuthUrlAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../../hooks/useFacebookCodeLogin", () => ({
+  useFacebookCodeLogin: () => ({
+    facebookCodeLoginAsync: vi.fn(),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock("../../../context/authContext", () => ({
   useAuth: () => ({
     refreshSession,
@@ -21,9 +53,10 @@ vi.mock("../../../context/authContext", () => ({
 }));
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom"
-  );
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom",
+    );
   return {
     ...actual,
     useNavigate: () => navigate,
@@ -40,9 +73,12 @@ describe("LoginForm", () => {
   it("submits credentials and calls onSuccess", async () => {
     const onSuccess = vi.fn();
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        initialEntries={["/login?org=org-1"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <LoginForm onSuccess={onSuccess} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByLabelText(/Email/i), {
@@ -57,6 +93,7 @@ describe("LoginForm", () => {
       expect(loginAsync).toHaveBeenCalledWith({
         email: "user@example.com",
         password: "password123",
+        organizationId: "org-1",
       });
     });
     expect(refreshSession).toHaveBeenCalled();
@@ -66,9 +103,11 @@ describe("LoginForm", () => {
 
   it("navigates to home when onSuccess is not provided", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <LoginForm />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByLabelText(/Email/i), {
@@ -82,5 +121,20 @@ describe("LoginForm", () => {
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith("/");
     });
+  });
+
+  it("preserves invite and org when linking to register", () => {
+    render(
+      <MemoryRouter
+        initialEntries={["/login?invite=invite-1&org=org-1"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <LoginForm showFooterLinks />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Create Account" }),
+    ).toHaveAttribute("href", "/register?invite=invite-1&org=org-1");
   });
 });

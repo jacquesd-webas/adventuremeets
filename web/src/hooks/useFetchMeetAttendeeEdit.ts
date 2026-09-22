@@ -7,7 +7,11 @@ type MeetAttendeeEditResponse = {
     name?: string | null;
     email?: string | null;
     phone?: string | null;
+    org1Value?: string | null;
+    org2Value?: string | null;
     guests?: number | null;
+    isMinor?: boolean | null;
+    guardianName?: string | null;
     indemnityAccepted?: boolean | null;
     metaValues?: Array<{ fieldKey: string; value: string }>;
   };

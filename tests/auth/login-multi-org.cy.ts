@@ -7,7 +7,7 @@ describe("Login - multi org", () => {
     cy.contains("button", "Login").click();
 
     cy.contains("Choose organisation").should("be.visible");
-    cy.contains("Select the organization you want to work with.").should(
+    cy.contains("Select the organisation you want to work with.").should(
       "be.visible",
     );
 

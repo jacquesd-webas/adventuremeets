@@ -18,13 +18,15 @@ import { Request, Response } from "express";
 import { DatabaseService } from "../database/database.service";
 import { Public } from "../auth/decorators/public.decorator";
 import { EmailService } from "../email/email.service";
+import { AuditLogService } from "../audit/audit-log.service";
 
 @ApiTags("Mail")
 @Controller()
 export class IncomingMailController {
   constructor(
     private readonly db: DatabaseService,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   @Public()
@@ -60,16 +62,16 @@ export class IncomingMailController {
     @Headers("x-client-ip") clientIp: string | string[],
     @Body() body: any,
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response
+    @Res({ passthrough: true }) res: Response,
   ) {
     const rcpt = Array.isArray(rcptTo) ? rcptTo[0] : rcptTo;
     const sender = Array.isArray(mailFrom) ? mailFrom[0] : mailFrom;
-    const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp;
+    //const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp;
 
     const mailDomain =
       process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";
     const match = rcpt?.match(
-      new RegExp(`<?([^@<>]+)@${mailDomain.replace(".", "\\.")}>?`, "i")
+      new RegExp(`<?([^@<>]+)@${mailDomain.replace(".", "\\.")}>?`, "i"),
     );
     const rcptLocal = match?.[1];
     const meetId = rcptLocal?.startsWith("meet+")
@@ -82,24 +84,24 @@ export class IncomingMailController {
       (typeof body === "string"
         ? body
         : typeof body === "object"
-        ? JSON.stringify(body)
-        : "");
+          ? JSON.stringify(body)
+          : "");
 
-    console.log(
-      JSON.stringify(
-        {
-          rcpt,
-          sender,
-          clientIp: ip,
-          meetId,
-          bodyLength: rawBody.length,
-        },
-        null,
-        2
-      )
-    );
+    if (!rcptLocal || !rawBody) {
+      res.status(HttpStatus.OK);
+      return { status: "ignored" };
+    }
 
-    if (!meetId || !sender || !rawBody) {
+    if (rcptLocal.startsWith("bounce+")) {
+      await this.emailService.recordBounce(
+        rcptLocal.slice("bounce+".length),
+        rawBody,
+      );
+      res.status(HttpStatus.OK);
+      return { status: "bounce recorded" };
+    }
+
+    if (!meetId || !sender) {
       res.status(HttpStatus.OK);
       return { status: "ignored" };
     }
@@ -107,7 +109,7 @@ export class IncomingMailController {
     // Make sure meet, sender and recipients are real
     const meet = await this.db
       .getClient()("meets")
-      .select("id", "organizer_id", "name")
+      .select("id", "organization_id", "organizer_id", "name")
       .where("id", meetId)
       .first();
 
@@ -129,7 +131,7 @@ export class IncomingMailController {
 
     const attendee = await this.db
       .getClient()("meet_attendees")
-      .select("id")
+      .select("id", "name", "email")
       .where("meet_id", meetId)
       .andWhereRaw("lower(email) = lower(?)", [sender])
       .first();
@@ -143,12 +145,22 @@ export class IncomingMailController {
       pertinentBody,
       body: fullBody,
     } = this.emailService.parseMessageContent(rawBody);
+    const attendeeLabel = attendee?.name?.trim() || sender;
+    const forwardedBody = [
+      `You received a message from ${attendeeLabel} about meet ${meet.name}.`,
+      "",
+      `From: ${sender}`,
+      `Meet: ${meet.name}`,
+      `Original subject: ${subject || "No subject"}`,
+      "",
+      pertinentBody || fullBody || "",
+    ].join("\n");
 
     await this.emailService.sendEmail({
       to: organizer.email,
-      subject: subject || `Message for meet: ${meet.name}`,
-      text:
-        `Forwarded message from ${sender}:\n\n` + (pertinentBody || fullBody),
+      subject: `Message for meet: ${meet.name}`,
+      text: forwardedBody,
+      replyTo: sender,
       meetId: meet.id,
     });
 
@@ -158,6 +170,13 @@ export class IncomingMailController {
       from: sender,
       to: organizer?.email ?? null,
       rawContent: rawBody,
+    });
+
+    await this.auditLogService.addRecord({
+      orgId: meet.organization_id,
+      attendeeId: attendee?.id ?? null,
+      meetId: meet.id,
+      description: `Incoming mail for meet ${meet.name || "meet"}`,
     });
 
     res.status(HttpStatus.CREATED);

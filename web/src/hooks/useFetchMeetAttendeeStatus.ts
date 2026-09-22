@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
+import { MeetAttendeePreview } from "../types/MeetModel";
 
 type MeetAttendeeResponse = {
   attendee: {
@@ -11,6 +12,7 @@ type MeetAttendeeResponse = {
     phone?: string | null;
     name?: string | null;
   };
+  attendingAttendees?: MeetAttendeePreview[];
 };
 
 export function useFetchMeetAttendeeStatus(
@@ -33,6 +35,7 @@ export function useFetchMeetAttendeeStatus(
     data: query.data ?? null,
     status: query.data?.attendee?.status ?? null,
     attendee: query.data?.attendee ?? null,
+    attendingAttendees: query.data?.attendingAttendees ?? [],
     isLoading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
     refetch: query.refetch,

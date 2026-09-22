@@ -1,18 +1,28 @@
 import React, { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ConfirmCloseMeetDialog } from "../confirmDialogs/ConfirmCloseMeetDialog";
 import { ConfirmCancelMeetDialog } from "../confirmDialogs/ConfirmCancelMeetDialog";
 import { ConfirmOpenMeetDialog } from "../confirmDialogs/ConfirmOpenMeetDialog";
 import { ConfirmPostponeMeetDialog } from "../confirmDialogs/ConfirmPostponeMeetDialog";
 import { ConfirmDeleteMeetDialog } from "../confirmDialogs/ConfirmDeleteMeetDialog";
+import { ConfirmCloneMeetDialog } from "../confirmDialogs/ConfirmCloneMeetDialog";
 
 import { CreateMeetModal } from "../createMeetModal/CreateMeetModal";
 import { ManageAttendeesModal } from "../manageAttendeesModal/ManageAttendeesModal";
 import { ReportsModal } from "../reportsModal/ReportsModal";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
 import { MeetInfoModal } from "../meet/MeetInfoModal";
+import {
+  clearCreateMeetPreviewRestore,
+  readCreateMeetPreviewRestore,
+} from "../createMeetModal/createMeetPreviewRestore";
+import { navigateToMeetCheckin } from "../../helpers/meetNavigation";
 
 type MeetActionsDialogsProps = {
   meetId: string | null;
+  isOrganizer?: boolean;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
   pendingAction?: MeetActionsEnum | null;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   setSelectedMeetId: (meetId: string | null) => void;
@@ -24,16 +34,22 @@ type MeetActionsDialogsProps = {
 
 function MeetActionsDialogs({
   meetId,
+  isOrganizer,
+  canViewMeet,
+  canManageMeet,
   pendingAction,
   setPendingAction,
   setSelectedMeetId,
   onActionConfirm,
 }: MeetActionsDialogsProps) {
+  const nav = useNavigate();
+  const location = useLocation();
   const [isCloseDialogOpen, setIsCloseDialogOpen] = React.useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = React.useState(false);
   const [isOpenDialogOpen, setIsOpenDialogOpen] = React.useState(false);
   const [isPostponeDialogOpen, setIsPostponeDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
 
   const [showMeetInfoModal, setShowMeetInfoModal] = React.useState(false);
   const [showMeetModal, setShowMeetModal] = React.useState(false);
@@ -46,13 +62,14 @@ function MeetActionsDialogs({
     isOpenDialogOpen ||
     isPostponeDialogOpen ||
     isDeleteDialogOpen ||
+    isCloneDialogOpen ||
     showMeetModal ||
     showMeetInfoModal ||
     showAttendeesModal ||
     showReportsModal;
 
   // Prevent background scroll when any dialog/modal is open
-  React.useEffect(() => {
+  useEffect(() => {
     if (!anyOpen) {
       return;
     }
@@ -62,6 +79,9 @@ function MeetActionsDialogs({
       document.body.style.overflow = previousOverflow;
     };
   }, [anyOpen]);
+
+  // Retore key from doing something we need to come back to
+  const restore = readCreateMeetPreviewRestore();
 
   // Common handler to close dialogs and reset state
   const handleClose = () => {
@@ -96,6 +116,9 @@ function MeetActionsDialogs({
       case MeetActionsEnum.Delete:
         setIsDeleteDialogOpen(false);
         break;
+      case MeetActionsEnum.Clone:
+        setIsCloneDialogOpen(false);
+        break;
       case MeetActionsEnum.Details:
         setShowMeetInfoModal(false);
         break;
@@ -107,6 +130,15 @@ function MeetActionsDialogs({
   };
 
   // Open the dialog when we have something to do
+  useEffect(() => {
+    if (restore?.meetId) {
+      setPendingAction(MeetActionsEnum.Edit);
+      setSelectedMeetId(restore.meetId);
+      clearCreateMeetPreviewRestore();
+      return;
+    }
+  }, [restore, setPendingAction, setSelectedMeetId]);
+
   useEffect(() => {
     switch (pendingAction) {
       case "create":
@@ -123,7 +155,15 @@ function MeetActionsDialogs({
         setShowMeetModal(true);
         break;
       case "checkin":
-        setShowAttendeesModal(true);
+        if (meetId) {
+          navigateToMeetCheckin({
+            meetId,
+            navigate: nav,
+            returnTo: `${location.pathname}${location.search}`,
+          });
+          setPendingAction(null);
+          setSelectedMeetId(null);
+        }
         break;
       case "close":
         setIsCloseDialogOpen(true);
@@ -140,6 +180,9 @@ function MeetActionsDialogs({
       case "delete":
         setIsDeleteDialogOpen(true);
         break;
+      case "clone":
+        setIsCloneDialogOpen(true);
+        break;
       case "preview":
         // redirects to preview page
         break;
@@ -152,9 +195,18 @@ function MeetActionsDialogs({
       default:
         break;
     }
-  }, [pendingAction, meetId, onActionConfirm, setSelectedMeetId]);
+  }, [
+    location.pathname,
+    location.search,
+    meetId,
+    nav,
+    onActionConfirm,
+    pendingAction,
+    setPendingAction,
+    setSelectedMeetId,
+  ]);
 
-  // For now this is just closing the dialog
+  // If we have a callback for confirming the action, call it now
   const handleConfirm = async () => {
     if (pendingAction && onActionConfirm) {
       await onActionConfirm(pendingAction, meetId);
@@ -166,30 +218,48 @@ function MeetActionsDialogs({
     <>
       <ConfirmCloseMeetDialog
         open={isCloseDialogOpen}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
         meetId={meetId}
         onClose={handleClose}
         onConfirm={handleConfirm}
       />
       <ConfirmCancelMeetDialog
         open={isCancelDialogOpen}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
         meetId={meetId}
         onClose={handleClose}
         onConfirm={handleConfirm}
       />
       <ConfirmOpenMeetDialog
         open={isOpenDialogOpen}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
         meetId={meetId}
         onClose={handleClose}
         onConfirm={handleConfirm}
       />
       <ConfirmPostponeMeetDialog
         open={isPostponeDialogOpen}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
         meetId={meetId}
         onClose={handleClose}
         onConfirm={handleConfirm}
       />
       <ConfirmDeleteMeetDialog
         open={isDeleteDialogOpen}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
+        meetId={meetId}
+        onClose={handleClose}
+        onConfirm={handleConfirm}
+      />
+      <ConfirmCloneMeetDialog
+        open={isCloneDialogOpen}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
         meetId={meetId}
         onClose={handleClose}
         onConfirm={handleConfirm}
@@ -198,6 +268,9 @@ function MeetActionsDialogs({
       <CreateMeetModal
         open={showMeetModal}
         meetId={meetId}
+        canViewMeet={canViewMeet}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
         onClose={() => {
           setShowMeetModal(false);
           setSelectedMeetId(null);
@@ -207,6 +280,9 @@ function MeetActionsDialogs({
       <ManageAttendeesModal
         open={showAttendeesModal}
         meetId={meetId}
+        canViewMeet={canViewMeet}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
         onClose={() => {
           setShowAttendeesModal(false);
           setSelectedMeetId(null);
@@ -216,6 +292,9 @@ function MeetActionsDialogs({
       <ReportsModal
         open={showReportsModal}
         meetId={meetId}
+        canViewMeet={canViewMeet}
+        canManageMeet={canManageMeet}
+        isOrganizer={isOrganizer}
         onClose={() => {
           setShowReportsModal(false);
           setSelectedMeetId(null);

@@ -35,17 +35,23 @@ const apiBase = (
 ).replace(/\/$/, "");
 const workerApiKey = process.env.WORKER_API_KEY || "";
 
+function buildApiPath(path: string) {
+  if (!apiBase) return path;
+  const normalizedBase = apiBase.replace(/\/api\/v1$/i, "");
+  return `${normalizedBase}/api/v1${path}`;
+}
+
 async function updateStatusViaApi(ids: string[], statusId: number) {
   if (!apiBase || !workerApiKey) {
     console.error(
-      "API_BASE_URL or WORKER_API_KEY is not set; skipping status updates"
+      "API_BASE_URL or WORKER_API_KEY is not set; skipping status updates",
     );
     return 0;
   }
   let updated = 0;
   for (const id of ids) {
     try {
-      const res = await fetch(`${apiBase}/api/v1/meets/${id}/status`, {
+      const res = await fetch(buildApiPath(`/meets/${id}/status`), {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
@@ -56,7 +62,7 @@ async function updateStatusViaApi(ids: string[], statusId: number) {
       if (!res.ok) {
         const text = await res.text();
         console.error(
-          `Failed to update meet ${id} status: ${res.status} ${text}`
+          `Failed to update meet ${id} status: ${res.status} ${text}`,
         );
       } else {
         updated += 1;
@@ -69,49 +75,74 @@ async function updateStatusViaApi(ids: string[], statusId: number) {
 }
 
 async function openScheduledMeets(db: Knex) {
-  const ids = await db("meets")
+  const rows = await db("meets")
     .where({ status_id: STATUS.Published })
     .whereNotNull("opening_date")
     .where("opening_date", "<=", db.fn.now())
-    .pluck<string>("id");
-  return updateStatusViaApi(ids, STATUS.Open);
+    .select("id", "name");
+
+  for (const { id, name } of rows) {
+    console.info(`Opening meet: ${id} (${name})`);
+    updateStatusViaApi([id], STATUS.Open).catch((err) => {
+      console.error(`Error opening meet ${id} (${name})`, err);
+    });
+  }
+  return rows.length;
 }
 
 async function closeOpenMeets(db: Knex) {
-  const ids = await db("meets")
+  const rows = (await db("meets")
     .where({ status_id: STATUS.Open })
-    .whereNotNull("closing_date")
-    .where("closing_date", "<=", db.fn.now())
-    .pluck<string>("id");
-  return updateStatusViaApi(ids, STATUS.Closed);
+    .where((queryBuilder) => {
+      queryBuilder
+        .where("closing_date", "<=", db.fn.now())
+        .orWhere("start_time", "<=", db.fn.now());
+    })
+    .select("id", "name")) as { id: string; name: string }[];
+
+  rows.forEach(({ id, name }) => {
+    console.info(`Closing meet: ${id} (${name})`);
+    updateStatusViaApi([id], STATUS.Closed).catch((err) => {
+      console.error(`Error closing meet ${id} (${name})`, err);
+    });
+  });
+  return rows.length;
 }
 
 async function closeWhenWaitlistFull(db: Knex) {
-  const waitlistSubquery = db("meet_attendees")
+  const attendeeCountsSubquery = db("meet_attendees")
     .select("meet_id")
-    .count<{ waitlisted: string }>("id as waitlisted")
-    .where("status", "waitlisted")
+    .select(
+      db.raw(
+        `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as confirmed_count`,
+      ),
+    )
+    .select(
+      db.raw(
+        `sum(case when status = 'waitlisted' then 1 + coalesce(guests, 0) else 0 end) as waitlist_count`,
+      ),
+    )
     .groupBy("meet_id")
-    .as("wl");
+    .as("ma");
 
-  const ids = await db("meets as m")
-    .leftJoin(waitlistSubquery, "m.id", "wl.meet_id")
+  const rows = await db("meets as m")
+    .leftJoin(attendeeCountsSubquery, "m.id", "ma.meet_id")
     .where("m.status_id", STATUS.Open)
+    .where("m.capacity", ">", 0)
     .where("m.waitlist_size", ">", 0)
-    .whereRaw("coalesce(wl.waitlisted, 0) >= m.waitlist_size")
-    .pluck<string>("m.id");
-  return updateStatusViaApi(ids, STATUS.Closed);
-}
+    .whereRaw(
+      "coalesce(ma.confirmed_count, 0) + coalesce(ma.waitlist_count, 0) >= m.capacity + m.waitlist_size",
+    )
+    .select("m.id", "m.name");
 
-async function archiveEndedMeets(db: Knex) {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 7);
-  const ids = await db("meets")
-    .whereNotNull("end_time")
-    .where("end_time", "<=", cutoff.toISOString())
-    .whereIn("status_id", [STATUS.Open, STATUS.Closed, STATUS.Published])
-    .pluck<string>("id");
-  return updateStatusViaApi(ids, STATUS.Completed);
+  rows.forEach(({ id, name }) => {
+    console.info(`Closing meet due to full waitlist: ${id} (${name})`);
+    updateStatusViaApi([id], STATUS.Closed).catch((err) => {
+      console.error(`Error closing meet ${id} (${name})`, err);
+    });
+  });
+
+  return rows.length;
 }
 
 export async function runMeetScheduler() {
@@ -120,21 +151,14 @@ export async function runMeetScheduler() {
     const opened = await openScheduledMeets(db);
     const closed = await closeOpenMeets(db);
     const waitlistClosed = await closeWhenWaitlistFull(db);
-    const archived = await archiveEndedMeets(db);
 
-    console.log(
-      JSON.stringify(
-        {
-          opened,
-          closed,
-          waitlistClosed,
-          archived,
-          timestamp: new Date().toISOString(),
-        },
-        null,
-        2
-      )
-    );
+    if (opened === 0 && closed === 0 && waitlistClosed === 0) {
+      console.info("Heartbeat: no meets opened or closed");
+    } else {
+      console.info(
+        `Meets opened: ${opened}, closed: ${closed}, waitlist closed: ${waitlistClosed}`,
+      );
+    }
   } finally {
     await db.destroy();
   }

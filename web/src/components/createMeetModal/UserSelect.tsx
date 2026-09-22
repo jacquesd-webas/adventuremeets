@@ -12,9 +12,18 @@ type UserSelectProps = {
   currentUserId?: string;
   error?: boolean;
   helperText?: string;
+  disabled?: boolean;
 };
 
-export function UserSelect({ value, onChange, options, currentUserId, error, helperText }: UserSelectProps) {
+export function UserSelect({
+  value,
+  onChange,
+  options,
+  currentUserId,
+  error,
+  helperText,
+  disabled = false,
+}: UserSelectProps) {
   return (
     <TextField
       select
@@ -24,6 +33,7 @@ export function UserSelect({ value, onChange, options, currentUserId, error, hel
       fullWidth
       error={error}
       helperText={helperText}
+      disabled={disabled}
     >
       {options.map((option) => (
         <MenuItem key={option.id} value={option.id}>

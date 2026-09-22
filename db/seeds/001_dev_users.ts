@@ -13,6 +13,17 @@ const users = [
 const organizations = ["Summit Explorers", "Trailblazers Club", "Weekend Adventurers"];
 
 export async function seed(knex: Knex): Promise<void> {
+  await knex("wall_item_likes").del();
+  await knex("wall_item").del();
+  await knex("messages").del();
+  await knex("message_contents").del();
+  await knex("meet_attendee_indemnity_acceptances").del();
+  await knex("meet_meta_values").del();
+  await knex("meet_meta_definitions").del();
+  await knex("meet_images").del();
+  await knex("meet_attendees").del();
+  await knex("meets").del();
+  await knex("invite_links").del();
   await knex("user_meta_values").del();
   await knex("organization_meta_definitions").del();
   await knex("user_organization_memberships").del();
@@ -23,6 +34,7 @@ export async function seed(knex: Knex): Promise<void> {
 
   const orgRows = organizations.map((name) => ({
     name,
+    is_private: name === "Summit Explorers" ? false : true,
     created_at: now,
     updated_at: now
   }));
@@ -31,7 +43,7 @@ export async function seed(knex: Knex): Promise<void> {
   const userRows = await Promise.all(
     users.map(async (user) => ({
       email: user.email,
-      email_verified: false,
+      email_verified_at: now,
       first_name: user.name,
       last_name: null,
       phone: null,
@@ -52,6 +64,42 @@ export async function seed(knex: Knex): Promise<void> {
   if (!org1 || !org2 || !org3) {
     throw new Error("Seed requires three organizations");
   }
+
+  await knex("org_features").insert([
+    {
+      organization_id: org1,
+      reporting_enabled: true,
+      branding_enabled: true,
+      domain_enabled: true,
+      whatsapp_enabled: true,
+      payments_enabled: true,
+      disk_quotas_enabled: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      organization_id: org2,
+      reporting_enabled: false,
+      branding_enabled: false,
+      domain_enabled: false,
+      whatsapp_enabled: false,
+      payments_enabled: false,
+      disk_quotas_enabled: false,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      organization_id: org3,
+      reporting_enabled: false,
+      branding_enabled: false,
+      domain_enabled: false,
+      whatsapp_enabled: false,
+      payments_enabled: false,
+      disk_quotas_enabled: false,
+      created_at: now,
+      updated_at: now,
+    },
+  ]);
 
   const membershipRows = insertedUsers.flatMap((user) => {
     if (user.email === "alice@nowhere.com") {

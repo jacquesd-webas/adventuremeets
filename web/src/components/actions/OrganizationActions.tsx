@@ -44,7 +44,7 @@ export function OrganizationActions({
       <IconButton
         size="small"
         onClick={handleOpen}
-        aria-label="Organization actions"
+        aria-label="Organisation actions"
         disabled={disabled}
       >
         <MoreVertIcon fontSize="small" />

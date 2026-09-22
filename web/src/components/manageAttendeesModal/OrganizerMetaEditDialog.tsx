@@ -4,6 +4,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
   Stack,
   Switch,
   TextField,
@@ -20,6 +21,7 @@ type AttendeeMetaValue = {
   fieldType: string;
   required?: boolean;
   position?: number;
+  config?: Record<string, any>;
   value: string | null;
 };
 
@@ -29,6 +31,8 @@ type OrganizerMetaEditDialogProps = {
   meetId: string;
   attendeeId: string;
   metaValues: AttendeeMetaValue[];
+  hasIndemnity?: boolean;
+  indemnityAccepted?: boolean;
 };
 
 export function OrganizerMetaEditDialog({
@@ -37,11 +41,14 @@ export function OrganizerMetaEditDialog({
   meetId,
   attendeeId,
   metaValues,
+  hasIndemnity = false,
+  indemnityAccepted = false,
 }: OrganizerMetaEditDialogProps) {
   const api = useApi();
   const queryClient = useQueryClient();
   const { error, success } = useNotistack();
   const [values, setValues] = useState<Record<string, string | boolean>>({});
+  const [indemnityValue, setIndemnityValue] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const orderedFields = useMemo(() => {
@@ -63,7 +70,8 @@ export function OrganizerMetaEditDialog({
       }
     });
     setValues(next);
-  }, [open, metaValues]);
+    setIndemnityValue(Boolean(indemnityAccepted));
+  }, [open, metaValues, indemnityAccepted]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -75,9 +83,11 @@ export function OrganizerMetaEditDialog({
             ? String(Boolean(values[field.definitionId]))
             : String(values[field.definitionId] ?? ""),
       }));
-      await api.patch(`/meets/${meetId}/attendees/${attendeeId}`, {
-        metaValues: payload,
-      });
+      const updatePayload: Record<string, any> = { metaValues: payload };
+      if (hasIndemnity) {
+        updatePayload.indemnityAccepted = indemnityValue;
+      }
+      await api.patch(`/meets/${meetId}/attendees/${attendeeId}`, updatePayload);
       await queryClient.invalidateQueries({
         queryKey: ["meet-attendees", meetId],
       });
@@ -101,9 +111,25 @@ export function OrganizerMetaEditDialog({
           </Typography>
         ) : (
           <Stack spacing={2}>
+            {hasIndemnity ? (
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Typography variant="body2">Indemnity accepted</Typography>
+                <Switch
+                  checked={indemnityValue}
+                  onChange={(event) => setIndemnityValue(event.target.checked)}
+                />
+              </Stack>
+            ) : null}
             {orderedFields.map((field) => {
               const value = values[field.definitionId];
-              if (field.fieldType === "checkbox" || field.fieldType === "switch") {
+              if (
+                field.fieldType === "checkbox" ||
+                field.fieldType === "switch"
+              ) {
                 return (
                   <Stack
                     key={field.definitionId}
@@ -127,12 +153,41 @@ export function OrganizerMetaEditDialog({
                   </Stack>
                 );
               }
+              if (field.fieldType === "select") {
+                const options = Array.isArray(field.config?.options)
+                  ? field.config?.options
+                  : [];
+                return (
+                  <TextField
+                    key={field.definitionId}
+                    select
+                    label={field.label}
+                    required={Boolean(field.required)}
+                    value={typeof value === "string" ? value : ""}
+                    onChange={(event) =>
+                      setValues((prev) => ({
+                        ...prev,
+                        [field.definitionId]: event.target.value,
+                      }))
+                    }
+                    fullWidth
+                  >
+                    <MenuItem value="">Select an option</MenuItem>
+                    {options.map((option: string) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                );
+              }
               return (
                 <TextField
                   key={field.definitionId}
                   label={field.label}
                   required={Boolean(field.required)}
                   value={typeof value === "string" ? value : ""}
+                  type={field.fieldType === "number" ? "number" : "text"}
                   onChange={(event) =>
                     setValues((prev) => ({
                       ...prev,

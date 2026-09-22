@@ -1,9 +1,9 @@
-FROM node:20-alpine
+FROM node:24-alpine
 
 WORKDIR /app/worker
 
 RUN apk add --no-cache tini
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
 
 # Install dependencies
 COPY api/package.json api/pnpm-lock.yaml ./api/

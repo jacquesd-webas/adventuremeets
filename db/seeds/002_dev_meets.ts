@@ -14,6 +14,8 @@ function addHours(base: Date, hours: number) {
 
 export async function seed(knex: Knex): Promise<void> {
   // Clear dependent tables first
+  await knex("wall_item_likes").del();
+  await knex("wall_item").del();
   await knex("meet_meta_values").del();
   await knex("meet_meta_definitions").del();
   await knex("meet_attendees").del();
@@ -28,9 +30,12 @@ export async function seed(knex: Knex): Promise<void> {
     throw new Error("Seed requires at least one organization (run user seeds first)");
   }
 
-  const organizer = await knex("users").first("id");
-  if (!organizer?.id) {
-    throw new Error("Seed requires at least one user (run user seeds first)");
+  const alice = await knex("users")
+    .where({ email: "alice@nowhere.com" })
+    .first("id");
+  const bob = await knex("users").where({ email: "bob@nowhere.com" }).first("id");
+  if (!alice?.id || !bob?.id) {
+    throw new Error("Seed requires Alice and Bob users (run user seeds first)");
   }
 
   const usd = await knex("currencies").where({ code: "USD" }).first("id");
@@ -100,6 +105,7 @@ export async function seed(knex: Knex): Promise<void> {
       cost_cents: 2000,
       deposit_cents: 1000,
       status_id: 3, // Open
+      auto_placement: false,
       allow_guests: true,
       max_guests: 2,
       is_virtual: false,
@@ -146,7 +152,7 @@ export async function seed(knex: Knex): Promise<void> {
     const confirm = meet.startOffsetDays >= 0 ? addDays(start, -2) : addDays(start, -1);
 
     return {
-      organizer_id: organizer.id,
+      organizer_id: meet.name === "Caving Meet" ? bob.id : alice.id,
       organization_id: primaryOrg.id,
       name: meet.name,
       description: meet.description,
@@ -160,7 +166,7 @@ export async function seed(knex: Knex): Promise<void> {
       capacity: meet.capacity,
       waitlist_size: meet.waitlist_size,
       status_id: meet.status_id,
-      auto_placement: true,
+      auto_placement: meet.auto_placement ?? true,
       auto_promote_waitlist: true,
       allow_guests: meet.allow_guests ?? false,
       max_guests: meet.max_guests ?? null,
@@ -214,7 +220,80 @@ export async function seed(knex: Knex): Promise<void> {
     });
   });
 
+  const campingMeetId = meetByName.get("Camping Meet");
+  if (campingMeetId) {
+    [
+      {
+        name: "Mia Lantern",
+        email: "mia.lantern@example.com",
+        phone: "+1-555-0111",
+      },
+      {
+        name: "Noah Timber",
+        email: "noah.timber@example.com",
+        phone: "+1-555-0112",
+      },
+      {
+        name: "Zoe Ember",
+        email: "zoe.ember@example.com",
+        phone: "+1-555-0113",
+      },
+    ].forEach((user, sequence) => {
+      attendeeRows.push({
+        meet_id: campingMeetId,
+        user_id: null,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        guests: 0,
+        indemnity_accepted: true,
+        indemnity_minors: "No minors",
+        status: "pending",
+        sequence,
+        responded_at: null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+    });
+  }
+
   if (attendeeRows.length) {
     await knex("meet_attendees").insert(attendeeRows);
+  }
+
+  const workMeetId = meetByName.get("Work Meet");
+  if (workMeetId) {
+    await knex("wall_item").insert([
+      {
+        meet_id: workMeetId,
+        created_by: alice.id,
+        comment:
+          "Thanks everyone. Clear priorities, fewer open questions, and a much better plan than last sprint.",
+        stars: 5,
+        favourite: 3,
+        created_at: nowIso
+      },
+      {
+        meet_id: workMeetId,
+        created_by: alice.id,
+        comment:
+          "Big win from this session: we finally aligned product, design, and engineering on the next release scope.",
+        favourite: 1,
+        created_at: nowIso
+      },
+      {
+        meet_id: workMeetId,
+        created_by: alice.id,
+        comment: "Retro snapshot from the virtual whiteboard session.",
+        stars: 4,
+        url: "https://picsum.photos/seed/adventuremeets-work-meet-wall/1200/900",
+        object_key: "seed/work-meet/wall-1.jpg",
+        content_type: "image/jpeg",
+        size_bytes: 0,
+        aspect: "O",
+        favourite: 2,
+        created_at: nowIso
+      }
+    ]);
   }
 }

@@ -1,0 +1,11 @@
+Hi {{organizerName}},
+
+{{messageBody}}
+
+{{#ifCheckinUrl}}
+Open check-in:
+{{checkinUrl}}
+{{/ifCheckinUrl}}
+
+Best regards,
+{{fromName}}

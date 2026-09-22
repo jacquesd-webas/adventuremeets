@@ -3,14 +3,22 @@ import { useApi } from "./useApi";
 
 export type AddAttendeePayload = {
   meetId: string;
+  userId?: string;
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
+  org1Value?: string;
+  org2Value?: string;
+  guestOf?: string;
+  isMinor?: boolean;
+  GuardianName?: string;
   guests?: number;
+  guestsList?: { name: string; isMinor: boolean }[];
   indemnityAccepted?: boolean;
   indemnityMinors?: string;
   metaValues?: { definitionId: string; value: string }[];
   captchaToken?: string;
+  checkinPin?: string;
 };
 
 type AddAttendeeResponse = {
@@ -24,14 +32,17 @@ export function useAddAttendee() {
 
   const mutation = useMutation<AddAttendeeResponse, Error, AddAttendeePayload>({
     mutationFn: async ({ meetId, ...payload }) => {
-      return api.post<AddAttendeeResponse>(`/meets/${meetId}/attendees`, payload);
-    }
+      return api.post<AddAttendeeResponse>(
+        `/meets/${meetId}/attendees`,
+        payload,
+      );
+    },
   });
 
   return {
     addAttendee: mutation.mutate,
     addAttendeeAsync: mutation.mutateAsync,
     isLoading: mutation.isPending,
-    error: mutation.error
+    error: mutation.error,
   };
 }

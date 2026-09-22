@@ -8,3 +8,6 @@ coverage
 /tmp
 **/.env
 **/.env.*
+tests/cypress/videos
+tests/cypress/screenshots
+graphify-out/

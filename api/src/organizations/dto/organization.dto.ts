@@ -27,4 +27,94 @@ export class OrganizationDto {
 
   @ApiPropertyOptional()
   isPrivate?: boolean;
+
+  @ApiPropertyOptional()
+  logoUrl?: string;
+
+  @ApiPropertyOptional()
+  customField1Name?: string;
+
+  @ApiPropertyOptional()
+  customField2Name?: string;
+
+  @ApiPropertyOptional()
+  customField1HelperText?: string;
+
+  @ApiPropertyOptional()
+  customField2HelperText?: string;
+
+  @ApiPropertyOptional()
+  defaultTemplateId?: string;
+
+  @ApiPropertyOptional()
+  defaultRequireIndemnity?: boolean;
+
+  @ApiPropertyOptional()
+  defaultAutoApproveAttendees?: boolean;
+
+  @ApiPropertyOptional()
+  defaultAllowGuests?: boolean;
+
+  @ApiPropertyOptional()
+  defaultAllowSelfCheckin?: boolean;
+
+  @ApiPropertyOptional()
+  defaultAllowWalkins?: boolean;
+
+  @ApiPropertyOptional()
+  meetCountLast30Days?: number;
+
+  @ApiPropertyOptional()
+  attendanceCountLast30Days?: number;
+
+  @ApiPropertyOptional()
+  meetCountLast90Days?: number;
+
+  @ApiPropertyOptional()
+  attendanceCountLast90Days?: number;
+
+  @ApiPropertyOptional()
+  meetCountTotal?: number;
+
+  @ApiPropertyOptional()
+  attendanceCountTotal?: number;
+
+  @ApiPropertyOptional()
+  adminCount?: number;
+
+  @ApiPropertyOptional()
+  organizerCount?: number;
+
+  @ApiPropertyOptional()
+  memberCount?: number;
+
+  @ApiPropertyOptional()
+  meetImageBytes?: number;
+
+  @ApiPropertyOptional()
+  wallImageBytes?: number;
+
+  @ApiPropertyOptional()
+  totalImageBytes?: number;
+
+  @ApiPropertyOptional()
+  reportingEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  brandingEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  domainEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  whatsappEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  paymentsEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  diskQuotasEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  enableWebhooks?: boolean;
 }

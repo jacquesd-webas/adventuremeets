@@ -1,84 +1,137 @@
 import {
-  Avatar,
   Box,
   Button,
-  Chip,
+  Drawer,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
-  List,
-  ListItemButton,
-  ListItemText,
+  IconButton,
+  Tooltip,
   Paper,
   Stack,
   Typography,
-  CircularProgress,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import { useUpdateMeetAttendee } from "../../hooks/useUpdateMeetAttendee";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
-import QuestionMarkOutlinedIcon from "@mui/icons-material/QuestionMarkOutlined";
-import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccountOutlined";
+import { useDefaultMessage } from "../../hooks/useDefaultMessage";
+import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
+import CloseIcon from "@mui/icons-material/Close";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import {
+  AttendeeUploadButton,
+  AttendeeUploadConflict,
+  AttendeeUploadConflictAction,
+} from "./AttendeeUploadButton";
+import { AttendeeUploadConflictsDialog } from "./AttendeeUploadConflictsDialog";
+import { AttendeeUploadErrorDialog } from "./AttendeeUploadErrorDialog";
 import { MessageModal } from "./MessageModal";
 import { ConfirmClosedStatusDialog } from "./ConfirmClosedStatusDialog";
 import Meet from "../../types/MeetModel";
-import { AttendeeActionButtons } from "./AttendeeActionButtons";
-import { DetailSelector } from "./DetailSelector";
 import { AttendeeResponses } from "./AttendeeResponses";
 import { AttendeeMessages } from "./AttendeeMessages";
 import { OrganizerMetaEditDialog } from "./OrganizerMetaEditDialog";
+import { AttendeesIndemnityInfo } from "./AttendeesIndemnityInfo";
+import { AttendeeHistory } from "./AttendeeHistory";
+import ConfirmActionDialog from "../ConfirmActionDialog";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import { useFetchAttendeeMessages } from "../../hooks/useFetchAttendeeMessages";
+import { useSnackbar } from "notistack";
+import { Attendee } from "../../types/AttendeeModel";
+import { useApi } from "../../hooks/useApi";
+import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
+import { LockedMeet } from "../createMeetModal/LockedMeet";
+import { AttendeeList } from "./AttendeeList";
+import { AttendeePanelHeader } from "./AttendeePanelHeader";
+import { ManageAttendeesSectionLoading } from "./ManageAttendeesSectionLoading";
 
 type ManageAttendeesModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
   meet?: Meet | null;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
+  isOrganizer?: boolean;
 };
 
 export function ManageAttendeesModal({
   open,
   onClose,
   meetId,
+  isOrganizer,
+  canManageMeet,
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+  const queryClient = useQueryClient();
   const {
     data: attendees,
-    isLoading,
+    isLoading: attendeesLoading,
     refetch,
   } = useFetchMeetAttendees(meetId, open ? "all" : null);
-  const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
+  const { data: meet, isLoading: meetLoading } = useFetchMeet(
+    meetId,
+    Boolean(open && meetId),
+  );
   const { updateMeetAttendeeAsync } = useUpdateMeetAttendee();
+  const { notifyAttendeeAsync } = useNotifyAttendee();
+  const { enqueueSnackbar } = useSnackbar();
+  const api = useApi();
+  const isOrganizerForMeet = Boolean(isOrganizer);
+  const canUnlockAttendees = Boolean(!isOrganizerForMeet && canManageMeet);
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(
     null,
   );
   const [showEditMetaDialog, setShowEditMetaDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isGuestsUpdating, setIsGuestsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<AttendeeStatusEnum | null>(
     null,
   );
   const [confirmDialog, setConfirmDialog] = useState(false);
+  const [notifyBeforeCloseOpen, setNotifyBeforeCloseOpen] = useState(false);
+  const [notifyBeforeCloseAttendees, setNotifyBeforeCloseAttendees] = useState<
+    Attendee[]
+  >([]);
+  const [isNotifyingBeforeClose, setIsNotifyingBeforeClose] = useState(false);
+  const [isAdminUnlockEnabled, setIsAdminUnlockEnabled] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageAttendeeIds, setMessageAttendeeIds] = useState<
     string[] | undefined
   >(undefined);
+  const [messageModalDefaults, setMessageModalDefaults] = useState({
+    subject: "",
+    body: "",
+    includeStatusUrl: true,
+  });
+  const [messageModalKey, setMessageModalKey] = useState(0);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [detailView, setDetailView] = useState<"responses" | "messages">(
     "responses",
   );
+  const [uploadConflicts, setUploadConflicts] = useState<
+    AttendeeUploadConflict[]
+  >([]);
+  const [uploadConflictActions, setUploadConflictActions] = useState<
+    AttendeeUploadConflictAction[]
+  >([]);
+  const [uploadErrorOpen, setUploadErrorOpen] = useState(false);
+  const canManageAttendees = isOrganizerForMeet || isAdminUnlockEnabled;
+  const mobileMessageTimeoutMs = theme.transitions.duration.leavingScreen;
+  const messageOpenTimeoutRef = useRef<number | null>(null);
   const { data: attendeeMessages } = useFetchAttendeeMessages(
     meetId,
     selectedAttendeeId,
   );
+  const detailsLoading = attendeesLoading || meetLoading;
   const hasUnreadMessages = useMemo(
     () => (attendeeMessages || []).some((message) => !message.isRead),
     [attendeeMessages],
@@ -87,19 +140,41 @@ export function ManageAttendeesModal({
   useEffect(() => {
     if (!open) {
       setSelectedAttendeeId(null);
+      setIsAdminUnlockEnabled(false);
+      setUploadConflicts([]);
+      setUploadConflictActions([]);
+      setUploadErrorOpen(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const selectedIsValid = attendees.some(
+      (attendee) => attendee.id === selectedAttendeeId,
+    );
+    if (fullScreen) {
+      if (selectedAttendeeId && !selectedIsValid) {
+        setSelectedAttendeeId(null);
+      }
       return;
     }
-    if (
-      attendees.length &&
-      !attendees.some((attendee) => attendee.id === selectedAttendeeId)
-    ) {
+    if (attendees.length && !selectedIsValid) {
       setSelectedAttendeeId(attendees[0].id);
     }
-  }, [attendees, open, selectedAttendeeId]);
+  }, [attendees, fullScreen, open, selectedAttendeeId]);
 
   useEffect(() => {
     setDetailView("responses");
   }, [selectedAttendeeId]);
+
+  useEffect(() => {
+    return () => {
+      if (messageOpenTimeoutRef.current !== null) {
+        window.clearTimeout(messageOpenTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const meetStatus = useMemo(() => {
     const statusVal =
@@ -118,10 +193,59 @@ export function ManageAttendeesModal({
       attendees.find((attendee) => attendee.id === selectedAttendeeId) || null,
     [attendees, selectedAttendeeId],
   );
-  const attendeeLabel = (attendee: any) =>
+  const attendeeLabel = (attendee: Attendee) =>
     attendee?.name || attendee?.email || attendee?.phone || "Unnamed attendee";
+  const guestOfLabel = (attendee: Attendee) => {
+    if (!attendee?.guestOf) return null;
+    const host = attendees.find((person) => person.id === attendee.guestOf);
+    return host ? attendeeLabel(host) : "Unknown attendee";
+  };
+  const confirmedMessage = useDefaultMessage(AttendeeStatusEnum.Confirmed, {
+    meetName: meet?.name,
+    confirmMessage: meet?.confirmMessage,
+    waitlistMessage: meet?.waitlistMessage,
+    rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
+  });
+  const invitedMessage = useDefaultMessage(AttendeeStatusEnum.Invited, {
+    meetName: meet?.name,
+    confirmMessage: meet?.confirmMessage,
+    waitlistMessage: meet?.waitlistMessage,
+    rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
+  });
+  const waitlistMessage = useDefaultMessage(AttendeeStatusEnum.Waitlisted, {
+    meetName: meet?.name,
+    confirmMessage: meet?.confirmMessage,
+    waitlistMessage: meet?.waitlistMessage,
+    rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
+  });
+  const rejectMessage = useDefaultMessage(AttendeeStatusEnum.Rejected, {
+    meetName: meet?.name,
+    confirmMessage: meet?.confirmMessage,
+    waitlistMessage: meet?.waitlistMessage,
+    rejectMessage: meet?.rejectMessage,
+    isRsvpMode: meet?.autoPlacement,
+  });
+  const getDefaultMessageForStatus = (status: AttendeeStatusEnum) => {
+    if (status === AttendeeStatusEnum.Invited) {
+      return invitedMessage;
+    }
+    if (status === AttendeeStatusEnum.Confirmed) {
+      return confirmedMessage;
+    }
+    if (status === AttendeeStatusEnum.Waitlisted) {
+      return waitlistMessage;
+    }
+    if (status === AttendeeStatusEnum.Rejected) {
+      return rejectMessage;
+    }
+    return { subject: "", content: "" };
+  };
+
   const applyStatus = async (status: string) => {
-    if (!meetId || !selectedAttendeeId) return;
+    if (!canManageAttendees || !meetId || !selectedAttendeeId) return;
     setIsUpdating(true);
     try {
       await updateMeetAttendeeAsync({
@@ -174,375 +298,857 @@ export function ManageAttendeesModal({
     }
   };
 
+  const handleAttendeeUploadSuccess = (result: {
+    conflicts?: AttendeeUploadConflict[];
+  }) => {
+    const conflicts = result.conflicts ?? [];
+    setUploadErrorOpen(false);
+    setUploadConflicts(conflicts);
+    setUploadConflictActions(conflicts.map(() => "ignore"));
+  };
+
+  const handleAttendeeUploadError = () => {
+    setUploadErrorOpen(true);
+  };
+
+  const resolveUploadConflictsMutation = useMutation<
+    { replaced: number; addedAsMinor: number; ignored: number },
+    Error,
+    Array<{
+      action: Exclude<AttendeeUploadConflictAction, "ignore">;
+      existingAttendeeId: string;
+      attendee: AttendeeUploadConflict["attendee"];
+    }>
+  >({
+    mutationFn: async (resolutions) => {
+      if (!meetId) {
+        throw new Error("Meet is required for conflict resolution");
+      }
+      return api.post<{
+        replaced: number;
+        addedAsMinor: number;
+        ignored: number;
+      }>(`/meets/${meetId}/attendees/upload-conflicts/resolve`, {
+        resolutions,
+      });
+    },
+    onSuccess: (data) => {
+      const messageParts: string[] = [];
+      if (data.replaced) {
+        messageParts.push(`Replaced ${data.replaced} attendee(s).`);
+      }
+      if (data.addedAsMinor) {
+        messageParts.push(`Added ${data.addedAsMinor} attendee(s) as minors.`);
+      }
+      enqueueSnackbar(messageParts.join(" ") || "Conflict actions applied.", {
+        variant: "success",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+      setUploadConflicts([]);
+      setUploadConflictActions([]);
+      if (meetId) {
+        queryClient.invalidateQueries({
+          queryKey: ["meet-attendees", meetId],
+          exact: false,
+        });
+      }
+    },
+    onError: (error) => {
+      enqueueSnackbar(error.message || "Failed to resolve upload conflicts", {
+        variant: "error",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+    },
+  });
+
+  const handleUploadConflictActionChange = (
+    index: number,
+    action: AttendeeUploadConflictAction,
+  ) => {
+    setUploadConflictActions((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? action : item)),
+    );
+  };
+
+  const handleUploadConflictsClose = () => {
+    setUploadConflicts([]);
+    setUploadConflictActions([]);
+  };
+
+  const handleUploadConflictsConfirm = () => {
+    const resolutions = uploadConflicts.flatMap((conflict, index) => {
+      const action = uploadConflictActions[index] ?? "ignore";
+      if (action === "ignore") {
+        return [];
+      }
+      return [
+        {
+          action,
+          existingAttendeeId: conflict.existingAttendeeId,
+          attendee: conflict.attendee,
+        },
+      ];
+    });
+
+    if (!resolutions.length) {
+      handleUploadConflictsClose();
+      return;
+    }
+
+    resolveUploadConflictsMutation.mutate(resolutions);
+  };
+  const handleGuestCountChange = async (delta: number) => {
+    if (!meetId || !selectedAttendee) return;
+    const current = selectedAttendee.guests ?? 0;
+    const next = Math.max(0, current + delta);
+    if (next === current) return;
+    setIsGuestsUpdating(true);
+    try {
+      await updateMeetAttendeeAsync({
+        meetId,
+        attendeeId: selectedAttendee.id,
+        guests: next,
+      });
+      await refetch();
+    } finally {
+      setIsGuestsUpdating(false);
+    }
+  };
+
   const handleUpdateStatus = (status: AttendeeStatusEnum) => {
+    if (!canManageAttendees) return;
+    if (!selectedAttendee) return;
     const isClosed = meetStatus === MeetStatusEnum.Closed;
-    if (isClosed) {
+    const isAlreadyNotified = Boolean(selectedAttendee.respondedAt);
+    if (isClosed || isAlreadyNotified) {
       setPendingStatus(status);
       setConfirmDialog(true);
       return;
     }
     applyStatus(status);
   };
-  const statusCounts = useMemo(() => {
-    return attendees.reduce(
-      (acc, attendee) => {
-        const status = attendee.status || AttendeeStatusEnum.Pending;
-        if (status === AttendeeStatusEnum.Confirmed) acc.accepted += 1;
-        if (
-          status === AttendeeStatusEnum.Rejected ||
-          status === AttendeeStatusEnum.Cancelled
-        )
-          acc.rejected += 1;
-        if (status === AttendeeStatusEnum.Waitlisted) acc.waitlisted += 1;
-        return acc;
-      },
-      { accepted: 0, rejected: 0, waitlisted: 0 },
+
+  const getUnnotifiedAttendees = () =>
+    attendees.filter((attendee) => {
+      const status = attendee.status as AttendeeStatusEnum | undefined;
+      if (!status || status === AttendeeStatusEnum.Pending) return false;
+      return !attendee.respondedAt;
+    });
+
+  const handleRequestClose = () => {
+    if (!canManageAttendees || meetStatus === MeetStatusEnum.Completed) {
+      onClose();
+      return;
+    }
+    const pending = getUnnotifiedAttendees();
+    if (pending.length) {
+      setNotifyBeforeCloseAttendees(pending);
+      setNotifyBeforeCloseOpen(true);
+      return;
+    }
+    onClose();
+  };
+
+  const handleNotifyBeforeCloseLater = () => {
+    setNotifyBeforeCloseOpen(false);
+    onClose();
+  };
+
+  const handleNotifyBeforeCloseNow = async () => {
+    if (!meetId || !meet) {
+      setNotifyBeforeCloseOpen(false);
+      onClose();
+      return;
+    }
+    const pending = notifyBeforeCloseAttendees.filter(
+      (attendee) => attendee.email,
     );
-  }, [attendees]);
+    if (!pending.length) {
+      setNotifyBeforeCloseOpen(false);
+      onClose();
+      return;
+    }
+    setIsNotifyingBeforeClose(true);
+    try {
+      const byStatus = pending.reduce<
+        Partial<Record<AttendeeStatusEnum, string[]>>
+      >((acc, attendee) => {
+        const rawStatus = attendee.status as AttendeeStatusEnum | undefined;
+        // We only care about Invited/Confirmed/Rejected/Waitlisted for messaging purposes
+        // any other message can be safely ignored
+        if (rawStatus === AttendeeStatusEnum.Invited) {
+          return {
+            ...acc,
+            [rawStatus]: [...(acc[rawStatus] || []), attendee.id],
+          };
+        }
+        if (
+          rawStatus !== AttendeeStatusEnum.Confirmed &&
+          rawStatus !== AttendeeStatusEnum.Rejected &&
+          rawStatus !== AttendeeStatusEnum.Waitlisted
+        ) {
+          return acc;
+        }
+        return {
+          ...acc,
+          [rawStatus]: [...(acc[rawStatus] || []), attendee.id],
+        };
+      }, {});
+
+      for (const [statusKey, attendeeIds] of Object.entries(byStatus)) {
+        const ids = attendeeIds || [];
+        if (!ids.length) continue;
+        const status = statusKey as AttendeeStatusEnum;
+        const { subject, content } = getDefaultMessageForStatus(status);
+        if (!subject && !content) continue;
+        await notifyAttendeeAsync({
+          meetId: meet.id,
+          subject,
+          text: content,
+          attendeeIds: ids,
+        });
+      }
+      await refetch();
+      enqueueSnackbar("Attendees notified", {
+        variant: "success",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+      setNotifyBeforeCloseOpen(false);
+      onClose();
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || "Failed to notify attendees", {
+        variant: "error",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+    } finally {
+      setIsNotifyingBeforeClose(false);
+    }
+  };
+  const notifyBeforeCloseCount = notifyBeforeCloseAttendees.length;
 
   // TODO: Refactor this component into smaller components
   const isOrganizerSelected = Boolean(
     selectedAttendee && meet && selectedAttendee.userId === meet.organizerId,
   );
+  const baseInviteLink =
+    meet?.shareCode && typeof window !== "undefined"
+      ? `${window.location.origin}/meets/${meet.shareCode}`
+      : "";
+  const inviteLinkForAttendee = (attendeeId: string) =>
+    baseInviteLink
+      ? `${baseInviteLink}?guestOf=${encodeURIComponent(attendeeId)}`
+      : "";
+  const openMessageModal = ({
+    attendeeIds,
+    defaultSubject = "",
+    defaultBody = "",
+    includeStatusUrl = true,
+  }: {
+    attendeeIds?: string[];
+    defaultSubject?: string;
+    defaultBody?: string;
+    includeStatusUrl?: boolean;
+  }) => {
+    setMessageAttendeeIds(attendeeIds);
+    setMessageModalDefaults({
+      subject: defaultSubject,
+      body: defaultBody,
+      includeStatusUrl,
+    });
+    setMessageModalKey((prev) => prev + 1);
+    if (fullScreen && selectedAttendeeId) {
+      setSelectedAttendeeId(null);
+      if (messageOpenTimeoutRef.current !== null) {
+        window.clearTimeout(messageOpenTimeoutRef.current);
+      }
+      messageOpenTimeoutRef.current = window.setTimeout(() => {
+        setMessageOpen(true);
+        messageOpenTimeoutRef.current = null;
+      }, mobileMessageTimeoutMs);
+      return;
+    }
+    setMessageOpen(true);
+  };
+  const buildInviteSubject = (meetName?: string | null) =>
+    `${meetName || "Meet"} (guest invite)`;
+  const buildInviteMessage = (
+    name: string,
+    link: string,
+    hasIndemnity: boolean,
+  ) =>
+    `Hi ${name},\n\n` +
+    "You may invite your guest to fill in the form with the following link:\n\n" +
+    `${link}\n\n` +
+    (hasIndemnity
+      ? "The guest must fill in the form due to indemnity being required. If the guest is a minor you are responsible for you may fill in the form using your own email/phone and accept on their behalf."
+      : "The guest invite is optional since no indemnity is required for this meet.");
+  const handleInviteMessage = () => {
+    if (!selectedAttendee || !baseInviteLink) return;
+    const inviteLink = inviteLinkForAttendee(selectedAttendee.id);
+    const defaultSubject = buildInviteSubject(meet?.name);
+    const defaultBody = buildInviteMessage(
+      attendeeLabel(selectedAttendee),
+      inviteLink,
+      Boolean(meet?.hasIndemnity),
+    );
+    openMessageModal({
+      attendeeIds: [selectedAttendee.id],
+      defaultSubject,
+      defaultBody,
+      includeStatusUrl: false,
+    });
+  };
+  const mobileDrawerOpen = fullScreen && Boolean(selectedAttendee);
+
+  const handleDownloadAttendees = async () => {
+    if (!meetId || isDownloadingReport) return;
+    setIsDownloadingReport(true);
+    try {
+      const token =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("accessToken")
+          : null;
+      const res = await fetch(`${api.baseUrl}/meets/${meetId}/report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          sendEmail: false,
+          downloadReport: true,
+          isFinalReport: false,
+        }),
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || "Failed to download attendees");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${meet?.name || "meet"}-report.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || "Failed to download attendees", {
+        variant: "error",
+        anchorOrigin: { vertical: "bottom", horizontal: "right" },
+      });
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  };
+
+  const renderDesktopDetailsPanel = () => {
+    if (!selectedAttendee) {
+      if (detailsLoading) {
+        return (
+          <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
+            <ManageAttendeesSectionLoading
+              label="Loading attendee details..."
+              minHeight={88}
+            />
+            <Divider />
+            <ManageAttendeesSectionLoading
+              label="Loading attendee content..."
+              minHeight={220}
+            />
+          </Stack>
+        );
+      }
+      return (
+        <Typography variant="body2" color="text.secondary">
+          Select an attendee to view their details.
+        </Typography>
+      );
+    }
+    return (
+      <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
+        {detailsLoading ? (
+          <ManageAttendeesSectionLoading
+            label="Loading attendee header..."
+            minHeight={88}
+          />
+        ) : (
+          <AttendeePanelHeader
+            selectedAttendee={selectedAttendee}
+            setSelectedAttendeeId={setSelectedAttendeeId}
+            meet={meet}
+            isUpdating={isUpdating}
+            isOrganizer={canManageAttendees}
+            canManageMeet={canManageAttendees}
+            isOrganizerSelected={isOrganizerSelected}
+            hasUnreadMessages={hasUnreadMessages}
+            detailView={detailView}
+            setDetailView={setDetailView}
+            handleUpdateStatus={handleUpdateStatus}
+            handleAttendeePaid={handleAttendeePaid}
+            fullscreen={false}
+          />
+        )}
+        <Divider />
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 }}>
+          {detailsLoading ? (
+            <ManageAttendeesSectionLoading
+              label="Loading attendee content..."
+              minHeight={220}
+            />
+          ) : (
+            <Stack spacing={2}>
+              {detailView === "messages" ? (
+                <AttendeeMessages
+                  meetId={meetId}
+                  attendeeId={selectedAttendee?.id}
+                  attendeeEmail={selectedAttendee?.email}
+                />
+              ) : (
+                <Stack spacing={2}>
+                  <AttendeesIndemnityInfo
+                    hasIndemnity={meet?.hasIndemnity}
+                    indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    guests={selectedAttendee.guests}
+                    guestOfLabel={guestOfLabel(selectedAttendee)}
+                    showDivider={false}
+                    inviteDisabled={!baseInviteLink}
+                    guestsUpdating={isGuestsUpdating}
+                    onGuestIncrement={() => handleGuestCountChange(1)}
+                    onGuestDecrement={() => handleGuestCountChange(-1)}
+                    onInvite={handleInviteMessage}
+                    canManageMeet={canManageAttendees}
+                  />
+                  <Divider />
+                  <AttendeeResponses responses={selectedAttendee.metaValues} />
+                  <Divider />
+                  <AttendeeHistory
+                    attendeeId={selectedAttendee?.id}
+                    meetId={meetId}
+                  />
+                </Stack>
+              )}
+            </Stack>
+          )}
+        </Box>
+        <Divider />
+        <Box sx={{ display: "flex", justifyContent: "center" }}>
+          <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
+            {isOrganizerSelected ? (
+              detailView === "messages" ? (
+                <Button
+                  variant="outlined"
+                  disabled={!canManageAttendees}
+                  onClick={() =>
+                    openMessageModal({
+                      attendeeIds: selectedAttendee
+                        ? [selectedAttendee.id]
+                        : undefined,
+                    })
+                  }
+                >
+                  Message {attendeeLabel(selectedAttendee)}
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowEditMetaDialog(true)}
+                  disabled={!canManageAttendees}
+                >
+                  Edit responses
+                </Button>
+              )
+            ) : (
+              <Button
+                variant="outlined"
+                disabled={!selectedAttendee || !canManageAttendees}
+                onClick={() =>
+                  openMessageModal({
+                    attendeeIds: selectedAttendee
+                      ? [selectedAttendee.id]
+                      : undefined,
+                  })
+                }
+              >
+                Message {attendeeLabel(selectedAttendee)}
+              </Button>
+            )}
+          </LockedTooltipWrapper>
+        </Box>
+      </Stack>
+    );
+  };
+
+  const renderMobileDrawerContent = () => {
+    if (!selectedAttendee) {
+      return detailsLoading ? (
+        <Box sx={{ p: 2 }}>
+          <ManageAttendeesSectionLoading
+            label="Loading attendee details..."
+            minHeight={220}
+          />
+        </Box>
+      ) : null;
+    }
+
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        {detailsLoading ? (
+          <Box
+            sx={{
+              px: 2,
+              py: 1.5,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <ManageAttendeesSectionLoading
+              label="Loading attendee header..."
+              minHeight={88}
+            />
+          </Box>
+        ) : (
+          <AttendeePanelHeader
+            selectedAttendee={selectedAttendee}
+            setSelectedAttendeeId={setSelectedAttendeeId}
+            meet={meet}
+            isUpdating={isUpdating}
+            isOrganizer={canManageAttendees}
+            canManageMeet={canManageAttendees}
+            isOrganizerSelected={isOrganizerSelected}
+            hasUnreadMessages={hasUnreadMessages}
+            detailView={detailView}
+            setDetailView={setDetailView}
+            handleUpdateStatus={handleUpdateStatus}
+            handleAttendeePaid={handleAttendeePaid}
+            fullscreen={true}
+          />
+        )}
+
+        <Box
+          sx={{
+            p: 2,
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+            {detailsLoading ? (
+              <ManageAttendeesSectionLoading
+                label="Loading attendee content..."
+                minHeight={220}
+              />
+            ) : detailView === "messages" ? (
+              <AttendeeMessages
+                meetId={meetId}
+                attendeeId={selectedAttendee?.id}
+                attendeeEmail={selectedAttendee?.email}
+              />
+            ) : (
+              <>
+                <AttendeesIndemnityInfo
+                  hasIndemnity={meet?.hasIndemnity}
+                  indemnityAccepted={selectedAttendee.indemnityAccepted}
+                  guests={selectedAttendee.guests}
+                  guestOfLabel={guestOfLabel(selectedAttendee)}
+                  inviteDisabled={!baseInviteLink}
+                  showDivider={false}
+                  guestsUpdating={isGuestsUpdating}
+                  onGuestIncrement={() => handleGuestCountChange(1)}
+                  onGuestDecrement={() => handleGuestCountChange(-1)}
+                  onInvite={handleInviteMessage}
+                  canManageMeet={canManageAttendees}
+                />
+                <Divider sx={{ mt: 1, mb: 2 }} />
+                <AttendeeResponses
+                  indemnityAccepted={selectedAttendee.indemnityAccepted}
+                  indemnityMinors={selectedAttendee.indemnityMinors}
+                  responses={selectedAttendee.metaValues}
+                  guestOfLabel={guestOfLabel(selectedAttendee)}
+                />
+                <Divider sx={{ mt: 1, mb: 2 }} />
+                <AttendeeHistory
+                  attendeeId={selectedAttendee?.id}
+                  meetId={meetId}
+                />
+              </>
+            )}
+          </Box>
+          <Divider sx={{ mt: 2 }} />
+          <Box sx={{ display: "flex", justifyContent: "center", pt: 2 }}>
+            {isOrganizerSelected ? (
+              detailView === "messages" ? (
+                <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
+                  <Button
+                    variant="outlined"
+                    disabled={!canManageAttendees}
+                    onClick={() => {
+                      openMessageModal({
+                        attendeeIds: selectedAttendee
+                          ? [selectedAttendee.id]
+                          : undefined,
+                      });
+                    }}
+                  >
+                    Message {attendeeLabel(selectedAttendee)}
+                  </Button>
+                </LockedTooltipWrapper>
+              ) : (
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowEditMetaDialog(true)}
+                >
+                  Edit responses
+                </Button>
+              )
+            ) : (
+              <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
+                <Button
+                  variant="outlined"
+                  disabled={!selectedAttendee || !canManageAttendees}
+                  onClick={() => {
+                    openMessageModal({
+                      attendeeIds: selectedAttendee
+                        ? [selectedAttendee.id]
+                        : undefined,
+                    });
+                  }}
+                >
+                  Message {attendeeLabel(selectedAttendee)}
+                </Button>
+              </LockedTooltipWrapper>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    );
+  };
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleRequestClose}
       fullWidth
       maxWidth="md"
       fullScreen={fullScreen}
       sx={{
         "& .MuiDialog-paper": {
-          mt: 10,
-          minHeight: "85vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          mt: fullScreen ? 0 : 10,
+          minHeight: fullScreen ? "100%" : "85vh",
+          height: fullScreen ? "100%" : "85vh",
+          maxHeight: fullScreen ? "100%" : "85vh",
+          borderRadius: fullScreen ? 0 : undefined,
+          m: fullScreen ? 0 : undefined,
         },
       }}
     >
-      <DialogTitle>Manage attendees</DialogTitle>
-      <DialogContent
+      <DialogTitle
         sx={{
-          pb: 2,
-          height: "100%",
           display: "flex",
-          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "space-between",
+          pr: 1,
         }}
       >
-        <Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={2}
-          sx={{
-            minHeight: 360,
-            height: "100%",
-            flex: 1,
-          }}
-        >
-          <Paper
-            variant="outlined"
-            sx={{ width: { xs: "100%", md: 280 }, flexShrink: 0 }}
+        <span>Manage attendees</span>
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          {!isOrganizerForMeet ? (
+            <LockedMeet
+              canUnlock={canUnlockAttendees}
+              onUnlock={
+                canUnlockAttendees
+                  ? () => setIsAdminUnlockEnabled(true)
+                  : undefined
+              }
+            />
+          ) : null}
+          <Tooltip title="Download attendees">
+            <IconButton
+              aria-label="Download attendees"
+              size="small"
+              onClick={handleDownloadAttendees}
+              disabled={!meetId || isDownloadingReport}
+            >
+              <FileDownloadOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <AttendeeUploadButton
+            meetId={meetId}
+            disabled={!meetId || !canManageAttendees}
+            onUploadSuccess={handleAttendeeUploadSuccess}
+            onUploadError={handleAttendeeUploadError}
+          />
+          <IconButton
+            onClick={handleRequestClose}
+            aria-label="Close attendees modal"
+            data-testid="close-attendees-modal"
           >
-            <Box sx={{ p: 2 }}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                spacing={1}
-              >
-                <Typography variant="subtitle2" color="text.secondary">
-                  Attendees
-                </Typography>
-                <Stack direction="row" spacing={1}>
-                  <Chip
-                    size="small"
-                    color="success"
-                    label={statusCounts.accepted}
-                  />
-                  <Chip
-                    size="small"
-                    color="error"
-                    label={statusCounts.rejected}
-                  />
-                  <Chip
-                    size="small"
-                    color="warning"
-                    label={statusCounts.waitlisted}
-                  />
-                </Stack>
-              </Stack>
-            </Box>
-            <Divider />
-            <List sx={{ maxHeight: { xs: 220, md: 420 }, overflowY: "auto" }}>
-              {isLoading ? (
-                <Box sx={{ p: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Loading attendees...
-                  </Typography>
-                </Box>
-              ) : attendees.length ? (
-                attendees.map((attendee) => {
-                  const label = attendeeLabel(attendee);
-                  const subLabel = attendee.email || attendee.phone || "";
-                  const paidLabel = attendee.paidFullAt
-                    ? "Paid"
-                    : attendee.paidDepositAt
-                      ? "Dep"
-                      : null;
-                  const paidColor = attendee.paidFullAt
-                    ? "info.main"
-                    : "secondary.main";
-                  const isConfirmed =
-                    attendee.status === AttendeeStatusEnum.Confirmed ||
-                    attendee.status === AttendeeStatusEnum.Attended ||
-                    attendee.status === AttendeeStatusEnum.CheckedIn;
-                  const isRejected =
-                    attendee.status === AttendeeStatusEnum.Rejected ||
-                    attendee.status === AttendeeStatusEnum.Cancelled;
-                  const isPending =
-                    attendee.status === AttendeeStatusEnum.Pending;
-                  const isWaitlisted =
-                    attendee.status === AttendeeStatusEnum.Waitlisted;
-                  const isOrganizer =
-                    attendee && meet && attendee.userId === meet.organizerId;
-                  return (
-                    <ListItemButton
-                      key={attendee.id}
-                      selected={attendee.id === selectedAttendeeId}
-                      onClick={() => setSelectedAttendeeId(attendee.id)}
-                    >
-                      {!isPending ? (
-                        <Box
-                          sx={{
-                            width: 32,
-                            height: 32,
-                            mr: 1.5,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            position: "relative",
-                          }}
-                        >
-                          {isOrganizer ? (
-                            <SupervisorAccountOutlinedIcon
-                              fontSize="large"
-                              color="primary"
-                            />
-                          ) : isConfirmed ? (
-                            <CheckCircleOutlineIcon
-                              fontSize="large"
-                              color="success"
-                            />
-                          ) : isWaitlisted ? (
-                            <CheckCircleOutlineIcon
-                              fontSize="large"
-                              color="warning"
-                            />
-                          ) : isRejected ? (
-                            <CancelOutlinedIcon
-                              fontSize="large"
-                              color="error"
-                            />
-                          ) : (
-                            <QuestionMarkOutlinedIcon
-                              fontSize="large"
-                              color="disabled"
-                            />
-                          )}
-                          {paidLabel ? (
-                            <Box
-                              component="span"
-                              sx={{
-                                position: "absolute",
-                                top: -4,
-                                right: -6,
-                                px: 0.5,
-                                borderRadius: 999,
-                                border: "1px solid",
-                                borderColor: paidColor,
-                                color: paidColor,
-                                bgcolor: "background.paper",
-                                fontSize: 9,
-                                lineHeight: 1.2,
-                                fontWeight: 700,
-                                letterSpacing: 0.2,
-                              }}
-                            >
-                              {paidLabel}
-                            </Box>
-                          ) : null}
-                        </Box>
-                      ) : (
-                        <Avatar sx={{ width: 32, height: 32, mr: 1.5 }}>
-                          {label.slice(0, 1).toUpperCase()}
-                        </Avatar>
-                      )}
-                      <ListItemText
-                        primary={label}
-                        secondary={subLabel}
-                        primaryTypographyProps={{ fontWeight: 600 }}
-                      />
-                    </ListItemButton>
-                  );
-                })
-              ) : (
-                <Box sx={{ p: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No attendees yet.
-                  </Typography>
-                </Box>
-              )}
-            </List>
-          </Paper>
-          <Paper variant="outlined" sx={{ flex: 1, p: 2 }}>
-            {!selectedAttendee ? (
-              <Typography variant="body2" color="text.secondary">
-                Select an attendee to view their details.
-              </Typography>
-            ) : (
-              <Stack spacing={2}>
-                <Box>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    spacing={2}
-                  >
-                    <Typography variant="h6">
-                      {attendeeLabel(selectedAttendee)}
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      {isUpdating && <CircularProgress size={18} />}
-                      {isOrganizerSelected ? (
-                        <Button variant="outlined" disabled>
-                          Organiser
-                        </Button>
-                      ) : (
-                        <AttendeeActionButtons
-                          attendee={selectedAttendee}
-                          onUpdateStatus={handleUpdateStatus}
-                          onPaid={handleAttendeePaid}
-                          hasAmount={Boolean(meet?.costCents)}
-                          hasDeposit={Boolean(meet?.depositCents)}
-                        />
-                      )}
-                    </Stack>
-                  </Stack>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      mt: 1,
-                    }}
-                  >
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                      {selectedAttendee.email ? (
-                        <Chip size="small" label={selectedAttendee.email} />
-                      ) : null}
-                      {selectedAttendee.phone ? (
-                        <Chip size="small" label={selectedAttendee.phone} />
-                      ) : null}
-                      {selectedAttendee.guests ? (
-                        <Chip
-                          size="small"
-                          label={`Guests: ${selectedAttendee.guests}`}
-                        />
-                      ) : null}
-                    </Stack>
-                    <Box sx={{ ml: "auto" }}>
-                      <DetailSelector
-                        disabled={!selectedAttendee}
-                        active={detailView === "messages" ? "mail" : "info"}
-                        showUnread={hasUnreadMessages}
-                        showEdit={false}
-                        onInfoClick={() => setDetailView("responses")}
-                        onMailClick={() => setDetailView("messages")}
-                        onEditClick={undefined}
-                      />
-                    </Box>
-                  </Box>
-                </Box>
-                <Divider />
-                {detailView === "messages" ? (
-                  <AttendeeMessages
-                    meetId={meetId}
-                    attendeeId={selectedAttendee?.id}
-                    attendeeEmail={selectedAttendee?.email}
-                  />
-                ) : (
-                  <AttendeeResponses
-                    indemnityAccepted={selectedAttendee.indemnityAccepted}
-                    indemnityMinors={selectedAttendee.indemnityMinors}
-                    responses={selectedAttendee.metaValues}
-                  />
-                )}
-                <Divider />
-                <Box sx={{ display: "flex", justifyContent: "center" }}>
-                  {isOrganizerSelected ? (
-                    detailView === "messages" ? (
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
-                          setMessageAttendeeIds(
-                            selectedAttendee
-                              ? [selectedAttendee.id]
-                              : undefined,
-                          );
-                          setMessageOpen(true);
-                        }}
-                      >
-                        Message {attendeeLabel(selectedAttendee)}
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outlined"
-                        onClick={() => setShowEditMetaDialog(true)}
-                      >
-                        Edit responses
-                      </Button>
-                    )
-                  ) : (
-                    <Button
-                      variant="outlined"
-                      disabled={!selectedAttendee}
-                      onClick={() => {
-                        setMessageAttendeeIds(
-                          selectedAttendee ? [selectedAttendee.id] : undefined,
-                        );
-                        setMessageOpen(true);
-                      }}
-                    >
-                      Message {attendeeLabel(selectedAttendee)}
-                    </Button>
-                  )}
-                </Box>
-              </Stack>
-            )}
-          </Paper>
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>
-          <Button
-            variant="outlined"
-            onClick={() => {
-              setMessageAttendeeIds(undefined);
-              setMessageOpen(true);
+      </DialogTitle>
+      <DialogContent
+        sx={{
+          flex: 1,
+          pb: fullScreen ? 0 : 2,
+          px: fullScreen ? 0 : undefined,
+          pt: fullScreen ? 1 : undefined,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
+        {fullScreen ? (
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
             }}
           >
-            Send Message to All Attendees
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+              <AttendeeList
+                attendees={attendees}
+                isLoading={attendeesLoading}
+                meet={meet}
+                selectedAttendeeId={selectedAttendeeId}
+                setSelectedAttendeeId={setSelectedAttendeeId}
+                fullScreen={fullScreen}
+              />
+            </Box>
+            <Box
+              sx={{
+                position: "sticky",
+                bottom: 0,
+                display: "flex",
+                gap: 1,
+                pt: 1.5,
+                pb: 1.5,
+                px: 2,
+                mt: 0,
+                bgcolor: "transparent",
+                borderTop: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
+                <Button
+                  variant="outlined"
+                  sx={{ flex: 1 }}
+                  disabled={!canManageAttendees}
+                  onClick={() => {
+                    openMessageModal({ attendeeIds: undefined });
+                  }}
+                >
+                  Send Message to All Attendees
+                </Button>
+              </LockedTooltipWrapper>
+              <Button
+                variant="contained"
+                sx={{ flexShrink: 0 }}
+                onClick={handleRequestClose}
+              >
+                Close
+              </Button>
+            </Box>
+            <Drawer
+              anchor="right"
+              open={mobileDrawerOpen}
+              onClose={() => setSelectedAttendeeId(null)}
+              sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
+              ModalProps={{
+                sx: { zIndex: (theme) => theme.zIndex.modal + 1 },
+              }}
+              PaperProps={{
+                sx: {
+                  width: "100%",
+                  maxWidth: 520,
+                  height: "100%",
+                },
+              }}
+            >
+              {renderMobileDrawerContent()}
+            </Drawer>
+          </Box>
+        ) : (
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            sx={{
+              minHeight: 360,
+              height: "100%",
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+            }}
+          >
+            <AttendeeList
+              attendees={attendees}
+              isLoading={attendeesLoading}
+              meet={meet}
+              selectedAttendeeId={selectedAttendeeId}
+              setSelectedAttendeeId={setSelectedAttendeeId}
+              fullScreen={fullScreen}
+            />
+            <Paper
+              variant="outlined"
+              sx={{ flex: 1, p: 2, display: "flex", minHeight: 0 }}
+            >
+              {renderDesktopDetailsPanel()}
+            </Paper>
+          </Stack>
+        )}
+      </DialogContent>
+      <AttendeeUploadConflictsDialog
+        open={uploadConflicts.length > 0}
+        conflicts={uploadConflicts}
+        actions={uploadConflictActions}
+        isSubmitting={resolveUploadConflictsMutation.isPending}
+        onActionChange={handleUploadConflictActionChange}
+        onConfirm={handleUploadConflictsConfirm}
+        onClose={handleUploadConflictsClose}
+      />
+      <AttendeeUploadErrorDialog
+        open={uploadErrorOpen}
+        onClose={() => setUploadErrorOpen(false)}
+      />
+      {!fullScreen && (
+        <DialogActions>
+          <Box sx={{ flex: 1, display: "flex", justifyContent: "left" }}>
+            <LockedTooltipWrapper isReadOnly={!canManageAttendees}>
+              <Button
+                variant="outlined"
+                disabled={!canManageAttendees}
+                onClick={() => openMessageModal({ attendeeIds: undefined })}
+              >
+                Send Message to All Attendees
+              </Button>
+            </LockedTooltipWrapper>
+          </Box>
+          <Button variant="contained" onClick={handleRequestClose}>
+            Close
           </Button>
-        </Box>
-        <Button variant="contained" onClick={onClose}>
-          Close
-        </Button>
-      </DialogActions>
+        </DialogActions>
+      )}
       {meet && (
         <MessageModal
+          key={messageModalKey}
           open={messageOpen}
           onClose={() => setMessageOpen(false)}
           meet={meet}
           attendeeIds={messageAttendeeIds}
           attendees={attendees}
+          defaultSubject={messageModalDefaults.subject}
+          defaultBody={messageModalDefaults.body}
+          includeStatusUrl={messageModalDefaults.includeStatusUrl}
         />
       )}
       {meet && (
@@ -564,6 +1170,17 @@ export function ManageAttendeesModal({
           }}
         />
       )}
+      <ConfirmActionDialog
+        open={notifyBeforeCloseOpen}
+        title="Notify attendees?"
+        description={`${notifyBeforeCloseCount} attendee(s) have a status set but have not been notified. You can notify them now or later using the messaging feature.`}
+        confirmLabel={isNotifyingBeforeClose ? "Notifying..." : "Notify now"}
+        cancelLabel="Later"
+        onConfirm={handleNotifyBeforeCloseNow}
+        onClose={handleNotifyBeforeCloseLater}
+        isLoading={isNotifyingBeforeClose}
+        confirmDisabled={isNotifyingBeforeClose}
+      />
       {selectedAttendee && meet && meetId && (
         <OrganizerMetaEditDialog
           open={showEditMetaDialog}
@@ -571,6 +1188,8 @@ export function ManageAttendeesModal({
           meetId={meetId}
           attendeeId={selectedAttendee.id}
           metaValues={selectedAttendee.metaValues || []}
+          hasIndemnity={Boolean(meet.hasIndemnity)}
+          indemnityAccepted={Boolean(selectedAttendee.indemnityAccepted)}
         />
       )}
     </Dialog>

@@ -1,21 +1,53 @@
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { DatabaseService } from "../database/database.service";
 import {
   CreateMeetDto,
   MeetMetaDefinitionInputDto,
 } from "./dto/create-meet.dto";
 import { MeetDto } from "./dto/meet.dto";
-import { CreateMeetAttendeeDto } from "./dto/create-meet-attendee.dto";
+import { MeetImageDto } from "./dto/meet-image.dto";
+import { CreateMeetAttendeeDto } from "../attendees/dto/create-meet-attendee.dto";
 import { UpdateMeetDto } from "./dto/update-meet.dto";
-import { UpdateMeetAttendeeDto } from "./dto/update-meet-attendee.dto";
+import { UpdateMeetAttendeeDto } from "../attendees/dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
+import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
+import { CreateWallItemDto } from "../wall/dto/create-wall-item.dto";
 import { MinioService } from "../storage/minio.service";
+import { detectMeetImageAspect } from "./image-aspect";
 import { v4 as uuid } from "uuid";
+import { MEET_STATUS } from "./constants/meet-status.enum";
+import { type WallItemReaction } from "../wall/dto/update-wall-item-reaction.dto";
+import { WallItemDto } from "../wall/dto/wall-item.dto";
+
+type InvitedAttendeeUploadInput = {
+  name: string;
+  email: string;
+  phone: string;
+  rowNumber?: number;
+  metaValues?: Array<{ definitionId: string; value: string }>;
+};
+
+type InvitedAttendeeUploadConflict = {
+  rowNumber?: number;
+  email: string;
+  uploadedName: string;
+  conflictingNames: string[];
+  existingAttendeeId: string;
+  attendee: InvitedAttendeeUploadInput;
+};
+
+type InvitedAttendeeUploadConflictResolution = {
+  action: "replace" | "add_as_minor";
+  existingAttendeeId: string;
+  attendee: InvitedAttendeeUploadInput;
+};
 
 @Injectable()
 export class MeetsService {
@@ -23,6 +55,90 @@ export class MeetsService {
     private readonly db: DatabaseService,
     private readonly minio: MinioService,
   ) {}
+
+  private buildMyAttendeeStatusSubquery(userId: string) {
+    return this.db
+      .getClient()("meet_attendees as ua")
+      .distinctOn("ua.meet_id")
+      .select("ua.meet_id")
+      .select(this.db.getClient().raw("ua.status as my_attendee_status"))
+      .where("ua.user_id", userId)
+      .orderBy("ua.meet_id", "asc")
+      .orderByRaw(
+        "case when coalesce(ua.is_minor, false) then 1 else 0 end asc",
+      )
+      .orderBy("ua.updated_at", "desc")
+      .orderBy("ua.created_at", "desc")
+      .orderBy("ua.id", "desc")
+      .as("ua");
+  }
+
+  private normalizeAttendeeName(name?: string | null) {
+    return name?.trim().toLowerCase() ?? "";
+  }
+
+  private normalizeAttendeeEmail(email?: string | null) {
+    return email?.trim().toLowerCase() ?? "";
+  }
+
+  private buildAttendeeEmailNameKey(attendee: {
+    name?: string | null;
+    email?: string | null;
+  }) {
+    const name = this.normalizeAttendeeName(attendee.name);
+    const email = this.normalizeAttendeeEmail(attendee.email);
+    return `${email}::${name}`;
+  }
+
+  private pickPreferredConflictTarget(
+    attendees: Array<{ id: string; is_minor?: boolean | null }>,
+  ) {
+    return attendees.find((attendee) => !attendee.is_minor) ?? attendees[0];
+  }
+
+  private isAttendeeDuplicateError(error: any) {
+    return (
+      error?.code === "23505" &&
+      error?.constraint === "meet_attendees_meet_id_user_id_non_minor_unique"
+    );
+  }
+
+  private async computeAutoPlacementStatus(
+    trx: any,
+    meetId: string,
+    meet: { capacity: any; waitlist_size: any },
+  ): Promise<"confirmed" | "waitlisted" | "rejected"> {
+    const capacity = meet.capacity == null ? null : Number(meet.capacity);
+    const waitlistSize =
+      meet.waitlist_size == null ? 0 : Number(meet.waitlist_size);
+
+    const capacityUnlimited = capacity == null || capacity <= 0;
+    if (capacityUnlimited) return "confirmed";
+
+    const counts = await trx("meet_attendees")
+      .where({ meet_id: meetId })
+      .first(
+        trx.raw(
+          `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as confirmed_count`,
+        ),
+        trx.raw(
+          `sum(case when status = 'waitlisted' then 1 + coalesce(guests, 0) else 0 end) as waitlist_count`,
+        ),
+      );
+
+    const confirmedCount =
+      counts && (counts as any).confirmed_count != null
+        ? Number((counts as any).confirmed_count)
+        : 0;
+    const waitlistedCount =
+      counts && (counts as any).waitlist_count != null
+        ? Number((counts as any).waitlist_count)
+        : 0;
+
+    if (confirmedCount < capacity) return "confirmed";
+    if (waitlistSize > 0 && waitlistedCount < waitlistSize) return "waitlisted";
+    return "rejected";
+  }
 
   private static readonly shareCodeChars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -32,56 +148,73 @@ export class MeetsService {
     page = 1,
     limit = 20,
     organizationIds: string[] = [],
-    includeHidden = false,
+    isOrganizer = false,
     userId?: string,
+    startDate: Date | null = null,
+    endDate: Date | null = null,
+    search: string | null = null,
+    scope: "all" | "my" | null = null,
   ) {
+    let memberCanViewAllMeets = false;
+    if (!isOrganizer && organizationIds.length > 0) {
+      const organizations = await this.db
+        .getClient()("organizations")
+        .whereIn("id", organizationIds)
+        .select("id", "can_view_all_meets");
+      memberCanViewAllMeets = organizations.some(
+        (organization: any) => organization.can_view_all_meets,
+      );
+    }
+
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
       .select("meet_id")
-      .count<
-        {
-          meet_id: string;
-          attendee_count: number;
-          waitlist_count: number;
-          checked_in_count: number;
-          confirmed_count: number;
-        }[]
-      >("* as attendee_count")
+      .select(
+        this.db
+          .getClient()
+          .raw(`sum(1 + coalesce(guests, 0)) as attendee_count`),
+      )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`,
+            `sum(case when status = 'waitlisted' then 1 + coalesce(guests, 0) else 0 end) as waitlist_count`,
           ),
       )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`,
+            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as confirmed_count`,
           ),
       )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`,
+            `sum(case when status = 'rejected' then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
+          ),
+      )
+      .select(
+        this.db
+          .getClient()
+          .raw(
+            `sum(case when status in ('checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as checked_in_count`,
           ),
       )
       .groupBy("meet_id")
       .as("ma");
+
+    const myAttendeeStatus = userId
+      ? this.buildMyAttendeeStatusSubquery(userId)
+      : null;
+
     const query = this.db
       .getClient()("meets as m")
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
       .modify((builder) => {
-        if (!userId) return;
-        builder.leftJoin("meet_attendees as ua", function () {
-          this.on("ua.meet_id", "=", "m.id").andOn(
-            "ua.user_id",
-            "=",
-            builder.client.raw("?", [userId]),
-          );
-        });
+        if (!myAttendeeStatus) return;
+        builder.leftJoin(myAttendeeStatus, "ua.meet_id", "m.id");
       })
       .select(
         "m.*",
@@ -101,13 +234,35 @@ export class MeetsService {
           .raw("coalesce(ma.waitlist_count, 0) as waitlist_count"),
         this.db
           .getClient()
+          .raw("coalesce(ma.rejected_count, 0) as rejected_count"),
+        this.db
+          .getClient()
           .raw("coalesce(ma.checked_in_count, 0) as checked_in_count"),
         userId
-          ? this.db.getClient().raw("ua.status as my_attendee_status")
+          ? this.db.getClient().raw("ua.my_attendee_status")
           : this.db.getClient().raw("null as my_attendee_status"),
       );
-    if (view === "my") {
-      // either the user is attending or the meet is still open
+
+    const totalQuery = this.db
+      .getClient()("meets")
+      .count<{ count: string }[]>("* as count");
+
+    const effectiveScope =
+      scope ?? (view === "my" || view === "all" ? view : "all");
+    const effectiveView = view === "my" ? "all" : view;
+
+    // If the user is not an organizer, only show meets they are attending or meets that are open
+    if (effectiveScope === "my") {
+      query.where((qb) => {
+        qb.where("m.organizer_id", userId!);
+        qb.orWhereExists(function () {
+          this.select("*")
+            .from("meet_attendees as ma2")
+            .whereRaw("ma2.meet_id = m.id")
+            .andWhere("ma2.user_id", userId!);
+        });
+      });
+    } else if (!isOrganizer && !memberCanViewAllMeets) {
       query.where((qb) => {
         qb.whereExists(function () {
           this.select("*")
@@ -115,33 +270,90 @@ export class MeetsService {
             .whereRaw("ma2.meet_id = m.id")
             .andWhere("ma2.user_id", userId!);
         });
-        qb.orWhere("m.status_id", "3"); // Open
+        qb.orWhere((statusBuilder) => {
+          statusBuilder.where("m.status_id", MEET_STATUS.Published);
+          statusBuilder.orWhere("m.status_id", MEET_STATUS.Open);
+        });
       });
     }
-    if (view === "reports") {
-      query.whereIn("m.status_id", [4, 5, 7]);
-    }
-    if (view === "plan") {
-      query.whereIn("m.status_id", [1, 2, 3, 6]);
-    }
-    query.orderBy("start_time", "asc");
 
-    const totalQuery = this.db
-      .getClient()("meets")
-      .count<{ count: string }[]>("* as count");
-    if (view === "reports") {
-      totalQuery.whereIn("status_id", [4, 5, 7]);
+    if (effectiveView === "upcoming") {
+      query.where("start_time", ">=", new Date().toISOString());
+      query.whereNotIn("status_id", [MEET_STATUS.Draft, MEET_STATUS.Cancelled]);
+      query.orderBy("start_time", "asc");
+      totalQuery.where("start_time", ">=", new Date().toISOString());
+      totalQuery.whereNotIn("status_id", [
+        MEET_STATUS.Draft,
+        MEET_STATUS.Cancelled,
+      ]);
     }
-    if (view === "plan") {
-      totalQuery.whereIn("status_id", [1, 2, 3, 6]);
+    if (effectiveView === "past") {
+      query.where("start_time", "<", new Date().toISOString());
+      query.whereNotIn("status_id", [MEET_STATUS.Draft, MEET_STATUS.Cancelled]);
+      query.orderBy("start_time", "desc");
+      totalQuery.where("start_time", "<", new Date().toISOString());
+      totalQuery.whereNotIn("status_id", [
+        MEET_STATUS.Draft,
+        MEET_STATUS.Cancelled,
+      ]);
+    }
+    if (effectiveView === "draft") {
+      query.where("status_id", MEET_STATUS.Draft);
+      totalQuery.where("status_id", MEET_STATUS.Draft);
+      query.orderBy("updated_at", "desc");
+    }
+    if (effectiveView === "calendar") {
+      query.whereNotIn("status_id", [MEET_STATUS.Draft]);
+      totalQuery.whereNotIn("status_id", [MEET_STATUS.Draft]);
+      query.orderBy("start_time", "asc");
+    }
+    if (!isOrganizer && memberCanViewAllMeets) {
+      query.where("m.status_id", "!=", MEET_STATUS.Draft);
+      totalQuery.where("status_id", "!=", MEET_STATUS.Draft);
     }
     if (organizationIds.length > 0) {
       query.whereIn("m.organization_id", organizationIds);
       totalQuery.whereIn("organization_id", organizationIds);
     }
-    if (!includeHidden) {
+    if (!isOrganizer && !memberCanViewAllMeets) {
       query.where("m.is_hidden", false);
       totalQuery.where("is_hidden", false);
+    }
+    if (effectiveView === "calendar") {
+      if (startDate) {
+        query.whereRaw("coalesce(m.end_time, m.start_time) >= ?", [
+          startDate.toISOString(),
+        ]);
+        totalQuery.whereRaw("coalesce(end_time, start_time) >= ?", [
+          startDate.toISOString(),
+        ]);
+      }
+      if (endDate) {
+        query.where("m.start_time", "<=", endDate.toISOString());
+        totalQuery.where("start_time", "<=", endDate.toISOString());
+      }
+    } else {
+      if (startDate) {
+        query.where("start_time", ">=", startDate.toISOString());
+        totalQuery.where("start_time", ">=", startDate.toISOString());
+      }
+      if (endDate) {
+        query.where("start_time", "<=", endDate.toISOString());
+        totalQuery.where("start_time", "<=", endDate.toISOString());
+      }
+    }
+    if (search) {
+      const like = `%${search.toLowerCase()}%`;
+      query.where((qb) => {
+        qb.whereRaw("lower(m.name) like ?", [like])
+          .orWhereRaw("lower(m.description) like ?", [like])
+          .orWhereRaw("lower(m.location) like ?", [like]);
+      });
+      totalQuery.where((qb) => {
+        qb.whereRaw("lower(name) like ?", [like])
+          .orWhereRaw("lower(description) like ?", [like])
+          .orWhereRaw("lower(location) like ?", [like]);
+      });
     }
     const [{ count }] = await totalQuery;
     const total = Number(count);
@@ -154,52 +366,53 @@ export class MeetsService {
     const attendeeCounts = this.db
       .getClient()("meet_attendees")
       .select("meet_id")
-      .count<
-        {
-          meet_id: string;
-          attendee_count: number;
-          waitlist_count: number;
-          checked_in_count: number;
-          confirmed_count: number;
-        }[]
-      >("* as attendee_count")
+      .select(
+        this.db
+          .getClient()
+          .raw(`sum(1 + coalesce(guests, 0)) as attendee_count`),
+      )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status = 'waitlisted' then 1 else 0 end) as waitlist_count`,
+            `sum(case when status = 'waitlisted' then 1 + coalesce(guests, 0) else 0 end) as waitlist_count`,
           ),
       )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 else 0 end) as confirmed_count`,
+            `sum(case when status in ('confirmed', 'checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as confirmed_count`,
           ),
       )
       .select(
         this.db
           .getClient()
           .raw(
-            `sum(case when status in ('checked-in', 'attended') then 1 else 0 end) as checked_in_count`,
+            `sum(case when status = 'rejected' then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
+          ),
+      )
+      .select(
+        this.db
+          .getClient()
+          .raw(
+            `sum(case when status in ('checked-in', 'attended') then 1 + coalesce(guests, 0) else 0 end) as checked_in_count`,
           ),
       )
       .groupBy("meet_id")
       .as("ma");
+    const myAttendeeStatus = userId
+      ? this.buildMyAttendeeStatusSubquery(userId)
+      : null;
     let query = this.db
       .getClient()("meets as m")
       .leftJoin("users as u", "u.id", "m.organizer_id")
+      .leftJoin("organizations as o", "o.id", "m.organization_id")
       .leftJoin(attendeeCounts, "ma.meet_id", "m.id")
       .leftJoin("currencies as c", "c.id", "m.currency_id")
       .modify((builder) => {
-        if (!userId) return;
-        builder.leftJoin("meet_attendees as ua", function () {
-          this.on("ua.meet_id", "=", "m.id").andOn(
-            "ua.user_id",
-            "=",
-            builder.client.raw("?", [userId]),
-          );
-        });
+        if (!myAttendeeStatus) return;
+        builder.leftJoin(myAttendeeStatus, "ua.meet_id", "m.id");
       })
       .select(
         "m.*",
@@ -216,6 +429,9 @@ export class MeetsService {
           .raw("coalesce(ma.waitlist_count, 0) as waitlist_count"),
         this.db
           .getClient()
+          .raw("coalesce(ma.rejected_count, 0) as rejected_count"),
+        this.db
+          .getClient()
           .raw("coalesce(ma.checked_in_count, 0) as checked_in_count"),
         this.db
           .getClient()
@@ -226,8 +442,12 @@ export class MeetsService {
         "u.last_name as organizer_last_name",
         "u.email as organizer_email",
         "u.phone as organizer_phone",
+        "o.custom_field1_name",
+        "o.custom_field2_name",
+        "o.custom_field1_helper_text",
+        "o.custom_field2_helper_text",
         userId
-          ? this.db.getClient().raw("ua.status as my_attendee_status")
+          ? this.db.getClient().raw("ua.my_attendee_status")
           : this.db.getClient().raw("null as my_attendee_status"),
       );
 
@@ -240,14 +460,15 @@ export class MeetsService {
     if (!meet) {
       throw new NotFoundException("Meet not found");
     }
-    const image = await this.db
+    const images = await this.db
       .getClient()("meet_images")
-      .where({ meet_id: meet.id, is_primary: true })
+      .where({ meet_id: meet.id })
       .orderBy([
+        { column: "is_primary", order: "desc" },
         { column: "created_at", order: "desc" },
         { column: "id", order: "desc" },
       ])
-      .first();
+      .select("*");
     const metaDefinitions = await this.db
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meet.id })
@@ -263,9 +484,18 @@ export class MeetsService {
       );
     const meetWithImage = {
       ...meet,
-      image_url: image?.url ?? meet.image_url ?? undefined,
+      image_url: images[0]?.url ?? meet.image_url ?? undefined,
     };
-    return this.toMeetDto(meetWithImage, metaDefinitions);
+    const attendingAttendees =
+      userId && this.isGoingAttendeeStatus(meet.my_attendee_status)
+        ? await this.listAttendingAttendeePreviews(meet.id)
+        : undefined;
+    return this.toMeetDto(
+      meetWithImage,
+      metaDefinitions,
+      images,
+      attendingAttendees,
+    );
   }
 
   async create(dto: CreateMeetDto) {
@@ -278,66 +508,106 @@ export class MeetsService {
     const shareCode = this.generateShareCode(12);
     const created = await this.db.getClient().transaction(async (trx) => {
       const [meet] = await trx("meets").insert(
-        this.toDbRecord({ ...dto, currencyId, statusId, shareCode }, now),
+        this.toDbRecord({ ...dto, currencyId, statusId, shareCode }, null, now),
         ["*"],
       );
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, meet.id, dto.metaDefinitions);
       }
       if (dto.organizerId) {
-        const organizer = await trx("users")
-          .where({ id: dto.organizerId })
-          .first("first_name", "last_name", "email", "phone");
-        const organizerName = organizer
-          ? `${organizer.first_name ?? ""} ${organizer.last_name ?? ""}`.trim()
-          : "";
-        const [attendee] = await trx("meet_attendees").insert(
-          {
-            meet_id: meet.id,
-            user_id: dto.organizerId,
-            name: organizerName || null,
-            email: organizer?.email ?? null,
-            phone: organizer?.phone ?? null,
-            status: "confirmed",
-            created_at: now,
-            updated_at: now,
-          },
-          ["*"],
-        );
-        const previousAnswers = await this.findPreviousAnswers(
-          dto.organizerId,
-          meet.id,
-          trx,
-        );
-        const metaDefinitions = await trx("meet_meta_definitions")
-          .where({ meet_id: meet.id })
-          .select("id", "field_key");
-        const metaRecords = metaDefinitions
-          .map((definition) => {
-            const value = previousAnswers[definition.field_key];
-            if (value === undefined || value === null || value === "") {
-              return null;
-            }
-            return {
-              meet_id: meet.id,
-              attendee_id: attendee.id,
-              meta_definition_id: definition.id,
-              value,
-            };
-          })
-          .filter(Boolean) as Array<{
-          meet_id: string;
-          attendee_id: string;
-          meta_definition_id: string;
-          value: string;
-        }>;
-        if (metaRecords.length > 0) {
-          await trx("meet_meta_values").insert(metaRecords);
-        }
+        await this.addOrganizerAsAttendee(trx, meet.id, dto.organizerId, now);
       }
       return meet;
     });
     return created;
+  }
+
+  async clone(id: string, dto?: { name?: string; organizerId?: string }) {
+    const now = new Date().toISOString();
+    const shareCode = this.generateShareCode(12);
+
+    return this.db.getClient().transaction(async (trx) => {
+      const sourceMeet = await trx("meets").where({ id }).first("*");
+      if (!sourceMeet) {
+        throw new NotFoundException("Meet not found");
+      }
+
+      const sourceMetaDefinitions = await trx("meet_meta_definitions")
+        .where({ meet_id: id })
+        .orderBy("position", "asc")
+        .select("field_key", "label", "field_type", "required", "config");
+
+      const sourceImages = await trx("meet_images")
+        .where({ meet_id: id })
+        .orderBy([
+          { column: "created_at", order: "asc" },
+          { column: "id", order: "asc" },
+        ])
+        .select(
+          "object_key",
+          "url",
+          "content_type",
+          "size_bytes",
+          "aspect",
+          "is_primary",
+        );
+
+      const clonedRecord = {
+        ...sourceMeet,
+        id: undefined,
+        name: dto?.name?.trim() || sourceMeet.name,
+        organizer_id: dto?.organizerId || sourceMeet.organizer_id,
+        share_code: shareCode,
+        checkin_pin: sourceMeet.checkin_pin ? this.generateCheckinPin() : null,
+        status_id: MEET_STATUS.Draft,
+        start_time: null,
+        end_time: null,
+        opening_date: null,
+        closing_date: null,
+        scheduled_date: null,
+        confirm_date: null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const [clonedMeet] = await trx("meets").insert(clonedRecord, ["*"]);
+
+      if (sourceMetaDefinitions.length > 0) {
+        await this.syncMetaDefinitions(
+          trx,
+          clonedMeet.id,
+          sourceMetaDefinitions.map((definition) => ({
+            fieldKey: definition.field_key,
+            label: definition.label,
+            fieldType: definition.field_type,
+            required: definition.required,
+            config: definition.config ?? {},
+          })),
+        );
+      }
+
+      if (sourceImages.length > 0) {
+        await trx("meet_images").insert(
+          sourceImages.map((image) => ({
+            meet_id: clonedMeet.id,
+            object_key: image.object_key,
+            url: image.url,
+            content_type: image.content_type,
+            size_bytes: image.size_bytes,
+            aspect: image.aspect,
+            is_primary: image.is_primary,
+            created_at: now,
+          })),
+        );
+      }
+
+      const organizerId = dto?.organizerId || sourceMeet.organizer_id;
+      if (organizerId) {
+        await this.addOrganizerAsAttendee(trx, clonedMeet.id, organizerId, now);
+      }
+
+      return clonedMeet;
+    });
   }
 
   async update(id: string, dto: UpdateMeetDto) {
@@ -346,13 +616,16 @@ export class MeetsService {
       dto.currencyCode,
     );
     const updated = await this.db.getClient().transaction(async (trx) => {
-      const updatedRows = (await trx("meets")
-        .where({ id })
-        .update(this.toDbRecord({ ...dto, currencyId }), ["*"])) as unknown;
-      const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
-      if (!meet) {
+      const existingMeet = await trx("meets").where({ id }).first("*");
+      if (!existingMeet) {
         throw new NotFoundException("Meet not found");
       }
+      const updatedRows = (await trx("meets")
+        .where({ id })
+        .update(this.toDbRecord({ ...dto, currencyId }, existingMeet), [
+          "*",
+        ])) as unknown;
+      const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, id, dto.metaDefinitions);
       }
@@ -362,17 +635,46 @@ export class MeetsService {
   }
 
   async updateStatus(id: string, statusId: number) {
+    const updates: Record<string, any> = {
+      status_id: statusId,
+      updated_at: new Date().toISOString(),
+    };
+    if (statusId === MEET_STATUS.Open) {
+      updates.opening_date = null;
+      updates.closing_date = null;
+    }
     const updatedRows = (await this.db
       .getClient()("meets")
       .where({ id })
-      .update({ status_id: statusId, updated_at: new Date().toISOString() }, [
-        "*",
-      ])) as unknown;
+      .update(updates, ["*"])) as unknown;
     const updated = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
     if (!updated) {
       throw new NotFoundException("Meet not found");
     }
     return updated as any;
+  }
+
+  async resetConfirmedAttendeesToInvited(
+    meetId: string,
+    organizerId?: string | null,
+  ) {
+    const query = this.db.getClient()("meet_attendees").where({
+      meet_id: meetId,
+      status: "confirmed",
+    });
+
+    if (organizerId) {
+      query.andWhere((builder) => {
+        builder.whereNull("user_id").orWhereNot("user_id", organizerId);
+      });
+    }
+
+    const updated = await query.update({
+      status: "invited",
+      updated_at: new Date().toISOString(),
+    });
+
+    return { updated };
   }
 
   async remove(id: string) {
@@ -403,7 +705,13 @@ export class MeetsService {
     if (!attendee) {
       throw new NotFoundException("Attendee not found");
     }
-    return { attendee: this.toAttendeeDto(attendee) };
+    const attendingAttendees = this.isGoingAttendeeStatus(attendee.status)
+      ? await this.listAttendingAttendeePreviews(meet.id)
+      : undefined;
+    return {
+      attendee: this.toAttendeeDto(attendee),
+      attendingAttendees,
+    };
   }
 
   async findAttendeeForEdit(idOrCode: string, attendeeId: string) {
@@ -418,6 +726,11 @@ export class MeetsService {
         "phone",
         "name",
         "guests",
+        "guest_of",
+        "is_minor",
+        "guardian_name",
+        "org1_value",
+        "org2_value",
         "indemnity_accepted",
         "indemnity_minors",
       )
@@ -440,6 +753,48 @@ export class MeetsService {
         })),
       },
     };
+  }
+
+  async attendeeHasMissingFields(meetId: string, attendeeId: string) {
+    const meet = await this.findOne(meetId);
+    if (!meet) {
+      throw new NotFoundException("Meet not found");
+    }
+
+    const { attendee } = await this.findAttendeeForEdit(meetId, attendeeId);
+    if (!attendee) {
+      throw new NotFoundException("Attendee not found");
+    }
+
+    if (
+      !attendee.name?.trim() ||
+      !attendee.email?.trim() ||
+      !attendee.phone?.trim()
+    ) {
+      return true;
+    }
+
+    if (meet.hasIndemnity && !attendee.indemnityAccepted) {
+      return true;
+    }
+
+    const metaValuesByKey = new Map(
+      (attendee.metaValues || []).map((item) => [item.fieldKey, item.value]),
+    );
+
+    return (meet.metaDefinitions || []).some((definition) => {
+      if (!definition.required) return false;
+
+      const value = metaValuesByKey.get(definition.fieldKey);
+      if (
+        definition.fieldType === "checkbox" ||
+        definition.fieldType === "switch"
+      ) {
+        return value !== "true";
+      }
+
+      return value === undefined || value === null || value === "";
+    });
   }
 
   async getAttendeeContactById(attendeeId: string) {
@@ -465,12 +820,23 @@ export class MeetsService {
         { column: "sequence", order: "asc" },
         { column: "created_at", order: "asc" },
       ])
-      .select("*");
+      .select(
+        "meet_attendees.*",
+        this.db.getClient().raw(`
+          EXISTS (
+            SELECT 1
+            FROM messages
+            WHERE messages.attendee_id = meet_attendees.id
+              AND messages.meet_id = meet_attendees.meet_id
+              AND messages.is_read = FALSE
+          ) AS has_unread_messages
+        `),
+      );
     const metaDefinitions = await this.db
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position");
+      .select("id", "label", "field_type", "required", "position", "config");
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -492,6 +858,7 @@ export class MeetsService {
         fieldType: definition.field_type,
         required: definition.required,
         position: definition.position,
+        config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
       })),
     }));
@@ -511,7 +878,7 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position");
+      .select("id", "label", "field_type", "required", "position", "config");
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -533,6 +900,7 @@ export class MeetsService {
         fieldType: definition.field_type,
         required: definition.required,
         position: definition.position,
+        config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
       })),
     }));
@@ -549,26 +917,99 @@ export class MeetsService {
     return organizer?.email ?? null;
   }
 
-  async findAttendeeByContact(meetId: string, email?: string, phone?: string) {
-    if (!email && !phone) {
-      throw new BadRequestException("Email or phone is required");
+  async findAttendeeByContact(
+    meetId: string,
+    email?: string,
+    phone?: string,
+    name?: string,
+    options?: { includeInvited?: boolean },
+  ) {
+    const normalizedEmail = email?.trim().toLowerCase() || "";
+    const normalizedPhone = phone?.trim() || "";
+    const normalizedName =
+      name?.trim().toLowerCase().replace(/\s+/g, " ") || "";
+
+    if (!normalizedEmail && !normalizedPhone && !normalizedName) {
+      throw new BadRequestException("Name, email, or phone is required");
     }
+
     const query = this.db
       .getClient()("meet_attendees")
       .where({ meet_id: meetId });
-    if (email && phone) {
-      query.andWhere((builder) => {
-        builder
-          .whereRaw("lower(email) = ?", [email.toLowerCase()])
-          .orWhere({ phone });
-      });
-    } else if (email) {
-      query.andWhereRaw("lower(email) = ?", [email.toLowerCase()]);
-    } else if (phone) {
-      query.andWhere({ phone });
+    if (options?.includeInvited === false) {
+      query.andWhereNot("status", "invited");
     }
-    const attendee = await query.first();
-    return { attendee: attendee ? this.toAttendeeDto(attendee) : null };
+
+    query.andWhere((builder) => {
+      let hasClause = false;
+
+      if (normalizedEmail) {
+        builder.whereRaw("lower(email) = ?", [normalizedEmail]);
+        hasClause = true;
+      }
+
+      if (normalizedPhone) {
+        if (hasClause) {
+          builder.orWhere({ phone: normalizedPhone });
+        } else {
+          builder.where({ phone: normalizedPhone });
+          hasClause = true;
+        }
+      }
+
+      if (normalizedName) {
+        const nameSql =
+          "regexp_replace(lower(coalesce(name, '')), '\\s+', ' ', 'g') = ?";
+        if (hasClause) {
+          builder.orWhereRaw(nameSql, [normalizedName]);
+        } else {
+          builder.whereRaw(nameSql, [normalizedName]);
+        }
+      }
+    });
+
+    const attendees = await query.select("*");
+    const matchedAttendees = attendees
+      .map((attendee: Record<string, any>) => {
+        const attendeeName =
+          attendee.name?.trim().toLowerCase().replace(/\s+/g, " ") || "";
+        const attendeeEmail = attendee.email?.trim().toLowerCase() || "";
+        const attendeePhone = attendee.phone?.trim() || "";
+        const emailMatch = Boolean(
+          normalizedEmail && attendeeEmail === normalizedEmail,
+        );
+        const phoneMatch = Boolean(
+          normalizedPhone && attendeePhone === normalizedPhone,
+        );
+        const nameMatch = Boolean(
+          normalizedName && attendeeName === normalizedName,
+        );
+        const status = attendee.status ?? "";
+        const isAlreadyCheckedIn = ["checked-in", "attended"].includes(status);
+        const score =
+          (emailMatch ? 4 : 0) + (phoneMatch ? 4 : 0) + (nameMatch ? 1 : 0);
+
+        return {
+          attendee,
+          score,
+          isAlreadyCheckedIn,
+        };
+      })
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        if (left.isAlreadyCheckedIn !== right.isAlreadyCheckedIn) {
+          return left.isAlreadyCheckedIn ? 1 : -1;
+        }
+        return 0;
+      })
+      .map(({ attendee }) => this.toAttendeeDto(attendee));
+
+    return {
+      attendee: matchedAttendees[0] ?? null,
+      attendees: matchedAttendees,
+    };
   }
 
   async findPreviousAnswers(
@@ -605,42 +1046,541 @@ export class MeetsService {
     }, {});
   }
 
-  async addAttendee(meetId: string, dto: CreateMeetAttendeeDto) {
-    const created = await this.db.getClient().transaction(async (trx) => {
-      const [attendee] = await trx("meet_attendees").insert(
-        {
-          meet_id: meetId,
-          user_id: dto.userId ?? null,
-          name: dto.name ?? null,
-          phone: dto.phone ?? null,
-          email: dto.email ?? null,
-          guests: dto.guests ?? null,
-          indemnity_accepted: dto.indemnityAccepted ?? null,
-          indemnity_minors: dto.indemnityMinors ?? null,
-        },
-        ["*"],
-      );
-      if (dto.metaValues && dto.metaValues.length > 0) {
-        const records = dto.metaValues
-          .filter(
-            (value) =>
-              value.value !== undefined &&
-              value.value !== null &&
-              value.value !== "",
-          )
-          .map((value) => ({
+  async addAttendee(
+    meetId: string,
+    dto: CreateMeetAttendeeDto,
+    context?: { ip?: string; userAgent?: string; locale?: string },
+  ) {
+    try {
+      const created = await this.db.getClient().transaction(async (trx) => {
+        const meet = await trx("meets")
+          .where({ id: meetId })
+          .first("capacity", "waitlist_size", "auto_placement", "checkin_pin");
+        if (!meet) {
+          throw new NotFoundException("Meet not found");
+        }
+
+        const guardianName =
+          dto.GuardianName ?? (dto as any).guardianName ?? null;
+        const acceptedByName =
+          dto.isMinor && guardianName ? guardianName : (dto.name ?? null);
+        const contactEmail = dto.email?.trim() || undefined;
+        const contactPhone = dto.phone?.trim() || undefined;
+        const shouldCheckInOnSignup = Boolean(
+          dto.checkinPin &&
+          meet.checkin_pin &&
+          dto.checkinPin.trim() === meet.checkin_pin,
+        );
+
+        if (contactEmail || contactPhone) {
+          const invitedQuery = trx("meet_attendees")
+            .where({ meet_id: meetId })
+            .andWhere("status", "invited");
+          if (contactEmail && contactPhone) {
+            invitedQuery.andWhere((builder) => {
+              builder
+                .whereRaw("lower(email) = ?", [contactEmail.toLowerCase()])
+                .orWhere({ phone: contactPhone });
+            });
+          } else if (contactEmail) {
+            invitedQuery.andWhereRaw("lower(email) = ?", [
+              contactEmail.toLowerCase(),
+            ]);
+          } else if (contactPhone) {
+            invitedQuery.andWhere({ phone: contactPhone });
+          }
+          const candidates = await invitedQuery.select(
+            "id",
+            "name",
+            "email",
+            "phone",
+            "user_id",
+          );
+          const normalizedName = (dto.name || "").trim().toLowerCase();
+          let invited = candidates.length === 1 ? candidates[0] : undefined;
+          if (!invited && dto.isMinor && normalizedName && candidates.length) {
+            const nameMatches = candidates.filter(
+              (row) =>
+                row.name && row.name.trim().toLowerCase() === normalizedName,
+            );
+            if (nameMatches.length === 1) {
+              invited = nameMatches[0];
+            }
+          }
+          if (!invited && contactPhone && candidates.length) {
+            const phoneMatches = candidates.filter(
+              (row) => row.phone && row.phone === contactPhone,
+            );
+            if (phoneMatches.length === 1) {
+              invited = phoneMatches[0];
+            }
+          }
+          if (invited) {
+            const [row] = await trx("meet_attendees")
+              .where({ meet_id: meetId, id: invited.id })
+              .update(
+                {
+                  user_id: dto.userId ?? invited.user_id ?? null,
+                  name: dto.name ?? invited.name,
+                  phone: dto.phone ?? invited.phone,
+                  email: dto.email ?? invited.email,
+                  org1_value: dto.org1Value ?? invited.org1_value ?? null,
+                  org2_value: dto.org2Value ?? invited.org2_value ?? null,
+                  guests: dto.guests ?? invited.guests ?? null,
+                  is_minor: dto.isMinor ?? invited.is_minor ?? false,
+                  guardian_name: guardianName,
+                  indemnity_accepted: dto.indemnityAccepted ?? null,
+                  indemnity_minors: dto.indemnityMinors ?? null,
+                  status: shouldCheckInOnSignup ? "checked-in" : "confirmed",
+                  updated_at: new Date().toISOString(),
+                },
+                ["*"],
+              );
+            if (dto.metaValues) {
+              await trx("meet_meta_values")
+                .where({ meet_id: meetId, attendee_id: invited.id })
+                .del();
+              const records = dto.metaValues
+                .filter(
+                  (value) =>
+                    value.value !== undefined &&
+                    value.value !== null &&
+                    value.value !== "",
+                )
+                .map((value) => ({
+                  meet_id: meetId,
+                  attendee_id: invited.id,
+                  meta_definition_id: value.definitionId,
+                  value: value.value,
+                }));
+              if (records.length > 0) {
+                await trx("meet_meta_values").insert(records);
+              }
+            }
+            if (dto.indemnityAccepted) {
+              const meet = await trx("meets")
+                .where({ id: meetId })
+                .first("indemnity", "time_zone");
+              const indemnityText = meet?.indemnity ?? "";
+              const indemnityHash = indemnityText
+                ? createHash("sha256").update(indemnityText).digest("hex")
+                : null;
+              await trx("meet_attendee_indemnity_acceptances").insert({
+                attendee_id: invited.id,
+                meet_id: meetId,
+                accepted_at: new Date().toISOString(),
+                indemnity_text_hash: indemnityHash,
+                acceptance_ip: context?.ip ?? null,
+                acceptance_user_agent: context?.userAgent ?? null,
+                accepted_by_name: acceptedByName,
+                accepted_by_email: dto.email ?? null,
+                accepted_by_phone: dto.phone ?? null,
+                locale: context?.locale ?? null,
+                time_zone: meet?.time_zone ?? null,
+              });
+            }
+            return row;
+          }
+        }
+
+        let status:
+          | "pending"
+          | "confirmed"
+          | "waitlisted"
+          | "rejected"
+          | "checked-in" = "pending";
+        if (shouldCheckInOnSignup) {
+          status = "checked-in";
+        } else if (meet.auto_placement !== false) {
+          await trx("meets").where({ id: meetId }).forUpdate().first("id");
+          status = await this.computeAutoPlacementStatus(trx, meetId, meet);
+        }
+
+        const sequenceRow = await trx("meet_attendees")
+          .where({ meet_id: meetId })
+          .max("sequence as max")
+          .first();
+        const maxSequence =
+          sequenceRow && (sequenceRow as any).max != null
+            ? Number((sequenceRow as any).max)
+            : 0;
+        const nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
+        const [attendee] = await trx("meet_attendees").insert(
+          {
             meet_id: meetId,
+            user_id: dto.userId ?? null,
+            name: dto.name ?? null,
+            phone: dto.phone ?? null,
+            email: dto.email ?? null,
+            org1_value: dto.org1Value ?? null,
+            org2_value: dto.org2Value ?? null,
+            guests: dto.guests ?? null,
+            guest_of: dto.guestOf ?? null,
+            sequence: nextSequence,
+            is_minor: dto.isMinor ?? false,
+            guardian_name: guardianName,
+            indemnity_accepted: dto.indemnityAccepted ?? null,
+            indemnity_minors: dto.indemnityMinors ?? null,
+            status,
+          },
+          ["*"],
+        );
+        if (dto.indemnityAccepted) {
+          const meet = await trx("meets")
+            .where({ id: meetId })
+            .first("indemnity", "time_zone");
+          const indemnityText = meet?.indemnity ?? "";
+          const indemnityHash = indemnityText
+            ? createHash("sha256").update(indemnityText).digest("hex")
+            : null;
+          await trx("meet_attendee_indemnity_acceptances").insert({
             attendee_id: attendee.id,
-            meta_definition_id: value.definitionId,
-            value: value.value,
-          }));
-        if (records.length > 0) {
-          await trx("meet_meta_values").insert(records);
+            meet_id: meetId,
+            accepted_at: new Date().toISOString(),
+            indemnity_text_hash: indemnityHash,
+            acceptance_ip: context?.ip ?? null,
+            acceptance_user_agent: context?.userAgent ?? null,
+            accepted_by_name: acceptedByName,
+            accepted_by_email: dto.email ?? null,
+            accepted_by_phone: dto.phone ?? null,
+            locale: context?.locale ?? null,
+            time_zone: meet?.time_zone ?? null,
+          });
+        }
+        if (dto.metaValues && dto.metaValues.length > 0) {
+          const records = dto.metaValues
+            .filter(
+              (value) =>
+                value.value !== undefined &&
+                value.value !== null &&
+                value.value !== "",
+            )
+            .map((value) => ({
+              meet_id: meetId,
+              attendee_id: attendee.id,
+              meta_definition_id: value.definitionId,
+              value: value.value,
+            }));
+          if (records.length > 0) {
+            await trx("meet_meta_values").insert(records);
+          }
+        }
+        return attendee;
+      });
+      return { attendee: this.toAttendeeDto(created) };
+    } catch (error: any) {
+      if (this.isAttendeeDuplicateError(error)) {
+        throw new ConflictException(
+          "This user is already signed up for this meet",
+        );
+      }
+      throw error;
+    }
+  }
+
+  async autoPlaceAttendees(meetId: string, attendeeId: string) {
+    const updated = await this.db.getClient().transaction(async (trx) => {
+      // Lock the meet row so placements are consistent under concurrency.
+      const meet = await trx("meets")
+        .where({ id: meetId })
+        .forUpdate()
+        .first("capacity", "waitlist_size", "auto_placement");
+      if (!meet) {
+        throw new NotFoundException("Meet not found");
+      }
+
+      const existing = await trx("meet_attendees")
+        .where({ meet_id: meetId, id: attendeeId })
+        .first("*");
+      if (!existing) {
+        throw new NotFoundException("Attendee not found");
+      }
+
+      if (meet.auto_placement === false || existing.status !== "pending") {
+        return existing;
+      }
+
+      const status = await this.computeAutoPlacementStatus(trx, meetId, meet);
+      const [row] = await trx("meet_attendees")
+        .where({ meet_id: meetId, id: attendeeId })
+        .update(
+          {
+            status,
+            updated_at: new Date().toISOString(),
+          },
+          ["*"],
+        );
+      return row ?? existing;
+    });
+
+    return { attendee: this.toAttendeeDto(updated) };
+  }
+
+  async addInvitedAttendees(
+    meetId: string,
+    attendees: InvitedAttendeeUploadInput[],
+  ) {
+    if (!attendees.length) return { created: 0, skipped: 0, conflicts: [] };
+    return this.db.getClient().transaction(async (trx) => {
+      const existingAttendees = await trx("meet_attendees")
+        .where({ meet_id: meetId })
+        .select("id", "name", "email", "phone", "is_minor");
+
+      const seenEmailNameKeys = new Set(
+        existingAttendees.map((attendee: any) =>
+          this.buildAttendeeEmailNameKey(attendee),
+        ),
+      );
+      const seenNamesByEmail = new Map<string, Set<string>>();
+      const displayNamesByEmail = new Map<string, Set<string>>();
+      const existingAttendeesByEmail = new Map<string, any[]>();
+      const trackKnownAttendee = (attendee: {
+        name?: string | null;
+        email?: string | null;
+      }) => {
+        const emailKey = this.normalizeAttendeeEmail(attendee.email);
+        const nameKey = this.normalizeAttendeeName(attendee.name);
+        const displayName = attendee.name?.trim();
+        if (!emailKey || !nameKey) return;
+
+        const knownNames = seenNamesByEmail.get(emailKey) ?? new Set<string>();
+        knownNames.add(nameKey);
+        seenNamesByEmail.set(emailKey, knownNames);
+
+        if (displayName) {
+          const displayNames =
+            displayNamesByEmail.get(emailKey) ?? new Set<string>();
+          displayNames.add(displayName);
+          displayNamesByEmail.set(emailKey, displayNames);
+        }
+      };
+      existingAttendees.forEach((attendee: any) => {
+        trackKnownAttendee(attendee);
+        const emailKey = this.normalizeAttendeeEmail(attendee.email);
+        const rows = existingAttendeesByEmail.get(emailKey) ?? [];
+        rows.push(attendee);
+        existingAttendeesByEmail.set(emailKey, rows);
+      });
+      const sequenceRow = await trx("meet_attendees")
+        .where({ meet_id: meetId })
+        .max("sequence as max")
+        .first();
+      const maxSequence =
+        sequenceRow && (sequenceRow as any).max != null
+          ? Number((sequenceRow as any).max)
+          : 0;
+      let nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
+      const metaRecords: Array<{
+        meet_id: string;
+        attendee_id: string;
+        meta_definition_id: string;
+        value: string;
+      }> = [];
+      let created = 0;
+      let skipped = 0;
+      const conflicts: InvitedAttendeeUploadConflict[] = [];
+      for (const attendee of attendees) {
+        const emailKey = this.normalizeAttendeeEmail(attendee.email);
+        const nameKey = this.normalizeAttendeeName(attendee.name);
+        const emailNameKey = this.buildAttendeeEmailNameKey(attendee);
+        const knownNames = seenNamesByEmail.get(emailKey);
+
+        if (seenEmailNameKeys.has(emailNameKey)) {
+          skipped += 1;
+          continue;
+        }
+        if (
+          emailKey &&
+          knownNames &&
+          knownNames.size > 0 &&
+          !knownNames.has(nameKey)
+        ) {
+          const matchingExistingAttendees =
+            existingAttendeesByEmail.get(emailKey) ?? [];
+          const preferredTarget = this.pickPreferredConflictTarget(
+            matchingExistingAttendees,
+          );
+          if (!preferredTarget) {
+            skipped += 1;
+            continue;
+          }
+          conflicts.push({
+            rowNumber: attendee.rowNumber,
+            email: attendee.email,
+            uploadedName: attendee.name,
+            conflictingNames: Array.from(
+              displayNamesByEmail.get(emailKey) ?? [],
+            ),
+            existingAttendeeId: preferredTarget.id,
+            attendee: {
+              name: attendee.name,
+              email: attendee.email,
+              phone: attendee.phone,
+              rowNumber: attendee.rowNumber,
+              metaValues: attendee.metaValues,
+            },
+          });
+          continue;
+        }
+
+        seenEmailNameKeys.add(emailNameKey);
+        trackKnownAttendee(attendee);
+        const [row] = await trx("meet_attendees").insert(
+          {
+            meet_id: meetId,
+            user_id: null,
+            name: attendee.name,
+            phone: attendee.phone,
+            email: attendee.email,
+            status: "invited",
+            sequence: nextSequence,
+            is_minor: false,
+          },
+          ["id"],
+        );
+        nextSequence += 1;
+        created += 1;
+        if (attendee.metaValues?.length) {
+          attendee.metaValues
+            .filter(
+              (value) =>
+                value.value !== undefined &&
+                value.value !== null &&
+                String(value.value).trim() !== "",
+            )
+            .forEach((value) => {
+              metaRecords.push({
+                meet_id: meetId,
+                attendee_id: row.id,
+                meta_definition_id: value.definitionId,
+                value: String(value.value),
+              });
+            });
         }
       }
-      return attendee;
+      if (metaRecords.length) {
+        await trx("meet_meta_values").insert(metaRecords);
+      }
+      return { created, skipped, conflicts };
     });
-    return { attendee: this.toAttendeeDto(created) };
+  }
+
+  async resolveInvitedAttendeeUploadConflicts(
+    meetId: string,
+    resolutions: InvitedAttendeeUploadConflictResolution[],
+  ) {
+    if (!resolutions.length) {
+      return { replaced: 0, addedAsMinor: 0, ignored: 0 };
+    }
+
+    return this.db.getClient().transaction(async (trx) => {
+      const sequenceRow = await trx("meet_attendees")
+        .where({ meet_id: meetId })
+        .max("sequence as max")
+        .first();
+      const maxSequence =
+        sequenceRow && (sequenceRow as any).max != null
+          ? Number((sequenceRow as any).max)
+          : 0;
+      let nextSequence = Number.isFinite(maxSequence) ? maxSequence + 1 : 1;
+      let replaced = 0;
+      let addedAsMinor = 0;
+
+      for (const resolution of resolutions) {
+        const existingAttendee = await trx("meet_attendees")
+          .where({ meet_id: meetId, id: resolution.existingAttendeeId })
+          .first("id", "name", "status");
+
+        if (!existingAttendee) {
+          throw new NotFoundException("Conflicting attendee not found");
+        }
+
+        if (resolution.action === "replace") {
+          await trx("meet_attendees")
+            .where({ meet_id: meetId, id: resolution.existingAttendeeId })
+            .update({
+              name: resolution.attendee.name,
+              phone: resolution.attendee.phone,
+              email: resolution.attendee.email,
+              is_minor: false,
+              guardian_name: null,
+              updated_at: new Date().toISOString(),
+            });
+
+          await trx("meet_meta_values")
+            .where({
+              meet_id: meetId,
+              attendee_id: resolution.existingAttendeeId,
+            })
+            .del();
+
+          const records =
+            resolution.attendee.metaValues
+              ?.filter(
+                (value) =>
+                  value.value !== undefined &&
+                  value.value !== null &&
+                  String(value.value).trim() !== "",
+              )
+              .map((value) => ({
+                meet_id: meetId,
+                attendee_id: resolution.existingAttendeeId,
+                meta_definition_id: value.definitionId,
+                value: String(value.value),
+              })) ?? [];
+
+          if (records.length) {
+            await trx("meet_meta_values").insert(records);
+          }
+
+          replaced += 1;
+          continue;
+        }
+
+        const [row] = await trx("meet_attendees").insert(
+          {
+            meet_id: meetId,
+            user_id: null,
+            name: resolution.attendee.name,
+            phone: resolution.attendee.phone,
+            email: resolution.attendee.email,
+            status: "invited",
+            sequence: nextSequence,
+            is_minor: true,
+            guardian_name: existingAttendee.name ?? null,
+          },
+          ["id"],
+        );
+        nextSequence += 1;
+
+        const records =
+          resolution.attendee.metaValues
+            ?.filter(
+              (value) =>
+                value.value !== undefined &&
+                value.value !== null &&
+                String(value.value).trim() !== "",
+            )
+            .map((value) => ({
+              meet_id: meetId,
+              attendee_id: row.id,
+              meta_definition_id: value.definitionId,
+              value: String(value.value),
+            })) ?? [];
+
+        if (records.length) {
+          await trx("meet_meta_values").insert(records);
+        }
+
+        addedAsMinor += 1;
+      }
+
+      return {
+        replaced,
+        addedAsMinor,
+        ignored: 0,
+      };
+    });
   }
 
   async updateAttendee(
@@ -649,61 +1589,76 @@ export class MeetsService {
     dto: UpdateMeetAttendeeDto,
     options?: { resetCancelledToPending?: boolean },
   ) {
-    const updated = await this.db.getClient().transaction(async (trx) => {
-      let statusOverride: string | undefined;
-      if (options?.resetCancelledToPending) {
-        const existing = await trx("meet_attendees")
+    try {
+      const updated = await this.db.getClient().transaction(async (trx) => {
+        const guardianName =
+          dto.GuardianName ?? (dto as any).guardianName ?? undefined;
+        let statusOverride: string | undefined;
+        if (options?.resetCancelledToPending) {
+          const existing = await trx("meet_attendees")
+            .where({ meet_id: meetId, id: attendeeId })
+            .first("status");
+          if (existing?.status === "cancelled") {
+            statusOverride = "pending";
+          }
+        }
+        const [row] = await trx("meet_attendees")
           .where({ meet_id: meetId, id: attendeeId })
-          .first("status");
-        if (existing?.status === "cancelled") {
-          statusOverride = "pending";
+          .update(
+            {
+              name: dto.name,
+              phone: dto.phone,
+              email: dto.email,
+              org1_value: dto.org1Value,
+              org2_value: dto.org2Value,
+              guests: dto.guests,
+              is_minor: dto.isMinor,
+              guardian_name: guardianName,
+              indemnity_accepted: dto.indemnityAccepted,
+              indemnity_minors: dto.indemnityMinors,
+              status: statusOverride ?? dto.status,
+              user_id: dto.userId,
+              paid_full_at: dto.paidFullAt,
+              paid_deposit_at: dto.paidDepositAt,
+              updated_at: new Date().toISOString(),
+            },
+            ["*"],
+          );
+        if (!row) {
+          throw new NotFoundException("Attendee not found");
         }
-      }
-      const [row] = await trx("meet_attendees")
-        .where({ meet_id: meetId, id: attendeeId })
-        .update(
-          {
-            name: dto.name,
-            phone: dto.phone,
-            email: dto.email,
-            guests: dto.guests,
-            indemnity_accepted: dto.indemnityAccepted,
-            indemnity_minors: dto.indemnityMinors,
-            status: statusOverride ?? dto.status,
-            user_id: dto.userId,
-            paid_full_at: dto.paidFullAt,
-            paid_deposit_at: dto.paidDepositAt,
-            updated_at: new Date().toISOString(),
-          },
-          ["*"],
+        if (dto.metaValues) {
+          await trx("meet_meta_values")
+            .where({ meet_id: meetId, attendee_id: attendeeId })
+            .del();
+          const records = dto.metaValues
+            .filter(
+              (value) =>
+                value.value !== undefined &&
+                value.value !== null &&
+                value.value !== "",
+            )
+            .map((value) => ({
+              meet_id: meetId,
+              attendee_id: attendeeId,
+              meta_definition_id: value.definitionId,
+              value: value.value,
+            }));
+          if (records.length > 0) {
+            await trx("meet_meta_values").insert(records);
+          }
+        }
+        return row;
+      });
+      return { attendee: this.toAttendeeDto(updated) };
+    } catch (error: any) {
+      if (this.isAttendeeDuplicateError(error)) {
+        throw new ConflictException(
+          "This user is already signed up for this meet",
         );
-      if (!row) {
-        throw new NotFoundException("Attendee not found");
       }
-      if (dto.metaValues) {
-        await trx("meet_meta_values")
-          .where({ meet_id: meetId, attendee_id: attendeeId })
-          .del();
-        const records = dto.metaValues
-          .filter(
-            (value) =>
-              value.value !== undefined &&
-              value.value !== null &&
-              value.value !== "",
-          )
-          .map((value) => ({
-            meet_id: meetId,
-            attendee_id: attendeeId,
-            meta_definition_id: value.definitionId,
-            value: value.value,
-          }));
-        if (records.length > 0) {
-          await trx("meet_meta_values").insert(records);
-        }
-      }
-      return row;
-    });
-    return { attendee: this.toAttendeeDto(updated) };
+      throw error;
+    }
   }
 
   async updateAttendeesNotified(meetId: string, attendeeIds: string[]) {
@@ -717,29 +1672,425 @@ export class MeetsService {
     return { updated: updatedRows };
   }
 
+  async listImages(meetId: string) {
+    const images = await this.db
+      .getClient()("meet_images")
+      .where({ meet_id: meetId })
+      .orderBy([
+        { column: "is_primary", order: "desc" },
+        { column: "created_at", order: "desc" },
+        { column: "id", order: "desc" },
+      ])
+      .select("*");
+
+    return {
+      images: images.map((image) => this.toMeetImageDto(image)),
+    };
+  }
+
   async addImage(meetId: string, file: any, dto: CreateMeetImageDto) {
     const extension = file.mimetype.split("/")[1] || "jpg";
     const objectKey = `meets/${meetId}/${uuid()}.${extension}`;
+    const aspect = detectMeetImageAspect(file.buffer);
     const uploaded = await this.minio.upload(
       objectKey,
       file.buffer,
       file.mimetype,
     );
-    const [created] = await this.db
-      .getClient()("meet_images")
-      .insert(
+
+    return this.db.getClient().transaction(async (trx) => {
+      const existingPrimary = await trx("meet_images")
+        .where({ meet_id: meetId, is_primary: true })
+        .first("id");
+      const shouldBePrimary = dto.isPrimary ?? !existingPrimary;
+
+      if (shouldBePrimary) {
+        await trx("meet_images")
+          .where({ meet_id: meetId })
+          .update({ is_primary: false });
+      }
+
+      const [created] = await trx("meet_images").insert(
         {
           meet_id: meetId,
           object_key: uploaded.objectKey,
           url: uploaded.url,
           content_type: file.mimetype,
           size_bytes: file.size,
-          is_primary: dto.isPrimary ?? false,
+          aspect,
+          is_primary: shouldBePrimary,
           created_at: new Date().toISOString(),
         },
         ["*"],
       );
-    return { image: created };
+
+      return { image: this.toMeetImageDto(created) };
+    });
+  }
+
+  async updateImage(meetId: string, imageId: string, dto: UpdateMeetImageDto) {
+    return this.db.getClient().transaction(async (trx) => {
+      const existing = await trx("meet_images")
+        .where({ meet_id: meetId, id: imageId })
+        .first("*");
+
+      if (!existing) {
+        throw new NotFoundException("Meet image not found");
+      }
+
+      if (dto.isPrimary === true) {
+        await trx("meet_images")
+          .where({ meet_id: meetId })
+          .update({ is_primary: false });
+      }
+
+      const [updated] = await trx("meet_images")
+        .where({ meet_id: meetId, id: imageId })
+        .update(
+          {
+            is_primary:
+              dto.isPrimary !== undefined ? dto.isPrimary : existing.is_primary,
+          },
+          ["*"],
+        );
+
+      return { image: this.toMeetImageDto(updated) };
+    });
+  }
+
+  async removeImage(meetId: string, imageId: string) {
+    let objectKeyToRemove: string | undefined;
+
+    const result = await this.db.getClient().transaction(async (trx) => {
+      const existing = await trx("meet_images")
+        .where({ meet_id: meetId, id: imageId })
+        .first("*");
+
+      if (!existing) {
+        throw new NotFoundException("Meet image not found");
+      }
+
+      objectKeyToRemove = existing.object_key ?? undefined;
+
+      await trx("meet_images").where({ meet_id: meetId, id: imageId }).del();
+
+      if (existing.is_primary) {
+        const replacement = await trx("meet_images")
+          .where({ meet_id: meetId })
+          .orderBy([
+            { column: "created_at", order: "desc" },
+            { column: "id", order: "desc" },
+          ])
+          .first("id");
+
+        if (replacement?.id) {
+          await trx("meet_images")
+            .where({ meet_id: meetId, id: replacement.id })
+            .update({ is_primary: true });
+        }
+      }
+
+      return { removed: true };
+    });
+
+    if (objectKeyToRemove) {
+      await this.minio.remove(objectKeyToRemove);
+    }
+
+    return result;
+  }
+
+  async findMeetAttendeeByUser(meetId: string, userId: string) {
+    const attendee = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, user_id: userId })
+      .first();
+    return attendee ? this.toAttendeeDto(attendee) : null;
+  }
+
+  async findMeetAttendeeById(meetId: string, attendeeId: string) {
+    const attendee = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, id: attendeeId })
+      .first();
+    return attendee ? this.toAttendeeDto(attendee) : null;
+  }
+
+  async createWallItem(
+    meetId: string,
+    dto: CreateWallItemDto,
+    file?: any,
+    actor?: { userId?: string; attendeeId?: string | null },
+  ) {
+    const comment = dto.comment?.trim() || null;
+    const stars =
+      dto.stars === undefined || dto.stars === null ? null : Number(dto.stars);
+
+    if (!comment && stars == null && !file) {
+      throw new BadRequestException(
+        "A comment, rating, or photo is required for a wall item",
+      );
+    }
+
+    let uploaded:
+      | {
+          objectKey: string;
+          url: string;
+        }
+      | undefined;
+    let aspect: string | null = null;
+
+    if (file) {
+      const extension = this.getFileExtension(file.originalname);
+      const objectKey = `wall/${meetId}/${uuid()}${extension}`;
+      uploaded = await this.minio.upload(
+        objectKey,
+        file.buffer,
+        file.mimetype || "application/octet-stream",
+      );
+      aspect = detectMeetImageAspect(file.buffer);
+    }
+
+    const [wallItem] = await this.db
+      .getClient()("wall_item")
+      .insert(
+        {
+          meet_id: meetId,
+          created_by: actor?.userId ?? null,
+          attendee_id: actor?.attendeeId ?? null,
+          comment,
+          stars,
+          object_key: uploaded?.objectKey ?? null,
+          url: uploaded?.url ?? null,
+          content_type: file?.mimetype ?? null,
+          size_bytes:
+            file?.size === undefined || file?.size === null ? null : file.size,
+          aspect,
+        },
+        ["*"],
+      );
+
+    return this.getWallItem(meetId, wallItem.id, actor);
+  }
+
+  async listWallItems(
+    meetId: string,
+    actor?: { userId?: string; attendeeId?: string | null },
+  ) {
+    const wallItems = await this.db
+      .getClient()("wall_item as wi")
+      .leftJoin("users as u", "u.id", "wi.created_by")
+      .leftJoin("meet_attendees as ma", "ma.id", "wi.attendee_id")
+      .where({ "wi.meet_id": meetId })
+      .orderBy("wi.created_at", "desc")
+      .orderBy("wi.id", "desc")
+      .select(
+        "wi.*",
+        "u.first_name as author_first_name",
+        "u.last_name as author_last_name",
+        "u.email as author_email",
+        "u.idp_profile as author_idp_profile",
+        "ma.name as attendee_name",
+      );
+
+    if (!wallItems.length) {
+      return { wallItems: [] as WallItemDto[] };
+    }
+
+    const likes = await this.db
+      .getClient()("wall_item_likes")
+      .whereIn(
+        "wall_item_id",
+        wallItems.map((wallItem: any) => wallItem.id),
+      )
+      .select("wall_item_id", "user_id", "attendee_id", "reaction");
+
+    return {
+      wallItems: wallItems.map((wallItem: any) =>
+        this.toWallItemDto(wallItem, likes, actor),
+      ),
+    };
+  }
+
+  async updateWallItemFavourite(
+    meetId: string,
+    wallItemId: string,
+    favourite: number,
+  ) {
+    const [wallItem] = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .update({ favourite }, ["*"]);
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    return { wallItem: this.toWallItemDto(wallItem) };
+  }
+
+  async updateWallItemComment(
+    meetId: string,
+    wallItemId: string,
+    comment: string,
+    actor: { userId?: string; attendeeId?: string | null },
+  ) {
+    const trimmedComment = comment?.trim();
+
+    if (!trimmedComment) {
+      throw new BadRequestException("Comment is required");
+    }
+
+    const existingWallItem = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .first();
+
+    if (!existingWallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const canEdit =
+      (Boolean(actor.userId) && existingWallItem.created_by === actor.userId) ||
+      (Boolean(actor.attendeeId) &&
+        existingWallItem.attendee_id === actor.attendeeId);
+
+    if (!canEdit) {
+      throw new ForbiddenException(
+        "You do not have permission to edit this wall item",
+      );
+    }
+
+    await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .update({ comment: trimmedComment });
+
+    return this.getWallItem(meetId, wallItemId, actor);
+  }
+
+  async orderWallItemFavourites(meetId: string, wallItemIds: string[]) {
+    const existingIds = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId })
+      .whereIn("id", wallItemIds)
+      .pluck<string>("id");
+
+    if (existingIds.length !== wallItemIds.length) {
+      throw new NotFoundException("One or more wall items were not found");
+    }
+
+    await this.db.getClient().transaction(async (trx) => {
+      await trx("wall_item")
+        .where({ meet_id: meetId })
+        .where("favourite", ">", 0)
+        .update({ favourite: 0 });
+
+      for (const [index, wallItemId] of wallItemIds.entries()) {
+        await trx("wall_item")
+          .where({ meet_id: meetId, id: wallItemId })
+          .update({ favourite: wallItemIds.length - index });
+      }
+    });
+
+    const { wallItems } = await this.listWallItems(meetId);
+    const favouriteIds = new Set(wallItemIds);
+    return {
+      wallItems: wallItems.filter((wallItem) => favouriteIds.has(wallItem.id)),
+    };
+  }
+
+  async updateWallItemReaction(
+    meetId: string,
+    wallItemId: string,
+    actor: { userId?: string; attendeeId?: string | null },
+    reaction: WallItemReaction,
+  ) {
+    const wallItem = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .first();
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const userId = actor.userId ?? undefined;
+    const attendeeId = actor.attendeeId ?? undefined;
+
+    if (!userId && !attendeeId) {
+      throw new NotFoundException("Reaction actor not found");
+    }
+
+    const likesQuery = this.db.getClient()("wall_item_likes").where({
+      wall_item_id: wallItemId,
+    });
+    if (attendeeId) {
+      likesQuery.andWhere({ attendee_id: attendeeId });
+    } else if (userId) {
+      likesQuery.andWhere({ user_id: userId });
+    }
+
+    const existing = await likesQuery.first("id");
+
+    if (existing) {
+      await this.db
+        .getClient()("wall_item_likes")
+        .where({ id: existing.id })
+        .update({ reaction });
+    } else {
+      await this.db
+        .getClient()("wall_item_likes")
+        .insert(
+          {
+            wall_item_id: wallItemId,
+            user_id: attendeeId ? null : (userId ?? null),
+            attendee_id: attendeeId ?? null,
+            reaction,
+          },
+          ["id"],
+        );
+    }
+
+    return this.getWallItem(meetId, wallItemId, actor);
+  }
+
+  async removeWallItem(
+    meetId: string,
+    wallItemId: string,
+    actor?: {
+      userId?: string;
+      attendeeId?: string | null;
+      canAdminDelete?: boolean;
+    },
+  ) {
+    const wallItem = await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .first();
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const canDelete =
+      Boolean(actor?.canAdminDelete) ||
+      (Boolean(actor?.userId) && wallItem.created_by === actor?.userId) ||
+      (Boolean(actor?.attendeeId) &&
+        wallItem.attendee_id === actor?.attendeeId);
+
+    if (!canDelete) {
+      throw new ForbiddenException(
+        "You do not have permission to remove this wall item",
+      );
+    }
+
+    await this.db
+      .getClient()("wall_item")
+      .where({ meet_id: meetId, id: wallItemId })
+      .del();
+
+    return { deleted: true };
   }
 
   async removeAttendee(meetId: string, attendeeId: string) {
@@ -755,6 +2106,7 @@ export class MeetsService {
 
   private toDbRecord(
     dto: Partial<CreateMeetDto> & { shareCode?: string },
+    existingMeet?: Record<string, any> | null,
     now?: string,
   ) {
     const record: any = {
@@ -769,6 +2121,7 @@ export class MeetsService {
         dto.useMap === false || dto.location === "" ? null : dto.locationLong,
       start_time: dto.startTime,
       end_time: dto.endTime,
+      time_zone: dto.timeZone,
       opening_date: dto.openingDate,
       closing_date: dto.closingDate,
       scheduled_date: dto.scheduledDate,
@@ -779,6 +2132,15 @@ export class MeetsService {
       auto_placement: dto.autoPlacement,
       auto_promote_waitlist: dto.autoPromoteWaitlist,
       allow_guests: dto.allowGuests,
+      checkin_pin: this.resolveCheckinPin(
+        dto.allowSelfCheckin,
+        existingMeet?.checkin_pin,
+      ),
+      allow_walkins: dto.allowWalkins,
+      require_email: dto.requireEmail,
+      require_phone: dto.requirePhone,
+      require_org1: dto.requireOrg1,
+      require_org2: dto.requireOrg2,
       max_guests: dto.maxGuests,
       is_virtual: dto.isVirtual,
       confirm_message: dto.confirmMessage,
@@ -837,6 +2199,38 @@ export class MeetsService {
     return Math.round((amount + Number.EPSILON) * 100);
   }
 
+  private isGoingAttendeeStatus(status?: string | null) {
+    return ["confirmed", "checked-in", "attended"].includes(status ?? "");
+  }
+
+  private async listAttendingAttendeePreviews(meetId: string) {
+    const attendees = await this.db
+      .getClient()("meet_attendees as ma")
+      .leftJoin("users as u", "u.id", "ma.user_id")
+      .where("ma.meet_id", meetId)
+      .whereIn("ma.status", ["confirmed", "checked-in", "attended"])
+      .orderBy([
+        { column: "ma.sequence", order: "asc" },
+        { column: "ma.created_at", order: "asc" },
+      ])
+      .select(
+        "ma.id",
+        "ma.name",
+        "u.first_name",
+        "u.last_name",
+        "u.avatar_url",
+      );
+
+    return attendees.map((attendee: any) => ({
+      id: attendee.id,
+      name:
+        attendee.name?.trim() ||
+        [attendee.first_name, attendee.last_name].filter(Boolean).join(" ") ||
+        "Attendee",
+      avatarUrl: attendee.avatar_url ?? undefined,
+    }));
+  }
+
   private generateShareCode(length: number) {
     const chars = MeetsService.shareCodeChars;
     const bytes = randomBytes(length);
@@ -847,10 +2241,35 @@ export class MeetsService {
     return result;
   }
 
+  private generateCheckinPin() {
+    return this.generateShareCode(6);
+  }
+
+  private resolveCheckinPin(
+    allowSelfCheckin?: boolean,
+    existingCheckinPin?: string | null,
+  ) {
+    if (allowSelfCheckin === undefined) {
+      return undefined;
+    }
+    if (!allowSelfCheckin) {
+      return null;
+    }
+    return existingCheckinPin || this.generateCheckinPin();
+  }
+
   private toMeetDto(
     meet: Record<string, any>,
     metaDefinitions: Record<string, any>[],
+    images: Record<string, any>[] = [],
+    attendingAttendees?: Array<{
+      id: string;
+      name: string;
+      avatarUrl?: string;
+    }>,
   ): MeetDto {
+    const resolvedImages = Array.isArray(images) ? images : [];
+
     return {
       id: meet.id,
       name: meet.name,
@@ -862,6 +2281,7 @@ export class MeetsService {
       locationLong: meet.location_long ?? undefined,
       startTime: meet.start_time ?? undefined,
       endTime: meet.end_time ?? undefined,
+      timeZone: meet.time_zone ?? undefined,
       openingDate: meet.opening_date ?? undefined,
       closingDate: meet.closing_date ?? undefined,
       scheduledDate: meet.scheduled_date ?? undefined,
@@ -872,6 +2292,18 @@ export class MeetsService {
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,
+      allowSelfCheckin:
+        meet.checkin_pin === undefined ? undefined : Boolean(meet.checkin_pin),
+      checkinPin: meet.checkin_pin ?? undefined,
+      allowWalkins: meet.allow_walkins ?? undefined,
+      requireEmail: meet.require_email ?? undefined,
+      requirePhone: meet.require_phone ?? undefined,
+      requireOrg1: meet.require_org1 ?? undefined,
+      requireOrg2: meet.require_org2 ?? undefined,
+      customField1Name: meet.custom_field1_name ?? undefined,
+      customField2Name: meet.custom_field2_name ?? undefined,
+      customField1HelperText: meet.custom_field1_helper_text ?? undefined,
+      customField2HelperText: meet.custom_field2_helper_text ?? undefined,
       maxGuests: meet.max_guests ?? undefined,
       isVirtual: meet.is_virtual ?? undefined,
       confirmMessage: meet.confirm_message ?? undefined,
@@ -892,9 +2324,11 @@ export class MeetsService {
       organizerEmail: meet.organizer_email ?? undefined,
       organizerPhone: meet.organizer_phone ?? undefined,
       imageUrl: meet.primary_image_url ?? meet.image_url ?? undefined,
+      images: resolvedImages.map((image) => this.toMeetImageDto(image)),
       attendeeCount: Number(meet.attendee_count ?? 0),
       confirmedCount: Number(meet.confirmed_count ?? 0),
       waitlistCount: Number(meet.waitlist_count ?? 0),
+      rejectedCount: Number(meet.rejected_count ?? 0),
       checkedInCount: Number(meet.checked_in_count ?? 0),
       startTimeTbc:
         meet.start_time_tbc ?? meet.startTimeTbc ?? meet.times_tbc ?? undefined,
@@ -902,6 +2336,7 @@ export class MeetsService {
       useMap: meet.use_map ?? meet.useMap ?? undefined,
       isHidden: meet.is_hidden ?? undefined,
       myAttendeeStatus: meet.my_attendee_status ?? undefined,
+      attendingAttendees,
       metaDefinitions: metaDefinitions.map((definition) => ({
         id: definition.id,
         fieldKey: definition.field_key,
@@ -912,6 +2347,143 @@ export class MeetsService {
         config: definition.config,
       })),
     };
+  }
+
+  private toMeetImageDto(image: Record<string, any>): MeetImageDto {
+    return {
+      id: image.id,
+      meetId: image.meet_id,
+      url: image.url,
+      isPrimary: Boolean(image.is_primary),
+      aspect: image.aspect ?? "O",
+      objectKey: image.object_key ?? undefined,
+      contentType: image.content_type ?? undefined,
+      sizeBytes:
+        image.size_bytes != null ? Number(image.size_bytes) : undefined,
+      createdAt: image.created_at ?? undefined,
+    };
+  }
+
+  private toWallItemDto(
+    wallItem: Record<string, any>,
+    likes: Array<Record<string, any>> = [],
+    actor?: { userId?: string; attendeeId?: string | null },
+  ): WallItemDto {
+    const itemLikes = likes.filter((like) => like.wall_item_id === wallItem.id);
+    const attendeeReaction = actor?.attendeeId
+      ? itemLikes.find((like) => like.attendee_id === actor.attendeeId)
+      : undefined;
+    const userReaction =
+      attendeeReaction ??
+      (actor?.userId
+        ? itemLikes.find((like) => like.user_id === actor.userId)
+        : undefined);
+    const likeCount = itemLikes.filter(
+      (like) => like.reaction === "like",
+    ).length;
+    const dislikeCount = itemLikes.filter(
+      (like) => like.reaction === "dislike",
+    ).length;
+    const heartCount = itemLikes.filter(
+      (like) => like.reaction === "heart",
+    ).length;
+    const canSeeAttendeeId = Boolean(
+      wallItem.attendee_id &&
+      ((actor?.attendeeId && wallItem.attendee_id === actor.attendeeId) ||
+        (actor?.userId && wallItem.created_by === actor.userId)),
+    );
+
+    return {
+      id: wallItem.id,
+      meetId: wallItem.meet_id,
+      createdBy: wallItem.created_by ?? undefined,
+      attendeeId: canSeeAttendeeId ? wallItem.attendee_id : null,
+      authorName: this.getWallItemAuthorName(wallItem),
+      comment: wallItem.comment ?? undefined,
+      stars: wallItem.stars != null ? Number(wallItem.stars) : undefined,
+      url: wallItem.url ?? undefined,
+      aspect: wallItem.aspect ?? undefined,
+      objectKey: wallItem.object_key ?? undefined,
+      contentType: wallItem.content_type ?? undefined,
+      sizeBytes:
+        wallItem.size_bytes != null ? Number(wallItem.size_bytes) : undefined,
+      favourite: Number(wallItem.favourite ?? 0),
+      likesCount: likeCount,
+      dislikesCount: dislikeCount,
+      heartsCount: heartCount,
+      likedByMe: userReaction?.reaction === "like",
+      myReaction: userReaction?.reaction ?? undefined,
+      createdAt: wallItem.created_at ?? undefined,
+    };
+  }
+
+  private async getWallItem(
+    meetId: string,
+    wallItemId: string,
+    actor?: { userId?: string; attendeeId?: string | null },
+  ) {
+    const wallItem = await this.db
+      .getClient()("wall_item as wi")
+      .leftJoin("users as u", "u.id", "wi.created_by")
+      .leftJoin("meet_attendees as ma", "ma.id", "wi.attendee_id")
+      .where({ "wi.meet_id": meetId, "wi.id": wallItemId })
+      .first(
+        "wi.*",
+        "u.first_name as author_first_name",
+        "u.last_name as author_last_name",
+        "u.email as author_email",
+        "u.idp_profile as author_idp_profile",
+        "ma.name as attendee_name",
+      );
+
+    if (!wallItem) {
+      throw new NotFoundException("Wall item not found");
+    }
+
+    const likes = await this.db
+      .getClient()("wall_item_likes")
+      .where({ wall_item_id: wallItemId })
+      .select("wall_item_id", "user_id", "attendee_id", "reaction");
+
+    return { wallItem: this.toWallItemDto(wallItem, likes, actor) };
+  }
+
+  private getFileExtension(filename?: string) {
+    const cleaned = filename?.trim();
+    if (!cleaned) return "";
+    const lastDot = cleaned.lastIndexOf(".");
+    if (lastDot <= 0) return "";
+    return cleaned.slice(lastDot);
+  }
+
+  private getWallItemAuthorName(wallItem: Record<string, any>) {
+    const attendeeName = wallItem.attendee_name?.trim();
+    if (attendeeName) {
+      return attendeeName;
+    }
+
+    const firstName = wallItem.author_first_name?.trim() ?? "";
+    const lastName = wallItem.author_last_name?.trim() ?? "";
+    const fullName = `${firstName} ${lastName}`.trim();
+    if (fullName) {
+      return fullName;
+    }
+
+    const profileName =
+      wallItem.author_idp_profile &&
+      typeof wallItem.author_idp_profile === "object"
+        ? wallItem.author_idp_profile.name
+        : undefined;
+    if (typeof profileName === "string" && profileName.trim()) {
+      return profileName.trim();
+    }
+
+    const email = wallItem.author_email?.trim();
+    if (email) {
+      return email.split("@")[0];
+    }
+
+    return undefined;
   }
 
   private async syncMetaDefinitions(
@@ -931,10 +2503,188 @@ export class MeetsService {
         config: definition.config ?? {},
       }))
       .filter((definition) => definition.label);
+    const updatedAtValue = trx.fn?.now
+      ? trx.fn.now()
+      : new Date().toISOString();
 
-    await trx("meet_meta_definitions").where({ meet_id: meetId }).del();
-    if (cleaned.length > 0) {
-      await trx("meet_meta_definitions").insert(cleaned);
+    const existing = (await trx("meet_meta_definitions")
+      .where({ meet_id: meetId })
+      .select("id", "field_key")) as Array<{
+      id: string;
+      field_key: string;
+    }>;
+
+    const existingById = new Map(
+      existing.map((definition) => [definition.id, definition]),
+    );
+    const existingByFieldKey = new Map(
+      existing.map((definition) => [definition.field_key, definition]),
+    );
+
+    const matchedExistingIds = new Set<string>();
+    const updates: Array<{
+      id: string;
+      field_key: string;
+      label: string;
+      field_type: string;
+      required: boolean;
+      position: number;
+      config: Record<string, any>;
+    }> = [];
+    const inserts: Array<{
+      meet_id: string;
+      field_key: string;
+      label: string;
+      field_type: string;
+      required: boolean;
+      position: number;
+      config: Record<string, any>;
+    }> = [];
+
+    cleaned.forEach((definition) => {
+      const matchedById =
+        definition.id && existingById.has(definition.id)
+          ? existingById.get(definition.id)
+          : undefined;
+      const matchedByFieldKey =
+        !matchedById && existingByFieldKey.has(definition.field_key)
+          ? existingByFieldKey.get(definition.field_key)
+          : undefined;
+      const matched =
+        matchedById ??
+        (matchedByFieldKey && !matchedExistingIds.has(matchedByFieldKey.id)
+          ? matchedByFieldKey
+          : undefined);
+
+      if (matched) {
+        matchedExistingIds.add(matched.id);
+        updates.push({
+          id: matched.id,
+          field_key: definition.field_key,
+          label: definition.label,
+          field_type: definition.field_type,
+          required: definition.required,
+          position: definition.position,
+          config: definition.config,
+        });
+        return;
+      }
+
+      inserts.push({
+        meet_id: definition.meet_id,
+        field_key: definition.field_key,
+        label: definition.label,
+        field_type: definition.field_type,
+        required: definition.required,
+        position: definition.position,
+        config: definition.config,
+      });
+    });
+
+    const idsToDelete = existing
+      .filter((definition) => !matchedExistingIds.has(definition.id))
+      .map((definition) => definition.id);
+
+    if (idsToDelete.length > 0) {
+      const answeredMetaDefinition = await trx("meet_meta_values")
+        .whereIn("meta_definition_id", idsToDelete)
+        .first("meta_definition_id");
+
+      if (answeredMetaDefinition) {
+        throw new BadRequestException(
+          "You cannot remove a meet question that already has attendee answers.",
+        );
+      }
+
+      await trx("meet_meta_definitions")
+        .where({ meet_id: meetId })
+        .whereIn("id", idsToDelete)
+        .del();
+    }
+
+    for (const definition of updates) {
+      await trx("meet_meta_definitions")
+        .where({ meet_id: meetId, id: definition.id })
+        .update({
+          field_key: `tmp_sync_${definition.id}`,
+          updated_at: updatedAtValue,
+        });
+    }
+
+    for (const definition of updates) {
+      await trx("meet_meta_definitions")
+        .where({ meet_id: meetId, id: definition.id })
+        .update({
+          field_key: definition.field_key,
+          label: definition.label,
+          field_type: definition.field_type,
+          required: definition.required,
+          position: definition.position,
+          config: definition.config,
+          updated_at: updatedAtValue,
+        });
+    }
+
+    if (inserts.length > 0) {
+      await trx("meet_meta_definitions").insert(inserts);
+    }
+  }
+
+  private async addOrganizerAsAttendee(
+    trx: any,
+    meetId: string,
+    organizerId: string,
+    now: string,
+  ) {
+    const organizer = await trx("users")
+      .where({ id: organizerId })
+      .first("first_name", "last_name", "email", "phone");
+    const organizerName = organizer
+      ? `${organizer.first_name ?? ""} ${organizer.last_name ?? ""}`.trim()
+      : "";
+    const [attendee] = await trx("meet_attendees").insert(
+      {
+        meet_id: meetId,
+        user_id: organizerId,
+        name: organizerName || null,
+        email: organizer?.email ?? null,
+        phone: organizer?.phone ?? null,
+        status: "confirmed",
+        responded_at: now,
+        created_at: now,
+        updated_at: now,
+      },
+      ["*"],
+    );
+    const previousAnswers = await this.findPreviousAnswers(
+      organizerId,
+      meetId,
+      trx,
+    );
+    const metaDefinitions = await trx("meet_meta_definitions")
+      .where({ meet_id: meetId })
+      .select("id", "field_key");
+    const metaRecords = metaDefinitions
+      .map((definition: { id: string; field_key: string }) => {
+        const value = previousAnswers[definition.field_key];
+        if (value === undefined || value === null || value === "") {
+          return null;
+        }
+        return {
+          meet_id: meetId,
+          attendee_id: attendee.id,
+          meta_definition_id: definition.id,
+          value,
+        };
+      })
+      .filter(Boolean) as Array<{
+      meet_id: string;
+      attendee_id: string;
+      meta_definition_id: string;
+      value: string;
+    }>;
+    if (metaRecords.length > 0) {
+      await trx("meet_meta_values").insert(metaRecords);
     }
   }
 
@@ -942,6 +2692,8 @@ export class MeetsService {
     const rows = await this.db
       .getClient()("messages as m")
       .join("message_contents as mc", "mc.id", "m.message_content_id")
+      .join("meet_attendees as ma", "ma.id", "m.attendee_id")
+      .leftJoin("outbound_emails as oe", "oe.id", "m.outbound_email_id")
       .where("m.meet_id", meetId)
       .andWhere("m.attendee_id", attendeeId)
       .orderBy("m.timestamp", "desc")
@@ -952,6 +2704,10 @@ export class MeetsService {
         "m.to",
         "m.is_read",
         "mc.content",
+        "ma.email as attendee_email",
+        "oe.status as email_status",
+        "oe.recipient_email",
+        "oe.opened_at",
       );
     return rows.map((row: any) => ({
       id: row.message_id,
@@ -960,6 +2716,90 @@ export class MeetsService {
       to: row.to,
       isRead: row.is_read ?? false,
       content: row.content,
+      emailStatus: row.email_status ?? null,
+      recipientEmail: row.recipient_email ?? null,
+      openedAt: row.opened_at ?? null,
+      direction: this.getAttendeeMessageDirection(
+        row.from,
+        row.to,
+        row.attendee_email,
+      ),
+    }));
+  }
+
+  private getAttendeeMessageDirection(
+    from: string | null | undefined,
+    to: string | null | undefined,
+    attendeeEmail: string | null | undefined,
+  ): "received" | "sent" {
+    const normalizedAttendeeEmail = attendeeEmail?.trim().toLowerCase();
+    if (!normalizedAttendeeEmail) return "sent";
+
+    const fromEmails = this.extractEmailAddresses(from);
+    if (fromEmails.includes(normalizedAttendeeEmail)) {
+      return "received";
+    }
+
+    const toEmails = this.extractEmailAddresses(to);
+    if (toEmails.includes(normalizedAttendeeEmail)) {
+      return "sent";
+    }
+
+    return "sent";
+  }
+
+  private extractEmailAddresses(value: string | null | undefined) {
+    if (!value) return [];
+
+    const matches =
+      value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [];
+    return matches.map((email) => email.trim().toLowerCase());
+  }
+
+  async listAttendeeHistory(meetId: string, attendeeId: string) {
+    const attendee = await this.db
+      .getClient()("meet_attendees")
+      .join("meets", "meets.id", "meet_attendees.meet_id")
+      .where({
+        "meet_attendees.meet_id": meetId,
+        "meet_attendees.id": attendeeId,
+      })
+      .first("meet_attendees.email", "meets.organization_id");
+
+    if (!attendee) {
+      throw new NotFoundException("Attendee not found");
+    }
+
+    const email = attendee.email?.trim().toLowerCase();
+    const organizationId = attendee.organization_id;
+    if (!email) {
+      return [];
+    }
+
+    const rows = await this.db
+      .getClient()("meet_attendees as ma")
+      .join("meets as m", "m.id", "ma.meet_id")
+      .whereRaw("LOWER(ma.email) = ?", [email])
+      .andWhere("m.organization_id", organizationId)
+      .andWhere("ma.is_minor", false)
+      .andWhereNot("ma.id", attendeeId)
+      .orderBy("m.start_time", "desc")
+      .select(
+        "ma.meet_id",
+        "ma.status",
+        "m.status_id",
+        "m.start_time",
+        "m.name",
+      );
+
+    return rows.map((row: any) => ({
+      meetId: row.meet_id,
+      date: row.start_time,
+      meetName: row.name,
+      attendeeStatus:
+        row.status_id === MEET_STATUS.Completed && row.status === "confirmed"
+          ? "no-show"
+          : row.status,
     }));
   }
 
@@ -980,15 +2820,20 @@ export class MeetsService {
       status: attendee.status ?? undefined,
       sequence: attendee.sequence ?? undefined,
       respondedAt: attendee.responded_at ?? undefined,
-      notifiedAt: attendee.notified_at ?? undefined,
       name: attendee.name ?? undefined,
       phone: attendee.phone ?? undefined,
       email: attendee.email ?? undefined,
+      org1Value: attendee.org1_value ?? undefined,
+      org2Value: attendee.org2_value ?? undefined,
       guests: attendee.guests ?? undefined,
+      guestOf: attendee.guest_of ?? undefined,
+      isMinor: attendee.is_minor ?? undefined,
+      guardianName: attendee.guardian_name ?? undefined,
       indemnityAccepted: attendee.indemnity_accepted ?? undefined,
       indemnityMinors: attendee.indemnity_minors ?? undefined,
       paidFullAt: attendee.paid_full_at ?? undefined,
       paidDepositAt: attendee.paid_deposit_at ?? undefined,
+      hasUnreadMessages: attendee.has_unread_messages === true,
       createdAt: attendee.created_at ?? undefined,
       updatedAt: attendee.updated_at ?? undefined,
     };

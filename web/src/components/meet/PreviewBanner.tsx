@@ -1,8 +1,37 @@
+import { useEffect, useRef } from "react";
 import { Box, Typography } from "@mui/material";
 
 export function PreviewBanner() {
+  const bannerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = bannerRef.current;
+    if (!node) return;
+
+    const setBannerHeightVar = () => {
+      const height = node.getBoundingClientRect().height;
+      document.documentElement.style.setProperty(
+        "--preview-banner-height",
+        `${Math.round(height)}px`,
+      );
+    };
+
+    setBannerHeightVar();
+
+    const resizeObserver = new ResizeObserver(() => {
+      setBannerHeightVar();
+    });
+    resizeObserver.observe(node);
+
+    return () => {
+      resizeObserver.disconnect();
+      document.documentElement.style.setProperty("--preview-banner-height", "0px");
+    };
+  }, []);
+
   return (
     <Box
+      ref={bannerRef}
       sx={{
         position: "fixed",
         top: 0,

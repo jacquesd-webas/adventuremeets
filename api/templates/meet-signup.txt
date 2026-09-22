@@ -1,0 +1,15 @@
+Hi {{attendeeName}},
+
+{{signupAcknowledgement}}
+
+{{#ifStatusUrl}}
+{{viewStatusLabel}}
+{{statusUrl}}
+{{/ifStatusUrl}}
+{{#ifOrganizerEmail}}
+
+Questions? Contact {{organizerName}} at {{organizerEmail}}.
+{{/ifOrganizerEmail}}
+
+Best regards,
+{{fromName}}

@@ -2,12 +2,15 @@ import {
   Box,
   Button,
   Container,
+  Drawer,
   Link,
   Paper,
   Stack,
   TextField,
   Typography,
   Alert,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { useEffect, useRef, useState } from "react";
@@ -23,11 +26,33 @@ import {
 import { PasswordField } from "../components/formFields/PasswordField";
 import { PasswordStrength } from "../components/formFields/PasswordStrength";
 import { useCheckEmailExists } from "../hooks/useCheckEmailExists";
-import { validateEmail, validatePhone, validateRequired } from "../helpers/validation";
+import {
+  validateEmail,
+  validatePhone,
+  validateRequired,
+} from "../helpers/validation";
 import { useApi } from "../hooks/useApi";
 import { getLogoSrc } from "../helpers/logo";
 import { useAuth } from "../context/authContext";
+import { useNotistack } from "../hooks/useNotistack";
+import { useGoogleAuthUrl } from "../hooks/useGoogleAuthUrl";
+import { useFacebookAuthUrl } from "../hooks/useFacebookAuthUrl";
 import zxcvbn from "zxcvbn";
+
+function buildAuthHref(
+  pathname: string,
+  options: { invite?: string | null; organizationId?: string | null },
+) {
+  const params = new URLSearchParams();
+  if (options.invite) {
+    params.set("invite", options.invite);
+  }
+  if (options.organizationId) {
+    params.set("org", options.organizationId);
+  }
+  const search = params.toString();
+  return search ? `${pathname}?${search}` : pathname;
+}
 
 const getPasswordStrength = (value: string) => {
   if (!value) return { score: 0, label: "Enter a password" };
@@ -45,6 +70,8 @@ const getPasswordStrength = (value: string) => {
 };
 
 function RegisterPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const location = useLocation();
   const prefillApplied = useRef(false);
   const [firstName, setFirstName] = useState("");
@@ -65,16 +92,42 @@ function RegisterPage() {
     null | "google" | "microsoft" | "facebook" | "email"
   >(null);
   const { registerAsync, isLoading, error } = useRegister();
+  const {
+    getGoogleAuthUrlAsync,
+    isLoading: isGoogleRedirecting,
+    error: googleAuthUrlError,
+  } = useGoogleAuthUrl();
+  const {
+    getFacebookAuthUrlAsync,
+    isLoading: isFacebookRedirecting,
+    error: facebookAuthUrlError,
+  } = useFacebookAuthUrl();
   const { checkEmailExistsAsync } = useCheckEmailExists();
   const api = useApi();
   const nav = useNavigate();
   const { refreshSession } = useAuth();
+  const { success } = useNotistack();
   const [emailError, setEmailError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [firstNameError, setFirstNameError] = useState<string | null>(null);
   const [lastNameError, setLastNameError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const logoSrc = getLogoSrc();
+  const params = new URLSearchParams(location.search);
+  const inviteCode = params.get("invite");
+  const queryOrganizationId = params.get("org");
+  const loginHref = buildAuthHref("/login", {
+    invite: inviteCode,
+    organizationId: queryOrganizationId || organizationId,
+  });
+  const googleRedirectUri =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/oauth/callback/google`
+      : "";
+  const facebookRedirectUri =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/oauth/callback/facebook`
+      : "";
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as
     | string
     | undefined;
@@ -102,9 +155,58 @@ function RegisterPage() {
     !firstNameError &&
     !lastNameError &&
     !organizationInviteError;
+
+  const handleGoogleSignup = async () => {
+    if (isGoogleRedirecting || !googleRedirectUri) return;
+    try {
+      const state = JSON.stringify({
+        invite: inviteCode || undefined,
+        org: organizationId || queryOrganizationId || undefined,
+        returnTo: pendingMeetLink
+          ? `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
+          : undefined,
+      });
+      const response = await getGoogleAuthUrlAsync({
+        redirectUri: googleRedirectUri,
+        state,
+      });
+      window.location.assign(response.url);
+    } catch {
+      // mutation state already exposes the error via googleAuthUrlError.
+    }
+  };
+
+  const handleFacebookSignup = async () => {
+    if (isFacebookRedirecting || !facebookRedirectUri) return;
+    try {
+      const state = JSON.stringify({
+        invite: inviteCode || undefined,
+        org: organizationId || queryOrganizationId || undefined,
+        returnTo: pendingMeetLink
+          ? `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`
+          : undefined,
+      });
+      const response = await getFacebookAuthUrlAsync({
+        redirectUri: facebookRedirectUri,
+        state,
+      });
+      window.location.assign(response.url);
+    } catch {
+      // mutation state already exposes the error via facebookAuthUrlError.
+    }
+  };
+
   const chooseMethod = (
     method: null | "google" | "microsoft" | "facebook" | "email",
   ) => {
+    if (method === "google") {
+      void handleGoogleSignup();
+      return;
+    }
+    if (method === "facebook") {
+      void handleFacebookSignup();
+      return;
+    }
     setSelectedMethod(method);
     setCaptchaToken(null);
   };
@@ -138,7 +240,6 @@ function RegisterPage() {
           attendeeId: state.attendeeId,
         });
       }
-      setSelectedMethod("email");
       prefillApplied.current = true;
     }
   }, [location.state]);
@@ -218,6 +319,9 @@ function RegisterPage() {
     })
       .then(async () => {
         await refreshSession();
+        success(
+          "We sent a verification code to your email. Enter it in Profile > Security.",
+        );
         if (pendingMeetLink) {
           nav(
             `/meets/${pendingMeetLink.shareCode}/${pendingMeetLink.attendeeId}`,
@@ -258,193 +362,259 @@ function RegisterPage() {
     setLastNameError(validateRequired(lastName, "Last name"));
   };
 
-  return (
-    <Container
-      maxWidth="sm"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        py: 8,
-      }}
-    >
-      {(!selectedMethod || selectedMethod !== "email") && (
-        <Box sx={{ textAlign: "center", mb: 4 }}>
-          <img
-            src={logoSrc}
-            alt="AdventureMeets logo"
-            width={320}
-            height="auto"
-          />
-        </Box>
+  const registerContent = (
+    <>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2,
+        }}
+      >
+        <Typography variant="h5">Create account</Typography>
+      </Box>
+      {googleAuthUrlError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {googleAuthUrlError}
+        </Alert>
+      )}
+      {facebookAuthUrlError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {facebookAuthUrlError}
+        </Alert>
+      )}
+      {isGoogleRedirecting && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Redirecting to Google...
+        </Alert>
+      )}
+      {isFacebookRedirecting && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Redirecting to Facebook...
+        </Alert>
+      )}
+      {!selectedMethod && (
+        <AuthSocialButtons showEmail onSelect={chooseMethod} />
+      )}
+      {selectedMethod && selectedMethod !== "email" && (
+        <Stack spacing={2}>
+          <Alert severity="info">
+            Continue with {selectedMethod} is not configured yet.
+          </Alert>
+          <Button variant="text" onClick={() => chooseMethod(null)}>
+            Choose another method
+          </Button>
+        </Stack>
+      )}
+      {selectedMethod === "email" && (
+        <>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error.message}
+            </Alert>
+          )}
+          {organizationInviteError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {organizationInviteError}
+            </Alert>
+          )}
+          <Box component="form" onSubmit={handleSubmit} noValidate>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: 2,
+              }}
+            >
+              <TextField
+                label="First name"
+                required
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  if (firstNameError) setFirstNameError(null);
+                }}
+                onBlur={checkFirstName}
+                error={Boolean(firstNameError)}
+                helperText={firstNameError || undefined}
+                InputProps={{
+                  startAdornment: (
+                    <PersonOutlineIcon
+                      fontSize="small"
+                      sx={{ mr: 1, color: "text.disabled" }}
+                    />
+                  ),
+                }}
+              />
+              <TextField
+                label="Last name"
+                required
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  if (lastNameError) setLastNameError(null);
+                }}
+                onBlur={checkLastName}
+                error={Boolean(lastNameError)}
+                helperText={lastNameError || undefined}
+                InputProps={{
+                  startAdornment: (
+                    <PersonOutlineIcon
+                      fontSize="small"
+                      sx={{ mr: 1, color: "text.disabled" }}
+                    />
+                  ),
+                }}
+              />
+              <InternationalPhoneField
+                label="Phone"
+                required
+                country={phoneCountry}
+                local={phoneLocal}
+                onCountryChange={setPhoneCountry}
+                onLocalChange={(value) => {
+                  setPhoneLocal(value);
+                  if (phoneError) {
+                    setPhoneError(null);
+                  }
+                }}
+                onBlur={checkPhone}
+                error={Boolean(phoneError)}
+                helperText={phoneError || undefined}
+              />
+              <EmailField
+                required
+                value={email}
+                onChange={(value) => {
+                  setEmail(value);
+                  if (emailError) {
+                    setEmailError(null);
+                  }
+                }}
+                onBlur={checkEmail}
+                error={Boolean(emailError)}
+                helperText={emailError || undefined}
+              />
+              <PasswordField
+                label="Password"
+                required
+                value={password}
+                onValueChange={setPassword}
+              />
+              <PasswordStrength
+                label={passwordStrength.label}
+                percent={passwordStrengthPercent}
+                score={passwordStrength.score}
+              />
+              {captchaRequired ? (
+                <Box display="flex" justifyContent="center" sx={{ mt: -1 }}>
+                  <ReCAPTCHA
+                    sitekey={recaptchaSiteKey}
+                    onChange={(token) => setCaptchaToken(token)}
+                    onExpired={() => setCaptchaToken(null)}
+                  />
+                </Box>
+              ) : shouldShowCaptchaWarning ? (
+                <Alert severity="warning" sx={{ mt: -1 }}>
+                  reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
+                  enable.
+                </Alert>
+              ) : null}
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                sx={{ textTransform: "uppercase" }}
+                disabled={!isFormValid || isLoading}
+              >
+                {isLoading ? "Creating..." : "Create account"}
+              </Button>
+            </Box>
+          </Box>
+        </>
       )}
 
-      <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mb: 2,
+      <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
+        <Link href={loginHref}>Already have an account?</Link>
+        {selectedMethod === "email" && (
+          <Link
+            component="button"
+            type="button"
+            onClick={() => chooseMethod(null)}
+          >
+            Choose another method
+          </Link>
+        )}
+      </Stack>
+    </>
+  );
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+      }}
+    >
+      <Container
+        maxWidth="sm"
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          py: isMobile ? 4 : 8,
+        }}
+      >
+        {(!selectedMethod || selectedMethod !== "email") && (
+          <Box sx={{ textAlign: "center", mb: 2 }}>
+            <img
+              src={logoSrc}
+              alt="AdventureMeets logo"
+              width={isMobile ? 260 : 320}
+              height="auto"
+            />
+          </Box>
+        )}
+        {!isMobile && (
+          <Paper elevation={2} sx={{ width: "100%", p: 3 }}>
+            {registerContent}
+          </Paper>
+        )}
+      </Container>
+      {isMobile && (
+        <Drawer
+          anchor="bottom"
+          open={true}
+          onClose={(_event, reason) => {
+            if (reason === "backdropClick" || reason === "escapeKeyDown")
+              return;
+          }}
+          disableEscapeKeyDown
+          slotProps={{
+            backdrop: {
+              sx: { backgroundColor: "rgba(0,0,0,0.35)" },
+            },
+          }}
+          ModalProps={{
+            keepMounted: true,
+            disableAutoFocus: true,
+            disableEnforceFocus: true,
+            disableRestoreFocus: true,
+          }}
+          PaperProps={{
+            sx: {
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              maxHeight: "78vh",
+              overflowY: "auto",
+              pb: "calc(16px + env(safe-area-inset-bottom))",
+            },
           }}
         >
-          <Typography variant="h5">Create account</Typography>
-        </Box>
-        {!selectedMethod && (
-          <AuthSocialButtons showEmail onSelect={chooseMethod} />
-        )}
-        {selectedMethod && selectedMethod !== "email" && (
-          <Stack spacing={2}>
-            <Alert severity="info">
-              Continue with {selectedMethod} is not configured yet.
-            </Alert>
-            <Button variant="text" onClick={() => chooseMethod(null)}>
-              Choose another method
-            </Button>
-          </Stack>
-        )}
-        {selectedMethod === "email" && (
-          <>
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error.message}
-              </Alert>
-            )}
-            {organizationInviteError && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {organizationInviteError}
-              </Alert>
-            )}
-            <Box component="form" onSubmit={handleSubmit} noValidate>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr",
-                  gap: 2,
-                }}
-              >
-                <TextField
-                  label="First name"
-                  required
-                  value={firstName}
-                  onChange={(e) => {
-                    setFirstName(e.target.value);
-                    if (firstNameError) setFirstNameError(null);
-                  }}
-                  onBlur={checkFirstName}
-                  error={Boolean(firstNameError)}
-                  helperText={firstNameError || undefined}
-                  InputProps={{
-                    startAdornment: (
-                      <PersonOutlineIcon
-                        fontSize="small"
-                        sx={{ mr: 1, color: "text.disabled" }}
-                      />
-                    ),
-                  }}
-                />
-                <TextField
-                  label="Last name"
-                  required
-                  value={lastName}
-                  onChange={(e) => {
-                    setLastName(e.target.value);
-                    if (lastNameError) setLastNameError(null);
-                  }}
-                  onBlur={checkLastName}
-                  error={Boolean(lastNameError)}
-                  helperText={lastNameError || undefined}
-                  InputProps={{
-                    startAdornment: (
-                      <PersonOutlineIcon
-                        fontSize="small"
-                        sx={{ mr: 1, color: "text.disabled" }}
-                      />
-                    ),
-                  }}
-                />
-                <InternationalPhoneField
-                  label="Phone"
-                  required
-                  country={phoneCountry}
-                  local={phoneLocal}
-                  onCountryChange={setPhoneCountry}
-                  onLocalChange={(value) => {
-                    setPhoneLocal(value);
-                    if (phoneError) {
-                      setPhoneError(null);
-                    }
-                  }}
-                  onBlur={checkPhone}
-                  error={Boolean(phoneError)}
-                  helperText={phoneError || undefined}
-                />
-                <EmailField
-                  required
-                  value={email}
-                  onChange={(value) => {
-                    setEmail(value);
-                    if (emailError) {
-                      setEmailError(null);
-                    }
-                  }}
-                  onBlur={checkEmail}
-                  error={Boolean(emailError)}
-                  helperText={emailError || undefined}
-                />
-                <PasswordField
-                  label="Password"
-                  required
-                  value={password}
-                  onValueChange={setPassword}
-                />
-                <PasswordStrength
-                  label={passwordStrength.label}
-                  percent={passwordStrengthPercent}
-                  score={passwordStrength.score}
-                />
-                {captchaRequired ? (
-                  <Box display="flex" justifyContent="center" sx={{ mt: -1 }}>
-                    <ReCAPTCHA
-                      sitekey={recaptchaSiteKey}
-                      onChange={(token) => setCaptchaToken(token)}
-                      onExpired={() => setCaptchaToken(null)}
-                    />
-                  </Box>
-                ) : shouldShowCaptchaWarning ? (
-                  <Alert severity="warning" sx={{ mt: -1 }}>
-                    reCAPTCHA is not configured; set VITE_RECAPTCHA_SITE_KEY to
-                    enable.
-                  </Alert>
-                ) : null}
-                <Button
-                  type="submit"
-                  variant="contained"
-                  size="large"
-                  sx={{ textTransform: "uppercase" }}
-                  disabled={!isFormValid || isLoading}
-                >
-                  {isLoading ? "Creating..." : "Create account"}
-                </Button>
-              </Box>
-            </Box>
-          </>
-        )}
-
-        <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
-          <Link href="/login">Already have an account?</Link>
-          {selectedMethod === "email" && (
-            <Link
-              component="button"
-              type="button"
-              onClick={() => chooseMethod(null)}
-            >
-              Choose another method
-            </Link>
-          )}
-        </Stack>
-      </Paper>
-    </Container>
+          <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>{registerContent}</Box>
+        </Drawer>
+      )}
+    </Box>
   );
 }
 

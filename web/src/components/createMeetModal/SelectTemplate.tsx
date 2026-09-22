@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, FormControl, MenuItem, Select, Typography } from "@mui/material";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import { useAuth } from "../../context/authContext";
+import { useCurrentOrganization } from "../../context/organizationContext";
 import { useFetchOrganizationTemplates } from "../../hooks/useFetchOrganizationTemplates";
 import { useFetchOrganizationTemplate } from "../../hooks/useFetchOrganizationTemplate";
 import { QuestionField } from "./CreateMeetState";
@@ -9,18 +10,22 @@ import { Template, TemplateMetaDefinition } from "../../types/TemplateModel";
 
 type SelectTemplateProps = {
   organizationId?: string;
+  disabled?: boolean;
   onApply?: (questions: QuestionField[]) => void;
   onApplyTemplate?: (template: Template) => void;
 };
 
 export function SelectTemplate({
   organizationId,
+  disabled = false,
   onApply,
   onApplyTemplate,
 }: SelectTemplateProps) {
   const { user } = useAuth();
+  const { currentOrganizationId } = useCurrentOrganization();
   const resolvedOrgId =
     organizationId ||
+    currentOrganizationId ||
     (user?.organizations ? Object.keys(user.organizations)[0] : undefined);
   const [selectedId, setSelectedId] = useState("");
 
@@ -45,18 +50,32 @@ export function SelectTemplate({
 
   const options = useMemo(
     () => templates.map((t) => ({ id: t.id, name: t.name })),
-    [templates]
+    [templates],
   );
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-      <FormControl size="small" sx={{ minWidth: 220 }}>
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 1,
+        width: { xs: "100%", sm: "auto" },
+      }}
+    >
+      <FormControl
+        size="small"
+        sx={{
+          minWidth: { xs: 0, sm: 220 },
+          width: { xs: "100%", sm: "auto" },
+          flex: { xs: 1, sm: "0 0 auto" },
+        }}
+      >
         <Select
           aria-label="Template"
           value={selectedId}
           displayEmpty
           onChange={(event) => setSelectedId(event.target.value)}
-          disabled={!resolvedOrgId || isLoading}
+          disabled={disabled || !resolvedOrgId || isLoading}
           MenuProps={{ sx: { zIndex: 1501 } }}
           renderValue={(value) => {
             if (!value) {
@@ -101,11 +120,11 @@ export function SelectTemplate({
 }
 
 const mapDefinitionsToQuestions = (
-  definitions: TemplateMetaDefinition[]
+  definitions: TemplateMetaDefinition[],
 ): QuestionField[] =>
   definitions.map((definition) => {
     const fieldType = ["text", "select", "switch", "checkbox"].includes(
-      definition.fieldType
+      definition.fieldType,
     )
       ? (definition.fieldType as QuestionField["type"])
       : "text";

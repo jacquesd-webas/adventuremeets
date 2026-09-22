@@ -4,10 +4,10 @@
 COMPOSE ?= docker-compose
 DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)
 
-.PHONY: db-up db-wait migrate stack-up stack-down clean env
+.PHONY: db-up db-wait migrate stack-up stack-down clean env graphify graphify-update
 
 up:
-	$(COMPOSE) up -d db minio
+	$(COMPOSE) up -d db minio mailhog
 
 migrate:
 	$(COMPOSE) run --build --rm db_migrate
@@ -20,7 +20,7 @@ build:
 
 test:
 	@echo Running linters...
-	cd api @@ pnpm lint
+	cd api && pnpm lint
 	cd web && pnpm lint
 	cd worker && pnpm lint
 	@echo Testing build...
@@ -38,3 +38,9 @@ down:
 
 clean:
 	$(COMPOSE) down -v
+
+graphify:
+	uv tool run --from graphifyy graphify . --code-only --no-viz
+
+graphify-update:
+	uv tool run --from graphifyy graphify . --update --code-only --no-viz

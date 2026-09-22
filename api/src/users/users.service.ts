@@ -2,12 +2,28 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
+import { UpdateUserIceInfoDto } from "./dto/update-user-ice-info.dto";
 import { v4 as uuid } from "uuid";
 import * as bcrypt from "bcryptjs";
+import { MinioService } from "../storage/minio.service";
+import sharp = require("sharp");
+
+export type PendingInviteSummary = {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  roleId: number;
+  roleName?: string;
+  createdAt: string;
+  expiresAt: string;
+};
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly minio: MinioService,
+  ) {}
 
   async create(dto: CreateUserDto) {
     const id = uuid();
@@ -25,15 +41,9 @@ export class UsersService {
       await trx("users").insert({
         id,
         email: dto.email,
-        email_verified: false,
         first_name: dto.firstName || null,
         last_name: dto.lastName || null,
         phone: dto.phone || null,
-        ice_phone: dto.icePhone || null,
-        ice_name: dto.iceName || null,
-        ice_medical_aid: dto.iceMedicalAid || null,
-        ice_medical_aid_number: dto.iceMedicalAidNumber || null,
-        ice_dob: dto.iceDob || null,
         password_hash: dto.password || null,
         idp_provider: dto.idpProvider || null,
         idp_subject: dto.idpSubject || null,
@@ -85,6 +95,43 @@ export class UsersService {
     return this.findById(id);
   }
 
+  async ensureOrganizationMembership(userId: string, organizationId: string) {
+    const now = new Date().toISOString();
+    const membership = await this.database
+      .getClient()("user_organization_memberships")
+      .where({
+        user_id: userId,
+        organization_id: organizationId,
+      })
+      .first();
+
+    if (!membership) {
+      await this.database.getClient()("user_organization_memberships").insert({
+        user_id: userId,
+        organization_id: organizationId,
+        role: "member",
+        role_id: 4,
+        status: "active",
+        created_at: now,
+        updated_at: now,
+      });
+      return;
+    }
+
+    if (membership.status !== "active") {
+      await this.database
+        .getClient()("user_organization_memberships")
+        .where({
+          user_id: userId,
+          organization_id: organizationId,
+        })
+        .update({
+          status: "active",
+          updated_at: now,
+        });
+    }
+  }
+
   async findById(id: string) {
     // TODO: join on organization memberships { organizationId, role }
     const user = await this.database.getClient()("users").where({ id }).first();
@@ -105,12 +152,29 @@ export class UsersService {
       .join("user_organization_memberships as uom", "uom.user_id", "u.id")
       .whereIn("uom.organization_id", organizationIds)
       .andWhere("uom.status", "active")
+      .distinct("u.id")
       .select("u.*");
     return rows.map((row) => this.stripSensitive(row));
   }
 
   async findByEmail(email: string) {
     return this.database.getClient()("users").where({ email }).first();
+  }
+
+  async getEmailVerificationInfo(userId: string) {
+    return this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .select(
+        "id",
+        "email",
+        "email_verified_at",
+        "email_verification_token",
+        "email_verification_expires_at",
+        "email_verification_attempts",
+        "email_verification_locked_until",
+      )
+      .first();
   }
 
   async isOrganizationPrivate(organizationId: string): Promise<boolean | null> {
@@ -133,29 +197,75 @@ export class UsersService {
   async setPasswordResetToken(
     userId: string,
     tokenHash: string,
-    expiresAt: string
+    expiresAt: string,
   ) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      password_reset_token: tokenHash,
+      password_reset_expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async setEmailVerificationToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: string,
+  ) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      email_verification_token: tokenHash,
+      email_verification_expires_at: expiresAt,
+      email_verification_attempts: 0,
+      email_verification_locked_until: null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async clearEmailVerificationToken(userId: string) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      email_verification_token: null,
+      email_verification_expires_at: null,
+      email_verification_attempts: 0,
+      email_verification_locked_until: null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async incrementEmailVerificationAttempts(userId: string) {
     await this.database
       .getClient()("users")
       .where({ id: userId })
       .update({
-        password_reset_token: tokenHash,
-        password_reset_expires_at: expiresAt,
+        email_verification_attempts: this.database
+          .getClient()
+          .raw("COALESCE(email_verification_attempts, 0) + 1"),
         updated_at: new Date().toISOString(),
       });
   }
 
+  async lockEmailVerification(userId: string, lockedUntil: string) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      email_verification_locked_until: lockedUntil,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async markEmailVerified(userId: string) {
+    await this.database.getClient()("users").where({ id: userId }).update({
+      email_verified_at: new Date().toISOString(),
+      email_verification_token: null,
+      email_verification_expires_at: null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
   async updatePasswordFromReset(userId: string, password: string) {
     const passwordHash = await bcrypt.hash(password, 10);
-    await this.database
-      .getClient()("users")
-      .where({ id: userId })
-      .update({
-        password_hash: passwordHash,
-        password_reset_token: null,
-        password_reset_expires_at: null,
-        updated_at: new Date().toISOString(),
-      });
+    await this.database.getClient()("users").where({ id: userId }).update({
+      password_hash: passwordHash,
+      password_reset_token: null,
+      password_reset_expires_at: null,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   async isValidAttendee(attendeeId: string) {
@@ -194,6 +304,54 @@ export class UsersService {
     }));
   }
 
+  async listPendingInvitesByEmail(
+    userId: string,
+    email: string,
+  ): Promise<PendingInviteSummary[]> {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return [];
+
+    const activeMemberships = await this.database
+      .getClient()("user_organization_memberships")
+      .where({ user_id: userId, status: "active" })
+      .select("organization_id");
+    const activeOrgIds = new Set(
+      activeMemberships.map((row) => row.organization_id),
+    );
+
+    const now = new Date().toISOString();
+    const rows = await this.database
+      .getClient()("invite_links as il")
+      .join("organizations as o", "o.id", "il.org_id")
+      .leftJoin("roles as r", "r.id", "il.role_id")
+      .whereRaw("LOWER(il.email) = ?", [normalizedEmail])
+      .whereNull("il.accepted_at")
+      .whereNull("il.declined_at")
+      .andWhere("il.expires_at", ">", now)
+      .orderBy("il.created_at", "desc")
+      .select(
+        "il.id",
+        "il.org_id",
+        "il.role_id",
+        "il.created_at",
+        "il.expires_at",
+        "o.name as organization_name",
+        "r.name as role_name",
+      );
+
+    return rows
+      .filter((row: any) => !activeOrgIds.has(row.org_id))
+      .map((row: any) => ({
+        id: row.id,
+        organizationId: row.org_id,
+        organizationName: row.organization_name,
+        roleId: row.role_id,
+        roleName: row.role_name ?? undefined,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+      }));
+  }
+
   async update(id: string, dto: UpdateUserDto) {
     const updates: any = { updated_at: new Date().toISOString() };
 
@@ -210,23 +368,11 @@ export class UsersService {
     if (dto.phone !== undefined) {
       updates.phone = dto.phone;
     }
-    if (dto.icePhone !== undefined) {
-      updates.ice_phone = dto.icePhone;
-    }
-    if (dto.iceName !== undefined) {
-      updates.ice_name = dto.iceName;
-    }
-    if (dto.iceMedicalAid !== undefined) {
-      updates.ice_medical_aid = dto.iceMedicalAid;
-    }
-    if (dto.iceMedicalAidNumber !== undefined) {
-      updates.ice_medical_aid_number = dto.iceMedicalAidNumber;
-    }
-    if (dto.iceDob !== undefined) {
-      updates.ice_dob = dto.iceDob;
-    }
     if (dto.email !== undefined) {
       updates.email = dto.email;
+      updates.email_verified_at = null;
+      updates.email_verification_token = null;
+      updates.email_verification_expires_at = null;
     }
     if (dto.idpProvider !== undefined) {
       updates.idp_provider = dto.idpProvider;
@@ -247,6 +393,82 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException("User not found");
     }
+    return this.stripSensitive(user);
+  }
+
+  async findIceInfoByUserId(userId: string) {
+    const row = await this.database
+      .getClient()("user_ice_info")
+      .where({ user_id: userId })
+      .first();
+
+    if (!row) {
+      return null;
+    }
+
+    return this.toIceInfoDto(row);
+  }
+
+  async upsertIceInfo(userId: string, dto: UpdateUserIceInfoDto) {
+    const now = new Date().toISOString();
+    const values = {
+      user_id: userId,
+      ice_phone: dto.icePhone ?? null,
+      ice_name: dto.iceName ?? null,
+      ice_medical_aid: dto.iceMedicalAid ?? null,
+      ice_medical_aid_number: dto.iceMedicalAidNumber ?? null,
+      ice_medical_history: dto.iceMedicalHistory ?? null,
+      ice_dob: dto.iceDob ?? null,
+      updated_at: now,
+    };
+
+    await this.database
+      .getClient()("user_ice_info")
+      .insert({
+        id: uuid(),
+        ...values,
+        created_at: now,
+      })
+      .onConflict("user_id")
+      .merge(values);
+
+    return this.findIceInfoByUserId(userId);
+  }
+
+  async uploadAvatar(userId: string, file: any) {
+    const normalized = await sharp(file.buffer)
+      .rotate()
+      .resize(512, 512, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    const objectKey = `avatars/${userId}/${uuid()}.webp`;
+    const uploaded = await this.minio.upload(
+      objectKey,
+      normalized,
+      "image/webp",
+    );
+
+    const updated = await this.database
+      .getClient()("users")
+      .where({ id: userId })
+      .update(
+        {
+          avatar_object_key: uploaded.objectKey,
+          avatar_url: uploaded.url,
+          updated_at: new Date().toISOString(),
+        },
+        ["*"],
+      );
+
+    const user = updated[0];
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
     return this.stripSensitive(user);
   }
 
@@ -272,7 +494,7 @@ export class UsersService {
   async saveUserMetaValues(
     userId: string,
     organizationId: string,
-    values: Array<{ key: string; value?: string | null }>
+    values: Array<{ key: string; value?: string | null }>,
   ) {
     const trx = await this.database.getClient().transaction();
     try {
@@ -283,14 +505,15 @@ export class UsersService {
           .whereIn("key", keys)
           .del();
       }
-      if (values.length) {
+      const valuesToInsert = values.filter((item) => item.value != null);
+      if (valuesToInsert.length) {
         await trx("user_meta_values").insert(
-          values.map((item) => ({
+          valuesToInsert.map((item) => ({
             user_id: userId,
             organization_id: organizationId,
             key: item.key,
-            value: item.value ?? null,
-          }))
+            value: item.value,
+          })),
         );
       }
       await trx.commit();
@@ -299,6 +522,59 @@ export class UsersService {
       throw err;
     }
     return this.listUserMetaValues(userId, organizationId);
+  }
+
+  async copyUserMetaValuesFromAttendee(
+    userId: string,
+    meetId: string,
+    attendeeId: string,
+  ) {
+    const meet = await this.database
+      .getClient()("meets")
+      .where({ id: meetId })
+      .first("id", "organization_id");
+    if (!meet) {
+      throw new NotFoundException("Meet not found");
+    }
+
+    const attendee = await this.database
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, id: attendeeId })
+      .first("id", "user_id");
+    if (!attendee || attendee.user_id !== userId) {
+      throw new NotFoundException("Attendee not found");
+    }
+
+    const definitions = await this.database
+      .getClient()("meet_meta_definitions")
+      .where({ meet_id: meetId })
+      .select("id", "field_key");
+    const rawValues = await this.database
+      .getClient()("meet_meta_values")
+      .where({ meet_id: meetId, attendee_id: attendeeId })
+      .select("meta_definition_id", "value");
+
+    const byDefinitionId = new Map(
+      rawValues.map((row: any) => [
+        row.meta_definition_id,
+        row.value as string,
+      ]),
+    );
+    const values = definitions.map((definition: any) => ({
+      key: definition.field_key,
+      value: byDefinitionId.get(definition.id) ?? null,
+    }));
+
+    const saved = await this.saveUserMetaValues(
+      userId,
+      meet.organization_id,
+      values,
+    );
+
+    return {
+      organizationId: meet.organization_id as string,
+      values: saved,
+    };
   }
 
   async updateLogin(userId: string, options: { isSuccess: boolean }) {
@@ -339,11 +615,23 @@ export class UsersService {
       lastName: row.last_name,
       email: row.email,
       phone: row.phone,
+      avatarUrl: row.avatar_url,
       lastLogin: row.last_login,
       emailVerified: row.email_verified_at ? true : false,
       emailVerifiedAt: row.email_verified_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  private toIceInfoDto(row: any) {
+    return {
+      icePhone: row.ice_phone ?? null,
+      iceName: row.ice_name ?? null,
+      iceMedicalAid: row.ice_medical_aid ?? null,
+      iceMedicalAidNumber: row.ice_medical_aid_number ?? null,
+      iceMedicalHistory: row.ice_medical_history ?? null,
+      iceDob: row.ice_dob ?? null,
     };
   }
 }

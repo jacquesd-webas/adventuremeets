@@ -1,14 +1,14 @@
-import {
-  ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./authContext";
 import {
   OrganizationContext,
   OrganizationContextValue,
 } from "./organizationContext";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
+import { organizationQueryKeys } from "../hooks/organizationQueryKeys";
+import { useLocation } from "react-router-dom";
+import { isPublicRoutePath } from "../helpers/publicRoutes";
 
 type OrganizationProviderProps = {
   children: ReactNode;
@@ -17,7 +17,10 @@ type OrganizationProviderProps = {
 const storageKey = "currentOrganizationId";
 
 export function OrganizationProvider({ children }: OrganizationProviderProps) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, meUpdatedAt } = useAuth();
+  const queryClient = useQueryClient();
+  const location = useLocation();
+  const isPublicRoute = isPublicRoutePath(location.pathname);
 
   const [currentOrganizationId, setCurrentOrganizationId] = useState<
     string | null
@@ -25,11 +28,50 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(storageKey);
   });
+  const [lastKnownOrganizations, setLastKnownOrganizations] = useState<
+    Record<string, string>
+  >({});
+
+  useEffect(() => {
+    if (!user) {
+      setLastKnownOrganizations({});
+      return;
+    }
+    const currentOrganizations = user.organizations || {};
+    if (Object.keys(currentOrganizations).length > 0) {
+      setLastKnownOrganizations(currentOrganizations);
+    }
+  }, [user]);
+
+  const effectiveOrganizations = useMemo(() => {
+    const currentOrganizations = user?.organizations || {};
+    if (Object.keys(currentOrganizations).length > 0) {
+      return currentOrganizations;
+    }
+    return lastKnownOrganizations;
+  }, [lastKnownOrganizations, user?.organizations]);
 
   const organizationIds = useMemo(() => {
-    if (!user?.organizations) return [];
-    return Object.keys(user.organizations);
-  }, [user]);
+    return Object.keys(effectiveOrganizations);
+  }, [effectiveOrganizations]);
+
+  const canFetchOrganization = Boolean(user) && !isPublicRoute;
+  const { data: organization } = useFetchOrganization(
+    user ? currentOrganizationId || undefined : undefined,
+    { enabled: canFetchOrganization },
+  );
+
+  useEffect(() => {
+    if (!meUpdatedAt || !canFetchOrganization || !currentOrganizationId) return;
+    const queryKey = organizationQueryKeys.detail(currentOrganizationId);
+    // A recovered session must also retry organisation requests that failed earlier.
+    if (queryClient.getQueryState(queryKey)?.status === "error") {
+      void queryClient.invalidateQueries(
+        { queryKey, exact: true },
+        { cancelRefetch: false },
+      );
+    }
+  }, [meUpdatedAt, canFetchOrganization, currentOrganizationId, queryClient]);
 
   // Set or clear current organization based on user's organizations
   useEffect(() => {
@@ -52,7 +94,14 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
       setCurrentOrganizationId(organizationIds[0]);
       return;
     }
-  }, [organizationIds, currentOrganizationId, isLoading, user]);
+  }, [
+    currentOrganizationId,
+    isLoading,
+    isPublicRoute,
+    location.pathname,
+    organizationIds,
+    user,
+  ]);
 
   // Persist current organization to localStorage
   useEffect(() => {
@@ -65,23 +114,25 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
   }, [currentOrganizationId]);
 
   const currentOrganizationRole = useMemo(() => {
-    if (!user?.organizations || !currentOrganizationId) return null;
-    return user.organizations[currentOrganizationId] || null;
-  }, [user?.organizations, currentOrganizationId]);
+    if (!currentOrganizationId) return null;
+    return effectiveOrganizations[currentOrganizationId] || null;
+  }, [currentOrganizationId, effectiveOrganizations]);
 
   const value = useMemo<OrganizationContextValue>(
     () => ({
       organizationIds,
       currentOrganizationId,
+      currentOrganizationName: organization?.name || null,
       currentOrganizationRole,
       setCurrentOrganizationId,
     }),
     [
       organizationIds,
       currentOrganizationId,
+      organization?.name,
       currentOrganizationRole,
       setCurrentOrganizationId,
-    ]
+    ],
   );
 
   return (

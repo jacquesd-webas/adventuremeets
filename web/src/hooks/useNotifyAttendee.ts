@@ -1,4 +1,5 @@
-import { useMutation } from "@tanstack/react-query";
+import { attendeeMessageQueryKeys } from "./attendeeMessageQueryKeys";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import { useNotistack } from "./useNotistack";
 
@@ -7,21 +8,41 @@ export type NotifyAttendeePayload = {
   subject: string;
   text: string;
   attendeeIds?: string[];
+  markNotified?: boolean;
+  includeStatusUrl?: boolean;
+  sendAsGroup?: boolean;
 };
 
 export function useNotifyAttendee() {
   const api = useApi();
+  const queryClient = useQueryClient();
   const { error } = useNotistack();
 
   const mutation = useMutation<unknown, Error, NotifyAttendeePayload>({
-    mutationFn: async ({ meetId, attendeeIds, ...payload }) => {
+    mutationFn: async ({
+      meetId,
+      attendeeIds,
+      includeStatusUrl,
+      ...payload
+    }) => {
       return api.post(`/meets/${meetId}/message`, {
         ...payload,
         attendeeIds: attendeeIds?.length ? attendeeIds : undefined,
+        ...(includeStatusUrl === false ? { includeStatusUrl: false } : {}),
       });
     },
     onError: (err) => {
       error(`Failed to notify attendee: ${err.message}`);
+    },
+    onSettled: async (_data, _error, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["meet-attendees", variables.meetId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: attendeeMessageQueryKeys.meet(variables.meetId),
+        }),
+      ]);
     },
   });
 

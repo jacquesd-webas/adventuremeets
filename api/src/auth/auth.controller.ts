@@ -21,15 +21,18 @@ import { RegisterDto } from "./dto/register.dto";
 import { GoogleAuthUrlDto } from "./dto/google-auth-url.dto";
 import { GoogleAuthCodeDto } from "./dto/google-auth-code.dto";
 import { GoogleIdTokenDto } from "./dto/google-id-token.dto";
+import { FacebookAuthUrlDto } from "./dto/facebook-auth-url.dto";
+import { FacebookAuthCodeDto } from "./dto/facebook-auth-code.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { VerifyEmailDto } from "./dto/verify-email.dto";
 
 @ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
   ) {}
 
   @Public()
@@ -57,7 +60,7 @@ export class AuthController {
   @Public()
   @Get("register/organization")
   async registerOrganizationCheck(
-    @Query("organizationId") organizationId?: string
+    @Query("organizationId") organizationId?: string,
   ) {
     if (!organizationId) {
       throw new BadRequestException("organizationId is required");
@@ -71,7 +74,7 @@ export class AuthController {
   async googleUrl(@Query() query: GoogleAuthUrlDto) {
     const url = await this.authService.getGoogleAuthUrl(
       query.redirectUri,
-      query.state
+      query.state,
     );
     return { url };
   }
@@ -79,13 +82,37 @@ export class AuthController {
   @Public()
   @Post("google/token")
   async googleToken(@Body() dto: GoogleAuthCodeDto): Promise<TokenPair> {
-    return this.authService.googleLoginWithCode(dto.code, dto.redirectUri);
+    return this.authService.googleLoginWithCode(
+      dto.code,
+      dto.redirectUri,
+      dto.organizationId,
+    );
   }
 
   @Public()
   @Post("google/verify")
   async googleVerify(@Body() dto: GoogleIdTokenDto): Promise<TokenPair> {
     return this.authService.googleLoginWithIdToken(dto.idToken);
+  }
+
+  @Public()
+  @Get("facebook/url")
+  async facebookUrl(@Query() query: FacebookAuthUrlDto) {
+    const url = await this.authService.getFacebookAuthUrl(
+      query.redirectUri,
+      query.state,
+    );
+    return { url };
+  }
+
+  @Public()
+  @Post("facebook/token")
+  async facebookToken(@Body() dto: FacebookAuthCodeDto): Promise<TokenPair> {
+    return this.authService.facebookLoginWithCode(
+      dto.code,
+      dto.redirectUri,
+      dto.organizationId,
+    );
   }
 
   @Public()
@@ -109,6 +136,29 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Post("email/verification")
+  async requestEmailVerification(@User() user?: UserProfile) {
+    if (!user) {
+      throw new UnauthorizedException("Unauthorized");
+    }
+    await this.authService.requestEmailVerification(user.id);
+    return { ok: true };
+  }
+
+  @ApiBearerAuth()
+  @Post("email/verification/confirm")
+  async confirmEmailVerification(
+    @Body() dto: VerifyEmailDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) {
+      throw new UnauthorizedException("Unauthorized");
+    }
+    await this.authService.verifyEmailCode(user.id, dto.code);
+    return { ok: true };
+  }
+
+  @ApiBearerAuth()
   @Get("me")
   async me(@User() user: UserProfile): Promise<UserProfile> {
     if (!user) {
@@ -120,6 +170,10 @@ export class AuthController {
       throw new ForbiddenException("User not found");
     }
     const orgRoles = await this.usersService.findOrganizationRoles(user.id);
+    const pendingInvites = await this.usersService.listPendingInvitesByEmail(
+      user.id,
+      fullUser.email,
+    );
     const organizations = orgRoles.reduce<Record<string, string>>(
       (acc, org) => {
         const role =
@@ -128,11 +182,12 @@ export class AuthController {
         acc[org.organizationId] = role;
         return acc;
       },
-      {}
+      {},
     );
     return {
       ...fullUser,
       organizations,
+      pendingInvites,
     } as UserProfile;
   }
 }

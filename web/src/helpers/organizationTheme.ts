@@ -21,10 +21,9 @@ export const getOrganizationBackground = (
 ) => {
   const theme = getOrganizationTheme(themeName);
   const isDark = mode === "dark";
+  const backgroundFile = isDark ? theme.backgroundDark : theme.backgroundLight;
   return {
-    image: isDark
-      ? `/static/${theme.backgroundDark}`
-      : `/static/${theme.backgroundLight}`,
+    image: backgroundFile ? `/static/themes/${backgroundFile}` : "",
     color: isDark ? theme.backgroundColorDark : theme.backgroundColorLight,
   };
 };

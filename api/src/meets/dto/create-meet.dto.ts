@@ -84,6 +84,11 @@ export class CreateMeetDto {
   @IsDateString()
   endTime?: string;
 
+  @ApiPropertyOptional({ description: "IANA timezone for the meet" })
+  @IsOptional()
+  @IsString()
+  timeZone?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsDateString()
@@ -135,6 +140,36 @@ export class CreateMeetDto {
   @IsOptional()
   @IsBoolean()
   allowGuests?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  allowSelfCheckin?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  allowWalkins?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requireEmail?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requirePhone?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requireOrg1?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requireOrg2?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()

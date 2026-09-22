@@ -3,6 +3,8 @@ import {
   Paper,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import HistoryIcon from "@mui/icons-material/History";
@@ -10,15 +12,17 @@ import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
 import PlaceIcon from "@mui/icons-material/Place";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import Meet from "../../types/MeetModel";
 import { MeetActionsMenu } from "../meet/MeetActionsMenu";
 import { MeetActionsEnum } from "../../types/MeetActionsEnum";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { MeetStatus } from "../meet/MeetStatus";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { useRef } from "react";
+import type { OverridableStringUnion } from "@mui/types";
+import type { SvgIconPropsColorOverrides } from "@mui/material/SvgIcon";
+import { getCardRangeLabel, isMeetUpcoming } from "../../helpers/meetTime";
 import { useAuth } from "../../context/authContext";
-import { getCardRangeLabel } from "../../helpers/meetTime";
 
 type MeetCardProps = {
   meet: Meet;
@@ -26,12 +30,46 @@ type MeetCardProps = {
   onClick?: () => void;
   setSelectedMeetId: (id: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
-  isOrganizer: boolean;
+  canViewMeet: boolean;
+  canManageMeet: boolean;
+  canAccessManageMenu?: boolean;
+  reportingEnabled?: boolean;
 };
 
-type CountProps = { count1?: number; count2?: number };
+type StatItemProps = {
+  count?: number | string;
+  label: string;
+  color: OverridableStringUnion<
+    | "inherit"
+    | "action"
+    | "disabled"
+    | "primary"
+    | "secondary"
+    | "error"
+    | "info"
+    | "success"
+    | "warning",
+    SvgIconPropsColorOverrides
+  >;
+};
 
 const DraftCardCount = () => <></>;
+
+const StatItem = ({ count, label, color }: StatItemProps) => (
+  <Stack direction="row" spacing={0.5} alignItems="center">
+    <GroupOutlinedIcon fontSize="small" color={color} />
+    <Typography variant="body2" fontWeight={600} color="text.secondary">
+      {count ?? 0}
+    </Typography>
+    <Typography variant="caption" color="text.secondary">
+      {label}
+    </Typography>
+  </Stack>
+);
+
+function hasApplicants(attendeeCount?: number) {
+  return (attendeeCount ?? 0) > 0;
+}
 
 const AttendeeStatus = ({
   status,
@@ -82,52 +120,76 @@ const AttendeeStatus = ({
   );
 };
 
-const UpcomingCardCount = ({ count1, count2 }: CountProps) => {
+const UpcomingCardCount = ({
+  attendeeCount,
+  confirmedCount,
+  waitlistCount,
+  rejectedCount,
+}: {
+  attendeeCount?: number;
+  confirmedCount?: number;
+  waitlistCount?: number;
+  rejectedCount?: number;
+}) => {
+  const showAdditionalStats = hasApplicants(attendeeCount);
+
   return (
-    <Stack direction="row" spacing={2} alignItems="center" mt={1.5}>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <GroupOutlinedIcon fontSize="small" color="primary" />
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          {count1 ?? 0}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          applicants
-        </Typography>
-      </Stack>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <GroupOutlinedIcon fontSize="small" color="disabled" />
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          {count2 ?? 0}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          waitlist
-        </Typography>
-      </Stack>
+    <Stack
+      direction="row"
+      spacing={2}
+      alignItems="center"
+      mt={1.5}
+      useFlexGap
+      flexWrap="wrap"
+    >
+      <StatItem count={attendeeCount} label="applicants" color="primary" />
+      {showAdditionalStats ? (
+        <>
+          <StatItem count={confirmedCount} label="approved" color="success" />
+          <StatItem count={waitlistCount} label="waitlist" color="disabled" />
+          <StatItem count={rejectedCount} label="rejected" color="error" />
+        </>
+      ) : null}
     </Stack>
   );
 };
 
-const PastCardCount = ({ count1, count2 }: CountProps) => {
+const PastCardCount = ({
+  attendeeCount,
+  confirmedCount,
+  waitlistCount,
+  rejectedCount,
+  checkedInCount,
+}: {
+  attendeeCount?: number;
+  confirmedCount?: number;
+  waitlistCount?: number;
+  rejectedCount?: number;
+  checkedInCount?: number;
+}) => {
+  const attendedRatio =
+    (confirmedCount ?? 0 > 0)
+      ? `${checkedInCount ?? 0}/${confirmedCount ?? 0}`
+      : "0";
+  const showAdditionalStats = hasApplicants(attendeeCount);
+
   return (
-    <Stack direction="row" spacing={2} alignItems="center" mt={1.5}>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <CheckCircleOutlineIcon fontSize="small" color="primary" />
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          {count1 ?? 0}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          confirmed
-        </Typography>
-      </Stack>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <GroupOutlinedIcon fontSize="small" color="disabled" />
-        <Typography variant="body2" fontWeight={600} color="text.secondary">
-          {count2 ?? 0}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          attended
-        </Typography>
-      </Stack>
+    <Stack
+      direction="row"
+      spacing={2}
+      alignItems="center"
+      mt={1.5}
+      useFlexGap
+      flexWrap="wrap"
+    >
+      <StatItem count={attendeeCount} label="applicants" color="primary" />
+      {showAdditionalStats ? (
+        <>
+          <StatItem count={attendedRatio} label="attended" color="disabled" />
+          <StatItem count={waitlistCount} label="waitlist" color="disabled" />
+          <StatItem count={rejectedCount} label="rejected" color="error" />
+        </>
+      ) : null}
     </Stack>
   );
 };
@@ -138,13 +200,20 @@ export function MeetCard({
   onClick,
   setSelectedMeetId,
   setPendingAction,
+  canViewMeet,
+  canManageMeet,
+  canAccessManageMenu,
+  reportingEnabled,
 }: MeetCardProps) {
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const isUpcoming = new Date(meet.endTime) >= new Date();
+  const isUpcoming = isMeetUpcoming(meet);
   const isDraft = meet.statusId === MeetStatusEnum.Draft;
   const rangeLabel = getCardRangeLabel(meet);
-  const isOrganizerForMeet = user && meet && user.id === meet.organizerId;
+  const isOrganizerForMeet = user?.id === meet.organizerId;
 
   return (
     <Paper
@@ -158,7 +227,11 @@ export function MeetCard({
       }}
       onClick={() => {
         if (typeof onClick === "function") {
-          onClick();
+          if (isMobile) {
+            menuButtonRef.current?.click();
+          } else {
+            onClick();
+          }
         }
       }}
     >
@@ -177,11 +250,21 @@ export function MeetCard({
         <Box sx={{ ml: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <MeetActionsMenu
             meetId={meet.id}
-            isOrganizer={isOrganizerForMeet}
+            canAccessManageMenu={canAccessManageMenu}
+            canViewMeet={canViewMeet}
+            canManageMeet={canManageMeet}
+            reportingEnabled={reportingEnabled}
             statusId={meet.statusId}
+            isUpcoming={isUpcoming}
+            startTime={
+              meet.startTime instanceof Date
+                ? meet.startTime.toISOString()
+                : meet.startTime
+            }
             setSelectedMeetId={setSelectedMeetId}
             setPendingAction={setPendingAction}
             previewLinkCode={meet.shareCode}
+            menuButtonRef={menuButtonRef}
           />
         </Box>
       </Stack>
@@ -208,13 +291,18 @@ export function MeetCard({
         <DraftCardCount />
       ) : isUpcoming ? (
         <UpcomingCardCount
-          count1={meet.attendeeCount}
-          count2={meet.waitlistCount}
+          attendeeCount={meet.attendeeCount}
+          confirmedCount={meet.confirmedCount}
+          waitlistCount={meet.waitlistCount}
+          rejectedCount={meet.rejectedCount}
         />
       ) : (
         <PastCardCount
-          count1={meet.confirmedCount}
-          count2={meet.checkedInCount}
+          attendeeCount={meet.attendeeCount}
+          confirmedCount={meet.confirmedCount}
+          waitlistCount={meet.waitlistCount}
+          rejectedCount={meet.rejectedCount}
+          checkedInCount={meet.checkedInCount}
         />
       )}
     </Paper>

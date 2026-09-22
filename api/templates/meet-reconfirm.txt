@@ -1,0 +1,14 @@
+{{messageBody}}
+
+{{#ifStatusUrl}}
+
+Please confirm or update your attendance here:
+{{statusUrl}}
+{{/ifStatusUrl}}
+{{#ifOrganizerEmail}}
+
+Questions? Contact {{organizerName}} at {{organizerEmail}}.
+{{/ifOrganizerEmail}}
+
+Best regards,
+{{fromName}}

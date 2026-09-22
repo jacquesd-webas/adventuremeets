@@ -31,7 +31,7 @@ export function ContactOrganizerDialog({
     <>
       <Stack spacing={1}>
         <Typography variant="body1" fontWeight="bold">
-          {meet.organizerName || "Organizer"}
+          {meet.organizerName || "Organiser"}
         </Typography>
         <Stack direction="row" spacing={1} alignItems="center">
           <EmailOutlinedIcon fontSize="small" />

@@ -1,29 +1,34 @@
 import {
   Box,
-  Button,
   Container,
+  IconButton,
   Paper,
   Stack,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import MeetSignupSheet from "./MeetSignupSheet";
 import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
-import { AttendeeStatusAlert } from "../components/attendeeStatus/AttendeeStatusAlert";
+import { AttendeeStatusActions } from "../components/attendeeStatus/AttendeeStatusActions";
 import { useFetchMeetAttendeeStatus } from "../hooks/useFetchMeetAttendeeStatus";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { FullPageSpinner } from "../components/FullPageSpinner";
-import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
-import { ContactOrganizerDialog } from "../components/attendeeStatus/ContactOrganizerDialog";
-import { WithdrawApplicationDialog } from "../components/attendeeStatus/WithdrawApplicationDialog";
-import { VerifyAttendeeEmailDialog } from "../components/attendeeStatus/VerifyAttendeeEmailDialog";
+import { MeetStatusEnum } from "../types/MeetStatusEnum";
+import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
+
+const MeetWall = lazy(() =>
+  import("../components/wall/MeetWall").then((module) => ({
+    default: module.default ?? module.MeetWall,
+  })),
+);
 
 export default function AttendeeStatusPage() {
   const { code, attendeeId } = useParams<{
@@ -35,9 +40,6 @@ export default function AttendeeStatusPage() {
   const action = searchParams.get("action");
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [isContactOpen, setIsContactOpen] = useState(false);
-  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
-  const [isVerifyOpen, setIsVerifyOpen] = useState(false);
 
   const {
     data: meet,
@@ -103,6 +105,20 @@ export default function AttendeeStatusPage() {
     return <MeetSignupSheet />;
   }
 
+  const meetHasStarted =
+    !!meet.startTime &&
+    !Number.isNaN(new Date(meet.startTime).getTime()) &&
+    new Date(meet.startTime).getTime() <= Date.now();
+
+  const shouldShowMeetWall =
+    meet.statusId === MeetStatusEnum.Completed ||
+    (meet.statusId === MeetStatusEnum.Closed && meetHasStarted);
+  const shouldShowAttendingAttendees = [
+    AttendeeStatusEnum.Confirmed,
+    AttendeeStatusEnum.CheckedIn,
+    AttendeeStatusEnum.Attended,
+  ].includes(attendeeStatusData?.attendee?.status ?? AttendeeStatusEnum.Pending);
+
   return (
     <Box sx={{ height: "100vh", position: "relative" }}>
       <Container
@@ -110,7 +126,7 @@ export default function AttendeeStatusPage() {
         disableGutters={isMobile}
         sx={{
           py: isMobile ? 0 : 6,
-          pt: isMobile ? 2 : 6,
+          pt: isMobile ? 0 : 6,
           minHeight: "100vh",
           height: "100%",
           overflowY: "auto",
@@ -121,6 +137,7 @@ export default function AttendeeStatusPage() {
           variant="outlined"
           sx={{
             p: isMobile ? 2 : 3,
+            height: "100%",
             minHeight: "100%",
             borderRadius: isMobile ? 0 : 2,
             boxShadow: isMobile ? "none" : undefined,
@@ -130,88 +147,44 @@ export default function AttendeeStatusPage() {
             <MeetInfoSummary
               meet={meet}
               isPreview={false}
-              descriptionMaxLines={meet.imageUrl ? 6 : 9}
-              showMoreChip
+              maxDescriptionLines={meet.imageUrl ? 6 : 9}
+              attendingAttendees={
+                shouldShowAttendingAttendees
+                  ? attendeeStatusData?.attendingAttendees
+                  : []
+              }
               showUserAction={false}
               actionSlot={
-                <MeetSignupUserAction
-                  formEmail={attendeeStatusData?.attendee.email}
-                />
+                <IconButton
+                  data-testid="close-attendee-status"
+                  onClick={() => navigate("/")}
+                  size="small"
+                  aria-label="Back to dashboard"
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
               }
             />
-            <AttendeeStatusAlert status={attendeeStatusData?.attendee.status} />
 
-            <Typography variant="body1">
-              You may choose to make changes to your application using any of
-              the links below:
-            </Typography>
-
-            <Box sx={{ width: "100%" }}>
-              <Stack
-                direction={isMobile ? "column" : "row"}
-                spacing={2}
-                alignItems="center"
-                justifyContent="center"
-                sx={isMobile ? { width: "100%" } : undefined}
+            {shouldShowMeetWall ? (
+              <Suspense
+                fallback={
+                  <Typography color="text.secondary">Loading meet wall...</Typography>
+                }
               >
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => {
-                    setIsVerifyOpen(true);
-                  }}
-                  fullWidth={isMobile}
-                >
-                  Edit Application
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => {
-                    setIsWithdrawOpen(true);
-                  }}
-                  fullWidth={isMobile}
-                >
-                  Withdraw Application
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => {
-                    setIsContactOpen(true);
-                  }}
-                  fullWidth={isMobile}
-                >
-                  Contact Organiser
-                </Button>
-              </Stack>
-            </Box>
-
-            <ContactOrganizerDialog
-              open={isContactOpen}
-              onClose={() => setIsContactOpen(false)}
-              isMobile={isMobile}
-              meet={meet}
-            />
-
-            <WithdrawApplicationDialog
-              open={isWithdrawOpen}
-              onClose={() => setIsWithdrawOpen(false)}
-              meetId={meet.id}
-              attendeeId={attendeeStatusData?.attendee.id}
-              attendeeStatus={attendeeStatusData?.attendee.status}
-            />
-
-            <VerifyAttendeeEmailDialog
-              open={isVerifyOpen}
-              onClose={() => setIsVerifyOpen(false)}
-              meetId={meet.id}
-              attendeeId={attendeeStatusData?.attendee.id}
-              onVerified={() => {
-                if (!code || !attendeeId) return;
-                navigate(`/meets/${code}/${attendeeId}?action=edit`);
-              }}
-            />
+                <MeetWall
+                  meetId={meet.id}
+                  attendeeId={attendeeStatusData?.attendee.id}
+                />
+              </Suspense>
+            ) : (
+              <AttendeeStatusActions
+                meet={meet}
+                meetCode={code}
+                attendeeId={attendeeStatusData?.attendee.id}
+                attendeeStatus={attendeeStatusData?.attendee.status}
+              />
+            )}
           </Stack>
         </Paper>
       </Container>

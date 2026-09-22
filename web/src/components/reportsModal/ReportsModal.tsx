@@ -4,6 +4,8 @@ import {
   Chip,
   CircularProgress,
   DialogActions,
+  FormControlLabel,
+  Checkbox,
   Modal,
   Paper,
   Stack,
@@ -14,29 +16,43 @@ import {
   TableRow,
   Typography,
   useMediaQuery,
-  useTheme
+  useTheme,
 } from "@mui/material";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { useState, useMemo } from "react";
-import { useApi } from "../../hooks/useApi";
 import { useFetchMeetAttendees } from "../../hooks/useFetchMeetAttendees";
 import { useFetchMeet } from "../../hooks/useFetchMeet";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
+import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { useGenerateMeetReport } from "../../hooks/useGenerateMeetReport";
+import { useUpdateMeetStatus } from "../../hooks/useUpdateMeetStatus";
 
 type ReportsModalProps = {
   open: boolean;
   onClose: () => void;
   meetId?: string | null;
+  isOrganizer?: boolean;
+  canViewMeet?: boolean;
+  canManageMeet?: boolean;
 };
 
-export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
+export function ReportsModal({
+  open,
+  onClose,
+  meetId,
+  isOrganizer: _isOrganizer,
+  canManageMeet,
+}: ReportsModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const api = useApi();
+  const { generateReportAsync } = useGenerateMeetReport();
+  const { updateStatusAsync } = useUpdateMeetStatus();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
+  const [downloadReport, setDownloadReport] = useState(false);
   const { data: attendees, isLoading } = useFetchMeetAttendees(
     meetId,
-    "accepted"
+    "accepted",
   );
   const { data: meet } = useFetchMeet(meetId, Boolean(open && meetId));
 
@@ -47,7 +63,11 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
   ] as const;
 
   const filteredAttendees = attendees.filter((attendee) =>
-    ["checked-in", "attended", "confirmed"].includes(attendee.status)
+    [
+      AttendeeStatusEnum.CheckedIn,
+      AttendeeStatusEnum.Attended,
+      AttendeeStatusEnum.Confirmed,
+    ].includes(attendee.status),
   );
 
   const statusId = useMemo(() => {
@@ -57,19 +77,69 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
       typeof statusVal === "number"
         ? statusVal
         : statusVal != null
-        ? Number(statusVal)
-        : null;
+          ? Number(statusVal)
+          : null;
     return !Number.isNaN(statusNum || NaN) ? statusNum : null;
   }, [meet]);
 
-  const showCompletionWarning =
-    statusId !== null && statusId !== MeetStatusEnum.Completed;
+  const hasMeetStarted = useMemo(() => {
+    if (!meet?.startTime) {
+      return false;
+    }
+    const startDate = new Date(meet.startTime);
+    if (Number.isNaN(startDate.getTime())) {
+      return false;
+    }
+    return startDate.getTime() <= Date.now();
+  }, [meet?.startTime]);
+
+  const hasCheckedInAttendees = useMemo(
+    () =>
+      attendees.some(
+        (attendee) =>
+          attendee.status === AttendeeStatusEnum.CheckedIn ||
+          attendee.status === AttendeeStatusEnum.Attended,
+      ),
+    [attendees],
+  );
+
+  const shouldCompleteMeet =
+    hasMeetStarted &&
+    hasCheckedInAttendees &&
+    statusId === MeetStatusEnum.Closed;
+
+  const isAlreadyCompleted = statusId === MeetStatusEnum.Completed;
+
+  const isGenerateDisabled =
+    !canManageMeet ||
+    !meetId ||
+    isGenerating ||
+    (!sendEmail && !downloadReport);
 
   const handleGenerateReport = async () => {
-    if (!meetId || isGenerating) return;
+    if (!meetId || isGenerating || (!sendEmail && !downloadReport)) return;
     setIsGenerating(true);
     try {
-      await api.post(`/meets/${meetId}/report`);
+      const blob = await generateReportAsync({
+        meetId,
+        sendEmail,
+        downloadReport,
+        isFinalReport: shouldCompleteMeet,
+      });
+      if (downloadReport && blob) {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${meet?.name || "meet"}-report.xlsx`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+      }
+      if (shouldCompleteMeet) {
+        await updateStatusAsync({
+          meetId,
+          statusId: MeetStatusEnum.Completed,
+        });
+      }
       onClose();
     } finally {
       setIsGenerating(false);
@@ -77,10 +147,16 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
   };
 
   const renderStatus = (status: string) => {
-    if (status === "confirmed") {
+    if (
+      status === AttendeeStatusEnum.Confirmed ||
+      status === AttendeeStatusEnum.NoShow
+    ) {
       return <Chip label="No show" color="error" size="small" />;
     }
-    if (status === "checked-in" || status === "attended") {
+    if (
+      status === AttendeeStatusEnum.CheckedIn ||
+      status === AttendeeStatusEnum.Attended
+    ) {
       return <Chip label="Attended" color="success" size="small" />;
     }
     return status;
@@ -151,7 +227,7 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
                         <TableCell key={column.key}>
                           {column.key === "status"
                             ? renderStatus(attendee.status)
-                            : (attendee as any)[column.key] ?? ""}
+                            : ((attendee as any)[column.key] ?? "")}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -159,6 +235,38 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
                 </TableBody>
               </Table>
             )}
+          </Box>
+          <Box sx={{ px: 2, pb: 1 }}>
+            <Stack>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={sendEmail}
+                    onChange={(event) => setSendEmail(event.target.checked)}
+                  />
+                }
+                label={
+                  <Typography variant="body2">
+                    Send report to the organiser's email address
+                  </Typography>
+                }
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={downloadReport}
+                    onChange={(event) =>
+                      setDownloadReport(event.target.checked)
+                    }
+                  />
+                }
+                label={
+                  <Typography variant="body2">
+                    Download report to your browser
+                  </Typography>
+                }
+              />
+            </Stack>
           </Box>
           <DialogActions
             sx={{
@@ -168,25 +276,28 @@ export function ReportsModal({ open, onClose, meetId }: ReportsModalProps) {
               justifyContent: "space-between",
             }}
           >
-            {showCompletionWarning ? (
-              <Stack direction="row" spacing={1} alignItems="center">
-                <WarningAmberOutlinedIcon
-                  fontSize="small"
-                  color="warning"
-                />
-                <Typography variant="body2" color="text.secondary">
-                  Generating a report will set this meet to completed.
-                </Typography>
-              </Stack>
-            ) : (
-              <span />
-            )}
+            <Stack direction="row" spacing={1} alignItems="center">
+              {!isAlreadyCompleted && (
+                <WarningAmberOutlinedIcon fontSize="small" color="warning" />
+              )}
+              <Typography variant="body2" color="text.secondary">
+                {isAlreadyCompleted
+                  ? ""
+                  : shouldCompleteMeet
+                    ? "Generating the report will mark the meet as completed and prevent further check-ins."
+                    : !hasMeetStarted
+                      ? "Meet has not started yet. Report will be treated as interim."
+                      : !hasCheckedInAttendees
+                        ? "No attendees have checked in yet. Report will be treated as interim."
+                        : ""}
+              </Typography>
+            </Stack>
             <Stack direction="row" spacing={1}>
               <Button onClick={onClose}>Cancel</Button>
               <Button
                 variant="contained"
                 onClick={handleGenerateReport}
-                disabled={!meetId || isGenerating}
+                disabled={isGenerateDisabled}
               >
                 Generate report
               </Button>

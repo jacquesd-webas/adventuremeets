@@ -13,7 +13,6 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable("users", (table) => {
     table.uuid("id").primary().defaultTo(knex.raw("gen_random_uuid()"));
     table.string("email").unique().index();
-    table.boolean("email_verified").defaultTo(false);
     table.timestamp("email_verified_at", { useTz: true });
     table.string("password_hash");
     table.string("password_salt");

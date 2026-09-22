@@ -2,10 +2,14 @@ import {
   AppBar,
   Avatar,
   Box,
-  Button,
   Container,
+  Divider,
+  Drawer,
   IconButton,
+  List,
+  ListItemButton,
   ListItemIcon,
+  ListItemText,
   Menu,
   MenuItem,
   Stack,
@@ -18,18 +22,31 @@ import {
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import ViewDayOutlinedIcon from "@mui/icons-material/ViewDayOutlined";
+import MenuIcon from "@mui/icons-material/Menu";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import { useMemo, useState, MouseEvent, useEffect } from "react";
+import ApartmentOutlinedIcon from "@mui/icons-material/ApartmentOutlined";
+import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
+import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
+import CloseIcon from "@mui/icons-material/Close";
+import { useMemo, useState, MouseEvent, useEffect, ReactNode } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { ProfileModal } from "../components/profile/ProfileModal";
+import {
+  ProfileContent,
+  ProfileModal,
+} from "../components/profile/ProfileModal";
+import {
+  OrganizationContent,
+  OrganizationModal,
+} from "../components/profile/OrganizationModal";
 import { getLogoSrc } from "../helpers/logo";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
-import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrganization } from "../context/organizationContext";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { ChooseOrganizationModal } from "../components/auth/ChooseOrganizationModal";
+import { OrganizationSwitcherButton } from "./OrganizationSwitcherButton";
+import { PendingInvitePromptModal } from "../components/auth/PendingInvitePromptModal";
 import {
   getAllowedThemeModes,
   getOrganizationBackground,
@@ -41,13 +58,20 @@ const navItems = [
   { label: "List", path: "/plan" },
 ];
 
+export type MainLayoutOutletContext = {
+  setMobileHeaderAction: (action: ReactNode | null) => void;
+};
+
 function MainLayout() {
   const nav = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down(820));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [adminAnchorEl, setAdminAnchorEl] = useState<null | HTMLElement>(null);
   const [orgModalOpen, setOrgModalOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileHeaderAction, setMobileHeaderAction] =
+    useState<ReactNode | null>(null);
   const [baseMode, setBaseMode] = useState<"light" | "dark">(() => {
     const stored =
       typeof window !== "undefined"
@@ -57,19 +81,26 @@ function MainLayout() {
     return "light";
   });
 
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+
   const { currentOrganizationId, organizationIds, currentOrganizationRole } =
     useCurrentOrganization();
+
   const { data: organization } = useFetchOrganization(
     currentOrganizationId || undefined,
   );
+
   const [profileOpen, setProfileOpen] = useState(false);
+  const [organizationOpen, setOrganizationOpen] = useState(false);
   const { mode, setMode } = useThemeMode();
-  const queryClient = useQueryClient();
+
   const isAdmin = Boolean(
     user?.organizations && Object.values(user.organizations).includes("admin"),
   );
   const isCurrentOrgAdmin = currentOrganizationRole === "admin";
+  const pendingInvites = useMemo(() => user?.pendingInvites ?? [], [user]);
+  const desktopNavItems = navItems;
+  const mobileNavItems = navItems.filter((item) => item.path !== "/plan");
 
   const displayName = useMemo(() => {
     if (!user) return "";
@@ -98,6 +129,10 @@ function MainLayout() {
     nav(path);
     handleMenuClose();
   };
+  const handleMobileNavigate = (path: string) => {
+    nav(path);
+    setMobileNavOpen(false);
+  };
   const handleAdminNavigate = (path: string) => {
     nav(path);
     handleAdminClose();
@@ -108,18 +143,45 @@ function MainLayout() {
     }
     handleAdminClose();
   };
+  const handleAdminUsers = () => {
+    nav("/admin/users");
+    handleAdminClose();
+  };
 
   const handleProfile = () => {
     setProfileOpen(true);
     handleMenuClose();
   };
+  const handleOrganization = () => {
+    setOrganizationOpen(true);
+    handleMenuClose();
+  };
 
   const handleLogout = () => {
-    window.localStorage.removeItem("accessToken");
-    window.localStorage.removeItem("refreshToken");
-    queryClient.clear();
+    logout();
     handleMenuClose();
-    nav("/login");
+    nav("/login", { replace: true });
+  };
+  const handleMobileProfile = () => {
+    setProfileOpen(true);
+    setMobileNavOpen(false);
+  };
+  const handleMobileOrganization = () => {
+    setOrganizationOpen(true);
+    setMobileNavOpen(false);
+  };
+  const handleOpenProfileFromOrganization = () => {
+    setOrganizationOpen(false);
+    setProfileOpen(true);
+  };
+  const handleMobileLogout = () => {
+    logout();
+    setMobileNavOpen(false);
+    nav("/login", { replace: true });
+  };
+  const handleOpenOrganizationFromProfile = () => {
+    setProfileOpen(false);
+    setOrganizationOpen(true);
   };
 
   const allowedThemeModes = useMemo(
@@ -160,6 +222,81 @@ function MainLayout() {
   };
 
   const logoSrc = getLogoSrc(mode, organization?.theme);
+  const appBarLogoSrc = organization?.logoUrl || logoSrc;
+  const appBarLogoAlt = organization?.logoUrl
+    ? `${organization?.name || "Organisation"} logo`
+    : "AdventureMeets logo";
+
+  const accountMenu = (
+    <Menu
+      anchorEl={anchorEl}
+      open={Boolean(anchorEl)}
+      onClose={handleMenuClose}
+      transformOrigin={{ vertical: "top", horizontal: "right" }}
+    >
+      {(canLight || canDark) && (
+        <MenuItem
+          onClick={handleToggleLightDark}
+          disabled={!canLight || !canDark}
+        >
+          <ListItemIcon>
+            {(mode === "glass" ? baseMode : mode) === "dark" ? (
+              <LightModeIcon fontSize="small" />
+            ) : (
+              <DarkModeIcon fontSize="small" />
+            )}
+          </ListItemIcon>
+          {(mode === "glass" ? baseMode : mode) === "dark"
+            ? "Light mode"
+            : "Dark mode"}
+        </MenuItem>
+      )}
+      {canGlass && (
+        <MenuItem onClick={handleToggleGlass}>
+          <ListItemIcon>
+            <ViewDayOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          {mode === "glass" ? "Disable glass mode" : "Enable glass mode"}
+        </MenuItem>
+      )}
+      <MenuItem onClick={handleProfile} data-testid="account-profile-menu-item">
+        <ListItemIcon>
+          <PersonOutlineIcon fontSize="small" />
+        </ListItemIcon>
+        Profile
+      </MenuItem>
+      {isCurrentOrgAdmin ? (
+        <MenuItem
+          onClick={handleOrganization}
+          data-testid="account-organization-menu-item"
+        >
+          <ListItemIcon>
+            <ApartmentOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          Organisation
+        </MenuItem>
+      ) : null}
+      <MenuItem onClick={handleLogout}>
+        <ListItemIcon>
+          <LogoutIcon fontSize="small" />
+        </ListItemIcon>
+        Logout
+      </MenuItem>
+      <Divider />
+      <MenuItem onClick={() => handleNavigate("/privacy")}>
+        <ListItemIcon>
+          <PrivacyTipOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        Privacy
+      </MenuItem>
+      <MenuItem onClick={() => handleNavigate("/tnc")}>
+        <ListItemIcon>
+          <GavelOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        T&C's
+      </MenuItem>
+    </Menu>
+  );
 
   useEffect(() => {
     const { image, color } = getOrganizationBackground(
@@ -194,7 +331,7 @@ function MainLayout() {
       sx={{
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
+        height: "100dvh",
         overflow: "hidden",
       }}
     >
@@ -208,12 +345,18 @@ function MainLayout() {
           <Toolbar>
             <Box
               component="img"
-              src={logoSrc}
-              alt="AdventureMeets logo"
-              sx={{ height: 36, mr: 3 }}
+              src={appBarLogoSrc}
+              alt={appBarLogoAlt}
+              sx={{
+                height: 36,
+                width: "auto",
+                objectFit: "contain",
+                display: "block",
+                mr: 3,
+              }}
             />
             <Stack direction="row" spacing={2} alignItems="center">
-              {navItems.map((item) => (
+              {desktopNavItems.map((item) => (
                 <Box
                   key={item.path}
                   component="button"
@@ -248,98 +391,27 @@ function MainLayout() {
               )}
             </Stack>
             <Box sx={{ flexGrow: 1 }} />
-            {organizationIds.length > 1 && (
-              <Button
-                onClick={() => setOrgModalOpen(true)}
-                variant="outlined"
-                color="primary"
-                size="small"
-                data-testid="organization-switcher-button"
-                sx={{
-                  mr: 2,
-                  maxWidth: 240,
-                  textTransform: "none",
-                  fontWeight: 600,
-                  justifyContent: "flex-start",
-                  ...(theme.palette.mode === "light"
-                    ? {
-                        borderColor: "#000000",
-                        color: "#000000",
-                        "&:hover": {
-                          borderColor: "#000000",
-                          backgroundColor: "rgba(0, 0, 0, 0.06)",
-                        },
-                        "&.Mui-focusVisible": {
-                          outline: "2px solid #000000",
-                          outlineOffset: 2,
-                        },
-                      }
-                    : {}),
-                }}
-              >
-                <Typography variant="body2" noWrap>
-                  {currentOrganizationId
-                    ? organization?.name || "Organisation"
-                    : "No Organisation"}
-                </Typography>
-              </Button>
-            )}
-            <Tooltip title="Account">
-              <IconButton
-                onClick={handleAvatarClick}
-                size="small"
-                sx={{ ml: 2 }}
-                data-testid="account-menu-button"
-              >
-                <Avatar sx={{ width: 36, height: 36 }}>{initials}</Avatar>
-              </IconButton>
-            </Tooltip>
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleMenuClose}
-              transformOrigin={{ vertical: "top", horizontal: "right" }}
-            >
-              {(canLight || canDark) && (
-                <MenuItem
-                  onClick={handleToggleLightDark}
-                  disabled={!canLight || !canDark}
+            <OrganizationSwitcherButton onClick={() => setOrgModalOpen(true)} />
+            {user ? (
+              <Tooltip title="Account">
+                <IconButton
+                  onClick={handleAvatarClick}
+                  size="small"
+                  sx={{ ml: 2 }}
+                  aria-label="Open account menu"
+                  data-testid="account-menu-button"
                 >
-                  <ListItemIcon>
-                    {(mode === "glass" ? baseMode : mode) === "dark" ? (
-                      <LightModeIcon fontSize="small" />
-                    ) : (
-                      <DarkModeIcon fontSize="small" />
-                    )}
-                  </ListItemIcon>
-                  {(mode === "glass" ? baseMode : mode) === "dark"
-                    ? "Light mode"
-                    : "Dark mode"}
-                </MenuItem>
-              )}
-              {canGlass && (
-                <MenuItem onClick={handleToggleGlass}>
-                  <ListItemIcon>
-                    <ViewDayOutlinedIcon fontSize="small" />
-                  </ListItemIcon>
-                  {mode === "glass"
-                    ? "Disable glass mode"
-                    : "Enable glass mode"}
-                </MenuItem>
-              )}
-              <MenuItem onClick={handleProfile}>
-                <ListItemIcon>
-                  <PersonOutlineIcon fontSize="small" />
-                </ListItemIcon>
-                Profile
-              </MenuItem>
-              <MenuItem onClick={handleLogout}>
-                <ListItemIcon>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                Logout
-              </MenuItem>
-            </Menu>
+                  <Avatar
+                    src={user?.avatarUrl || undefined}
+                    sx={{ width: 36, height: 36 }}
+                  >
+                    {initials}
+                  </Avatar>
+                </IconButton>
+              </Tooltip>
+            ) : (
+              <Box sx={{ width: 52, height: 36, ml: 2 }} />
+            )}
             {isAdmin && (
               <Menu
                 anchorEl={adminAnchorEl}
@@ -359,34 +431,322 @@ function MainLayout() {
                   Templates
                 </MenuItem>
                 <MenuItem
-                  onClick={() => handleAdminNavigate("/admin/users")}
-                  disabled={!isCurrentOrgAdmin}
+                  onClick={handleAdminUsers}
+                  disabled={!currentOrganizationId || !isCurrentOrgAdmin}
                 >
                   Users
+                </MenuItem>
+                <MenuItem
+                  onClick={() => handleAdminNavigate("/admin/reports")}
+                  disabled={!currentOrganizationId || !isCurrentOrgAdmin}
+                >
+                  Reports
                 </MenuItem>
               </Menu>
             )}
           </Toolbar>
         </AppBar>
       )}
+      {isMobile && (
+        <AppBar
+          position="sticky"
+          color="transparent"
+          elevation={0}
+          sx={{ borderBottom: 1, borderColor: "divider", top: 0 }}
+        >
+          <Toolbar sx={{ minHeight: 56 }}>
+            <IconButton
+              edge="start"
+              color="inherit"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation"
+            >
+              <MenuIcon />
+            </IconButton>
+            <Box
+              sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}
+            >
+              <Box
+                component="img"
+                src={appBarLogoSrc}
+                alt={appBarLogoAlt}
+                sx={{
+                  height: 28,
+                  width: "auto",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            </Box>
+            <Box
+              sx={{
+                minWidth: 34,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+              }}
+            >
+              {mobileHeaderAction}
+            </Box>
+          </Toolbar>
+          <Drawer
+            anchor="left"
+            open={mobileNavOpen}
+            onClose={() => setMobileNavOpen(false)}
+          >
+            <Box sx={{ width: 280, py: 1 }}>
+              <Box sx={{ px: 2, py: 1.25 }}>
+                <Box
+                  component="img"
+                  src={appBarLogoSrc}
+                  alt={appBarLogoAlt}
+                  sx={{
+                    height: 30,
+                    width: "auto",
+                    objectFit: "contain",
+                    display: "block",
+                  }}
+                />
+              </Box>
+              <List>
+                {mobileNavItems.map((item) => (
+                  <ListItemButton
+                    key={item.path}
+                    onClick={() => handleMobileNavigate(item.path)}
+                  >
+                    <ListItemText primary={item.label} />
+                  </ListItemButton>
+                ))}
+                {organizationIds.length > 1 && (
+                  <ListItemButton
+                    onClick={() => {
+                      setOrgModalOpen(true);
+                      setMobileNavOpen(false);
+                    }}
+                  >
+                    <ListItemText primary="Switch organisation" />
+                  </ListItemButton>
+                )}
+              </List>
+              <Divider sx={{ my: 1 }} />
+              <List>
+                {(canLight || canDark) && (
+                  <ListItemButton
+                    onClick={() => {
+                      handleToggleLightDark();
+                      setMobileNavOpen(false);
+                    }}
+                    disabled={!canLight || !canDark}
+                  >
+                    <ListItemIcon>
+                      {(mode === "glass" ? baseMode : mode) === "dark" ? (
+                        <LightModeIcon fontSize="small" />
+                      ) : (
+                        <DarkModeIcon fontSize="small" />
+                      )}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        (mode === "glass" ? baseMode : mode) === "dark"
+                          ? "Light mode"
+                          : "Dark mode"
+                      }
+                    />
+                  </ListItemButton>
+                )}
+                {canGlass && (
+                  <ListItemButton
+                    onClick={() => {
+                      handleToggleGlass();
+                      setMobileNavOpen(false);
+                    }}
+                  >
+                    <ListItemIcon>
+                      <ViewDayOutlinedIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        mode === "glass"
+                          ? "Disable glass mode"
+                          : "Enable glass mode"
+                      }
+                    />
+                  </ListItemButton>
+                )}
+                {user ? (
+                  <>
+                    <Box sx={{ px: 2, pb: 0.5, pt: 0.5 }}>
+                      <Typography variant="overline" color="text.secondary">
+                        Account
+                      </Typography>
+                    </Box>
+                    <ListItemButton
+                      onClick={handleMobileProfile}
+                      data-testid="mobile-profile-menu-item"
+                    >
+                      <ListItemIcon>
+                        <PersonOutlineIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText primary="Profile" />
+                    </ListItemButton>
+                    {isCurrentOrgAdmin ? (
+                      <ListItemButton
+                        onClick={handleMobileOrganization}
+                        data-testid="mobile-organization-menu-item"
+                      >
+                        <ListItemIcon>
+                          <ApartmentOutlinedIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText primary="Organisation" />
+                      </ListItemButton>
+                    ) : null}
+                    {isCurrentOrgAdmin && (
+                      <ListItemButton
+                        onClick={() => handleMobileNavigate("/admin/reports")}
+                      >
+                        <ListItemText primary="Reports" />
+                      </ListItemButton>
+                    )}
+                    <ListItemButton onClick={handleMobileLogout}>
+                      <ListItemIcon>
+                        <LogoutIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText primary="Logout" />
+                    </ListItemButton>
+                    <Divider sx={{ my: 1 }} />
+                  </>
+                ) : null}
+                <ListItemButton
+                  onClick={() => handleMobileNavigate("/privacy")}
+                >
+                  <ListItemIcon>
+                    <PrivacyTipOutlinedIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Privacy" />
+                </ListItemButton>
+                <ListItemButton onClick={() => handleMobileNavigate("/tnc")}>
+                  <ListItemIcon>
+                    <GavelOutlinedIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="T&C's" />
+                </ListItemButton>
+              </List>
+            </Box>
+          </Drawer>
+        </AppBar>
+      )}
+      {!isMobile && user ? accountMenu : null}
       <Container
         maxWidth={isMobile ? false : "lg"}
         disableGutters={isMobile}
         sx={{
           flex: 1,
+          minHeight: 0,
           overflowY: "auto",
           overscrollBehavior: "contain",
           py: isMobile ? 1 : 3,
           px: isMobile ? 1.5 : 0,
         }}
       >
-        <Outlet />
+        <Outlet context={{ setMobileHeaderAction }} />
       </Container>
-      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      {isMobile ? (
+        <>
+          <Drawer
+            anchor="bottom"
+            open={profileOpen}
+            onClose={() => setProfileOpen(false)}
+            data-testid="profile-drawer"
+            PaperProps={{
+              sx: {
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                maxHeight: "85vh",
+                overflow: "hidden",
+              },
+            }}
+          >
+            <Box sx={{ p: 2, height: "100%", overflowY: "auto" }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
+              >
+                <Typography variant="h6">Profile</Typography>
+                <IconButton
+                  onClick={() => setProfileOpen(false)}
+                  size="small"
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Stack>
+              <ProfileContent
+                open={profileOpen}
+                onOpenOrganization={handleOpenOrganizationFromProfile}
+              />
+            </Box>
+          </Drawer>
+          <Drawer
+            anchor="bottom"
+            open={organizationOpen}
+            onClose={() => setOrganizationOpen(false)}
+            data-testid="organization-drawer"
+            PaperProps={{
+              sx: {
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                maxHeight: "85vh",
+                overflow: "hidden",
+              },
+            }}
+          >
+            <Box sx={{ p: 2, height: "100%", overflowY: "auto" }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
+              >
+                <Typography variant="h6">Organisation</Typography>
+                <IconButton
+                  onClick={() => setOrganizationOpen(false)}
+                  size="small"
+                  aria-label="Close"
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Stack>
+              <OrganizationContent
+                open={organizationOpen}
+                onOpenProfile={handleOpenProfileFromOrganization}
+              />
+            </Box>
+          </Drawer>
+        </>
+      ) : (
+        <>
+          <ProfileModal
+            open={profileOpen}
+            onClose={() => setProfileOpen(false)}
+            onOpenOrganization={handleOpenOrganizationFromProfile}
+          />
+          <OrganizationModal
+            open={organizationOpen}
+            onClose={() => setOrganizationOpen(false)}
+            onOpenProfile={handleOpenProfileFromOrganization}
+          />
+        </>
+      )}
       <ChooseOrganizationModal
-        open={orgModalOpen || !currentOrganizationId}
+        open={Boolean(user) && (orgModalOpen || !currentOrganizationId)}
         onClose={() => setOrgModalOpen(false)}
+        disableClose={Boolean(user) && !currentOrganizationId}
       />
+      {user ? (
+        <PendingInvitePromptModal pendingInvites={pendingInvites} />
+      ) : null}
     </Box>
   );
 }

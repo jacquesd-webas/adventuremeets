@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 # Install pnpm
@@ -14,7 +14,7 @@ COPY api api
 # Build api
 RUN cd api && pnpm run build
 
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
@@ -22,6 +22,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/api/node_modules ./node_modules
 COPY --from=builder /app/api/dist ./dist
 COPY api/package.json ./package.json
+COPY api/templates ./templates
 COPY api/start.sh /start.sh
 RUN chmod +x /start.sh
 ENTRYPOINT ["/start.sh"]

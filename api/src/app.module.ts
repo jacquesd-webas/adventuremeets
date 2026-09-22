@@ -6,9 +6,14 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { HealthModule } from './health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { MeetsModule } from './meets/meets.module';
+import { ReportsModule } from './reports/reports.module';
+import { WallModule } from './wall/wall.module';
+import { AttendeesModule } from './attendees/attendees.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { EmailModule } from './email/email.module';
 import { TypesModule } from './types/types.module';
+import { AuditLogModule } from './audit/audit-log.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -17,9 +22,14 @@ import { TypesModule } from './types/types.module';
     HealthModule,
     DatabaseModule,
     MeetsModule,
+    ReportsModule,
+    WallModule,
+    AttendeesModule,
     OrganizationsModule,
     EmailModule,
     TypesModule,
+    AuditLogModule,
+    NotificationsModule,
   ],
   controllers: [],
   providers: [

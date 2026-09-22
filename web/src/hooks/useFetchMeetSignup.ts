@@ -49,11 +49,42 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     organizerEmail: apiMeet.organizerEmail ?? null,
     organizerPhone: apiMeet.organizerPhone ?? null,
     imageUrl: apiMeet.imageUrl ?? apiMeet.image_url ?? null,
+    images: (apiMeet.images || []).map((image: any) => ({
+      id: image.id,
+      meetId: image.meetId ?? image.meet_id ?? "",
+      url: image.url,
+      isPrimary: Boolean(image.isPrimary ?? image.is_primary),
+      aspect: image.aspect ?? "O",
+      objectKey: image.objectKey ?? image.object_key ?? undefined,
+      contentType: image.contentType ?? image.content_type ?? undefined,
+      sizeBytes: image.sizeBytes ?? image.size_bytes ?? undefined,
+      createdAt: image.createdAt ?? image.created_at ?? undefined,
+    })),
     capacity: apiMeet.capacity ?? null,
     waitlistSize: apiMeet.waitlistSize ?? null,
     autoPlacement: apiMeet.autoPlacement ?? null,
     autoPromoteWaitlist: apiMeet.autoPromoteWaitlist ?? null,
     allowGuests: apiMeet.allowGuests ?? null,
+    allowSelfCheckin:
+      apiMeet.allowSelfCheckin ?? apiMeet.allow_self_checkin ?? null,
+    checkinPin: apiMeet.checkinPin ?? apiMeet.checkin_pin ?? null,
+    allowWalkins: apiMeet.allowWalkins ?? apiMeet.allow_walkins ?? null,
+    requireEmail: apiMeet.requireEmail ?? apiMeet.require_email ?? null,
+    requirePhone: apiMeet.requirePhone ?? apiMeet.require_phone ?? null,
+    requireOrg1: apiMeet.requireOrg1 ?? apiMeet.require_org1 ?? null,
+    requireOrg2: apiMeet.requireOrg2 ?? apiMeet.require_org2 ?? null,
+    customField1Name:
+      apiMeet.customField1Name ?? apiMeet.custom_field1_name ?? null,
+    customField2Name:
+      apiMeet.customField2Name ?? apiMeet.custom_field2_name ?? null,
+    customField1HelperText:
+      apiMeet.customField1HelperText ??
+      apiMeet.custom_field1_helper_text ??
+      null,
+    customField2HelperText:
+      apiMeet.customField2HelperText ??
+      apiMeet.custom_field2_helper_text ??
+      null,
     maxGuests: apiMeet.maxGuests ?? null,
     isVirtual: apiMeet.isVirtual ?? null,
     shareCode: apiMeet.shareCode ?? null,
@@ -72,23 +103,38 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     attendeeCount: apiMeet.attendeeCount ?? apiMeet.attendee_count ?? null,
     waitlistCount: apiMeet.waitlistCount ?? null,
     confirmedCount: apiMeet.confirmedCount ?? null,
+    rejectedCount: apiMeet.rejectedCount ?? null,
     checkedInCount: apiMeet.checkedInCount ?? null,
     isHidden: apiMeet.isHidden ?? null,
     myAttendeeStatus: apiMeet.myAttendeeStatus ?? null,
-    metaDefinitions: (apiMeet.metaDefinitions || apiMeet.meta_definitions || [])
-      .map((definition: any) => ({
-        id: definition.id,
-        fieldKey: definition.fieldKey ?? definition.field_key ?? "",
-        label: definition.label,
-        fieldType: definition.fieldType ?? definition.field_type ?? "text",
-        required:
-          definition.required === undefined
-            ? undefined
-            : Boolean(definition.required),
-        position:
-          definition.position === undefined ? undefined : Number(definition.position),
-        config: definition.config ?? {},
-      })),
+    attendingAttendees: (
+      apiMeet.attendingAttendees ??
+      apiMeet.attending_attendees ??
+      []
+    ).map((attendee: any) => ({
+      id: attendee.id,
+      name: attendee.name,
+      avatarUrl: attendee.avatarUrl ?? attendee.avatar_url ?? null,
+    })),
+    metaDefinitions: (
+      apiMeet.metaDefinitions ||
+      apiMeet.meta_definitions ||
+      []
+    ).map((definition: any) => ({
+      id: definition.id,
+      fieldKey: definition.fieldKey ?? definition.field_key ?? "",
+      label: definition.label,
+      fieldType: definition.fieldType ?? definition.field_type ?? "text",
+      required:
+        definition.required === undefined
+          ? undefined
+          : Boolean(definition.required),
+      position:
+        definition.position === undefined
+          ? undefined
+          : Number(definition.position),
+      config: definition.config ?? {},
+    })),
   };
 }
 

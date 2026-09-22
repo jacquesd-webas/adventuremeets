@@ -33,6 +33,7 @@ export function useFetchMe({ onUnauthorized, enabled = true }: Options) {
     data: query.data ?? null,
     isLoading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
+    updatedAt: query.dataUpdatedAt,
     refetch: query.refetch,
   };
 }

@@ -1,0 +1,36 @@
+<p style="margin: 0 0 16px 0">{{messageBody}}</p>
+{{#ifStatusUrl}}
+<p style="margin: 0 0 16px 0; font-size: 13px; color: #475569">
+  {{manageResponseLead}}
+</p>
+<p style="margin: 0 0 16px 0; text-align: center">
+  <a
+    href="{{statusUrl}}"
+    style="display:inline-block;background:{{primaryColor}};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;"
+    >View meet</a
+  >
+</p>
+<p style="margin: 0 0 16px 0; font-size: 13px; color: #475569">
+  If the button doesn't work, copy and paste this link into your browser:
+</p>
+<p
+  style="
+    word-break: break-all;
+    font-size: 13px;
+    color: #475569;
+    margin: 0 0 16px 0;
+  "
+>
+  {{statusUrl}}
+</p>
+{{/ifStatusUrl}} {{#ifOrganizerEmail}}
+<p style="margin: 0; font-size: 13px; color: #475569">
+  {{#ifGroupedMessage}}If you need to reach the organiser directly, you may
+  reply to
+  <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a
+  >.{{/ifGroupedMessage}}{{#ifDirectMessage}}If you need to reply, contact
+  {{organizerName}} at
+  <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a
+  >.{{/ifDirectMessage}}
+</p>
+{{/ifOrganizerEmail}}

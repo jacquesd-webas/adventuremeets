@@ -7,6 +7,7 @@ import {
   forwardRef,
   InternalServerErrorException,
   Logger,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
@@ -19,6 +20,7 @@ import { TokenPair } from "./dto/token-pair.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import { OrganizationsService } from "../organizations/organizations.service";
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -39,6 +41,20 @@ type GoogleIdTokenPayload = {
   picture?: string;
 };
 
+type FacebookTokenResponse = {
+  access_token: string;
+  token_type?: string;
+  expires_in?: number;
+};
+
+type FacebookProfileResponse = {
+  id: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  name?: string;
+};
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -47,13 +63,15 @@ export class AuthService {
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
+    @Inject(forwardRef(() => OrganizationsService))
+    private readonly organizationsService: OrganizationsService,
   ) {}
 
   hasRole(
     user: UserProfile,
     organizationId: string,
-    requiredRole: "member" | "organizer" | "admin"
+    requiredRole: "member" | "organizer" | "admin",
   ): boolean {
     const role = user.organizations?.[organizationId];
     if (!role) return false;
@@ -69,7 +87,7 @@ export class AuthService {
   hasAtLeastOneRole(
     user: UserProfile,
     organizationIds: string[],
-    requiredRole: "member" | "organizer" | "admin"
+    requiredRole: "member" | "organizer" | "admin",
   ): boolean {
     for (const orgId of organizationIds) {
       if (this.hasRole(user, orgId, requiredRole)) {
@@ -81,7 +99,7 @@ export class AuthService {
 
   getUserOrganizationIds(
     user: UserProfile,
-    minRole?: "member" | "organizer" | "admin"
+    minRole?: "member" | "organizer" | "admin",
   ): string[] {
     const entries = Object.entries(user.organizations || {});
     if (!minRole || minRole === "member") {
@@ -99,7 +117,7 @@ export class AuthService {
 
   async validateUser(
     email: string,
-    password: string
+    password: string,
   ): Promise<{ user: UserProfile; isValid: boolean }> {
     const user = await this.usersService.findByEmail(email);
     if (!user) {
@@ -132,7 +150,7 @@ export class AuthService {
   private signRefreshToken(user: UserProfile): string {
     return this.jwtService.sign(
       { sub: user.id, type: "refresh" },
-      { expiresIn: "30d" }
+      { expiresIn: "30d" },
     );
   }
 
@@ -141,10 +159,8 @@ export class AuthService {
       user: undefined,
       isValid: false,
     };
-    // This is a litte tricky as we want to mask any login failures or other errors
-    // as just "Login failed" to avoid giving away any hints to attackers. We also
-    // want to log failed attempts for non-real users so that fail2ban can block
-    // brute-force attacks.
+    // This is a litte tricky as for most failures we want to mask the reason to avoid
+    // giving hints to attackers, so we only have Login Failed and Incorrect email or password
 
     // 1. Verify if the user is valid (check email and password)
     try {
@@ -154,7 +170,7 @@ export class AuthService {
     } catch (err) {
       if (err instanceof UnauthorizedException) {
         this.logger.error(`Login failed for ${payload.email}: ${err.message}`);
-        throw new UnauthorizedException("Login failed");
+        throw new UnauthorizedException("Incorrect email or password");
       }
       if (err instanceof InternalServerErrorException) {
         this.logger.error(`Login failed for ${payload.email}: ${err.message}`);
@@ -163,7 +179,7 @@ export class AuthService {
     }
     if (!user) {
       this.logger.error(`Login failed for ${payload.email}: User not found`);
-      throw new UnauthorizedException("Login failed");
+      throw new UnauthorizedException("Incorrect email or password");
     }
 
     // 2. Log the login attempt (either as success or failure)
@@ -176,12 +192,24 @@ export class AuthService {
 
     // 3. Return tokens if login was success, otherwise throw
     if (isValid) {
+      if (payload.organizationId) {
+        await this.ensureOrganizationJoinable(payload.organizationId);
+        await this.usersService.ensureOrganizationMembership(
+          user.id,
+          payload.organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          user.id,
+          payload.organizationId,
+        );
+        user = await this.usersService.findById(user.id);
+      }
       return {
         accessToken: this.signAccessToken(user),
         refreshToken: this.signRefreshToken(user),
       };
     }
-    throw new UnauthorizedException("Login failed");
+    throw new UnauthorizedException("Incorrect email or password");
   }
 
   async refresh(payload: RefreshDto): Promise<TokenPair> {
@@ -260,14 +288,29 @@ export class AuthService {
   }
 
   async ensureOrganizationJoinable(organizationId: string) {
-    const isPrivate = await this.usersService.isOrganizationPrivate(
-      organizationId
-    );
+    const isPrivate =
+      await this.usersService.isOrganizationPrivate(organizationId);
     if (isPrivate === null) {
       throw new BadRequestException("Invalid organization");
     }
     if (isPrivate) {
       throw new ForbiddenException("Invalid organisation invitation link");
+    }
+  }
+
+  private async cleanupEmptyPrivateOrganizationsAfterJoin(
+    userId: string,
+    organizationId: string,
+  ) {
+    try {
+      await this.organizationsService.removeEmptyPrivateOrganizationsForUser(
+        userId,
+        organizationId,
+      );
+    } catch (err: any) {
+      this.logger.warn(
+        `Joined organization ${organizationId} for user ${userId}, but private org cleanup failed: ${err?.message || err}`,
+      );
     }
   }
 
@@ -281,6 +324,17 @@ export class AuthService {
     return crypto.createHash("sha256").update(token).digest("hex");
   }
 
+  private hashVerificationCode(code: string) {
+    return crypto.createHash("sha256").update(code).digest("hex");
+  }
+
+  private generateVerificationCode() {
+    return String(crypto.randomInt(100000, 1000000));
+  }
+
+  private readonly verificationMaxAttempts = 5;
+  private readonly verificationLockMinutes = 15;
+
   async requestPasswordReset(email: string) {
     const user = await this.usersService.findByEmail(email);
     if (!user) {
@@ -290,7 +344,11 @@ export class AuthService {
     const token = crypto.randomBytes(32).toString("hex");
     const tokenHash = this.hashResetToken(token);
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    await this.usersService.setPasswordResetToken(user.id, tokenHash, expiresAt);
+    await this.usersService.setPasswordResetToken(
+      user.id,
+      tokenHash,
+      expiresAt,
+    );
 
     const resetUrl = this.buildPasswordResetUrl(token);
     const { subject, text, html } = renderEmailTemplate("password-reset", {
@@ -306,7 +364,7 @@ export class AuthService {
       });
     } catch (err: any) {
       this.logger.error(
-        `Failed to send password reset email to ${user.email}: ${err?.message || err}`
+        `Failed to send password reset email to ${user.email}: ${err?.message || err}`,
       );
     }
   }
@@ -334,9 +392,82 @@ export class AuthService {
       });
     } catch (err: any) {
       this.logger.error(
-        `Failed to send password reset confirmation email to ${user.email}: ${err?.message || err}`
+        `Failed to send password reset confirmation email to ${user.email}: ${err?.message || err}`,
       );
     }
+  }
+
+  async requestEmailVerification(userId: string) {
+    const info = await this.usersService.getEmailVerificationInfo(userId);
+    if (!info) {
+      throw new BadRequestException("User not found");
+    }
+    if (info.email_verified_at) {
+      return;
+    }
+
+    const code = this.generateVerificationCode();
+    const codeHash = this.hashVerificationCode(code);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    await this.usersService.setEmailVerificationToken(
+      userId,
+      codeHash,
+      expiresAt,
+    );
+
+    const { subject, text, html } = renderEmailTemplate("verify-email", {
+      verificationCode: code,
+      expiresIn: "30 minutes",
+    });
+
+    await this.emailService.sendEmail({
+      to: info.email,
+      subject,
+      text,
+      html,
+    });
+  }
+
+  async verifyEmailCode(userId: string, code: string) {
+    const info = await this.usersService.getEmailVerificationInfo(userId);
+    if (!info) {
+      throw new BadRequestException("User not found");
+    }
+    if (info.email_verified_at) {
+      return;
+    }
+    const normalizedCode = String(code || "").trim();
+    if (!info.email_verification_token || !info.email_verification_expires_at) {
+      throw new BadRequestException("Verification code not found");
+    }
+    if (info.email_verification_locked_until) {
+      const lockedUntil = new Date(info.email_verification_locked_until);
+      if (!Number.isNaN(lockedUntil.getTime()) && lockedUntil > new Date()) {
+        throw new BadRequestException(
+          "Verification temporarily locked. Please request a new code.",
+        );
+      }
+    }
+    const expiresAt = new Date(info.email_verification_expires_at);
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()) {
+      await this.usersService.clearEmailVerificationToken(userId);
+      throw new BadRequestException("Verification code expired");
+    }
+
+    const codeHash = this.hashVerificationCode(normalizedCode);
+    if (codeHash !== info.email_verification_token) {
+      await this.usersService.incrementEmailVerificationAttempts(userId);
+      const attempts = Number(info.email_verification_attempts || 0) + 1;
+      if (attempts >= this.verificationMaxAttempts) {
+        const lockedUntil = new Date(
+          Date.now() + this.verificationLockMinutes * 60 * 1000,
+        ).toISOString();
+        await this.usersService.lockEmailVerification(userId, lockedUntil);
+      }
+      throw new BadRequestException("Invalid verification code");
+    }
+
+    await this.usersService.markEmailVerified(userId);
   }
 
   async getGoogleAuthUrl(redirectUri?: string, state?: string) {
@@ -344,7 +475,7 @@ export class AuthService {
     const fallbackRedirect = process.env.GOOGLE_REDIRECT_URI;
     const actualRedirect = redirectUri || fallbackRedirect;
     if (!clientId || !actualRedirect) {
-      throw new UnauthorizedException("Google OAuth is not configured");
+      throw new ServiceUnavailableException("Google OAuth is not configured");
     }
     const params = new URLSearchParams({
       client_id: clientId,
@@ -363,28 +494,32 @@ export class AuthService {
 
   async googleLoginWithCode(
     code: string,
-    redirectUri?: string
+    redirectUri?: string,
+    organizationId?: string,
   ): Promise<TokenPair> {
     const token = await this.exchangeGoogleCode(code, redirectUri);
     const profile = await this.verifyGoogleIdToken(token.id_token);
-    return this.upsertGoogleUser(profile);
+    return this.upsertGoogleUser(profile, organizationId);
   }
 
-  async googleLoginWithIdToken(idToken: string): Promise<TokenPair> {
+  async googleLoginWithIdToken(
+    idToken: string,
+    organizationId?: string,
+  ): Promise<TokenPair> {
     const profile = await this.verifyGoogleIdToken(idToken);
-    return this.upsertGoogleUser(profile);
+    return this.upsertGoogleUser(profile, organizationId);
   }
 
   private async exchangeGoogleCode(
     code: string,
-    redirectUri?: string
+    redirectUri?: string,
   ): Promise<GoogleTokenResponse> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
     const fallbackRedirect = process.env.GOOGLE_REDIRECT_URI;
     const actualRedirect = redirectUri || fallbackRedirect;
     if (!clientId || !clientSecret || !actualRedirect) {
-      throw new UnauthorizedException("Google OAuth is not configured");
+      throw new ServiceUnavailableException("Google OAuth is not configured");
     }
     const params = new URLSearchParams({
       code,
@@ -401,19 +536,19 @@ export class AuthService {
     if (!res.ok) {
       const message = await res.text();
       throw new UnauthorizedException(
-        message || "Google token exchange failed"
+        message || "Google token exchange failed",
       );
     }
     return (await res.json()) as GoogleTokenResponse;
   }
 
   private async verifyGoogleIdToken(
-    idToken: string
+    idToken: string,
   ): Promise<GoogleIdTokenPayload> {
     const res = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(
-        idToken
-      )}`
+        idToken,
+      )}`,
     );
     if (!res.ok) {
       const message = await res.text();
@@ -423,16 +558,30 @@ export class AuthService {
   }
 
   private async upsertGoogleUser(
-    profile: GoogleIdTokenPayload
+    profile: GoogleIdTokenPayload,
+    organizationId?: string,
   ): Promise<TokenPair> {
+    if (organizationId) {
+      await this.ensureOrganizationJoinable(organizationId);
+    }
     if (!profile.sub) {
       throw new UnauthorizedException("Invalid Google profile");
     }
     const existingByIdp = await this.usersService.findByIdp(
       "google",
-      profile.sub
+      profile.sub,
     );
     if (existingByIdp) {
+      if (organizationId) {
+        await this.usersService.ensureOrganizationMembership(
+          existingByIdp.id,
+          organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          existingByIdp.id,
+          organizationId,
+        );
+      }
       const user = await this.usersService.findById(existingByIdp.id);
       return {
         accessToken: this.signAccessToken(user as any),
@@ -454,6 +603,16 @@ export class AuthService {
         lastName: profile.family_name,
         idpProfile: profile,
       });
+      if (organizationId) {
+        await this.usersService.ensureOrganizationMembership(
+          existingByEmail.id,
+          organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          existingByEmail.id,
+          organizationId,
+        );
+      }
       const user = await this.usersService.findById(existingByEmail.id);
       return {
         accessToken: this.signAccessToken(user as any),
@@ -468,6 +627,171 @@ export class AuthService {
       firstName: profile.given_name,
       lastName: profile.family_name,
       idpProfile: profile,
+      organizationId,
+    });
+    const user = await this.usersService.findById(created.id);
+    return {
+      accessToken: this.signAccessToken(user as any),
+      refreshToken: this.signRefreshToken(user as any),
+    };
+  }
+
+  async getFacebookAuthUrl(redirectUri?: string, state?: string) {
+    const clientId = process.env.FACEBOOK_CLIENT_ID;
+    const fallbackRedirect = process.env.FACEBOOK_REDIRECT_URI;
+    const actualRedirect = redirectUri || fallbackRedirect;
+
+    if (!clientId || !actualRedirect) {
+      throw new ServiceUnavailableException("Facebook OAuth is not configured");
+    }
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: actualRedirect,
+      response_type: "code",
+      scope: "email,public_profile",
+    });
+    if (state) {
+      params.set("state", state);
+    }
+
+    // Use an explicit Graph API version so behavior doesn't change silently.
+    const version = process.env.FACEBOOK_GRAPH_VERSION || "v20.0";
+    return `https://www.facebook.com/${version}/dialog/oauth?${params.toString()}`;
+  }
+
+  async facebookLoginWithCode(
+    code: string,
+    redirectUri?: string,
+    organizationId?: string,
+  ): Promise<TokenPair> {
+    const token = await this.exchangeFacebookCode(code, redirectUri);
+    const profile = await this.fetchFacebookProfile(token.access_token);
+    return this.upsertFacebookUser(profile, organizationId);
+  }
+
+  private async exchangeFacebookCode(
+    code: string,
+    redirectUri?: string,
+  ): Promise<FacebookTokenResponse> {
+    const clientId = process.env.FACEBOOK_CLIENT_ID;
+    const clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
+    const fallbackRedirect = process.env.FACEBOOK_REDIRECT_URI;
+    const actualRedirect = redirectUri || fallbackRedirect;
+    if (!clientId || !clientSecret || !actualRedirect) {
+      throw new ServiceUnavailableException("Facebook OAuth is not configured");
+    }
+
+    const version = process.env.FACEBOOK_GRAPH_VERSION || "v20.0";
+    const params = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: actualRedirect,
+      code,
+    });
+
+    const url = `https://graph.facebook.com/${version}/oauth/access_token?${params.toString()}`;
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) {
+      const message = await res.text();
+      throw new UnauthorizedException(
+        message || "Facebook token exchange failed",
+      );
+    }
+    return (await res.json()) as FacebookTokenResponse;
+  }
+
+  private async fetchFacebookProfile(
+    accessToken: string,
+  ): Promise<FacebookProfileResponse> {
+    const version = process.env.FACEBOOK_GRAPH_VERSION || "v20.0";
+    const params = new URLSearchParams({
+      fields: "id,email,first_name,last_name,name",
+      access_token: accessToken,
+    });
+    const url = `https://graph.facebook.com/${version}/me?${params.toString()}`;
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) {
+      const message = await res.text();
+      throw new UnauthorizedException(
+        message || "Unable to fetch Facebook profile",
+      );
+    }
+    return (await res.json()) as FacebookProfileResponse;
+  }
+
+  private async upsertFacebookUser(
+    profile: FacebookProfileResponse,
+    organizationId?: string,
+  ): Promise<TokenPair> {
+    if (organizationId) {
+      await this.ensureOrganizationJoinable(organizationId);
+    }
+    if (!profile.id) {
+      throw new UnauthorizedException("Invalid Facebook profile");
+    }
+
+    const existingByIdp = await this.usersService.findByIdp(
+      "facebook",
+      profile.id,
+    );
+    if (existingByIdp) {
+      if (organizationId) {
+        await this.usersService.ensureOrganizationMembership(
+          existingByIdp.id,
+          organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          existingByIdp.id,
+          organizationId,
+        );
+      }
+      const user = await this.usersService.findById(existingByIdp.id);
+      return {
+        accessToken: this.signAccessToken(user as any),
+        refreshToken: this.signRefreshToken(user as any),
+      };
+    }
+
+    const email = profile.email || "";
+    if (!email) {
+      throw new UnauthorizedException("Facebook account email not available");
+    }
+
+    const existingByEmail = await this.usersService.findByEmail(email);
+    if (existingByEmail) {
+      await this.usersService.update(existingByEmail.id, {
+        idpProvider: "facebook",
+        idpSubject: profile.id,
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        idpProfile: profile,
+      });
+      if (organizationId) {
+        await this.usersService.ensureOrganizationMembership(
+          existingByEmail.id,
+          organizationId,
+        );
+        await this.cleanupEmptyPrivateOrganizationsAfterJoin(
+          existingByEmail.id,
+          organizationId,
+        );
+      }
+      const user = await this.usersService.findById(existingByEmail.id);
+      return {
+        accessToken: this.signAccessToken(user as any),
+        refreshToken: this.signRefreshToken(user as any),
+      };
+    }
+
+    const created = await this.usersService.create({
+      email,
+      idpProvider: "facebook",
+      idpSubject: profile.id,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      idpProfile: profile,
+      organizationId,
     });
     const user = await this.usersService.findById(created.id);
     return {

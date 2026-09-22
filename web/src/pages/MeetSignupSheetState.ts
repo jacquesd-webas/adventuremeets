@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { GuestInput } from "../types/GuestInput";
 
 export type MeetSignupSheetState = {
   indemnityAccepted: boolean;
@@ -6,9 +7,13 @@ export type MeetSignupSheetState = {
   fullName: string;
   email: string;
   phone: string;
+  org1Value: string;
+  org2Value: string;
   wantsGuests: boolean;
-  guestCount: number;
-  metaValues: Record<string, string | number | boolean>;
+  guests: GuestInput[];
+  metaValues: Record<string, string | number | boolean | null>;
+  guardianName: string;
+  isMinor: boolean;
 };
 
 const initialState: MeetSignupSheetState = {
@@ -17,23 +22,39 @@ const initialState: MeetSignupSheetState = {
   fullName: "",
   email: "",
   phone: "",
+  org1Value: "",
+  org2Value: "",
   wantsGuests: false,
-  guestCount: 0,
-  metaValues: {}
+  guests: [],
+  metaValues: {},
+  guardianName: "",
+  isMinor: false,
 };
 
 export function useMeetSignupSheetState() {
   const [state, setState] = useState<MeetSignupSheetState>(initialState);
 
-  const setField = <K extends keyof MeetSignupSheetState>(key: K, value: MeetSignupSheetState[K]) => {
-    setState((prev) => ({ ...prev, [key]: value }));
-  };
+  const setField = useCallback(
+    <K extends keyof MeetSignupSheetState>(
+      key: K,
+      value: MeetSignupSheetState[K],
+    ) => {
+      setState((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
 
-  const setMetaValue = (key: string, value: string | number | boolean) => {
-    setState((prev) => ({ ...prev, metaValues: { ...prev.metaValues, [key]: value } }));
-  };
+  const setMetaValue = useCallback(
+    (key: string, value: string | number | boolean | null) => {
+      setState((prev) => ({
+        ...prev,
+        metaValues: { ...prev.metaValues, [key]: value },
+      }));
+    },
+    [],
+  );
 
-  const resetState = () => setState(initialState);
+  const resetState = useCallback(() => setState(initialState), []);
 
   return { state, setState, setField, setMetaValue, resetState };
 }

@@ -1,5 +1,6 @@
 import {
   Box,
+  ButtonBase,
   CircularProgress,
   Link,
   Paper,
@@ -7,23 +8,26 @@ import {
   Typography,
 } from "@mui/material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useFetchOrganisations } from "../hooks/useFetchOrganisations";
 import { Link as RouterLink } from "react-router-dom";
 import { Organization } from "../types/OrganizationModel";
 import { formatFriendlyTimestamp } from "../helpers/formatFriendlyTimestamp";
 import { useAuth } from "../context/authContext";
+import { useCurrentOrganization } from "../context/organizationContext";
 import { RoleChip } from "../components/admin/RoleChip";
-import { OrganizationActions } from "../components/actions/OrganizationActions";
+import { OrganizationModal } from "../components/profile/OrganizationModal";
 
 type OrgRow = Organization & { role?: string };
 
 function OrganisationsPage() {
   const { user } = useAuth();
+  const { setCurrentOrganizationId } = useCurrentOrganization();
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 25,
   });
+  const [organizationOpen, setOrganizationOpen] = useState(false);
   const [sortModel, setSortModel] = useState<
     Array<{ field: string; sort: "asc" | "desc" }>
   >([{ field: "name", sort: "asc" }]);
@@ -48,6 +52,15 @@ function OrganisationsPage() {
     }));
   }, [organizations, user?.organizations]);
   const rowCount = total || rows.length;
+
+  const handleOpenOrganization = useCallback(
+    (organizationId: string) => {
+      setCurrentOrganizationId(organizationId);
+      setOrganizationOpen(true);
+    },
+    [setCurrentOrganizationId],
+  );
+
   const columns = useMemo<GridColDef[]>(
     () => [
       {
@@ -55,6 +68,28 @@ function OrganisationsPage() {
         headerName: "Name",
         flex: 1,
         minWidth: 200,
+        renderCell: (params: GridRenderCellParams) => (
+          <ButtonBase
+            onClick={() => handleOpenOrganization(params.row.id)}
+            sx={{
+              alignItems: "flex-start",
+              borderRadius: 1,
+              display: "flex",
+              justifyContent: "flex-start",
+              textAlign: "left",
+              width: "100%",
+            }}
+          >
+            <Typography
+              variant="body2"
+              fontWeight={600}
+              color="text.primary"
+              noWrap
+            >
+              {params.value as string}
+            </Typography>
+          </ButtonBase>
+        ),
       },
       {
         field: "role",
@@ -122,26 +157,8 @@ function OrganisationsPage() {
         valueFormatter: (params) =>
           params.value ? formatFriendlyTimestamp(params.value as string) : "—",
       },
-      {
-        field: "actions",
-        headerName: "Actions",
-        flex: 0.4,
-        minWidth: 140,
-        sortable: false,
-        filterable: false,
-        headerAlign: "right",
-        align: "right",
-        renderCell: (params: GridRenderCellParams) => (
-          params.row.isPrivate ? null : (
-            <OrganizationActions
-              organizationId={params.row.id}
-              disabled={params.row.role !== "admin"}
-            />
-          )
-        ),
-      },
     ],
-    [],
+    [handleOpenOrganization],
   );
 
   return (
@@ -222,6 +239,10 @@ function OrganisationsPage() {
           />
         )}
       </Paper>
+      <OrganizationModal
+        open={organizationOpen}
+        onClose={() => setOrganizationOpen(false)}
+      />
     </Stack>
   );
 }

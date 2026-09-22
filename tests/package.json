@@ -8,6 +8,7 @@
     "test": "cypress run"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "cypress": "^13.13.0",
     "dotenv": "^16.4.5",
     "typescript": "^5.2.2"

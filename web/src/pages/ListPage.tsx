@@ -1,19 +1,42 @@
-import { Typography, Paper, Stack, Button, Box } from "@mui/material";
-import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
-import { useMemo, useState } from "react";
+import {
+  Typography,
+  Paper,
+  Stack,
+  Button,
+  Box,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
+import { GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useOutletContext, useSearchParams } from "react-router-dom";
+import { DataTable } from "../components/DataTable";
 import { Heading } from "../components/Heading";
 import { MeetStatus } from "../components/meet/MeetStatus";
 import { MeetActionsMenu } from "../components/meet/MeetActionsMenu";
 import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
+import { MeetFilterButtonGroup } from "../components/meet/MeetFilterButtonGroup";
 import { useFetchMeets } from "../hooks/useFetchMeets";
+import { useFetchMeet } from "../hooks/useFetchMeet";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { defaultPendingAction } from "../helpers/defaultPendingAction";
 import { MeetActionsEnum } from "../types/MeetActionsEnum";
 import { useCurrentOrganization } from "../context/organizationContext";
-import { useAuth } from "../context/authContext";
+import { useFilters } from "../context/filterContext";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PlaceIcon from "@mui/icons-material/Place";
+import AddIcon from "@mui/icons-material/Add";
+import { MainLayoutOutletContext } from "../layout/MainLayout";
+import { useAuth } from "../context/authContext";
+import { getMeetPermissions } from "../helpers/meetPermissions";
+import { MeetSearchField } from "../components/meet/MeetSearchField";
+import { isMeetUpcoming } from "../helpers/meetTime";
 
 function ListPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down(820));
+  const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<MeetActionsEnum | null>(
     null,
@@ -22,14 +45,34 @@ function ListPage() {
     page: 0,
     pageSize: 10,
   });
-  const { currentOrganizationId } = useCurrentOrganization();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
+  const { currentOrganizationId, currentOrganizationRole } =
+    useCurrentOrganization();
+  const { data: currentOrganization } = useFetchOrganization(
+    currentOrganizationId || undefined,
+  );
   const { user } = useAuth();
-  const { data: meets, isLoading } = useFetchMeets({
-    view: "all",
-    page: 1,
-    limit: 50,
+  const { listPageView, setListPageView } = useFilters();
+  const canManageMeets =
+    currentOrganizationRole === "organizer" ||
+    currentOrganizationRole === "admin";
+  const {
+    data: meets,
+    total,
+    isLoading,
+  } = useFetchMeets({
+    view: listPageView,
+    page: paginationModel.page + 1,
+    limit: paginationModel.pageSize,
     organizationId: currentOrganizationId,
+    search: debouncedSearch.trim() || undefined,
   });
+  const { data: selectedMeetFromRoute } = useFetchMeet(
+    selectedMeetId,
+    Boolean(selectedMeetId && pendingAction === MeetActionsEnum.Attendees),
+  );
 
   const columns = useMemo<GridColDef[]>(
     () => [
@@ -97,26 +140,156 @@ function ListPage() {
         minWidth: 120,
         sortable: false,
         filterable: false,
+        hideable: false,
         headerAlign: "right",
         align: "right",
-        renderCell: (params: GridRenderCellParams) => (
-          <Box
-            sx={{ display: "flex", justifyContent: "flex-end", width: "100%" }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <MeetActionsMenu
-              meetId={params.row.id}
-              statusId={params.row.statusId}
-              isOrganizer={params.row.organizerId === user?.id}
-              setSelectedMeetId={setSelectedMeetId}
-              setPendingAction={setPendingAction}
-            />
-          </Box>
-        ),
+        renderCell: (params: GridRenderCellParams) =>
+          (() => {
+            const { canManageMeet, canViewMeet, canAccessManageMenu } =
+              getMeetPermissions({
+                currentUserId: user?.id,
+                currentOrganizationRole,
+                organizerId: params.row.organizerId,
+              });
+
+            return (
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  width: "100%",
+                }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <MeetActionsMenu
+                  meetId={params.row.id}
+                  statusId={params.row.statusId}
+                  canAccessManageMenu={canAccessManageMenu}
+                  canViewMeet={canViewMeet}
+                  canManageMeet={canManageMeet}
+                  reportingEnabled={currentOrganization?.reportingEnabled}
+                  isUpcoming={isMeetUpcoming(params.row)}
+                  startTime={params.row.startTime}
+                  setSelectedMeetId={setSelectedMeetId}
+                  setPendingAction={setPendingAction}
+                  previewLinkCode={params.row.shareCode}
+                />
+              </Box>
+            );
+          })(),
       },
     ],
-    [setPendingAction, setSelectedMeetId, user?.id],
+    [
+      currentOrganizationRole,
+      currentOrganization?.reportingEnabled,
+      setPendingAction,
+      setSelectedMeetId,
+      user?.id,
+    ],
   );
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPaginationModel((prev) =>
+        prev.page === 0 ? prev : { ...prev, page: 0 },
+      );
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPaginationModel((prev) =>
+      prev.page === 0 ? prev : { ...prev, page: 0 },
+    );
+  }, [listPageView]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsMobileSearchExpanded(false);
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
+    const action = searchParams.get("action");
+    const meetId = searchParams.get("meetId");
+
+    if (action !== MeetActionsEnum.Attendees || !meetId) {
+      return;
+    }
+
+    setSelectedMeetId(meetId);
+    setPendingAction(MeetActionsEnum.Attendees);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("action");
+    nextParams.delete("meetId");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const handleNewMeet = useCallback(() => {
+    if (!canManageMeets) return;
+    setPendingAction(MeetActionsEnum.Create);
+  }, [canManageMeets, setPendingAction]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileHeaderAction(null);
+      return;
+    }
+    if (!canManageMeets) {
+      setMobileHeaderAction(null);
+      return;
+    }
+    setMobileHeaderAction(
+      <Button
+        variant="text"
+        color="inherit"
+        size="small"
+        startIcon={<AddIcon />}
+        onClick={handleNewMeet}
+        sx={{ textTransform: "none", whiteSpace: "nowrap", minWidth: 0, px: 1 }}
+      >
+        NEW MEET
+      </Button>,
+    );
+    return () => setMobileHeaderAction(null);
+  }, [canManageMeets, handleNewMeet, isMobile, setMobileHeaderAction]);
+
+  const totalPages = Math.max(1, Math.ceil(total / paginationModel.pageSize));
+  const currentPage = paginationModel.page + 1;
+  const selectedMeetPermissions = useMemo(() => {
+    if (pendingAction === MeetActionsEnum.Create) {
+      return {
+        isOrganizerForMeet: true,
+        canManageMeet: true,
+        canViewMeet: false,
+      };
+    }
+
+    const selectedMeet =
+      meets.find((meet) => meet.id === selectedMeetId) || selectedMeetFromRoute;
+    if (!selectedMeet) {
+      return {
+        isOrganizerForMeet: false,
+        canManageMeet: false,
+        canViewMeet: false,
+      };
+    }
+
+    return getMeetPermissions({
+      currentUserId: user?.id,
+      currentOrganizationRole,
+      organizerId: selectedMeet.organizerId,
+    });
+  }, [
+    currentOrganizationRole,
+    meets,
+    pendingAction,
+    selectedMeetFromRoute,
+    selectedMeetId,
+    user?.id,
+  ]);
 
   return (
     <Stack spacing={2}>
@@ -124,52 +297,78 @@ function ListPage() {
         title="Meets List"
         subtitle="Manage all meets from one place."
         actionComponent={
-          <Button
-            variant="outlined"
-            onClick={() => {
-              setPendingAction(MeetActionsEnum.Create);
-            }}
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="wrap"
+            sx={{ width: isMobile ? "100%" : "auto" }}
           >
-            New meet
-          </Button>
+            <Box
+              sx={{
+                order: isMobileSearchExpanded ? 2 : 0,
+                width: isMobileSearchExpanded ? "100%" : "auto",
+              }}
+            >
+              <MeetSearchField
+                value={searchQuery}
+                onChange={setSearchQuery}
+                fullWidth={isMobile ? isMobileSearchExpanded : false}
+                compact={!isMobile}
+                expanded={isMobile ? isMobileSearchExpanded : undefined}
+                onExpandedChange={
+                  isMobile ? setIsMobileSearchExpanded : undefined
+                }
+              />
+            </Box>
+            <MeetFilterButtonGroup
+              isMobile={isMobile}
+              value={listPageView}
+              onChange={setListPageView}
+            />
+            {!isMobile && canManageMeets && (
+              <Button
+                variant="contained"
+                onClick={handleNewMeet}
+                sx={{ width: "auto" }}
+              >
+                New meet
+              </Button>
+            )}
+          </Stack>
         }
       />
-      <Paper variant="outlined" sx={{ width: "100%", bgcolor: "transparent" }}>
-        <DataGrid
+      {!isMobile ? (
+        <DataTable
           autoHeight
           rows={meets}
           columns={columns}
           getRowId={(row) => row.id}
           loading={isLoading}
           pagination
+          paginationMode="server"
+          rowCount={total}
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 25, 50]}
+          disableColumnFilter
           disableRowSelectionOnClick
           onRowClick={(params) => {
+            const { canManageMeet } = getMeetPermissions({
+              currentUserId: user?.id,
+              currentOrganizationRole,
+              organizerId: params.row.organizerId,
+            });
             setSelectedMeetId(params.row.id);
-            setPendingAction(defaultPendingAction(params.row.statusId));
+            setPendingAction(
+              defaultPendingAction(
+                params.row.statusId,
+                params.row.organizerId === user?.id,
+                params.row,
+                { canManageMeet },
+              ),
+            );
           }}
-          sx={(theme) => ({
-            bgcolor:
-              theme.palette.mode === "dark"
-                ? "rgba(16, 16, 16, 0.7)"
-                : "rgba(255, 255, 255, 0.7)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            "& .MuiDataGrid-cell:first-of-type": {
-              pl: 2,
-            },
-            "& .MuiDataGrid-cell:last-of-type": {
-              pr: 2,
-            },
-            "& .MuiDataGrid-columnHeader:first-of-type": {
-              pl: 2,
-            },
-            "& .MuiDataGrid-columnHeader:last-of-type": {
-              pr: 2,
-            },
-          })}
           slots={{
             noRowsOverlay: () => (
               <Box sx={{ p: 2 }}>
@@ -180,9 +379,144 @@ function ListPage() {
             ),
           }}
         />
-      </Paper>
+      ) : (
+        <Stack spacing={1.5}>
+          {meets.length === 0 && !isLoading && (
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                No meets found.
+              </Typography>
+            </Paper>
+          )}
+          {meets.map((meet) =>
+            (() => {
+              const { canManageMeet, canViewMeet, canAccessManageMenu } =
+                getMeetPermissions({
+                  currentUserId: user?.id,
+                  currentOrganizationRole,
+                  organizerId: meet.organizerId,
+                });
+
+              return (
+                <Paper
+                  key={meet.id}
+                  variant="outlined"
+                  onClick={() => {
+                    const { canManageMeet } = getMeetPermissions({
+                      currentUserId: user?.id,
+                      currentOrganizationRole,
+                      organizerId: meet.organizerId,
+                    });
+                    setSelectedMeetId(meet.id);
+                    setPendingAction(
+                      defaultPendingAction(
+                        meet.statusId,
+                        meet.organizerId === user?.id,
+                        meet,
+                        { canManageMeet },
+                      ),
+                    );
+                  }}
+                  sx={{
+                    p: 1.5,
+                    cursor: "pointer",
+                  }}
+                >
+                  <Stack spacing={1.25}>
+                    <Stack
+                      direction="row"
+                      alignItems="flex-start"
+                      justifyContent="space-between"
+                      spacing={1}
+                    >
+                      <Typography fontWeight={600}>{meet.name}</Typography>
+                      <Box onClick={(event) => event.stopPropagation()}>
+                        <MeetActionsMenu
+                          meetId={meet.id}
+                          statusId={meet.statusId}
+                          canAccessManageMenu={canAccessManageMenu}
+                          canViewMeet={canViewMeet}
+                          canManageMeet={canManageMeet}
+                          reportingEnabled={
+                            currentOrganization?.reportingEnabled
+                          }
+                          isUpcoming={isMeetUpcoming(meet)}
+                          startTime={
+                            meet.startTime instanceof Date
+                              ? meet.startTime.toISOString()
+                              : meet.startTime
+                          }
+                          setSelectedMeetId={setSelectedMeetId}
+                          setPendingAction={setPendingAction}
+                          previewLinkCode={meet.shareCode || undefined}
+                        />
+                      </Box>
+                    </Stack>
+                    <Stack spacing={1} direction="row" alignItems="center">
+                      <AccessTimeIcon fontSize="small" color="disabled" />
+                      <Typography color="text.secondary" variant="body2">
+                        {meet.startTime
+                          ? new Date(meet.startTime).toLocaleDateString()
+                          : ""}
+                      </Typography>
+                    </Stack>
+                    <Stack spacing={1} direction="row" alignItems="center">
+                      <PlaceIcon fontSize="small" color="disabled" />
+                      <Typography color="text.secondary" variant="body2">
+                        {meet.location}
+                      </Typography>
+                    </Stack>
+                    <Box>
+                      <MeetStatus
+                        statusId={meet.statusId}
+                        fallbackLabel={meet.status || "Unknown"}
+                      />
+                    </Box>
+                  </Stack>
+                </Paper>
+              );
+            })(),
+          )}
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+          >
+            <Button
+              variant="outlined"
+              onClick={() =>
+                setPaginationModel((prev) => ({
+                  ...prev,
+                  page: Math.max(0, prev.page - 1),
+                }))
+              }
+              disabled={currentPage <= 1}
+            >
+              Previous
+            </Button>
+            <Typography variant="body2" color="text.secondary">
+              Page {currentPage} of {totalPages}
+            </Typography>
+            <Button
+              variant="outlined"
+              onClick={() =>
+                setPaginationModel((prev) => ({
+                  ...prev,
+                  page: Math.min(totalPages - 1, prev.page + 1),
+                }))
+              }
+              disabled={currentPage >= totalPages}
+            >
+              Next
+            </Button>
+          </Stack>
+        </Stack>
+      )}
       <MeetActionsDialogs
         meetId={selectedMeetId}
+        canViewMeet={selectedMeetPermissions.canViewMeet}
+        canManageMeet={selectedMeetPermissions.canManageMeet}
+        isOrganizer={selectedMeetPermissions.isOrganizerForMeet}
         pendingAction={pendingAction || undefined}
         setPendingAction={setPendingAction}
         setSelectedMeetId={setSelectedMeetId}

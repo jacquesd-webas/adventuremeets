@@ -1,0 +1,16 @@
+Hi there,
+
+You have been invited to join {{organizationName}} on {{brand}}.
+
+{{#ifRegisterUrl}}
+Join now:
+{{registerUrl}}
+
+If the button in the email does not work, copy and paste the link above.
+{{/ifRegisterUrl}}
+{{#ifExpiresAt}}
+This invite expires on {{expiresAt}}.
+{{/ifExpiresAt}}
+
+Best regards,
+{{fromName}}

@@ -4,5 +4,6 @@ export type MetaValue = {
   fieldType: string;
   required: boolean;
   position: number;
+  config?: Record<string, any>;
   value: string | null;
 };

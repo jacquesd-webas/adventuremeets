@@ -5,7 +5,7 @@ SMTP_HOST="${SMTP_HOST:-localhost}"
 SMTP_PORT="${SMTP_PORT:-25}"
 MAIL_DOMAIN="${MAIL_DOMAIN:-adventuremeets.apps.fringecoding.com}"
 MEET_ID="${MEET_ID:-test-meet}"
-RECIPIENT="${RECIPIENT:-${MEET_ID}@${MAIL_DOMAIN}}"
+RECIPIENT="${RECIPIENT:-meet+${MEET_ID}@${MAIL_DOMAIN}}"
 SENDER="${SENDER:-tester@${MAIL_DOMAIN}}"
 
 echo "==> Sending test inbound message to ${SMTP_HOST}:${SMTP_PORT}"

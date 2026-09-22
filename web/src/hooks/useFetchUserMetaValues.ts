@@ -3,12 +3,12 @@ import { useApi } from "./useApi";
 
 export type UserMetaValue = {
   key: string;
-  value: string | null;
+  value: string | number | boolean | null;
 };
 
 export function useFetchUserMetaValues(
   userId?: string,
-  organizationId?: string
+  organizationId?: string,
 ) {
   const api = useApi();
   const query = useQuery({
@@ -17,7 +17,7 @@ export function useFetchUserMetaValues(
     queryFn: async () => {
       if (!userId || !organizationId) return [];
       const res = await api.get<{ metaValues: UserMetaValue[] }>(
-        `/users/${userId}/meta-values?organizationId=${organizationId}`
+        `/users/${userId}/meta-values?organizationId=${organizationId}`,
       );
       return res.metaValues ?? [];
     },

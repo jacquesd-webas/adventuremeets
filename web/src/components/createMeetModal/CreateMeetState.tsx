@@ -31,6 +31,7 @@ export type CreateMeetState = {
   locationLong: number | string;
   startTime: string;
   endTime: string;
+  timeZone: string;
   startTimeTbc: boolean;
   endTimeTbc: boolean;
   useMap: boolean;
@@ -41,6 +42,12 @@ export type CreateMeetState = {
   autoApprove: boolean;
   autoCloseWaitlist: boolean;
   allowGuests: boolean;
+  allowSelfCheckin: boolean;
+  allowWalkins: boolean;
+  requireEmail: boolean;
+  requirePhone: boolean;
+  requireOrg1: boolean;
+  requireOrg2: boolean;
   maxGuests: number | string;
   currency: string;
   costCents: number | string;
@@ -55,7 +62,9 @@ export type CreateMeetState = {
   questions: QuestionField[];
   imageFile: File | null;
   imagePreview: string;
+  imageCount: number;
   statusId: number | null;
+  attendeeReconfirm: boolean;
 };
 
 export const initialState: CreateMeetState = {
@@ -68,6 +77,7 @@ export const initialState: CreateMeetState = {
   locationLong: "",
   startTime: "",
   endTime: "",
+  timeZone: "Africa/Johannesburg",
   startTimeTbc: false,
   endTimeTbc: false,
   useMap: true,
@@ -78,6 +88,12 @@ export const initialState: CreateMeetState = {
   autoApprove: false,
   autoCloseWaitlist: false,
   allowGuests: false,
+  allowSelfCheckin: false,
+  allowWalkins: false,
+  requireEmail: true,
+  requirePhone: true,
+  requireOrg1: false,
+  requireOrg2: false,
   maxGuests: "",
   currency: "ZAR",
   costCents: "",
@@ -92,13 +108,19 @@ export const initialState: CreateMeetState = {
   questions: [],
   imageFile: null,
   imagePreview: "",
+  imageCount: 0,
   statusId: null,
+  attendeeReconfirm: true,
 };
 
 export type StepProps = {
   state: CreateMeetState;
   setState: (fn: (prev: CreateMeetState) => CreateMeetState) => void;
   errors?: FieldError[];
+  disabled?: boolean;
+  isHelpEnabled?: boolean;
+  isHelpBannerDismissed?: boolean;
+  onDismissHelpBanner?: () => void;
 };
 
 export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
@@ -124,6 +146,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     locationLong: toNumberOrEmpty(meet.locationLong),
     startTime: toDateTimeInput(meet.startTime),
     endTime: toDateTimeInput(meet.endTime),
+    timeZone: meet.timeZone ?? initialState.timeZone,
     startTimeTbc: meet.startTimeTbc ?? false,
     endTimeTbc: meet.endTimeTbc ?? false,
     useMap: meet.useMap ?? true,
@@ -134,6 +157,12 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     autoApprove: meet.autoPlacement ?? true,
     autoCloseWaitlist: meet.autoPromoteWaitlist ?? false,
     allowGuests: meet.allowGuests ?? false,
+    allowSelfCheckin: meet.allowSelfCheckin ?? false,
+    allowWalkins: meet.allowWalkins ?? false,
+    requireEmail: meet.requireEmail ?? false,
+    requirePhone: meet.requirePhone ?? false,
+    requireOrg1: meet.requireOrg1 ?? false,
+    requireOrg2: meet.requireOrg2 ?? false,
     maxGuests: toNumberOrEmpty(meet.maxGuests),
     currency: meet.currencyCode ?? initialState.currency,
     costCents: toCurrencyUnits(meet.costCents),
@@ -166,6 +195,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
       : [],
     statusId: meet.statusId ?? null,
     imagePreview: meet.imageUrl ?? "",
+    imageCount: meet.imageUrl ? 1 : 0,
   };
 };
 
@@ -217,7 +247,7 @@ export const validateStep = (step: number, draft: CreateMeetState) => {
       if (!draft.organizerId)
         errors.push({
           field: "organizerId",
-          message: "Please select an organizer",
+          message: "Please select an organiser",
           step,
         });
       break;

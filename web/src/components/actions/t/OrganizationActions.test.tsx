@@ -11,7 +11,9 @@ describe("OrganizationActions", () => {
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <OrganizationActions
           organizationId="org-123"
           onEdit={onEdit}
@@ -21,7 +23,7 @@ describe("OrganizationActions", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Organization actions" }),
+      screen.getByRole("button", { name: "Organisation actions" }),
     );
 
     expect(
@@ -35,7 +37,7 @@ describe("OrganizationActions", () => {
     expect(onEdit).toHaveBeenCalledWith("org-123");
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Organization actions" }),
+      screen.getByRole("button", { name: "Organisation actions" }),
     );
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     expect(onDelete).toHaveBeenCalledWith("org-123");
@@ -46,13 +48,15 @@ describe("OrganizationActions", () => {
 
   it("disables the action button when disabled is true", () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <OrganizationActions organizationId="org-123" disabled />
       </MemoryRouter>,
     );
 
     expect(
-      screen.getByRole("button", { name: "Organization actions" }),
+      screen.getByRole("button", { name: "Organisation actions" }),
     ).toBeDisabled();
   });
 });

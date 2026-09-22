@@ -4,14 +4,14 @@ import { User } from "../types/UserModel";
 
 type OrganizersResponse = { organizers: User[] } | User[];
 
-export function useFetchOrganizers(organizationId: string) {
+export function useFetchOrganizers(organizationId?: string | null) {
   const api = useApi();
 
   const query = useQuery({
     queryKey: ["organizations", organizationId, "organizers"],
     queryFn: async () => {
       const res = await api.get<OrganizersResponse>(
-        `/organizations/${organizationId}/organizers`
+        `/organizations/${organizationId}/organizers`,
       );
       const users = Array.isArray(res) ? res : (res as any).organizers || [];
       return users;

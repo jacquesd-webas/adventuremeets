@@ -1,4 +1,5 @@
 import Meet from "../types/MeetModel";
+import MeetStatusEnum from "../types/MeetStatusEnum";
 
 export const getCardRangeLabel = (meet: Meet): string => {
   // If we don't have a start time we know nothing
@@ -6,6 +7,8 @@ export const getCardRangeLabel = (meet: Meet): string => {
 
   const startTime = new Date(meet.startTime);
   const endTime = meet.endTime ? new Date(meet.endTime) : startTime;
+
+  if (meet.startTimeTbc) return numericDate(startTime);
 
   // If we don't have an end time just return the date and start time
   if (!meet.endTime || endTime <= startTime)
@@ -20,9 +23,18 @@ export const getCardRangeLabel = (meet: Meet): string => {
   return `${numericDate(startTime)} — ${numericDate(endTime)}`;
 };
 
+export const isMeetUpcoming = (meet: Meet): boolean => {
+  if (meet.statusId === MeetStatusEnum.Draft || !meet.endTime) {
+    return false;
+  }
+
+  const endTime = new Date(meet.endTime);
+  return !Number.isNaN(endTime.getTime()) && endTime >= new Date();
+};
+
 export const getMeetDateLabel = (meet: Meet): string => {
   // If we don't have a start time we know nothing
-  if (!meet.startTime || meet.startTimeTbc) return "TBC";
+  if (!meet.startTime) return "TBC";
 
   const startDate = new Date(meet.startTime);
   const endDate = meet.endTime ? new Date(meet.endTime) : startDate;

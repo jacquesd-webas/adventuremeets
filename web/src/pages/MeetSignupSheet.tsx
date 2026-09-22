@@ -1,22 +1,25 @@
 import {
-  Alert,
   Box,
-  Button,
+  Chip,
   Container,
   Dialog,
   DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  MenuItem,
+  Drawer,
+  IconButton,
   Paper,
   Stack,
-  Switch,
-  TextField,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { useParams, useSearchParams } from "react-router-dom";
+import CloseIcon from "@mui/icons-material/Close";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { MeetNotFound } from "../components/meet/MeetNotFound";
 import { MeetStatusEnum } from "../types/MeetStatusEnum";
@@ -29,20 +32,17 @@ import { MeetSignupSubmitted } from "../components/meet/MeetSignupSubmitted";
 import { useMeetSignupSheetState } from "./MeetSignupSheetState";
 import { getLocaleDefaults } from "../helpers/locale";
 import {
-  InternationalPhoneField,
   buildInternationalPhone,
   getDefaultPhoneCountry,
+  isSupportedPhoneCountry,
   splitInternationalPhone,
 } from "../components/formFields/InternationalPhoneField";
-import { EmailField } from "../components/formFields/EmailField";
 import { MeetInfoSummary } from "../components/meet/MeetInfoSummary";
-import { NameField } from "../components/formFields/NameField";
 import { PreviewBanner } from "../components/meet/PreviewBanner";
 import { LoginForm } from "../components/auth/LoginForm";
 import { MeetStatusAlert } from "../components/meet/MeetStatusAlert";
 import { useAuth } from "../context/authContext";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
-import { MeetSignupUserAction } from "../components/meet/MeetSignupUserAction";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
@@ -53,289 +53,54 @@ import {
   validatePhone,
   validateRequired,
 } from "../helpers/validation";
+import { MeetSignupFormFields } from "../components/meetSignup/MeetSignupFormFields";
 
-function LabeledField({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Stack spacing={0.5}>
-      <Typography variant="subtitle2" fontWeight={700}>
-        {label} {required && <span style={{ color: "#ef4444" }}>*</span>}
-      </Typography>
-      {children}
-    </Stack>
-  );
+const DEFAULT_OG_IMAGE = "/static/adventuremeets-logo.png";
+const DEFAULT_OG_DESCRIPTION = "Join this meet on AdventureMeets.";
+
+function toAbsoluteUrl(url?: string | null): string {
+  const fallbackBase =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const fallback = `${fallbackBase}${DEFAULT_OG_IMAGE}`;
+  if (!url?.trim()) {
+    return fallback;
+  }
+  try {
+    return new URL(url, fallbackBase).toString();
+  } catch {
+    return fallback;
+  }
 }
 
-type MeetSignupFormProps = {
-  meet: any;
-  fullName: string;
-  email: string;
-  phoneCountry: string;
-  phoneLocal: string;
-  nameError?: string | null;
-  emailError?: string | null;
-  phoneError?: string | null;
-  disableIdentityFields: boolean;
-  disablePhone: boolean;
-  wantsGuests: boolean;
-  guestCount: number;
-  metaValues: Record<string, any>;
-  indemnityAccepted: boolean;
-  isSubmitDisabled: boolean;
-  isSubmitting: boolean;
-  isEditing: boolean;
-  onSubmit: () => void;
-  onCancelEdit?: () => void;
-  onCheckDuplicate: () => void;
-  onNameBlur: () => void;
-  onEmailBlur: () => void;
-  onPhoneBlur: () => void;
-  setField: (key: string, value: any) => void;
-  setMetaValue: (key: string, value: any) => void;
-  setPhoneCountry: (value: string) => void;
-  setPhoneLocal: (value: string) => void;
-};
+function setMetaProperty(property: string, content: string): () => void {
+  const selector = `meta[property="${property}"]`;
+  const existing = document.head.querySelector<HTMLMetaElement>(selector);
+  if (existing) {
+    const previousContent = existing.getAttribute("content");
+    existing.setAttribute("content", content);
+    return () => {
+      if (previousContent === null) {
+        existing.removeAttribute("content");
+      } else {
+        existing.setAttribute("content", previousContent);
+      }
+    };
+  }
+  const created = document.createElement("meta");
+  created.setAttribute("property", property);
+  created.setAttribute("content", content);
+  document.head.appendChild(created);
+  return () => {
+    created.remove();
+  };
+}
 
-function MeetSignupFormFields({
-  meet,
-  fullName,
-  email,
-  phoneCountry,
-  phoneLocal,
-  nameError,
-  emailError,
-  phoneError,
-  disableIdentityFields,
-  disablePhone,
-  wantsGuests,
-  guestCount,
-  metaValues,
-  indemnityAccepted,
-  isSubmitDisabled,
-  isSubmitting,
-  isEditing,
-  onSubmit,
-  onCancelEdit,
-  onNameBlur,
-  onEmailBlur,
-  onPhoneBlur,
-  setField,
-  setMetaValue,
-  setPhoneCountry,
-  setPhoneLocal,
-}: MeetSignupFormProps) {
-  return (
-    <Stack spacing={2} mt={2}>
-      <LabeledField label="Name" required>
-        <NameField
-          required
-          value={fullName}
-          onChange={(value) => setField("fullName", value)}
-          onBlur={onNameBlur}
-          error={Boolean(nameError)}
-          helperText={nameError || undefined}
-          disabled={disableIdentityFields}
-        />
-      </LabeledField>
-      <LabeledField label="Email" required>
-        <EmailField
-          required
-          value={email}
-          onChange={(value) => setField("email", value)}
-          onBlur={onEmailBlur}
-          error={Boolean(emailError)}
-          helperText={emailError || undefined}
-          hideLabel
-          disabled={disableIdentityFields}
-        />
-      </LabeledField>
-      <LabeledField label="Phone" required>
-        <InternationalPhoneField
-          required
-          country={phoneCountry}
-          local={phoneLocal}
-          onCountryChange={(value) => {
-            setPhoneCountry(value);
-            setField("phone", buildInternationalPhone(value, phoneLocal));
-          }}
-          onLocalChange={(value) => {
-            setPhoneLocal(value);
-            setField("phone", buildInternationalPhone(phoneCountry, value));
-          }}
-          onBlur={onPhoneBlur}
-          error={Boolean(phoneError)}
-          helperText={phoneError || undefined}
-          hideLabel
-          disabled={disablePhone}
-        />
-      </LabeledField>
-      {meet.allowGuests && (
-        <Stack spacing={1}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={wantsGuests}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setField("wantsGuests", checked);
-                  if (!checked) {
-                    setField("guestCount", 0);
-                  }
-                }}
-              />
-            }
-            label="I would like to bring guests"
-          />
-          {wantsGuests && (
-            <LabeledField label="Number of guests" required>
-              <TextField
-                select
-                value={guestCount}
-                onChange={(e) => setField("guestCount", Number(e.target.value))}
-                fullWidth
-              >
-                {Array.from(
-                  {
-                    length: Math.max(0, Number(meet.maxGuests || 0)) + 1,
-                  },
-                  (_, idx) => (
-                    <MenuItem key={idx} value={idx}>
-                      {idx}
-                    </MenuItem>
-                  ),
-                )}
-              </TextField>
-            </LabeledField>
-          )}
-        </Stack>
-      )}
-      {(meet.metaDefinitions || []).map((field: any) => {
-        const key = field.fieldKey;
-        const value = metaValues[key];
-
-        if (field.fieldType === "checkbox" || field.fieldType === "switch") {
-          return (
-            <FormControlLabel
-              key={field.id}
-              control={
-                <Switch
-                  checked={Boolean(value)}
-                  onChange={(e) => setMetaValue(key, e.target.checked)}
-                />
-              }
-              label={`${field.label}${field.required ? " *" : ""}`}
-            />
-          );
-        }
-
-        if (field.fieldType === "select") {
-          const options = Array.isArray(field.config?.options)
-            ? field.config.options
-            : [];
-          return (
-            <LabeledField
-              key={field.id}
-              label={field.label}
-              required={field.required}
-            >
-              <TextField
-                select
-                value={typeof value === "string" ? value : ""}
-                onChange={(e) => setMetaValue(key, e.target.value)}
-                fullWidth
-              >
-                <MenuItem value="">Select an option</MenuItem>
-                {options.map((option: string) => (
-                  <MenuItem key={option} value={option}>
-                    {option}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </LabeledField>
-          );
-        }
-
-        return (
-          <LabeledField
-            key={field.id}
-            label={field.label}
-            required={field.required}
-          >
-            <TextField
-              type={field.fieldType === "number" ? "number" : "text"}
-              value={
-                typeof value === "number" || typeof value === "string"
-                  ? value
-                  : ""
-              }
-              onChange={(e) =>
-                setMetaValue(
-                  key,
-                  field.fieldType === "number" && e.target.value !== ""
-                    ? Number(e.target.value)
-                    : e.target.value,
-                )
-              }
-              fullWidth
-            />
-          </LabeledField>
-        );
-      })}
-      {meet.hasIndemnity && (
-        <Stack spacing={1} mt={2}>
-          <Alert
-            severity="warning"
-            icon={false}
-            sx={{ whiteSpace: "pre-line" }}
-          >
-            {meet.indemnity || "Indemnity details not provided."}
-          </Alert>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={indemnityAccepted}
-                onChange={(e) => {
-                  setField("indemnityAccepted", e.target.checked);
-                }}
-              />
-            }
-            label="I accept the indemnity"
-          />
-        </Stack>
-      )}
-      <Stack direction="row" justifyContent="center" pt={2} spacing={2}>
-        {isEditing ? (
-          <>
-            <Button variant="outlined" onClick={onCancelEdit}>
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              disabled={isSubmitting || isSubmitDisabled}
-              onClick={onSubmit}
-            >
-              Update
-            </Button>
-          </>
-        ) : (
-          <Button
-            variant="contained"
-            disabled={isSubmitting || isSubmitDisabled}
-            onClick={onSubmit}
-          >
-            Submit application
-          </Button>
-        )}
-      </Stack>
-    </Stack>
-  );
+function parseBooleanQuery(value?: string | null): boolean | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n"].includes(normalized)) return false;
+  return null;
 }
 
 function MeetSignupSheet() {
@@ -344,7 +109,13 @@ function MeetSignupSheet() {
     attendeeId?: string;
   }>();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const isPreview = searchParams.get("preview") === "true";
+  const previewSource = searchParams.get("previewSource");
+  const previewReturnTo = searchParams.get("returnTo");
+  const guestOf = searchParams.get("guestOf");
+  const checkinPin = searchParams.get("pin")?.trim() || "";
   const action = searchParams.get("action");
   const editAttendeeId = attendeeIdParam || searchParams.get("attendeeId");
   const isEditing =
@@ -356,7 +127,7 @@ function MeetSignupSheet() {
       isEditing ? code : null,
       isEditing ? editAttendeeId : null,
     );
-  const { data: organization } = useFetchOrganization(
+  const { data: privateOrganization } = useFetchOrganization(
     meet?.organizationId || undefined,
   );
   const { state, setField, setMetaValue, resetState } =
@@ -367,11 +138,13 @@ function MeetSignupSheet() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { mode } = useThemeMode();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const queryClient = useQueryClient();
+  const mobilePreviewTopOffset = "var(--preview-banner-height, 0px)";
   const suppressAutofillRef = useRef(false);
   const metaAutofillRef = useRef(false);
   const editPrefillRef = useRef(false);
+  const queryPrefillRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedAttendeeId, setSubmittedAttendeeId] = useState<string | null>(
     null,
@@ -397,25 +170,43 @@ function MeetSignupSheet() {
     indemnityAccepted,
     fullName,
     email,
+    org1Value,
+    org2Value,
     wantsGuests,
-    guestCount,
+    guests,
     metaValues,
+    guardianName,
+    isMinor,
   } = state;
   const disableIdentityFields = Boolean(isAuthenticated);
   const disablePhone = false;
+  const disableGuests = Boolean(guestOf);
+  const organizationFieldConfig = meet
+    ? {
+        customField1Name: meet.customField1Name ?? undefined,
+        customField2Name: meet.customField2Name ?? undefined,
+        customField1HelperText: meet.customField1HelperText ?? undefined,
+        customField2HelperText: meet.customField2HelperText ?? undefined,
+      }
+    : null;
 
   const { data: userMetaValues, isLoading: userMetaLoading } =
     useFetchUserMetaValues(user?.id, meet?.organizationId);
+  const hasMinorQueryPrefill =
+    !isEditing && parseBooleanQuery(searchParams.get("isMinor")) === true;
 
+  const loggedInName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+      user.idp_profile?.name ||
+      ""
+    : "";
+
+  // Automatically populate fields if user is logged in (minor name can be different though)
   useEffect(() => {
     if (!user || !isAuthenticated) return;
     if (suppressAutofillRef.current) return;
-    const name =
-      [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-      user.idp_profile?.name ||
-      "";
-    if (name) {
-      setField("fullName", name);
+    if (loggedInName && !isMinor) {
+      setField("fullName", loggedInName);
     }
     if (user.email) {
       setField("email", user.email);
@@ -426,9 +217,19 @@ function MeetSignupSheet() {
       setPhoneLocal(parsed.local);
       setField("phone", buildInternationalPhone(parsed.country, parsed.local));
     }
-  }, [isAuthenticated, user, setField, setPhoneCountry, setPhoneLocal]);
+  }, [
+    isAuthenticated,
+    user,
+    setField,
+    setPhoneCountry,
+    setPhoneLocal,
+    isMinor,
+    loggedInName,
+  ]);
 
+  // Auto-fill questions based on users profile
   useEffect(() => {
+    if (hasMinorQueryPrefill || isMinor) return;
     if (!isAuthenticated || !meet || userMetaLoading) return;
     if (metaAutofillRef.current) return;
     if (!userMetaValues.length) {
@@ -464,6 +265,8 @@ function MeetSignupSheet() {
     metaAutofillRef.current = true;
   }, [
     isAuthenticated,
+    hasMinorQueryPrefill,
+    isMinor,
     meet,
     metaValues,
     setMetaValue,
@@ -471,6 +274,7 @@ function MeetSignupSheet() {
     userMetaValues,
   ]);
 
+  // Suppress auto-filling when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
       suppressAutofillRef.current = false;
@@ -478,6 +282,56 @@ function MeetSignupSheet() {
     }
   }, [isAuthenticated]);
 
+  // Prefill identity from query params (used for guest links / minor sign-ups).
+  useEffect(() => {
+    if (queryPrefillRef.current) return;
+    if (isEditing) return;
+
+    const nameParam = searchParams.get("name")?.trim() || "";
+    const isMinorParam = parseBooleanQuery(searchParams.get("isMinor"));
+
+    if (nameParam) setField("fullName", nameParam);
+    if (isMinorParam !== null) setField("isMinor", isMinorParam);
+
+    // Only set the rest if not authenticated
+    if (isAuthenticated) return;
+
+    const emailParam = searchParams.get("email")?.trim() || "";
+    const phoneCountryParam = searchParams.get("phoneCountry")?.trim() || "";
+    const phoneLocalParam = searchParams.get("phoneLocal")?.trim() || "";
+
+    if (emailParam) setField("email", emailParam);
+
+    // Only prefill phone is it all checks out
+    if (
+      phoneCountryParam &&
+      phoneLocalParam &&
+      isSupportedPhoneCountry(phoneCountryParam)
+    ) {
+      setPhoneCountry(phoneCountryParam.toUpperCase());
+      setPhoneLocal(phoneLocalParam.trim());
+      setField(
+        "phone",
+        buildInternationalPhone(
+          phoneCountryParam.toUpperCase(),
+          phoneLocalParam,
+        ).trim(),
+      );
+    }
+
+    queryPrefillRef.current = true;
+  }, [
+    isAuthenticated,
+    isEditing,
+    phoneCountry,
+    phoneLocal,
+    searchParams,
+    setField,
+    setPhoneCountry,
+    setPhoneLocal,
+  ]);
+
+  // Edit mode - pre-fill form with existing attendee data
   useEffect(() => {
     if (!editAttendee || editPrefillRef.current) return;
     if (!meet) return;
@@ -501,11 +355,29 @@ function MeetSignupSheet() {
       setPhoneLocal(parsed.local);
       setField("phone", buildInternationalPhone(parsed.country, parsed.local));
     }
-    const guests = Number(editAttendee.guests || 0);
-    setField("wantsGuests", guests > 0);
-    setField("guestCount", guests);
+    if (editAttendee.org1Value) {
+      setField("org1Value", editAttendee.org1Value);
+    }
+    if (editAttendee.org2Value) {
+      setField("org2Value", editAttendee.org2Value);
+    }
+    const guestsCount = Number(editAttendee.guests || 0);
+    setField("wantsGuests", guestsCount > 0);
+    setField(
+      "guests",
+      Array.from({ length: Math.max(0, guestsCount) }, () => ({
+        name: "",
+        isMinor: false,
+      })),
+    );
     if (editAttendee.indemnityAccepted !== undefined) {
       setField("indemnityAccepted", Boolean(editAttendee.indemnityAccepted));
+    }
+    if (editAttendee.isMinor !== undefined && editAttendee.isMinor !== null) {
+      setField("isMinor", Boolean(editAttendee.isMinor));
+    }
+    if (editAttendee.guardianName) {
+      setField("guardianName", editAttendee.guardianName);
     }
     const valuesByKey = new Map(
       (editAttendee.metaValues || []).map((item) => [
@@ -538,6 +410,7 @@ function MeetSignupSheet() {
     setPhoneLocal,
   ]);
 
+  // Prevent background scrolling when modal is open
   useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -546,6 +419,7 @@ function MeetSignupSheet() {
     };
   }, []);
 
+  // Set organization-specific background and theme, and clean up on unmount
   useEffect(() => {
     const previousBackgroundColor = document.body.style.backgroundColor;
     const previousBackgroundImage = document.body.style.backgroundImage;
@@ -558,14 +432,14 @@ function MeetSignupSheet() {
         : mode;
     const { image, color } = getOrganizationBackground(
       mode,
-      organization?.theme,
+      privateOrganization?.theme,
     );
     document.body.style.backgroundColor = color;
     document.body.style.backgroundImage = `url("${image}")`;
     document.body.setAttribute("data-theme-base", resolvedBase);
 
-    if (organization?.theme) {
-      document.body.setAttribute("data-org-theme", organization.theme);
+    if (privateOrganization?.theme) {
+      document.body.setAttribute("data-org-theme", privateOrganization.theme);
     } else {
       document.body.removeAttribute("data-org-theme");
     }
@@ -584,7 +458,49 @@ function MeetSignupSheet() {
         document.body.removeAttribute("data-theme-base");
       }
     };
-  }, [mode, organization?.theme]);
+  }, [mode, privateOrganization?.theme]);
+
+  // Switch name and guardian fields if the user is a minor and user is logged in
+  useEffect(() => {
+    if (disableIdentityFields && isMinor) {
+      if (loggedInName && loggedInName !== guardianName) {
+        setField("guardianName", loggedInName);
+        setField("fullName", "");
+        setNameError("");
+      }
+    }
+  }, [
+    isMinor,
+    disableIdentityFields,
+    loggedInName,
+    setField,
+    setNameError,
+    guardianName,
+    fullName,
+  ]);
+
+  useEffect(() => {
+    const title = meet?.name?.trim() || "AdventureMeets";
+    const description = meet?.description?.trim() || DEFAULT_OG_DESCRIPTION;
+    const image = toAbsoluteUrl(meet?.imageUrl);
+    const url = window.location.href;
+
+    const previousTitle = document.title;
+    document.title = title;
+
+    const restoreTitle = setMetaProperty("og:title", title);
+    const restoreDescription = setMetaProperty("og:description", description);
+    const restoreImage = setMetaProperty("og:image", image);
+    const restoreUrl = setMetaProperty("og:url", url);
+
+    return () => {
+      document.title = previousTitle;
+      restoreUrl();
+      restoreImage();
+      restoreDescription();
+      restoreTitle();
+    };
+  }, [meet?.description, meet?.imageUrl, meet?.name]);
 
   const handleLogout = () => {
     suppressAutofillRef.current = true;
@@ -595,6 +511,8 @@ function MeetSignupSheet() {
     setField("fullName", "");
     setField("email", "");
     setField("phone", "");
+    setField("org1Value", "");
+    setField("org2Value", "");
     setLastCheckedContact(null);
     setExistingAttendee(null);
     setShowDuplicateModal(false);
@@ -602,15 +520,58 @@ function MeetSignupSheet() {
     setSubmittedAttendeeId(null);
   };
 
+  const handleCloseSheet = () => {
+    if (isPreview && window.opener) {
+      window.close();
+      return;
+    }
+    if (isPreview && previewReturnTo) {
+      navigate(previewReturnTo, { replace: true });
+      return;
+    }
+    if (location.key !== "default") {
+      navigate(-1);
+      return;
+    }
+    navigate("/", { replace: true });
+  };
+
+  const handleSignOut = () => {
+    handleLogout();
+    logout();
+  };
+
   const isOpenMeet = meet?.statusId === MeetStatusEnum.Open;
+  const isDraftMeet = meet?.statusId === MeetStatusEnum.Draft;
+  const hasValidCheckinPin = Boolean(
+    checkinPin && meet?.checkinPin && checkinPin === meet.checkinPin,
+  );
+  const canSubmitSignup = isOpenMeet || hasValidCheckinPin;
+  const showEmailField = meet?.requireEmail !== false;
+  const showPhoneField = meet?.requirePhone !== false;
+  const closeButtonLabel = isPreview
+    ? previewSource === "editor"
+      ? "Back to editing"
+      : "Close preview"
+    : "Close";
 
   if (!isLoading && !meet) {
     return <MeetNotFound />;
   }
 
+  if (!isLoading && isDraftMeet && !isPreview) {
+    return <MeetNotFound />;
+  }
+
   if (submitted) {
     return (
-      <Box sx={{ height: "100vh", position: "relative" }}>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          height: "100dvh",
+          position: "relative",
+        }}
+      >
         {isPreview ? (
           <Box
             sx={{
@@ -635,7 +596,9 @@ function MeetSignupSheet() {
             </Typography>
           </Box>
         ) : null}
-        <Box sx={{ pt: isPreview ? 10 : 0 }}>
+        <Box
+          sx={{ pt: isPreview ? (isMobile ? mobilePreviewTopOffset : 10) : 0 }}
+        >
           <MeetSignupSubmitted
             firstName={fullName.trim().split(/\s+/)[0] || ""}
             lastName={fullName.trim().split(/\s+/).slice(1).join(" ") || ""}
@@ -646,8 +609,13 @@ function MeetSignupSheet() {
             meetId={meet?.id}
             attendeeId={submittedAttendeeId || undefined}
             shareCode={code}
-            isOrganizationPrivate={organization?.isPrivate}
+            hasIndemnity={meet?.hasIndemnity || false}
+            guests={guests}
+            isMinor={isMinor}
+            isOrganizationPrivate={privateOrganization?.isPrivate}
             isPreview={isPreview}
+            isGuest={Boolean(guestOf)}
+            isRsvpMode={Boolean(meet?.autoPlacement)}
           />
         </Box>
       </Box>
@@ -665,32 +633,46 @@ function MeetSignupSheet() {
   });
 
   const isSubmitDisabled =
-    !isOpenMeet ||
+    !canSubmitSignup ||
     !fullName.trim() ||
-    !email.trim() ||
-    !phoneLocal.trim() ||
+    (showEmailField && !email.trim()) ||
+    (showPhoneField && !phoneLocal.trim()) ||
+    (meet?.requireOrg1 &&
+      organizationFieldConfig?.customField1Name &&
+      !org1Value.trim()) ||
+    (meet?.requireOrg2 &&
+      organizationFieldConfig?.customField2Name &&
+      !org2Value.trim()) ||
     Boolean(nameError) ||
-    Boolean(emailError) ||
-    Boolean(phoneError) ||
+    (showEmailField && Boolean(emailError)) ||
+    (showPhoneField && Boolean(phoneError)) ||
     requiredMetaMissing ||
-    (meet?.hasIndemnity && !indemnityAccepted);
+    Boolean(meet?.hasIndemnity && !indemnityAccepted);
 
   const handleNameBlur = () => {
     setNameError(validateRequired(fullName, "Name"));
   };
 
   const handleEmailBlur = () => {
+    if (!showEmailField) {
+      setEmailError(null);
+      return;
+    }
     const formatError = validateEmail(email);
     setEmailError(formatError);
-    if (!formatError) {
+    if (!formatError && !isMinor) {
       checkForDuplicate();
     }
   };
 
   const handlePhoneBlur = () => {
+    if (!showPhoneField) {
+      setPhoneError(null);
+      return;
+    }
     const error = validatePhone(phoneLocal);
     setPhoneError(error);
-    if (!error) {
+    if (!error && !isMinor) {
       checkForDuplicate();
     }
   };
@@ -698,8 +680,11 @@ function MeetSignupSheet() {
   const checkForDuplicate = async () => {
     if (!meet) return;
     if (isEditing) return;
-    const trimmedEmail = email.trim();
-    const trimmedPhone = buildInternationalPhone(phoneCountry, phoneLocal);
+    if (isMinor) return;
+    const trimmedEmail = showEmailField && !isMinor ? email.trim() : "";
+    const trimmedPhone = showPhoneField
+      ? buildInternationalPhone(phoneCountry, phoneLocal)
+      : "";
     if (!trimmedEmail && !trimmedPhone) return;
     if (
       lastCheckedContact &&
@@ -746,27 +731,42 @@ function MeetSignupSheet() {
     }
     const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
     if (!isEditing) {
-      const check = await checkAttendeeAsync({
-        meetId: meet.id,
-        email,
-        phone: fullPhone,
-      });
-      if (check.attendee) {
-        setExistingAttendee({ id: check.attendee.id });
-        setShowDuplicateModal(true);
-        return;
+      if (!isMinor) {
+        const trimmedEmail = email.trim();
+        const check = await checkAttendeeAsync({
+          meetId: meet.id,
+          email: trimmedEmail || undefined,
+          phone: fullPhone,
+        });
+        if (check.attendee) {
+          setExistingAttendee({ id: check.attendee.id });
+          setShowDuplicateModal(true);
+          return;
+        }
       }
     }
     const metaPayload = buildMetaPayload();
+    const submittedEmail = showEmailField ? email : "";
+    const submittedPhone = showPhoneField
+      ? buildInternationalPhone(phoneCountry, phoneLocal)
+      : "";
     const res = await addAttendeeAsync({
       meetId: meet.id,
+      userId: isAuthenticated ? user?.id : undefined,
       name: fullName,
-      email,
-      phone: fullPhone,
-      guests: wantsGuests ? guestCount : 0,
+      email: submittedEmail,
+      phone: submittedPhone,
+      org1Value: org1Value || undefined,
+      org2Value: org2Value || undefined,
+      guestOf: guestOf || undefined,
+      isMinor: isMinor,
+      GuardianName: isMinor ? guardianName || undefined : undefined,
+      guests: wantsGuests ? guests.length : 0,
+      guestsList: wantsGuests ? guests : [],
       indemnityAccepted: indemnityAccepted,
       indemnityMinors: "",
       metaValues: metaPayload,
+      checkinPin: checkinPin || undefined,
     });
     setSubmittedAttendeeId(res?.attendee?.id ?? null);
     setSubmitted(true);
@@ -774,13 +774,20 @@ function MeetSignupSheet() {
 
   const handleUpdate = async () => {
     if (!meet || !existingAttendee) return;
-    const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
+    const fullPhone = showPhoneField
+      ? buildInternationalPhone(phoneCountry, phoneLocal)
+      : "";
     const metaPayload = buildMetaPayload();
     const payload = {
       name: fullName,
-      email,
+      email: showEmailField ? email : "",
       phone: fullPhone,
-      guests: wantsGuests ? guestCount : 0,
+      org1Value: org1Value || undefined,
+      org2Value: org2Value || undefined,
+      isMinor: isMinor,
+      GuardianName: isMinor ? guardianName || undefined : undefined,
+      guests: wantsGuests ? guests.length : 0,
+      guestsList: wantsGuests ? guests : [],
       indemnityAccepted: indemnityAccepted,
       indemnityMinors: "",
       metaValues: metaPayload,
@@ -821,15 +828,28 @@ function MeetSignupSheet() {
   };
 
   return (
-    <Box sx={{ height: "100vh", position: "relative" }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        height: "100dvh",
+        position: "relative",
+      }}
+    >
       {isPreview ? <PreviewBanner /> : null}
       <Container
         maxWidth={isMobile ? false : "md"}
         disableGutters={isMobile}
         sx={{
           py: isMobile ? 0 : 6,
-          pt: isPreview ? (isMobile ? 10 : 6) : isMobile ? 2 : 6,
-          minHeight: "100vh",
+          pb: isMobile ? "calc(24px + env(safe-area-inset-bottom))" : 6,
+          pt: isPreview
+            ? isMobile
+              ? mobilePreviewTopOffset
+              : 6
+            : isMobile
+              ? 0
+              : 6,
+          minHeight: "100%",
           height: "100%",
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
@@ -844,7 +864,7 @@ function MeetSignupSheet() {
             boxShadow: isMobile ? "none" : undefined,
           }}
         >
-          {isLoading ? (
+          {isLoading || !meet ? (
             <Typography color="text.secondary">Loading meet...</Typography>
           ) : (
             <Stack spacing={1.5}>
@@ -852,23 +872,36 @@ function MeetSignupSheet() {
                 meet={meet}
                 isPreview={isPreview}
                 actionSlot={
-                  <MeetSignupUserAction
-                    formEmail={undefined}
-                    onLogout={handleLogout}
-                  />
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {guestOf ? (
+                      <Chip label="Guest" size="small" color="info" />
+                    ) : null}
+                    <Tooltip title={closeButtonLabel}>
+                      <IconButton
+                        onClick={handleCloseSheet}
+                        size="small"
+                        aria-label={closeButtonLabel}
+                        data-testid="close-meet-signup-sheet"
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                 }
               />
-              {!isPreview && (
+              {!isPreview && meet && !hasValidCheckinPin && (
                 <MeetStatusAlert
                   statusId={meet.statusId}
                   openingDate={meet.openingDate}
+                  isRsvpMode={Boolean(meet.autoPlacement)}
                 />
               )}
-              {(isOpenMeet || isPreview) && (
+              {(canSubmitSignup || isPreview) && (
                 <MeetSignupFormFields
                   meet={meet}
                   fullName={fullName}
                   email={email}
+                  organization={organizationFieldConfig}
                   phoneCountry={phoneCountry}
                   phoneLocal={phoneLocal}
                   nameError={nameError}
@@ -876,15 +909,23 @@ function MeetSignupSheet() {
                   phoneError={phoneError}
                   disableIdentityFields={disableIdentityFields}
                   disablePhone={disablePhone}
+                  disableGuests={disableGuests}
+                  guardianName={guardianName}
+                  org1Value={org1Value}
+                  org2Value={org2Value}
                   wantsGuests={wantsGuests}
-                  guestCount={guestCount}
+                  guests={guests}
                   metaValues={metaValues}
                   indemnityAccepted={indemnityAccepted}
+                  isMinor={isMinor}
                   isSubmitDisabled={isSubmitDisabled}
                   isSubmitting={isSubmitting}
                   isEditing={isEditing}
+                  isAuthenticated={isAuthenticated}
                   onSubmit={handleSubmit}
                   onCancelEdit={handleCancelEdit}
+                  onSignInClick={() => setLoginOpen(true)}
+                  onSignOutClick={handleSignOut}
                   onCheckDuplicate={
                     isEditing ? () => undefined : checkForDuplicate
                   }
@@ -905,21 +946,61 @@ function MeetSignupSheet() {
           onClose={() => setShowDuplicateModal(false)}
           onRemove={handleRemove}
           onUpdate={handleUpdate}
+          isRsvpMode={Boolean(meet?.autoPlacement)}
         />
-        <Dialog
-          open={loginOpen}
-          onClose={() => setLoginOpen(false)}
-          fullWidth
-          maxWidth="sm"
-        >
-          <DialogTitle>Login</DialogTitle>
-          <DialogContent sx={{ pt: 2 }}>
-            <LoginForm
-              onSuccess={() => setLoginOpen(false)}
-              submitLabel="Login"
-            />
-          </DialogContent>
-        </Dialog>
+        {isMobile ? (
+          <Drawer
+            anchor="bottom"
+            open={loginOpen}
+            onClose={() => setLoginOpen(false)}
+            slotProps={{
+              backdrop: {
+                sx: { backgroundColor: "rgba(0,0,0,0.35)" },
+              },
+            }}
+            ModalProps={{
+              keepMounted: true,
+              disableAutoFocus: true,
+              disableEnforceFocus: true,
+              disableRestoreFocus: true,
+            }}
+            PaperProps={{
+              sx: {
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                maxHeight: "78vh",
+                overflowY: "auto",
+                pb: "calc(16px + env(safe-area-inset-bottom))",
+              },
+            }}
+          >
+            <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Login
+              </Typography>
+              <LoginForm
+                onSuccess={() => setLoginOpen(false)}
+                submitLabel="Login"
+                showSocialButtons
+              />
+            </Box>
+          </Drawer>
+        ) : (
+          <Dialog
+            open={loginOpen}
+            onClose={() => setLoginOpen(false)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogContent sx={{ pt: 2 }}>
+              <LoginForm
+                onSuccess={() => setLoginOpen(false)}
+                submitLabel="Login"
+                showSocialButtons
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </Container>
     </Box>
   );

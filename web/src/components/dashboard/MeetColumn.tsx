@@ -1,17 +1,21 @@
-import { Paper, Stack, Typography } from "@mui/material";
+import { Box, CircularProgress, Paper, Stack, Typography } from "@mui/material";
 import Meet from "../../types/MeetModel";
 import { MeetCard } from "./MeetCard";
-import { useAuth } from "../../context/authContext";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
 import { defaultPendingAction } from "../../helpers/defaultPendingAction";
+import { getMeetPermissions } from "../../helpers/meetPermissions";
 
 type MeetColumnProps = {
   title: string;
   meets: Meet[];
   statusFallback: string;
+  currentUserId?: string | null;
+  currentOrganizationRole?: string | null;
+  reportingEnabled?: boolean;
   setSelectedMeetId: (id: string | null) => void;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   isLoading?: boolean;
+  isFetchingMore?: boolean;
   getStatusLabel: (statusId?: number, fallback?: string) => string;
 };
 
@@ -19,12 +23,15 @@ export function MeetColumn({
   title,
   meets,
   statusFallback,
+  currentUserId,
+  currentOrganizationRole,
+  reportingEnabled,
   setSelectedMeetId,
   setPendingAction,
   isLoading = false,
+  isFetchingMore = false,
   getStatusLabel,
 }: MeetColumnProps) {
-  const { user } = useAuth();
   return (
     <>
       <Paper
@@ -50,20 +57,39 @@ export function MeetColumn({
             Loading meets...
           </Typography>
         ) : meets.length ? (
-          meets.map((meet) => (
-            <MeetCard
-              key={meet.id}
-              meet={meet}
-              isOrganizer={meet.organizerId === user?.id}
-              statusLabel={getStatusLabel(meet.statusId, statusFallback)}
-              onClick={() => {
-                setSelectedMeetId(meet.id);
-                setPendingAction(defaultPendingAction(meet.statusId));
-              }}
-              setSelectedMeetId={setSelectedMeetId}
-              setPendingAction={setPendingAction}
-            />
-          ))
+          meets.map((meet) => {
+            const { canManageMeet, canViewMeet, canAccessManageMenu } =
+              getMeetPermissions({
+                currentUserId,
+                currentOrganizationRole,
+                organizerId: meet.organizerId,
+              });
+
+            return (
+              <MeetCard
+                key={meet.id}
+                meet={meet}
+                canAccessManageMenu={canAccessManageMenu}
+                canManageMeet={canManageMeet}
+                canViewMeet={canViewMeet}
+                reportingEnabled={reportingEnabled}
+                statusLabel={getStatusLabel(meet.statusId, statusFallback)}
+                onClick={() => {
+                  setSelectedMeetId(meet.id);
+                  setPendingAction(
+                    defaultPendingAction(
+                      meet.statusId,
+                      meet.organizerId === currentUserId,
+                      meet,
+                      { canManageMeet },
+                    ),
+                  );
+                }}
+                setSelectedMeetId={setSelectedMeetId}
+                setPendingAction={setPendingAction}
+              />
+            );
+          })
         ) : (
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Typography variant="body2" color="text.secondary">
@@ -71,6 +97,11 @@ export function MeetColumn({
             </Typography>
           </Paper>
         )}
+        {isFetchingMore ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : null}
       </Stack>
     </>
   );

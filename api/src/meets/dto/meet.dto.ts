@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsDateString,
 } from "class-validator/types";
+import { MeetImageDto } from "./meet-image.dto";
 
 export class MeetMetaDefinitionDto {
   @ApiProperty()
@@ -36,6 +37,20 @@ export class MeetMetaDefinitionDto {
 
   @ApiPropertyOptional()
   config?: Record<string, any>;
+}
+
+export class MeetAttendeePreviewDto {
+  @ApiProperty()
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty()
+  @IsString()
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  avatarUrl?: string;
 }
 
 export class MeetDto {
@@ -84,6 +99,10 @@ export class MeetDto {
   endTime?: string;
 
   @ApiPropertyOptional()
+  @IsString()
+  timeZone?: string;
+
+  @ApiPropertyOptional()
   @IsDateString()
   openingDate?: string;
 
@@ -122,6 +141,50 @@ export class MeetDto {
   @ApiPropertyOptional()
   @IsBoolean()
   allowGuests?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  allowSelfCheckin?: boolean;
+
+  @ApiPropertyOptional()
+  @IsString()
+  checkinPin?: string;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  allowWalkins?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requireEmail?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requirePhone?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requireOrg1?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  requireOrg2?: boolean;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField1Name?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField2Name?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField1HelperText?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  customField2HelperText?: string;
 
   @ApiPropertyOptional()
   @IsNumber()
@@ -199,6 +262,9 @@ export class MeetDto {
   @IsString()
   imageUrl?: string;
 
+  @ApiPropertyOptional({ type: [MeetImageDto] })
+  images?: MeetImageDto[];
+
   @ApiPropertyOptional()
   @IsNumber()
   attendeeCount?: number;
@@ -210,6 +276,10 @@ export class MeetDto {
   @ApiPropertyOptional()
   @IsNumber()
   confirmedCount?: number;
+
+  @ApiPropertyOptional()
+  @IsNumber()
+  rejectedCount?: number;
 
   @ApiPropertyOptional()
   @IsNumber()
@@ -234,6 +304,9 @@ export class MeetDto {
   @ApiPropertyOptional()
   @IsString()
   myAttendeeStatus?: string;
+
+  @ApiPropertyOptional({ type: [MeetAttendeePreviewDto] })
+  attendingAttendees?: MeetAttendeePreviewDto[];
 
   @ApiPropertyOptional({ type: [MeetMetaDefinitionDto] })
   metaDefinitions?: MeetMetaDefinitionDto[];

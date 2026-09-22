@@ -1,23 +1,34 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
   Container,
   Grid,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import { useOutletContext } from "react-router-dom";
 import { Heading } from "../components/Heading";
-import { useFetchMeets } from "../hooks/useFetchMeets";
+import { useInfiniteFetchMeets } from "../hooks/useInfiniteFetchMeets";
 import { useMeetStatusLookup } from "../hooks/useFetchMeetStatuses";
+import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import Meet from "../types/MeetModel";
-import MeetStatusEnum from "../types/MeetStatusEnum";
 import { MeetActionsDialogs } from "../components/meet/MeetActionsDialogs";
 import { MeetColumn } from "../components/dashboard/MeetColumn";
-import { MobileDashboardTitle } from "../components/dashboard/MobileDashboardTitle";
 import { useCurrentOrganization } from "../context/organizationContext";
+import { useFilters } from "../context/filterContext";
 import { CreatePrivateOrganizationDialog } from "../components/auth/CreatePrivateOrganizationDialog";
 import MeetActionsEnum from "../types/MeetActionsEnum";
+import AddIcon from "@mui/icons-material/Add";
+import { MainLayoutOutletContext } from "../layout/MainLayout";
+import { useAuth } from "../context/authContext";
+import { getMeetPermissions } from "../helpers/meetPermissions";
+import { MeetSearchField } from "../components/meet/MeetSearchField";
+
+const DASHBOARD_PAGE_SIZE = 5;
 
 function DashboardPage() {
   const [selectedMeetId, setSelectedMeetId] = useState<string | null>(null);
@@ -26,90 +37,297 @@ function DashboardPage() {
   );
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down(820));
+  const { setMobileHeaderAction } = useOutletContext<MainLayoutOutletContext>();
   const { currentOrganizationId, currentOrganizationRole } =
     useCurrentOrganization();
-  const { data: meets, isLoading } = useFetchMeets({
-    view: currentOrganizationRole === "member" ? "my" : "all",
-    page: 1,
-    limit: 50,
-    organizationId: currentOrganizationId || undefined,
+  const { data: currentOrganization } = useFetchOrganization(
+    currentOrganizationId || undefined,
+  );
+  const { user } = useAuth();
+  const { dashboardView, setDashboardView } = useFilters();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const draftQuery = useInfiniteFetchMeets({
+    view: "draft",
+    scope: dashboardView,
+    limit: DASHBOARD_PAGE_SIZE,
+    organizationId: currentOrganizationId,
+    search: debouncedSearch.trim() || undefined,
+  });
+  const upcomingQuery = useInfiniteFetchMeets({
+    view: "upcoming",
+    scope: dashboardView,
+    limit: DASHBOARD_PAGE_SIZE,
+    organizationId: currentOrganizationId,
+    search: debouncedSearch.trim() || undefined,
+  });
+  const pastQuery = useInfiniteFetchMeets({
+    view: "past",
+    scope: dashboardView,
+    limit: DASHBOARD_PAGE_SIZE,
+    organizationId: currentOrganizationId,
+    search: debouncedSearch.trim() || undefined,
   });
   const { getName: getStatusName } = useMeetStatusLookup();
-
-  const isOrganizer =
+  const canManageMeets =
     currentOrganizationRole === "organizer" ||
     currentOrganizationRole === "admin";
+  const draft = draftQuery.data;
+  const upcoming = upcomingQuery.data;
+  const past = pastQuery.data;
+  const draftHasNextPage = Boolean(draftQuery.hasNextPage);
+  const upcomingHasNextPage = Boolean(upcomingQuery.hasNextPage);
+  const pastHasNextPage = Boolean(pastQuery.hasNextPage);
+  const fetchNextDraftPage = draftQuery.fetchNextPage;
+  const fetchNextUpcomingPage = upcomingQuery.fetchNextPage;
+  const fetchNextPastPage = pastQuery.fetchNextPage;
+  const allMeets = useMemo(
+    () => [...draft, ...upcoming, ...past],
+    [draft, past, upcoming],
+  );
+  const isAnyFetchingNextPage =
+    draftQuery.isFetchingNextPage ||
+    upcomingQuery.isFetchingNextPage ||
+    pastQuery.isFetchingNextPage;
+  const hasAnyNextPage =
+    draftHasNextPage || upcomingHasNextPage || pastHasNextPage;
 
-  const handleNewMeet = () => {
-    if (!isOrganizer) {
+  const handleNewMeet = useCallback(() => {
+    if (!canManageMeets) {
       setShowCreateOrgDialog(true);
       return;
     }
     setPendingAction(MeetActionsEnum.Create);
-  };
+  }, [canManageMeets, setPendingAction, setShowCreateOrgDialog]);
 
-  const { upcoming, past, draft, columns } = useMemo(() => {
-    const now = new Date();
-    const draftMeets: Meet[] = meets.filter(
-      (m: Meet) => m.statusId === MeetStatusEnum.Draft,
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileHeaderAction(null);
+      return;
+    }
+    setMobileHeaderAction(
+      <Button
+        variant="text"
+        color="inherit"
+        size="small"
+        startIcon={<AddIcon />}
+        onClick={handleNewMeet}
+        sx={{ textTransform: "none", whiteSpace: "nowrap", minWidth: 0, px: 1 }}
+      >
+        NEW MEET
+      </Button>,
     );
-    const upcomingMeets: Meet[] = meets.filter(
-      (m: Meet) =>
-        m.statusId !== MeetStatusEnum.Draft && new Date(m.endTime) >= now,
-    );
-    const pastMeets: Meet[] = meets.filter(
-      (m: Meet) =>
-        m.statusId !== MeetStatusEnum.Draft && new Date(m.endTime) < now,
-    );
+    return () => setMobileHeaderAction(null);
+  }, [handleNewMeet, isMobile, setMobileHeaderAction]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsMobileSearchExpanded(false);
+    }
+  }, [isMobile]);
+
+  const columns = useMemo(() => {
     let numColumns = 1; // We always show upcoming
-    if (draftMeets.length > 0) numColumns++;
-    if (pastMeets.length > 0) numColumns++;
-    return {
-      upcoming: upcomingMeets,
-      past: pastMeets,
-      draft: draftMeets,
-      columns: numColumns,
-    };
-  }, [meets]);
+    if (draft.length > 0 || draftQuery.isLoading) numColumns++;
+    if (past.length > 0 || pastQuery.isLoading) numColumns++;
+    return numColumns;
+  }, [draft.length, draftQuery.isLoading, past.length, pastQuery.isLoading]);
+
+  const fetchMoreColumns = useCallback(async () => {
+    const requests: Array<Promise<unknown>> = [];
+
+    if (draftHasNextPage) {
+      requests.push(fetchNextDraftPage());
+    }
+    if (upcomingHasNextPage) {
+      requests.push(fetchNextUpcomingPage());
+    }
+    if (pastHasNextPage) {
+      requests.push(fetchNextPastPage());
+    }
+
+    if (!requests.length) {
+      return;
+    }
+
+    await Promise.all(requests);
+  }, [
+    draftHasNextPage,
+    fetchNextDraftPage,
+    fetchNextPastPage,
+    fetchNextUpcomingPage,
+    pastHasNextPage,
+    upcomingHasNextPage,
+  ]);
+
+  useEffect(() => {
+    const root = scrollContainerRef.current;
+    const target = loadMoreRef.current;
+
+    if (!root || !target || !hasAnyNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting || isAnyFetchingNextPage) {
+          return;
+        }
+        void fetchMoreColumns();
+      },
+      {
+        root,
+        rootMargin: "200px 0px",
+        threshold: 0.1,
+      },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [fetchMoreColumns, hasAnyNextPage, isAnyFetchingNextPage]);
+
+  const selectedMeetPermissions = useMemo(() => {
+    if (pendingAction === MeetActionsEnum.Create) {
+      return {
+        isOrganizerForMeet: true,
+        canManageMeet: true,
+        canViewMeet: false,
+      };
+    }
+
+    const selectedMeet = allMeets.find((meet) => meet.id === selectedMeetId);
+    if (!selectedMeet) {
+      return {
+        isOrganizerForMeet: false,
+        canManageMeet: false,
+        canViewMeet: false,
+      };
+    }
+
+    return getMeetPermissions({
+      currentUserId: user?.id,
+      currentOrganizationRole,
+      organizerId: selectedMeet.organizerId,
+    });
+  }, [
+    allMeets,
+    currentOrganizationRole,
+    pendingAction,
+    selectedMeetId,
+    user?.id,
+  ]);
 
   return (
     <Container
       maxWidth="lg"
+      disableGutters={isMobile}
       sx={{
         pt: 1,
         pb: 4,
         height: "calc(100vh - 64px)",
         display: "flex",
         flexDirection: "column",
+        px: isMobile ? 1 : 0,
       }}
     >
-      {isMobile ? (
-        <MobileDashboardTitle onNewMeet={handleNewMeet} />
-      ) : (
-        <Heading
-          title="Dashboard"
-          subtitle="View upcoming and past meets that you are organising or attending."
-          actionComponent={
+      <Heading
+        title={isMobile && isMobileSearchExpanded ? "" : "Dashboard"}
+        subtitle={
+          isMobile && isMobileSearchExpanded
+            ? undefined
+            : "View upcoming and past meets that you are organising or attending."
+        }
+        secondaryActionComponent={
+          !isMobile ? (
             <Button variant="contained" onClick={handleNewMeet}>
               New Meet
             </Button>
-          }
-        />
-      )}
+          ) : null
+        }
+        actionComponent={
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="nowrap"
+            sx={{ width: isMobileSearchExpanded ? "100%" : "auto" }}
+          >
+            <Box sx={{ flex: isMobileSearchExpanded ? 1 : "0 0 auto" }}>
+              <MeetSearchField
+                value={searchQuery}
+                onChange={setSearchQuery}
+                fullWidth={isMobileSearchExpanded}
+                compact={!isMobileSearchExpanded}
+                expanded={isMobile ? isMobileSearchExpanded : undefined}
+                onExpandedChange={
+                  isMobile ? setIsMobileSearchExpanded : undefined
+                }
+              />
+            </Box>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={dashboardView}
+              onChange={(_event, nextView) => {
+                if (nextView) setDashboardView(nextView);
+              }}
+              sx={{
+                order: 1,
+                ...(isMobile
+                  ? {
+                      "& .MuiToggleButton-root": {
+                        minWidth: 0,
+                        px: 1,
+                        py: 0.25,
+                        fontSize: "0.7rem",
+                        lineHeight: 1.2,
+                      },
+                    }
+                  : {}),
+              }}
+            >
+              <ToggleButton value="my">
+                {isMobile ? "MY" : "My meets"}
+              </ToggleButton>
+              <ToggleButton value="all">
+                {isMobile ? "ALL" : "All meets"}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+        }
+      />
 
-      <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+      <Box
+        ref={scrollContainerRef}
+        data-testid="dashboard-scroll-container"
+        sx={{ flex: 1, overflowY: "auto", pr: isMobile ? 0 : 1 }}
+      >
         <Grid container spacing={3}>
-          {draft && draft.length > 0 && (
+          {(draft.length > 0 || draftQuery.isLoading) && (
             <Grid item xs={12} md={12 / columns}>
               <MeetColumn
                 title="Draft Meets"
                 meets={draft}
                 statusFallback="Draft"
+                currentUserId={user?.id}
+                currentOrganizationRole={currentOrganizationRole}
+                reportingEnabled={currentOrganization?.reportingEnabled}
                 getStatusLabel={getStatusName}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}
-                isLoading={isLoading}
+                isLoading={draftQuery.isLoading}
+                isFetchingMore={draftQuery.isFetchingNextPage}
               />
             </Grid>
           )}
@@ -119,40 +337,57 @@ function DashboardPage() {
               title="Upcoming Meets"
               meets={upcoming as Meet[]}
               statusFallback="Scheduled"
+              currentUserId={user?.id}
+              currentOrganizationRole={currentOrganizationRole}
+              reportingEnabled={currentOrganization?.reportingEnabled}
               getStatusLabel={getStatusName}
               setSelectedMeetId={setSelectedMeetId}
               setPendingAction={setPendingAction}
-              isLoading={isLoading}
+              isLoading={upcomingQuery.isLoading}
+              isFetchingMore={upcomingQuery.isFetchingNextPage}
             />
           </Grid>
-          {past && past.length > 0 && (
+          {(past.length > 0 || pastQuery.isLoading) && (
             <Grid item xs={12} md={12 / columns}>
               <MeetColumn
                 title="Past Meets"
                 meets={past as Meet[]}
                 statusFallback="Closed"
+                currentUserId={user?.id}
+                currentOrganizationRole={currentOrganizationRole}
+                reportingEnabled={currentOrganization?.reportingEnabled}
                 getStatusLabel={getStatusName}
                 setSelectedMeetId={setSelectedMeetId}
                 setPendingAction={setPendingAction}
-                isLoading={isLoading}
+                isLoading={pastQuery.isLoading}
+                isFetchingMore={pastQuery.isFetchingNextPage}
               />
             </Grid>
           )}
         </Grid>
+        <Box ref={loadMoreRef} sx={{ height: 1 }}>
+          {isAnyFetchingNextPage ? (
+            <Box sx={{ pt: 2 }}>
+              <Button disabled variant="text" size="small">
+                Loading more...
+              </Button>
+            </Box>
+          ) : null}
+        </Box>
       </Box>
-      {isOrganizer ? (
-        <MeetActionsDialogs
-          meetId={selectedMeetId || null}
-          pendingAction={pendingAction || undefined}
-          setPendingAction={setPendingAction}
-          setSelectedMeetId={setSelectedMeetId}
-        />
-      ) : (
-        <CreatePrivateOrganizationDialog
-          open={showCreateOrgDialog}
-          onClose={() => setShowCreateOrgDialog(false)}
-        />
-      )}
+      <MeetActionsDialogs
+        meetId={selectedMeetId || null}
+        canViewMeet={selectedMeetPermissions.canViewMeet}
+        canManageMeet={selectedMeetPermissions.canManageMeet}
+        isOrganizer={selectedMeetPermissions.isOrganizerForMeet}
+        pendingAction={pendingAction || undefined}
+        setPendingAction={setPendingAction}
+        setSelectedMeetId={setSelectedMeetId}
+      />
+      <CreatePrivateOrganizationDialog
+        open={showCreateOrgDialog}
+        onClose={() => setShowCreateOrgDialog(false)}
+      />
     </Container>
   );
 }
