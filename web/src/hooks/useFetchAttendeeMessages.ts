@@ -9,7 +9,16 @@ export type AttendeeMessage = {
   to?: string;
   isRead?: boolean;
   content?: string;
-  emailStatus?: "pending" | "sent" | "delivered" | "opened" | "bounced" | "failed" | "complained" | null;
+  emailStatus?:
+    | "pending"
+    | "sent"
+    | "delivered"
+    | "opened"
+    | "bounced"
+    | "failed"
+    | "complained"
+    | null;
+  recipientEmail?: string | null;
   openedAt?: string | null;
   direction?: "received" | "sent";
 };

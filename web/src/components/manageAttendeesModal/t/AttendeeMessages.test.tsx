@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AttendeeMessages } from "../AttendeeMessages";
 
 const markRead = vi.fn();
+const resend = vi.fn();
 
 vi.mock("../../../hooks/useFetchAttendeeMessages", () => ({
   useFetchAttendeeMessages: () => ({
@@ -19,6 +20,12 @@ vi.mock("../../../hooks/useFetchAttendeeMessages", () => ({
         isRead: false,
         direction: "sent",
       },
+      {
+        id: "failed-message",
+        content: "Subject: Failed\n\nPlease resend this",
+        direction: "sent",
+        emailStatus: "failed",
+      },
     ],
     isLoading: false,
     error: null,
@@ -29,9 +36,35 @@ vi.mock("../../../hooks/useMarkAttendeeMessageRead", () => ({
   useMarkAttendeeMessageRead: () => ({ markRead }),
 }));
 
+vi.mock("../../../hooks/useResendAttendeeEmail", () => ({
+  useResendAttendeeEmail: () => ({ resend, isLoading: false }),
+}));
+
 describe("AttendeeMessages", () => {
   beforeEach(() => {
     markRead.mockReset();
+    resend.mockReset();
+  });
+
+  it("resends failed emails without expanding the message", () => {
+    render(
+      <AttendeeMessages
+        meetId="meet-1"
+        attendeeId="attendee-1"
+        attendeeEmail="attendee@example.com"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Resend" }));
+
+    expect(resend).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      attendeeId: "attendee-1",
+      messageId: "failed-message",
+    });
+    expect(
+      screen.getByRole("button", { name: "Resend" }).closest("[aria-expanded]"),
+    ).toHaveAttribute("aria-expanded", "false");
   });
 
   it("marks unread sent and received messages as read when expanded", () => {

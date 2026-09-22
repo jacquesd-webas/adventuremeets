@@ -8,6 +8,7 @@ import {
   useFetchAttendeeMessages,
 } from "../../hooks/useFetchAttendeeMessages";
 import { useMarkAttendeeMessageRead } from "../../hooks/useMarkAttendeeMessageRead";
+import { useResendAttendeeEmail } from "../../hooks/useResendAttendeeEmail";
 
 type AttendeeMessagesProps = {
   meetId?: string | null;
@@ -131,6 +132,7 @@ export function AttendeeMessages({
   );
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { markRead } = useMarkAttendeeMessageRead();
+  const { resend, isLoading: isResending } = useResendAttendeeEmail();
 
   const messages = useMemo<ParsedMessage[]>(
     () =>
@@ -280,7 +282,20 @@ export function AttendeeMessages({
             </Typography>
             {message.direction === "sent" && (
               <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                <EmailDeliveryStatus status={message.emailStatus} />
+                <EmailDeliveryStatus
+                  status={message.emailStatus}
+                  isResending={isResending}
+                  onResend={
+                    message.emailStatus === "failed" && meetId && attendeeId
+                      ? () =>
+                          resend({
+                            meetId,
+                            attendeeId,
+                            messageId: message.id,
+                          })
+                      : undefined
+                  }
+                />
               </Box>
             )}
           </Stack>

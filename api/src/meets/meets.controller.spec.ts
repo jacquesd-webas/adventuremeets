@@ -74,6 +74,7 @@ describe("MeetsController", () => {
     updateAttendee: jest.fn(),
     attendeeHasMissingFields: jest.fn(),
     markAttendeeMessageRead: jest.fn(),
+    listAttendeeMessages: jest.fn(),
     getAttendeeContactById: jest.fn(),
     getOrganizerEmail: jest.fn(),
     getReportData: jest.fn(),
@@ -82,6 +83,7 @@ describe("MeetsController", () => {
   const emailService = {
     sendEmail: jest.fn(),
     saveMessage: jest.fn(),
+    parseMessageContent: jest.fn(),
   } as unknown as EmailService;
 
   const organizationService = {
@@ -1577,6 +1579,61 @@ describe("MeetsController", () => {
       attendeeId: null,
       meetId: "meet-1",
       action: "marked message read for",
+      target: "meet Sunrise Hike",
+    });
+  });
+
+  it("resends a failed attendee email and writes an audit log", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.listAttendeeMessages as jest.Mock).mockResolvedValue([
+      {
+        id: "message-1",
+        to: "alex@example.com",
+        recipientEmail: "alex@example.com",
+        content: "Subject: Update\\n\\nSee you there",
+        direction: "sent",
+        emailStatus: "failed",
+      },
+    ]);
+    (emailService.parseMessageContent as jest.Mock).mockReturnValue({
+      subject: "Update",
+      body: "See you there",
+    });
+    (emailService.saveMessage as jest.Mock).mockResolvedValue("message-2");
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.resendFailedAttendeeEmail(
+        "meet-1",
+        "attendee-1",
+        "message-1",
+        user,
+      ),
+    ).resolves.toEqual({ status: "sent" });
+
+    expect(emailService.saveMessage).toHaveBeenCalledWith({
+      to: "alex@example.com",
+      subject: "Update",
+      text: "See you there",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+    });
+    expect(emailService.sendEmail).toHaveBeenCalledWith({
+      to: "alex@example.com",
+      subject: "Update",
+      text: "See you there",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      messageReferences: [
+        { messageId: "message-2", recipient: "alex@example.com" },
+      ],
+    });
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "resent failed email to",
       target: "meet Sunrise Hike",
     });
   });

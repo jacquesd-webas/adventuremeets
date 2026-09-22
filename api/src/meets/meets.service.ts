@@ -2706,6 +2706,7 @@ export class MeetsService {
         "mc.content",
         "ma.email as attendee_email",
         "oe.status as email_status",
+        "oe.recipient_email",
         "oe.opened_at",
       );
     return rows.map((row: any) => ({
@@ -2716,6 +2717,7 @@ export class MeetsService {
       isRead: row.is_read ?? false,
       content: row.content,
       emailStatus: row.email_status ?? null,
+      recipientEmail: row.recipient_email ?? null,
       openedAt: row.opened_at ?? null,
       direction: this.getAttendeeMessageDirection(
         row.from,

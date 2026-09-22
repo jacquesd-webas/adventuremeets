@@ -1027,6 +1027,69 @@ export class MeetsController {
     return { status: "ok" };
   }
 
+  @Post(":id/attendees/:attendeeId/messages/:messageId/resend")
+  @ApiOperation({ summary: "Resend a failed attendee email" })
+  async resendFailedAttendeeEmail(
+    @Param("id") id: string,
+    @Param("attendeeId") attendeeId: string,
+    @Param("messageId") messageId: string,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const messages = await this.meetsService.listAttendeeMessages(
+      id,
+      attendeeId,
+    );
+    const failedMessage = messages.find(
+      (message) =>
+        message.id === messageId &&
+        message.direction === "sent" &&
+        message.emailStatus === "failed",
+    );
+    const recipient = failedMessage?.recipientEmail || failedMessage?.to;
+    if (!recipient || !failedMessage.content) {
+      throw new BadRequestException(
+        "Only failed attendee emails can be resent",
+      );
+    }
+
+    const { subject, body } = this.emailService.parseMessageContent(
+      failedMessage.content,
+    );
+    const newMessageId = await this.emailService.saveMessage({
+      to: recipient,
+      subject,
+      text: body,
+      attendeeId,
+      meetId: id,
+    });
+    await this.emailService.sendEmail({
+      to: recipient,
+      subject,
+      text: body,
+      attendeeId,
+      meetId: id,
+      messageReferences: newMessageId
+        ? [{ messageId: newMessageId, recipient }]
+        : [],
+    });
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      attendeeId,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "resent failed email to",
+    });
+    return { status: "sent" };
+  }
+
   @Post(":id/attendees/upload")
   @ApiOperation({ summary: "Upload attendees from an Excel sheet" })
   @UseInterceptors(FileInterceptor("file"))
