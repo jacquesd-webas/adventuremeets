@@ -5,7 +5,7 @@ on:
     branches:
       - release/*
     tags:
-      - "*"
+      - "v*"
 
 env:
   DOCKER_IMAGES: api worker db_migrate mail
@@ -61,7 +61,7 @@ jobs:
             VERSION="latest"
           fi
 
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             IS_RELEASE_TAG=true
           else
             IS_RELEASE_TAG=false
@@ -213,6 +213,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [metadata, build-docker, tests]
     environment: ${{ needs.metadata.outputs.environment || 'development' }}
+    if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -246,6 +247,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [metadata, build-web, tests]
     environment: ${{ needs.metadata.outputs.environment || 'development' }}
+    if: ${{ needs.metadata.outputs.is_release_tag == 'true' }}
     env:
       WEB_STAGE_DIR: staging
       WEB_HOST: webapps1.fringecoding.com
