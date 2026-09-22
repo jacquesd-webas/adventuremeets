@@ -1,12 +1,16 @@
-import { Stack, Tooltip, Typography } from "@mui/material";
+import { Button, Stack, Tooltip, Typography } from "@mui/material";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import type { AttendeeMessage } from "../../hooks/useFetchAttendeeMessages";
 
 export function EmailDeliveryStatus({
   status,
+  onResend,
+  isResending = false,
 }: {
   status: AttendeeMessage["emailStatus"];
+  onResend?: () => void;
+  isResending?: boolean;
 }) {
   // Deal with the failed and bounced statuses first
   if (status === "failed" || status === "bounced") {
@@ -25,6 +29,24 @@ export function EmailDeliveryStatus({
             titleAccess={label}
             sx={{ fontSize: "1rem", color: "error.main" }}
           />
+          {status === "failed" && onResend ? (
+            <Button
+              size="small"
+              onClick={(event) => {
+                event.stopPropagation();
+                onResend();
+              }}
+              disabled={isResending}
+              sx={{
+                minWidth: 0,
+                p: 0,
+                fontSize: "0.75rem",
+                lineHeight: 1.2,
+              }}
+            >
+              Resend
+            </Button>
+          ) : null}
         </Stack>
       </Tooltip>
     );
