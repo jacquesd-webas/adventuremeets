@@ -9,6 +9,7 @@ import MeetSignupSheet from "./pages/MeetSignupSheet";
 import MeetCheckinPage from "./pages/MeetCheckinPage";
 import MeetSelfCheckinPage from "./pages/MeetSelfCheckinPage";
 import AttendeeStatusPage from "./pages/AttendeeStatusPage";
+import ConfirmIndemnityPage from "./pages/ConfirmIndemnityPage";
 import MeetAttendeesPage from "./pages/MeetAttendeesPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -46,9 +47,18 @@ function App() {
             path="/admin/organizations/:id/members"
             element={withPageLoader(<MembersPage />)}
           />
-          <Route path="/admin/users" element={withPageLoader(<MembersPage />)} />
-          <Route path="/admin/reports" element={withPageLoader(<ReportsPage />)} />
-          <Route path="/admin/reports/:type" element={withPageLoader(<ReportsPage />)} />
+          <Route
+            path="/admin/users"
+            element={withPageLoader(<MembersPage />)}
+          />
+          <Route
+            path="/admin/reports"
+            element={withPageLoader(<ReportsPage />)}
+          />
+          <Route
+            path="/admin/reports/:type"
+            element={withPageLoader(<ReportsPage />)}
+          />
           <Route
             path="/admin/organizations/:id/templates"
             element={withPageLoader(<TemplatesPage />)}
@@ -57,12 +67,19 @@ function App() {
       </Route>
       <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
       <Route path="/meets/:code/checkin" element={<MeetSelfCheckinPage />} />
+      <Route
+        path="/meets/:code/:attendeeId/confirm-indemnity"
+        element={<ConfirmIndemnityPage />}
+      />
       <Route path="/meets/:code/:attendeeId" element={<AttendeeStatusPage />} />
       <Route path="/meets/:code" element={<MeetSignupSheet />} />
       <Route path="/share/:code" element={<MeetSignupSheet />} />
       <Route path="/splash" element={<SplashPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
+      <Route
+        path="/privacy-policy"
+        element={<Navigate to="/privacy" replace />}
+      />
       <Route
         path="/request-account-deletion"
         element={<RequestAccountDeletionPage />}

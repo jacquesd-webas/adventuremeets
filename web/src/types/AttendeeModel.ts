@@ -18,6 +18,19 @@ export type Attendee = {
   guardianName?: string;
   indemnityAccepted: boolean;
   indemnityMinors?: string;
+  indemnityAcceptance?: {
+    acceptedAt?: string;
+    confirmedAt?: string;
+    confirmationMethod?: "email" | "sign-in" | string;
+    indemnityTextHash?: string;
+    acceptanceIp?: string;
+    acceptanceUserAgent?: string;
+    acceptedByName?: string;
+    acceptedByEmail?: string;
+    acceptedByPhone?: string;
+    locale?: string;
+    timeZone?: string;
+  };
   paidFullAt?: string;
   paidDepositAt?: string;
   hasUnreadMessages: boolean;

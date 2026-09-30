@@ -53,6 +53,7 @@ const mockedUserMetaValues = [
   { key: "dietary", value: "No peanuts" },
   { key: "bringingWater", value: "true" },
 ];
+let mockedIsAuthenticated = true;
 const addAttendeeAsync = vi.fn().mockResolvedValue({
   attendee: { id: "attendee-1" },
 });
@@ -101,8 +102,8 @@ vi.mock("../../hooks/useApi", () => ({
 
 vi.mock("../../context/authContext", () => ({
   useAuth: () => ({
-    user: mockedUser,
-    isAuthenticated: true,
+    user: mockedIsAuthenticated ? mockedUser : null,
+    isAuthenticated: mockedIsAuthenticated,
     logout: vi.fn(),
   }),
 }));
@@ -165,12 +166,15 @@ vi.mock("../../components/meet/MeetSignupSubmitted", () => ({
 describe("MeetSignupSheet", () => {
   beforeEach(() => {
     addAttendeeAsync.mockClear();
+    mockedIsAuthenticated = true;
     mockedMeet.statusId = 3;
     mockedMeet.checkinPin = undefined;
     mockedMeet.requireEmail = undefined;
     mockedMeet.requirePhone = undefined;
     mockedMeet.requireOrg1 = undefined;
     mockedMeet.requireOrg2 = undefined;
+    mockedMeet.hasIndemnity = false;
+    mockedMeet.needIndemnityConfirmationEmail = false;
     mockedMeet.customField1Name = undefined;
     mockedMeet.customField2Name = undefined;
     mockedMeet.customField1HelperText = undefined;
@@ -204,6 +208,50 @@ describe("MeetSignupSheet", () => {
     expect(
       screen.getByRole("checkbox", { name: /bringing extra water/i }),
     ).toBeChecked();
+  });
+
+  it("explains when indemnity acceptance requires email confirmation", async () => {
+    mockedIsAuthenticated = false;
+    mockedMeet.hasIndemnity = true;
+    mockedMeet.indemnity = "Standard waiver";
+    mockedMeet.needIndemnityConfirmationEmail = true;
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "Not signed in? We'll email you a link to confirm your indemnity acceptance after you submit.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the indemnity email alert when signed in", async () => {
+    mockedMeet.hasIndemnity = true;
+    mockedMeet.indemnity = "Standard waiver";
+    mockedMeet.needIndemnityConfirmationEmail = true;
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Standard waiver");
+    expect(screen.queryByText(/Not signed in\?/)).not.toBeInTheDocument();
   });
 
   it("does not load autofill meta answers or show remember answers for minor signups", async () => {
@@ -282,8 +330,12 @@ describe("MeetSignupSheet", () => {
       expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
     });
 
-    expect(screen.getByPlaceholderText("Enter your walking club")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Enter your local region")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Enter your walking club"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Enter your local region"),
+    ).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Club"), "Bushwalkers");
     await user.type(screen.getByLabelText("Region"), "West");

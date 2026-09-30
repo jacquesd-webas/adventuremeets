@@ -423,6 +423,12 @@ export function MeetSignupFormFields({
             }
             label="I accept the indemnity"
           />
+          {meet.needIndemnityConfirmationEmail && !isAuthenticated ? (
+            <Alert severity="info" sx={{ py: 0.5 }}>
+              Not signed in? We&apos;ll email you a link to confirm your
+              indemnity acceptance after you submit.
+            </Alert>
+          ) : null}
         </Stack>
       )}
       <Stack direction="row" justifyContent="center" pt={2} spacing={2}>

@@ -1,0 +1,12 @@
+Hi {{attendeeName}},
+
+You accepted the indemnity for {{meetName}}. The organiser has requested confirmation of
+your acceptance before it can be processed. Please use the link below to confirm your
+acceptance of the indemnity.
+
+{{confirmationUrl}}
+
+This link expires in 7 days. If you did not sign up for this meet, you can ignore this email.
+
+Best regards,
+{{fromName}}

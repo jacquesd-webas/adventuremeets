@@ -8,6 +8,7 @@ export type EmailTemplateName =
   | "meet-reject"
   | "meet-waitlist"
   | "meet-message"
+  | "indemnity-confirmation"
   | "organization-invite"
   | "organiser-reminder-responses-needed"
   | "organizer-reminder-checkin-needed";
@@ -33,6 +34,13 @@ export type MeetSignupTemplateVars = {
   organizerEmail?: string;
   logoUrl?: string;
   isRsvpMode?: boolean;
+};
+
+export type IndemnityConfirmationTemplateVars = {
+  meetName: string;
+  attendeeName?: string;
+  confirmationUrl: string;
+  logoUrl?: string;
 };
 
 export type MeetStatusTemplateVars = {

@@ -72,6 +72,12 @@ export const IndemnityStep = ({
                 setState((prev) => ({
                   ...prev,
                   indemnityAccepted: e.target.checked,
+                  needIndemnityConfirmationEmail: e.target.checked
+                    ? prev.needIndemnityConfirmationEmail
+                    : false,
+                  needIndemnityConfirmationPhone: e.target.checked
+                    ? prev.needIndemnityConfirmationPhone
+                    : false,
                 }))
               }
             />
@@ -86,6 +92,34 @@ export const IndemnityStep = ({
             </Typography>
           ) : null}
         </Stack>
+        {state.indemnityAccepted ? (
+          <Stack spacing={0.5}>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Switch
+                checked={state.needIndemnityConfirmationEmail}
+                disabled={disabled}
+                inputProps={{
+                  "aria-label":
+                    "Require sign-in or email confirmation for indemnity",
+                }}
+                onChange={(e) =>
+                  setState((prev) => ({
+                    ...prev,
+                    needIndemnityConfirmationEmail: e.target.checked,
+                    requireEmail: e.target.checked ? true : prev.requireEmail,
+                  }))
+                }
+              />
+              <Typography>
+                Require sign-in or email confirmation for indemnity
+              </Typography>
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Attendees who are not signed in must confirm their acceptance from
+              a link sent to their email address.
+            </Typography>
+          </Stack>
+        ) : null}
         {disableIndemnityText ? (
           <Alert severity="warning">
             Once a meet has been opened the indemnity text may not be changed

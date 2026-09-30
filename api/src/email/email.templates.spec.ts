@@ -46,6 +46,24 @@ describe("renderEmailTemplate", () => {
     );
   });
 
+  it("renders the indemnity confirmation link and escapes attendee data", () => {
+    const result = renderEmailTemplate("indemnity-confirmation", {
+      meetName: "River & Ridge",
+      attendeeName: "Alex <Walker>",
+      confirmationUrl:
+        "https://app.example.com/meets/share-123/attendee-1/confirm-indemnity?token=token",
+    });
+
+    expect(result.subject).toBe(
+      "Confirm your indemnity acceptance for River & Ridge",
+    );
+    expect(result.text).toContain(
+      "Please use the link below to confirm your\nacceptance of the indemnity.",
+    );
+    expect(result.html).toContain("Alex &lt;Walker&gt;");
+    expect(result.html).toContain("confirm-indemnity?token=token");
+  });
+
   it("renders the default meet confirmation message with formatted start time", () => {
     const result = renderEmailTemplate("meet-confirm", {
       meetName: "Sunrise Hike",
@@ -201,15 +219,12 @@ describe("renderEmailTemplate", () => {
   });
 
   it("renders organiser response reminders with the shared branded template and meet button", () => {
-    const result = renderEmailTemplate(
-      "organiser-reminder-responses-needed",
-      {
-        meetName: 'River <Escape> & "Climb"',
-        organizerName: "Taylor & Co",
-        meetUrl: "https://app.example.com/meets/share-123",
-        responseCount: 3,
-      },
-    );
+    const result = renderEmailTemplate("organiser-reminder-responses-needed", {
+      meetName: 'River <Escape> & "Climb"',
+      organizerName: "Taylor & Co",
+      meetUrl: "https://app.example.com/meets/share-123",
+      responseCount: 3,
+    });
 
     expect(result.subject).toBe(
       'Reminder: responses needed for River <Escape> & "Climb"',
@@ -241,9 +256,7 @@ describe("renderEmailTemplate", () => {
       checkinUrl: "https://app.example.com/meet/meet-1/checkin",
     });
 
-    expect(result.subject).toBe(
-      "Reminder: check in attendees for River Camp",
-    );
+    expect(result.subject).toBe("Reminder: check in attendees for River Camp");
     expect(result.text).toContain("Hi Taylor &amp; Co,");
     expect(result.text).toContain(
       "No attendees have been checked in for your meet yet. Open check-in to start recording arrivals.",

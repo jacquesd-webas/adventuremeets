@@ -71,6 +71,8 @@ export type Meet = {
   hasIndemnity?: boolean;
   indemnity?: string;
   allowMinorIndemnity?: boolean;
+  needIndemnityConfirmationEmail?: boolean;
+  needIndemnityConfirmationPhone?: boolean;
   attendeeCount?: number;
   waitlistCount?: number;
   confirmedCount?: number;

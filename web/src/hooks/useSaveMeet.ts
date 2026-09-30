@@ -39,6 +39,8 @@ export type CreateMeetPayload = {
   rejectMessage?: string;
   waitlistMessage?: string;
   allowMinorIndemnity?: boolean;
+  needIndemnityConfirmationEmail?: boolean;
+  needIndemnityConfirmationPhone?: boolean;
   currencyCode?: string;
   costCents?: number;
   depositCents?: number;

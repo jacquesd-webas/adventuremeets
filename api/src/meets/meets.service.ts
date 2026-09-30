@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { createHash, randomBytes } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { DatabaseService } from "../database/database.service";
 import {
   CreateMeetDto,
@@ -831,6 +831,28 @@ export class MeetsService {
               AND messages.is_read = FALSE
           ) AS has_unread_messages
         `),
+        this.db.getClient().raw(`
+          (
+            SELECT jsonb_build_object(
+              'acceptedAt', ia.accepted_at,
+              'confirmedAt', ia.confirmed_at,
+              'confirmationMethod', ia.confirmation_method,
+              'indemnityTextHash', ia.indemnity_text_hash,
+              'acceptanceIp', ia.acceptance_ip,
+              'acceptanceUserAgent', ia.acceptance_user_agent,
+              'acceptedByName', ia.accepted_by_name,
+              'acceptedByEmail', ia.accepted_by_email,
+              'acceptedByPhone', ia.accepted_by_phone,
+              'locale', ia.locale,
+              'timeZone', ia.time_zone
+            )
+            FROM meet_attendee_indemnity_acceptances ia
+            WHERE ia.attendee_id = meet_attendees.id
+              AND ia.meet_id = meet_attendees.meet_id
+            ORDER BY ia.accepted_at DESC, ia.id DESC
+            LIMIT 1
+          ) AS indemnity_acceptance
+        `),
       );
     const metaDefinitions = await this.db
       .getClient()("meet_meta_definitions")
@@ -1049,13 +1071,24 @@ export class MeetsService {
   async addAttendee(
     meetId: string,
     dto: CreateMeetAttendeeDto,
-    context?: { ip?: string; userAgent?: string; locale?: string },
+    context?: {
+      ip?: string;
+      userAgent?: string;
+      locale?: string;
+      indemnityIdentityConfirmed?: boolean;
+    },
   ) {
     try {
       const created = await this.db.getClient().transaction(async (trx) => {
         const meet = await trx("meets")
           .where({ id: meetId })
-          .first("capacity", "waitlist_size", "auto_placement", "checkin_pin");
+          .first(
+            "capacity",
+            "waitlist_size",
+            "auto_placement",
+            "checkin_pin",
+            "need_indemnity_confirmation_email",
+          );
         if (!meet) {
           throw new NotFoundException("Meet not found");
         }
@@ -1066,6 +1099,19 @@ export class MeetsService {
           dto.isMinor && guardianName ? guardianName : (dto.name ?? null);
         const contactEmail = dto.email?.trim() || undefined;
         const contactPhone = dto.phone?.trim() || undefined;
+        const deferIndemnityAcceptance = Boolean(
+          dto.indemnityAccepted &&
+          meet.need_indemnity_confirmation_email &&
+          !context?.indemnityIdentityConfirmed,
+        );
+        if (deferIndemnityAcceptance && !contactEmail) {
+          throw new BadRequestException(
+            "An email address is required to confirm indemnity acceptance",
+          );
+        }
+        const indemnityAccepted = deferIndemnityAcceptance
+          ? false
+          : (dto.indemnityAccepted ?? null);
         const shouldCheckInOnSignup = Boolean(
           dto.checkinPin &&
           meet.checkin_pin &&
@@ -1129,7 +1175,7 @@ export class MeetsService {
                   guests: dto.guests ?? invited.guests ?? null,
                   is_minor: dto.isMinor ?? invited.is_minor ?? false,
                   guardian_name: guardianName,
-                  indemnity_accepted: dto.indemnityAccepted ?? null,
+                  indemnity_accepted: indemnityAccepted,
                   indemnity_minors: dto.indemnityMinors ?? null,
                   status: shouldCheckInOnSignup ? "checked-in" : "confirmed",
                   updated_at: new Date().toISOString(),
@@ -1160,15 +1206,26 @@ export class MeetsService {
             if (dto.indemnityAccepted) {
               const meet = await trx("meets")
                 .where({ id: meetId })
-                .first("indemnity", "time_zone");
+                .first(
+                  "indemnity",
+                  "time_zone",
+                  "need_indemnity_confirmation_email",
+                );
               const indemnityText = meet?.indemnity ?? "";
               const indemnityHash = indemnityText
                 ? createHash("sha256").update(indemnityText).digest("hex")
                 : null;
+              const acceptedAt = new Date().toISOString();
+              const confirmedBySignIn = Boolean(
+                meet?.need_indemnity_confirmation_email &&
+                context?.indemnityIdentityConfirmed,
+              );
               await trx("meet_attendee_indemnity_acceptances").insert({
                 attendee_id: invited.id,
                 meet_id: meetId,
-                accepted_at: new Date().toISOString(),
+                accepted_at: acceptedAt,
+                confirmed_at: confirmedBySignIn ? acceptedAt : null,
+                confirmation_method: confirmedBySignIn ? "sign-in" : null,
                 indemnity_text_hash: indemnityHash,
                 acceptance_ip: context?.ip ?? null,
                 acceptance_user_agent: context?.userAgent ?? null,
@@ -1219,7 +1276,7 @@ export class MeetsService {
             sequence: nextSequence,
             is_minor: dto.isMinor ?? false,
             guardian_name: guardianName,
-            indemnity_accepted: dto.indemnityAccepted ?? null,
+            indemnity_accepted: indemnityAccepted,
             indemnity_minors: dto.indemnityMinors ?? null,
             status,
           },
@@ -1228,15 +1285,26 @@ export class MeetsService {
         if (dto.indemnityAccepted) {
           const meet = await trx("meets")
             .where({ id: meetId })
-            .first("indemnity", "time_zone");
+            .first(
+              "indemnity",
+              "time_zone",
+              "need_indemnity_confirmation_email",
+            );
           const indemnityText = meet?.indemnity ?? "";
           const indemnityHash = indemnityText
             ? createHash("sha256").update(indemnityText).digest("hex")
             : null;
+          const acceptedAt = new Date().toISOString();
+          const confirmedBySignIn = Boolean(
+            meet?.need_indemnity_confirmation_email &&
+            context?.indemnityIdentityConfirmed,
+          );
           await trx("meet_attendee_indemnity_acceptances").insert({
             attendee_id: attendee.id,
             meet_id: meetId,
-            accepted_at: new Date().toISOString(),
+            accepted_at: acceptedAt,
+            confirmed_at: confirmedBySignIn ? acceptedAt : null,
+            confirmation_method: confirmedBySignIn ? "sign-in" : null,
             indemnity_text_hash: indemnityHash,
             acceptance_ip: context?.ip ?? null,
             acceptance_user_agent: context?.userAgent ?? null,
@@ -1276,6 +1344,174 @@ export class MeetsService {
       }
       throw error;
     }
+  }
+
+  createIndemnityConfirmationToken(
+    meetId: string,
+    attendeeId: string,
+    email: string,
+  ) {
+    const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+    const signature = this.signIndemnityConfirmation(
+      meetId,
+      attendeeId,
+      email,
+      expiresAt,
+    );
+    return `${expiresAt}.${signature}`;
+  }
+
+  async hasPendingIndemnityAcceptance(meetId: string, attendeeId: string) {
+    const pending = await this.db
+      .getClient()("meet_attendee_indemnity_acceptances")
+      .where({ meet_id: meetId, attendee_id: attendeeId })
+      .whereNull("confirmed_at")
+      .first("id");
+    return Boolean(pending);
+  }
+
+  async confirmIndemnityAcceptance(
+    meetId: string,
+    attendeeId: string,
+    token: string,
+    context?: { ip?: string; userAgent?: string; locale?: string },
+  ) {
+    return this.db.getClient().transaction(async (trx) => {
+      const meet = await trx("meets")
+        .where({ id: meetId })
+        .first(
+          "id",
+          "indemnity",
+          "time_zone",
+          "has_indemnity",
+          "need_indemnity_confirmation_email",
+        );
+      if (!meet?.has_indemnity || !meet.need_indemnity_confirmation_email) {
+        throw new BadRequestException(
+          "This meet does not require email confirmation of indemnity",
+        );
+      }
+
+      const attendee = await trx("meet_attendees")
+        .where({ id: attendeeId, meet_id: meetId })
+        .forUpdate()
+        .first(
+          "id",
+          "email",
+          "phone",
+          "name",
+          "guardian_name",
+          "is_minor",
+          "indemnity_accepted",
+        );
+      if (!attendee?.email) {
+        throw new NotFoundException("Attendee not found");
+      }
+      if (
+        !this.isValidIndemnityConfirmationToken(
+          token,
+          meetId,
+          attendeeId,
+          attendee.email,
+        )
+      ) {
+        throw new BadRequestException(
+          "This indemnity confirmation link is invalid or has expired",
+        );
+      }
+      if (attendee.indemnity_accepted) {
+        return { indemnityAccepted: true };
+      }
+
+      await trx("meet_attendees")
+        .where({ id: attendeeId, meet_id: meetId })
+        .update({
+          indemnity_accepted: true,
+          updated_at: new Date().toISOString(),
+        });
+
+      const indemnityHash = meet.indemnity
+        ? createHash("sha256").update(meet.indemnity).digest("hex")
+        : null;
+      const confirmedAt = new Date().toISOString();
+      const pendingAcceptance = await trx("meet_attendee_indemnity_acceptances")
+        .where({ attendee_id: attendeeId, meet_id: meetId })
+        .whereNull("confirmed_at")
+        .orderBy("accepted_at", "desc")
+        .first("id");
+      if (pendingAcceptance) {
+        await trx("meet_attendee_indemnity_acceptances")
+          .where({ id: pendingAcceptance.id })
+          .update({
+            confirmed_at: confirmedAt,
+            confirmation_method: "email",
+          });
+      } else {
+        await trx("meet_attendee_indemnity_acceptances").insert({
+          attendee_id: attendeeId,
+          meet_id: meetId,
+          accepted_at: confirmedAt,
+          confirmed_at: confirmedAt,
+          confirmation_method: "email",
+          indemnity_text_hash: indemnityHash,
+          acceptance_ip: context?.ip ?? null,
+          acceptance_user_agent: context?.userAgent ?? null,
+          accepted_by_name:
+            attendee.is_minor && attendee.guardian_name
+              ? attendee.guardian_name
+              : attendee.name,
+          accepted_by_email: attendee.email,
+          accepted_by_phone: attendee.phone ?? null,
+          locale: context?.locale ?? null,
+          time_zone: meet.time_zone ?? null,
+        });
+      }
+
+      return { indemnityAccepted: true };
+    });
+  }
+
+  private signIndemnityConfirmation(
+    meetId: string,
+    attendeeId: string,
+    email: string,
+    expiresAt: number,
+  ) {
+    const secret = process.env.JWT_SECRET || "dev-secret";
+    return createHmac("sha256", secret)
+      .update(
+        `${meetId}.${attendeeId}.${email.trim().toLowerCase()}.${expiresAt}`,
+      )
+      .digest("base64url");
+  }
+
+  private isValidIndemnityConfirmationToken(
+    token: string,
+    meetId: string,
+    attendeeId: string,
+    email: string,
+  ) {
+    const [expiresValue, providedSignature, ...rest] = token.split(".");
+    const expiresAt = Number(expiresValue);
+    if (
+      rest.length > 0 ||
+      !providedSignature ||
+      !Number.isInteger(expiresAt) ||
+      expiresAt < Math.floor(Date.now() / 1000)
+    ) {
+      return false;
+    }
+    const expectedSignature = this.signIndemnityConfirmation(
+      meetId,
+      attendeeId,
+      email,
+      expiresAt,
+    );
+    const expected = Buffer.from(expectedSignature);
+    const provided = Buffer.from(providedSignature);
+    return (
+      expected.length === provided.length && timingSafeEqual(expected, provided)
+    );
   }
 
   async autoPlaceAttendees(meetId: string, attendeeId: string) {
@@ -2137,7 +2373,8 @@ export class MeetsService {
         existingMeet?.checkin_pin,
       ),
       allow_walkins: dto.allowWalkins,
-      require_email: dto.requireEmail,
+      require_email:
+        dto.needIndemnityConfirmationEmail === true ? true : dto.requireEmail,
       require_phone: dto.requirePhone,
       require_org1: dto.requireOrg1,
       require_org2: dto.requireOrg2,
@@ -2149,6 +2386,10 @@ export class MeetsService {
       has_indemnity: dto.hasIndemnity,
       indemnity: dto.indemnity,
       allow_minor_indemnity: dto.allowMinorIndemnity,
+      need_indemnity_confirmation_email:
+        dto.hasIndemnity === false ? false : dto.needIndemnityConfirmationEmail,
+      need_indemnity_confirmation_phone:
+        dto.hasIndemnity === false ? false : dto.needIndemnityConfirmationPhone,
       currency_id: dto.currencyId === undefined ? undefined : dto.currencyId,
       cost_cents: this.toCents(dto.costCents),
       deposit_cents: this.toCents(dto.depositCents),
@@ -2312,6 +2553,10 @@ export class MeetsService {
       hasIndemnity: meet.has_indemnity ?? undefined,
       indemnity: meet.indemnity ?? undefined,
       allowMinorIndemnity: meet.allow_minor_indemnity ?? undefined,
+      needIndemnityConfirmationEmail:
+        meet.need_indemnity_confirmation_email ?? undefined,
+      needIndemnityConfirmationPhone:
+        meet.need_indemnity_confirmation_phone ?? undefined,
       currencyId: meet.currency_id ?? undefined,
       currencySymbol: meet.currency_symbol ?? undefined,
       costCents: meet.cost_cents != null ? Number(meet.cost_cents) : undefined,
@@ -2831,6 +3076,7 @@ export class MeetsService {
       guardianName: attendee.guardian_name ?? undefined,
       indemnityAccepted: attendee.indemnity_accepted ?? undefined,
       indemnityMinors: attendee.indemnity_minors ?? undefined,
+      indemnityAcceptance: attendee.indemnity_acceptance ?? undefined,
       paidFullAt: attendee.paid_full_at ?? undefined,
       paidDepositAt: attendee.paid_deposit_at ?? undefined,
       hasUnreadMessages: attendee.has_unread_messages === true,
