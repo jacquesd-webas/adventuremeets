@@ -445,6 +445,8 @@ export function CreateMeetModal({
           hasIndemnity: draft.indemnityAccepted,
           indemnity: draft.indemnityText || undefined,
           allowMinorIndemnity: draft.allowMinorSign,
+          needIndemnityConfirmationEmail: draft.needIndemnityConfirmationEmail,
+          needIndemnityConfirmationPhone: draft.needIndemnityConfirmationPhone,
         };
       case 3:
         return {

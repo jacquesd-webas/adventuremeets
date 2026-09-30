@@ -219,6 +219,14 @@ export class MeetDto {
   allowMinorIndemnity?: boolean;
 
   @ApiPropertyOptional()
+  @IsBoolean()
+  needIndemnityConfirmationEmail?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  needIndemnityConfirmationPhone?: boolean;
+
+  @ApiPropertyOptional()
   @IsNumber()
   currencyId?: number | null;
 

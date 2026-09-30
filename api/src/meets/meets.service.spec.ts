@@ -20,10 +20,12 @@ const buildBuilder = () => {
   builder.whereNot = jest.fn().mockReturnValue(builder);
   builder.orWhere = jest.fn().mockReturnValue(builder);
   builder.andWhere = jest.fn().mockReturnValue(builder);
+  builder.andWhereRaw = jest.fn().mockReturnValue(builder);
   builder.andWhereNot = jest.fn().mockReturnValue(builder);
   builder.whereIn = jest.fn().mockReturnValue(builder);
   builder.whereNotIn = jest.fn().mockReturnValue(builder);
   builder.whereNotNull = jest.fn().mockReturnValue(builder);
+  builder.whereNull = jest.fn().mockReturnValue(builder);
   builder.whereRaw = jest.fn().mockReturnValue(builder);
   builder.orWhereRaw = jest.fn().mockReturnValue(builder);
   builder.orderByRaw = jest.fn().mockReturnValue(builder);
@@ -52,6 +54,11 @@ describe("MeetsService", () => {
         id: "attendee-1",
         meet_id: "meet-1",
         has_unread_messages: true,
+        indemnity_acceptance: {
+          acceptedAt: "2026-09-30T10:00:00.000Z",
+          confirmedAt: "2026-09-30T10:05:00.000Z",
+          confirmationMethod: "email",
+        },
       },
       {
         id: "attendee-2",
@@ -80,6 +87,9 @@ describe("MeetsService", () => {
         expect.objectContaining({
           id: "attendee-1",
           hasUnreadMessages: true,
+          indemnityAcceptance: expect.objectContaining({
+            confirmationMethod: "email",
+          }),
         }),
         expect.objectContaining({
           id: "attendee-2",
@@ -89,6 +99,9 @@ describe("MeetsService", () => {
     });
     expect(client.raw).toHaveBeenCalledWith(
       expect.stringContaining("messages.is_read = FALSE"),
+    );
+    expect(client.raw).toHaveBeenCalledWith(
+      expect.stringContaining("indemnity_acceptance"),
     );
   });
 
@@ -786,6 +799,129 @@ describe("MeetsService", () => {
       }),
       ["*"],
     );
+  });
+
+  it("keeps indemnity unaccepted until anonymous email confirmation", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      capacity: null,
+      waitlist_size: 0,
+      auto_placement: false,
+      checkin_pin: null,
+      need_indemnity_confirmation_email: true,
+    });
+
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.select.mockResolvedValue([]);
+    attendeeBuilder.first.mockResolvedValue({ max: 0 });
+    attendeeBuilder.insert.mockResolvedValue([
+      { id: "attendee-1", status: "pending", indemnity_accepted: false },
+    ]);
+    const acceptanceBuilder = buildBuilder();
+    acceptanceBuilder.insert.mockResolvedValue([{}]);
+
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_attendee_indemnity_acceptances") {
+        return acceptanceBuilder;
+      }
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    const result = await service.addAttendee("meet-1", {
+      name: "Anonymous Walker",
+      email: "walker@example.com",
+      indemnityAccepted: true,
+    });
+
+    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ indemnity_accepted: false }),
+      ["*"],
+    );
+    expect(acceptanceBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendee_id: "attendee-1",
+        meet_id: "meet-1",
+        accepted_by_name: "Anonymous Walker",
+        accepted_by_email: "walker@example.com",
+        confirmed_at: null,
+        confirmation_method: null,
+      }),
+    );
+    expect(result.attendee.indemnityAccepted).toBe(false);
+  });
+
+  it("confirms indemnity without changing attendee status", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      id: "meet-1",
+      indemnity: "Waiver text",
+      time_zone: "Africa/Johannesburg",
+      has_indemnity: true,
+      need_indemnity_confirmation_email: true,
+    });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      id: "attendee-1",
+      email: "walker@example.com",
+      phone: "+27123456789",
+      name: "Trail Walker",
+      guardian_name: null,
+      is_minor: false,
+      indemnity_accepted: false,
+    });
+    attendeeBuilder.update.mockResolvedValue(1);
+    const acceptanceBuilder = buildBuilder();
+    acceptanceBuilder.first.mockResolvedValue({ id: "acceptance-1" });
+    acceptanceBuilder.update.mockResolvedValue(1);
+
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_attendee_indemnity_acceptances") {
+        return acceptanceBuilder;
+      }
+      return buildBuilder();
+    };
+    client.raw = jest.fn(() => "raw");
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+    const token = service.createIndemnityConfirmationToken(
+      "meet-1",
+      "attendee-1",
+      "walker@example.com",
+    );
+
+    await expect(
+      service.confirmIndemnityAcceptance("meet-1", "attendee-1", token),
+    ).resolves.toEqual({ indemnityAccepted: true });
+
+    expect(attendeeBuilder.update).toHaveBeenCalledWith({
+      indemnity_accepted: true,
+      updated_at: expect.any(String),
+    });
+    expect(attendeeBuilder.update.mock.calls[0][0]).not.toHaveProperty(
+      "status",
+    );
+    expect(acceptanceBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        confirmed_at: expect.any(String),
+        confirmation_method: "email",
+      }),
+    );
+    expect(acceptanceBuilder.insert).not.toHaveBeenCalled();
   });
 
   it("rejects duplicate adult attendee updates with a conflict error", async () => {

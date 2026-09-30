@@ -31,6 +31,9 @@ describe("AttendeesController", () => {
     listAttendeeHistory: jest.fn(),
     findAttendeeByContact: jest.fn(),
     addAttendee: jest.fn(),
+    createIndemnityConfirmationToken: jest.fn(),
+    confirmIndemnityAcceptance: jest.fn(),
+    hasPendingIndemnityAcceptance: jest.fn(),
     autoPlaceAttendees: jest.fn(),
     updateAttendeesNotified: jest.fn(),
     findAttendeeForEdit: jest.fn(),
@@ -455,6 +458,92 @@ describe("AttendeesController", () => {
       }),
     );
     expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
+  });
+
+  it("sends an indemnity confirmation email for anonymous acceptance", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      needIndemnityConfirmationEmail: true,
+    });
+    (meetsService.addAttendee as jest.Mock).mockResolvedValue({
+      attendee: {
+        id: "attendee-4",
+        status: "pending",
+        indemnityAccepted: false,
+      },
+    });
+    (
+      meetsService.createIndemnityConfirmationToken as jest.Mock
+    ).mockReturnValue("confirmation-token");
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+    (emailService.saveMessage as jest.Mock).mockResolvedValue(undefined);
+
+    await controller.add(
+      "meet-1",
+      {
+        name: "Email Confirm",
+        email: "confirm@example.com",
+        indemnityAccepted: true,
+      },
+      { headers: {}, ip: "127.0.0.1" } as unknown as Request,
+    );
+
+    expect(renderEmailTemplate).toHaveBeenCalledWith(
+      "indemnity-confirmation",
+      expect.objectContaining({
+        confirmationUrl:
+          "http://localhost:5173/meets/share-123/attendee-4/confirm-indemnity?token=confirmation-token",
+      }),
+    );
+    expect(emailService.sendEmail).toHaveBeenCalledTimes(2);
+    expect(emailService.sendEmail).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        to: "confirm@example.com",
+        attendeeId: "attendee-4",
+        templateName: "indemnity-confirmation",
+      }),
+    );
+  });
+
+  it("resends an outstanding indemnity confirmation email", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      needIndemnityConfirmationEmail: true,
+    });
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+      attendee: {
+        id: "attendee-4",
+        name: "Email Confirm",
+        email: "confirm@example.com",
+        indemnityAccepted: false,
+      },
+    });
+    (
+      meetsService.createIndemnityConfirmationToken as jest.Mock
+    ).mockReturnValue("new-confirmation-token");
+    (emailService.saveMessage as jest.Mock).mockResolvedValue(undefined);
+    (emailService.sendEmail as jest.Mock).mockResolvedValue(undefined);
+    (meetsService.hasPendingIndemnityAcceptance as jest.Mock).mockResolvedValue(
+      true,
+    );
+
+    await expect(
+      controller.resendIndemnityConfirmation("meet-1", "attendee-4", user),
+    ).resolves.toEqual({ sent: true });
+
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "confirm@example.com",
+        templateName: "indemnity-confirmation",
+      }),
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendeeId: "attendee-4",
+        action: "resent indemnity confirmation for",
+      }),
+    );
   });
 
   it("skips email side effects when the attendee has no email address", async () => {

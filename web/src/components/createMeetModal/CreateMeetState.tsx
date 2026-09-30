@@ -58,6 +58,8 @@ export type CreateMeetState = {
   indemnityAccepted: boolean;
   indemnityText: string;
   allowMinorSign: boolean;
+  needIndemnityConfirmationEmail: boolean;
+  needIndemnityConfirmationPhone: boolean;
   duration?: string;
   questions: QuestionField[];
   imageFile: File | null;
@@ -104,6 +106,8 @@ export const initialState: CreateMeetState = {
   indemnityAccepted: false,
   indemnityText: "",
   allowMinorSign: false,
+  needIndemnityConfirmationEmail: false,
+  needIndemnityConfirmationPhone: false,
   duration: "",
   questions: [],
   imageFile: null,
@@ -173,6 +177,10 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     indemnityAccepted: meet.hasIndemnity ?? false,
     indemnityText: meet.indemnity ?? "",
     allowMinorSign: meet.allowMinorIndemnity ?? false,
+    needIndemnityConfirmationEmail:
+      meet.needIndemnityConfirmationEmail ?? false,
+    needIndemnityConfirmationPhone:
+      meet.needIndemnityConfirmationPhone ?? false,
     questions: Array.isArray(meet.metaDefinitions)
       ? meet.metaDefinitions.map((definition: any) => ({
           id:

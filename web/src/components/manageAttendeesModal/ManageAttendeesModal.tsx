@@ -710,6 +710,13 @@ export function ManageAttendeesModal({
                   <AttendeesIndemnityInfo
                     hasIndemnity={meet?.hasIndemnity}
                     indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    indemnityAcceptance={selectedAttendee.indemnityAcceptance}
+                    needIndemnityConfirmationEmail={
+                      meet?.needIndemnityConfirmationEmail
+                    }
+                    meetId={meetId}
+                    attendeeId={selectedAttendee.id}
+                    attendeeEmail={selectedAttendee.email}
                     guests={selectedAttendee.guests}
                     guestOfLabel={guestOfLabel(selectedAttendee)}
                     showDivider={false}
@@ -852,6 +859,13 @@ export function ManageAttendeesModal({
                 <AttendeesIndemnityInfo
                   hasIndemnity={meet?.hasIndemnity}
                   indemnityAccepted={selectedAttendee.indemnityAccepted}
+                  indemnityAcceptance={selectedAttendee.indemnityAcceptance}
+                  needIndemnityConfirmationEmail={
+                    meet?.needIndemnityConfirmationEmail
+                  }
+                  meetId={meetId}
+                  attendeeId={selectedAttendee.id}
+                  attendeeEmail={selectedAttendee.email}
                   guests={selectedAttendee.guests}
                   guestOfLabel={guestOfLabel(selectedAttendee)}
                   inviteDisabled={!baseInviteLink}

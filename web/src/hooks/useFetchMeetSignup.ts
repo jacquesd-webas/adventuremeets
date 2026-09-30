@@ -100,6 +100,14 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     hasIndemnity: apiMeet.hasIndemnity ?? apiMeet.requiresIndemnity ?? null,
     indemnity: apiMeet.indemnity ?? apiMeet.indemnityText ?? null,
     allowMinorIndemnity: apiMeet.allowMinorIndemnity ?? null,
+    needIndemnityConfirmationEmail:
+      apiMeet.needIndemnityConfirmationEmail ??
+      apiMeet.need_indemnity_confirmation_email ??
+      null,
+    needIndemnityConfirmationPhone:
+      apiMeet.needIndemnityConfirmationPhone ??
+      apiMeet.need_indemnity_confirmation_phone ??
+      null,
     attendeeCount: apiMeet.attendeeCount ?? apiMeet.attendee_count ?? null,
     waitlistCount: apiMeet.waitlistCount ?? null,
     confirmedCount: apiMeet.confirmedCount ?? null,

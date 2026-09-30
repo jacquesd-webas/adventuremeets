@@ -212,6 +212,23 @@ export class CreateMeetDto {
   @IsBoolean()
   allowMinorIndemnity?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      "Require a signed-in attendee or email confirmation before accepting indemnity",
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  needIndemnityConfirmationEmail?: boolean;
+
+  @ApiPropertyOptional({
+    description: "Reserved for future phone confirmation of indemnity",
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  needIndemnityConfirmationPhone?: boolean;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
