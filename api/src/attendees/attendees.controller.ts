@@ -102,7 +102,11 @@ export class AttendeesController {
 
     const meet = await this.meetsService.findOne(meetId);
     this.assertCanAccessMeetAttendees(user, meet);
-    return await this.meetsService.listAttendees(meetId, filter);
+    return await this.meetsService.listAttendees(
+      meetId,
+      filter,
+      this.authService.hasRole(user, meet.organizationId!, "admin"),
+    );
   }
 
   @Public()

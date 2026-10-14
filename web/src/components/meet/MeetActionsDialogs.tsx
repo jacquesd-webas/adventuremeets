@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ConfirmCloseMeetDialog } from "../confirmDialogs/ConfirmCloseMeetDialog";
+import { ConfirmCompleteMeetDialog } from "../confirmDialogs/ConfirmCompleteMeetDialog";
 import { ConfirmCancelMeetDialog } from "../confirmDialogs/ConfirmCancelMeetDialog";
 import { ConfirmOpenMeetDialog } from "../confirmDialogs/ConfirmOpenMeetDialog";
 import { ConfirmPostponeMeetDialog } from "../confirmDialogs/ConfirmPostponeMeetDialog";
@@ -23,6 +24,7 @@ type MeetActionsDialogsProps = {
   isOrganizer?: boolean;
   canViewMeet?: boolean;
   canManageMeet?: boolean;
+  canViewIndemnityFingerprint?: boolean;
   pendingAction?: MeetActionsEnum | null;
   setPendingAction: (action: MeetActionsEnum | null) => void;
   setSelectedMeetId: (meetId: string | null) => void;
@@ -37,6 +39,7 @@ function MeetActionsDialogs({
   isOrganizer,
   canViewMeet,
   canManageMeet,
+  canViewIndemnityFingerprint,
   pendingAction,
   setPendingAction,
   setSelectedMeetId,
@@ -45,6 +48,7 @@ function MeetActionsDialogs({
   const nav = useNavigate();
   const location = useLocation();
   const [isCloseDialogOpen, setIsCloseDialogOpen] = React.useState(false);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = React.useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = React.useState(false);
   const [isOpenDialogOpen, setIsOpenDialogOpen] = React.useState(false);
   const [isPostponeDialogOpen, setIsPostponeDialogOpen] = React.useState(false);
@@ -58,6 +62,7 @@ function MeetActionsDialogs({
 
   const anyOpen =
     isCloseDialogOpen ||
+    isCompleteDialogOpen ||
     isCancelDialogOpen ||
     isOpenDialogOpen ||
     isPostponeDialogOpen ||
@@ -103,6 +108,9 @@ function MeetActionsDialogs({
         break;
       case MeetActionsEnum.Close:
         setIsCloseDialogOpen(false);
+        break;
+      case MeetActionsEnum.Complete:
+        setIsCompleteDialogOpen(false);
         break;
       case MeetActionsEnum.Cancel:
         setIsCancelDialogOpen(false);
@@ -168,6 +176,9 @@ function MeetActionsDialogs({
       case "close":
         setIsCloseDialogOpen(true);
         break;
+      case "complete":
+        setIsCompleteDialogOpen(true);
+        break;
       case "cancel":
         setIsCancelDialogOpen(true);
         break;
@@ -224,6 +235,13 @@ function MeetActionsDialogs({
         onClose={handleClose}
         onConfirm={handleConfirm}
       />
+      <ConfirmCompleteMeetDialog
+        open={isCompleteDialogOpen}
+        isOrganizer={isOrganizer}
+        meetId={meetId}
+        onClose={handleClose}
+        onConfirm={handleConfirm}
+      />
       <ConfirmCancelMeetDialog
         open={isCancelDialogOpen}
         canManageMeet={canManageMeet}
@@ -271,6 +289,7 @@ function MeetActionsDialogs({
         canViewMeet={canViewMeet}
         canManageMeet={canManageMeet}
         isOrganizer={isOrganizer}
+        canViewIndemnityFingerprint={canViewIndemnityFingerprint}
         onClose={() => {
           setShowMeetModal(false);
           setSelectedMeetId(null);

@@ -76,6 +76,7 @@ describe("AttendeesIndemnityInfo", () => {
         <AttendeesIndemnityInfo
           {...baseProps}
           indemnityAccepted
+          canViewIndemnityFingerprint
           needIndemnityConfirmationEmail
           indemnityAcceptance={{
             acceptedAt: "2026-09-30T10:00:00.000Z",
@@ -108,6 +109,7 @@ describe("AttendeesIndemnityInfo", () => {
         <AttendeesIndemnityInfo
           {...baseProps}
           indemnityAccepted
+          canViewIndemnityFingerprint
           indemnityAcceptance={{
             acceptedAt: "2026-09-30T10:00:00.000Z",
             acceptedByName: "Alex Walker",
@@ -121,5 +123,28 @@ describe("AttendeesIndemnityInfo", () => {
     expect(screen.getByRole("presentation")).toBeInTheDocument();
     expect(screen.getByText("Acceptance fingerprint")).toBeInTheDocument();
     expect(screen.getByText("By: Alex Walker")).toBeInTheDocument();
+  });
+
+  it("does not show acceptance fingerprint details to non-admins", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AttendeesIndemnityInfo
+          {...baseProps}
+          indemnityAccepted
+          indemnityAcceptance={{
+            acceptedAt: "2026-09-30T10:00:00.000Z",
+            acceptanceIp: "203.0.113.10",
+          }}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Accepted" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Acceptance fingerprint"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("IP: 203.0.113.10")).not.toBeInTheDocument();
   });
 });

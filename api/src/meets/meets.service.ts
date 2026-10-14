@@ -808,7 +808,11 @@ export class MeetsService {
     return attendee;
   }
 
-  async listAttendees(meetId: string, filter?: string) {
+  async listAttendees(
+    meetId: string,
+    filter?: string,
+    includeIndemnityFingerprint = false,
+  ) {
     const attendeesQuery = this.db
       .getClient()("meet_attendees")
       .where({ meet_id: meetId });
@@ -836,7 +840,10 @@ export class MeetsService {
             SELECT jsonb_build_object(
               'acceptedAt', ia.accepted_at,
               'confirmedAt', ia.confirmed_at,
-              'confirmationMethod', ia.confirmation_method,
+              'confirmationMethod', ia.confirmation_method
+              ${
+                includeIndemnityFingerprint
+                  ? `,
               'indemnityTextHash', ia.indemnity_text_hash,
               'acceptanceIp', ia.acceptance_ip,
               'acceptanceUserAgent', ia.acceptance_user_agent,
@@ -844,7 +851,9 @@ export class MeetsService {
               'acceptedByEmail', ia.accepted_by_email,
               'acceptedByPhone', ia.accepted_by_phone,
               'locale', ia.locale,
-              'timeZone', ia.time_zone
+              'timeZone', ia.time_zone`
+                  : ""
+              }
             )
             FROM meet_attendee_indemnity_acceptances ia
             WHERE ia.attendee_id = meet_attendees.id

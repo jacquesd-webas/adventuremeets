@@ -1,4 +1,4 @@
-import { MenuItem, TextField } from "@mui/material";
+import { Autocomplete, TextField } from "@mui/material";
 
 export type UserOption = {
   id: string;
@@ -24,22 +24,29 @@ export function UserSelect({
   helperText,
   disabled = false,
 }: UserSelectProps) {
+  const selectedOption = options.find((option) => option.id === value) ?? null;
+
   return (
-    <TextField
-      select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      SelectProps={{ MenuProps: { sx: { zIndex: 1501 } } }}
+    <Autocomplete
+      options={options}
+      value={selectedOption}
+      onChange={(_event, option) => onChange(option?.id ?? "")}
+      getOptionLabel={(option) =>
+        option.id === currentUserId ? `You (${option.label})` : option.label
+      }
+      isOptionEqualToValue={(option, selected) => option.id === selected.id}
+      autoHighlight
+      componentsProps={{ popper: { sx: { zIndex: 1501 } } }}
       fullWidth
-      error={error}
-      helperText={helperText}
       disabled={disabled}
-    >
-      {options.map((option) => (
-        <MenuItem key={option.id} value={option.id}>
-          {option.id === currentUserId ? `You (${option.label})` : option.label}
-        </MenuItem>
-      ))}
-    </TextField>
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          inputProps={{ ...params.inputProps, "aria-label": "Organiser" }}
+          error={error}
+          helperText={helperText}
+        />
+      )}
+    />
   );
 }

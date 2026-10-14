@@ -60,6 +60,7 @@ type ManageAttendeesModalProps = {
   canViewMeet?: boolean;
   canManageMeet?: boolean;
   isOrganizer?: boolean;
+  canViewIndemnityFingerprint?: boolean;
 };
 
 export function ManageAttendeesModal({
@@ -68,6 +69,7 @@ export function ManageAttendeesModal({
   meetId,
   isOrganizer,
   canManageMeet,
+  canViewIndemnityFingerprint = false,
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -726,6 +728,7 @@ export function ManageAttendeesModal({
                     onGuestDecrement={() => handleGuestCountChange(-1)}
                     onInvite={handleInviteMessage}
                     canManageMeet={canManageAttendees}
+                    canViewIndemnityFingerprint={canViewIndemnityFingerprint}
                   />
                   <Divider />
                   <AttendeeResponses responses={selectedAttendee.metaValues} />
@@ -875,6 +878,7 @@ export function ManageAttendeesModal({
                   onGuestDecrement={() => handleGuestCountChange(-1)}
                   onInvite={handleInviteMessage}
                   canManageMeet={canManageAttendees}
+                  canViewIndemnityFingerprint={canViewIndemnityFingerprint}
                 />
                 <Divider sx={{ mt: 1, mb: 2 }} />
                 <AttendeeResponses

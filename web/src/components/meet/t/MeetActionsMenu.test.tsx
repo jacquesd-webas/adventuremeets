@@ -31,6 +31,8 @@ describe("MeetActionsMenu", () => {
     canManageMeet?: boolean;
     canAccessManageMenu?: boolean;
   }) => {
+    const setSelectedMeetId = vi.fn();
+    const setPendingAction = vi.fn();
     render(
       <MemoryRouter
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
@@ -44,12 +46,13 @@ describe("MeetActionsMenu", () => {
           canAccessManageMenu={props?.canAccessManageMenu}
           canViewMeet={props?.canViewMeet}
           canManageMeet={props?.canManageMeet ?? true}
-          setSelectedMeetId={vi.fn()}
-          setPendingAction={vi.fn()}
+          setSelectedMeetId={setSelectedMeetId}
+          setPendingAction={setPendingAction}
         />
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole("button"));
+    return { setSelectedMeetId, setPendingAction };
   };
 
   beforeEach(() => {
@@ -224,6 +227,51 @@ describe("MeetActionsMenu", () => {
     });
 
     expect(screen.queryByText("Reports")).not.toBeInTheDocument();
+  });
+
+  it("can complete a closed meet when advanced reporting is disabled", () => {
+    const { setSelectedMeetId, setPendingAction } = renderMenu({
+      statusId: MeetStatusEnum.Closed,
+      startTime: "2020-01-01T10:00:00.000Z",
+      reportingEnabled: false,
+      canManageMeet: true,
+    });
+
+    fireEvent.click(screen.getByText("Complete meet"));
+
+    expect(setSelectedMeetId).toHaveBeenCalledWith("meet-1");
+    expect(setPendingAction).toHaveBeenCalledWith("complete");
+  });
+
+  it("does not offer completion before the meet day", () => {
+    renderMenu({
+      statusId: MeetStatusEnum.Closed,
+      startTime: "2099-01-01T10:00:00.000Z",
+      canManageMeet: true,
+    });
+    expect(screen.queryByText("Complete meet")).not.toBeInTheDocument();
+  });
+
+  it("does not offer completion for an already completed meet", () => {
+    renderMenu({
+      statusId: MeetStatusEnum.Completed,
+      startTime: "2020-01-01T10:00:00.000Z",
+      canManageMeet: true,
+    });
+    expect(screen.queryByText("Complete meet")).not.toBeInTheDocument();
+  });
+
+  it("disables completion for users who cannot manage the closed meet", () => {
+    renderMenu({
+      statusId: MeetStatusEnum.Closed,
+      startTime: "2020-01-01T10:00:00.000Z",
+      canAccessManageMenu: true,
+      canManageMeet: false,
+    });
+
+    expect(
+      screen.getByText("Complete meet").closest('[role="menuitem"]'),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("closes the mobile action drawer before dispatching meet details", async () => {

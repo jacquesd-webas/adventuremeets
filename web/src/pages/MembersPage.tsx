@@ -2,10 +2,15 @@ import {
   Box,
   Chip,
   CircularProgress,
+  InputAdornment,
   Paper,
   Stack,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -29,12 +34,30 @@ function MembersPage() {
   const [selectedMember, setSelectedMember] =
     useState<OrganizationMember | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [sortModel, setSortModel] = useState<
     Array<{ field: string; sort: "asc" | "desc" }>
   >([{ field: "firstName", sort: "asc" }]);
-  const { data: members, isLoading, error } =
-    useFetchOrganizationMembers(organizationId);
+  const {
+    data: members,
+    isLoading,
+    error,
+  } = useFetchOrganizationMembers(organizationId);
   const { data: organization } = useFetchOrganization(organizationId);
+  const filteredMembers = useMemo(() => {
+    const search = searchQuery.trim().toLowerCase();
+    return members.filter((member) => {
+      if (roleFilter !== "all" && member.role?.toLowerCase() !== roleFilter) {
+        return false;
+      }
+      if (!search) return true;
+      const name = [member.firstName, member.lastName]
+        .filter(Boolean)
+        .join(" ");
+      return `${name} ${member.email ?? ""}`.toLowerCase().includes(search);
+    });
+  }, [members, roleFilter, searchQuery]);
   const columns = useMemo<GridColDef[]>(
     () => [
       {
@@ -122,13 +145,70 @@ function MembersPage() {
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h4" fontWeight={700}>
-          {title}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Organization members and roles.
-        </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", lg: "row" },
+          justifyContent: "space-between",
+          alignItems: { xs: "stretch", lg: "flex-end" },
+          gap: 2,
+        }}
+      >
+        <Box>
+          <Typography variant="h4" fontWeight={700}>
+            {title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Organization members and roles.
+          </Typography>
+        </Box>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          alignItems={{ xs: "stretch", sm: "center" }}
+        >
+          <TextField
+            size="small"
+            variant="standard"
+            placeholder="Search members"
+            inputProps={{ "aria-label": "Search members" }}
+            value={searchQuery}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
+              setPaginationModel((current) => ({ ...current, page: 0 }));
+            }}
+            sx={{ width: { xs: "100%", sm: 220 } }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <SearchIcon sx={{ fontSize: 22 }} color="disabled" />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={roleFilter}
+            aria-label="Filter members by role"
+            onChange={(_event, nextRole: string | null) => {
+              if (!nextRole) return;
+              setRoleFilter(nextRole);
+              setPaginationModel((current) => ({ ...current, page: 0 }));
+            }}
+            sx={{
+              "& .MuiToggleButton-root": {
+                flex: { xs: 1, sm: "unset" },
+                px: { xs: 1, sm: 1.5 },
+              },
+            }}
+          >
+            <ToggleButton value="all">All</ToggleButton>
+            <ToggleButton value="admin">Admins</ToggleButton>
+            <ToggleButton value="organizer">Organizers</ToggleButton>
+            <ToggleButton value="member">Members</ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>
       </Box>
       <Paper>
         {isLoading ? (
@@ -155,7 +235,7 @@ function MembersPage() {
         ) : (
           <DataGrid
             autoHeight
-            rows={members}
+            rows={filteredMembers}
             columns={columns}
             getRowId={(row) => row.id}
             loading={isLoading}

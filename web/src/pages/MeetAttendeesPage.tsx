@@ -44,6 +44,7 @@ function MeetAttendeesPage() {
       canViewMeet={permissions.canViewMeet}
       canManageMeet={permissions.canManageMeet}
       isOrganizer={permissions.isOrganizerForMeet}
+      canViewIndemnityFingerprint={currentOrganizationRole === "admin"}
       onClose={() => nav("/plan")}
     />
   );

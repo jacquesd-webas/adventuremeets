@@ -34,6 +34,7 @@ type AttendeesIndemnityInfoProps = {
   onGuestDecrement: () => void;
   onInvite: () => void;
   canManageMeet?: boolean;
+  canViewIndemnityFingerprint?: boolean;
 };
 
 export function AttendeesIndemnityInfo({
@@ -53,6 +54,7 @@ export function AttendeesIndemnityInfo({
   onGuestDecrement,
   onInvite,
   canManageMeet = true,
+  canViewIndemnityFingerprint = false,
 }: AttendeesIndemnityInfoProps) {
   const safeGuests = guests ?? 0;
   const theme = useTheme();
@@ -107,7 +109,7 @@ export function AttendeesIndemnityInfo({
                 sx={{ color: "error.main", fontSize: 18 }}
               />
             )}
-            {indemnityAccepted ? (
+            {indemnityAccepted && canViewIndemnityFingerprint ? (
               <Button
                 size="small"
                 variant="text"
@@ -119,6 +121,8 @@ export function AttendeesIndemnityInfo({
               >
                 Accepted
               </Button>
+            ) : indemnityAccepted ? (
+              <Typography variant="body2">Accepted</Typography>
             ) : (
               <Typography variant="body2">Not Accepted</Typography>
             )}
@@ -135,36 +139,44 @@ export function AttendeesIndemnityInfo({
                 </Button>
               </LockedTooltipWrapper>
             ) : null}
-            <Popover
-              open={!isMobile && Boolean(acceptanceAnchor)}
-              anchorEl={acceptanceAnchor}
-              onClose={() => setAcceptanceAnchor(null)}
-              anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-            >
-              <AttendeeIndemnityFingerprintDetails
-                indemnityAcceptance={indemnityAcceptance}
-                needIndemnityConfirmationEmail={needIndemnityConfirmationEmail}
-              />
-            </Popover>
-            <Drawer
-              anchor="bottom"
-              open={isMobile && Boolean(acceptanceAnchor)}
-              onClose={() => setAcceptanceAnchor(null)}
-              ModalProps={{
-                sx: { zIndex: theme.zIndex.modal + 1 },
-              }}
-              PaperProps={{
-                sx: {
-                  borderTopLeftRadius: 12,
-                  borderTopRightRadius: 12,
-                },
-              }}
-            >
-              <AttendeeIndemnityFingerprintDetails
-                indemnityAcceptance={indemnityAcceptance}
-                needIndemnityConfirmationEmail={needIndemnityConfirmationEmail}
-              />
-            </Drawer>
+            {canViewIndemnityFingerprint ? (
+              <>
+                <Popover
+                  open={!isMobile && Boolean(acceptanceAnchor)}
+                  anchorEl={acceptanceAnchor}
+                  onClose={() => setAcceptanceAnchor(null)}
+                  anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                >
+                  <AttendeeIndemnityFingerprintDetails
+                    indemnityAcceptance={indemnityAcceptance}
+                    needIndemnityConfirmationEmail={
+                      needIndemnityConfirmationEmail
+                    }
+                  />
+                </Popover>
+                <Drawer
+                  anchor="bottom"
+                  open={isMobile && Boolean(acceptanceAnchor)}
+                  onClose={() => setAcceptanceAnchor(null)}
+                  ModalProps={{
+                    sx: { zIndex: theme.zIndex.modal + 1 },
+                  }}
+                  PaperProps={{
+                    sx: {
+                      borderTopLeftRadius: 12,
+                      borderTopRightRadius: 12,
+                    },
+                  }}
+                >
+                  <AttendeeIndemnityFingerprintDetails
+                    indemnityAcceptance={indemnityAcceptance}
+                    needIndemnityConfirmationEmail={
+                      needIndemnityConfirmationEmail
+                    }
+                  />
+                </Drawer>
+              </>
+            ) : null}
           </Box>
         ) : (
           <Typography variant="body2">Not required</Typography>

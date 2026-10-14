@@ -136,7 +136,9 @@ describe("AttendeesController", () => {
 
   it("lists attendees for organizers using the requested filter", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
-    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer",
+    );
     (meetsService.listAttendees as jest.Mock).mockResolvedValue({
       attendees: [{ id: "attendee-1", status: "confirmed" }],
     });
@@ -150,6 +152,7 @@ describe("AttendeesController", () => {
     expect(meetsService.listAttendees).toHaveBeenCalledWith(
       "meet-1",
       "confirmed",
+      false,
     );
   });
 
@@ -184,6 +187,11 @@ describe("AttendeesController", () => {
     ).resolves.toEqual({
       attendees: [{ id: "attendee-1", status: "confirmed" }],
     });
+    expect(meetsService.listAttendees).toHaveBeenCalledWith(
+      "meet-1",
+      "confirmed",
+      true,
+    );
   });
 
   it("returns ICE info for the meet organizer on the meet day", async () => {

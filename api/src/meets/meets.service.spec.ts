@@ -82,7 +82,9 @@ describe("MeetsService", () => {
     const db = { getClient: () => client } as unknown as DatabaseService;
     const service = new MeetsService(db, {} as MinioService);
 
-    await expect(service.listAttendees("meet-1")).resolves.toEqual({
+    await expect(
+      service.listAttendees("meet-1", undefined, true),
+    ).resolves.toEqual({
       attendees: [
         expect.objectContaining({
           id: "attendee-1",
