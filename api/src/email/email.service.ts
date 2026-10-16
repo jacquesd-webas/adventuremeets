@@ -22,6 +22,7 @@ export type SendEmailOptions = {
   meetId?: string;
   templateName?: string;
   messageReferences?: EmailMessageReference[];
+  sendAsGroup?: boolean;
 };
 
 @Injectable()
@@ -346,6 +347,56 @@ export class EmailService {
         Array.isArray(to) ? to.join(",") : to
       } subject="${subject}"`,
     );
+    if (options.sendAsGroup && expectedRecipients.length > 1) {
+      let info: nodemailer.SentMessageInfo;
+      try {
+        info = await this.transporter.sendMail({
+          to: expectedRecipients,
+          subject,
+          text,
+          html,
+          from: resolvedFrom,
+          replyTo: resolvedReplyTo,
+          attachments,
+          envelope: { from: resolvedFrom, to: expectedRecipients },
+        });
+      } catch (error) {
+        await this.updateOutboundEmailRecords(
+          expectedRecipients,
+          outboundEmailIds,
+          "failed",
+          undefined,
+          error instanceof Error ? error.message : String(error),
+        );
+        throw error;
+      }
+
+      const acceptedRecipients = this.normalizeRecipientList(
+        (info?.accepted ?? []) as Array<string | { address?: string }>,
+      );
+      const rejectedRecipients = expectedRecipients.filter(
+        (recipient) => !acceptedRecipients.includes(recipient),
+      );
+      await this.updateOutboundEmailRecords(
+        acceptedRecipients,
+        outboundEmailIds,
+        "sent",
+        info?.messageId,
+      );
+      if (rejectedRecipients.length) {
+        const failureReason = `SMTP did not accept recipient(s): ${rejectedRecipients.join(", ")}`;
+        await this.updateOutboundEmailRecords(
+          rejectedRecipients,
+          outboundEmailIds,
+          "failed",
+          undefined,
+          failureReason,
+        );
+        throw new Error(failureReason);
+      }
+      return;
+    }
+
     const failures: Error[] = [];
     for (const recipient of expectedRecipients) {
       const trackingToken = outboundEmailTokens.get(recipient);

@@ -153,6 +153,150 @@ describe("EmailService.saveMessage", () => {
 });
 
 describe("EmailService.sendEmail", () => {
+  it("sends one visible-recipient message for a group without individual tracking", async () => {
+    const outboundEmailsQuery = {
+      insert: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockResolvedValue([
+        {
+          id: "outbound-1",
+          recipient_email: "alex@example.com",
+          tracking_token: "a".repeat(48),
+        },
+        {
+          id: "outbound-2",
+          recipient_email: "jamie@example.com",
+          tracking_token: "b".repeat(48),
+        },
+      ]),
+      whereIn: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(2),
+    };
+    const service = createEmailService({
+      getClient: () => () => outboundEmailsQuery,
+    } as any);
+    const sendMail = jest.fn().mockResolvedValue({
+      accepted: ["alex@example.com", "jamie@example.com"],
+      messageId: "smtp-group-1",
+    });
+    (service as any).transporter = { sendMail };
+
+    await service.sendEmail({
+      to: ["alex@example.com", "jamie@example.com"],
+      subject: "Group message",
+      text: "Hello everyone",
+      html: "<p>Hello everyone</p>",
+      meetId: "meet-1",
+      sendAsGroup: true,
+    });
+
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["alex@example.com", "jamie@example.com"],
+        html: "<p>Hello everyone</p>",
+        envelope: {
+          from: expect.not.stringContaining("bounce+"),
+          to: ["alex@example.com", "jamie@example.com"],
+        },
+      }),
+    );
+    expect(outboundEmailsQuery.whereIn).toHaveBeenCalledWith("id", [
+      "outbound-1",
+      "outbound-2",
+    ]);
+    expect(outboundEmailsQuery.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "sent",
+        transport_message_id: "smtp-group-1",
+      }),
+    );
+  });
+
+  it("marks only SMTP-rejected group recipients as failed", async () => {
+    const outboundEmailsQuery = {
+      insert: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockResolvedValue([
+        { id: "outbound-1", recipient_email: "alex@example.com" },
+        { id: "outbound-2", recipient_email: "jamie@example.com" },
+      ]),
+      whereIn: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(1),
+    };
+    const service = createEmailService({
+      getClient: () => () => outboundEmailsQuery,
+    } as any);
+    const sendMail = jest.fn().mockResolvedValue({
+      accepted: ["alex@example.com"],
+      rejected: ["jamie@example.com"],
+      messageId: "smtp-group-1",
+    });
+    (service as any).transporter = { sendMail };
+
+    await expect(
+      service.sendEmail({
+        to: ["alex@example.com", "jamie@example.com"],
+        subject: "Group message",
+        text: "Hello everyone",
+        sendAsGroup: true,
+      }),
+    ).rejects.toThrow("SMTP did not accept recipient(s): jamie@example.com");
+
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(outboundEmailsQuery.whereIn).toHaveBeenNthCalledWith(1, "id", [
+      "outbound-1",
+    ]);
+    expect(outboundEmailsQuery.whereIn).toHaveBeenNthCalledWith(2, "id", [
+      "outbound-2",
+    ]);
+    expect(outboundEmailsQuery.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        failure_reason: "SMTP did not accept recipient(s): jamie@example.com",
+      }),
+    );
+  });
+
+  it("marks all group recipients as failed if SMTP rejects the message", async () => {
+    const outboundEmailsQuery = {
+      insert: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockResolvedValue([
+        { id: "outbound-1", recipient_email: "alex@example.com" },
+        { id: "outbound-2", recipient_email: "jamie@example.com" },
+      ]),
+      whereIn: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(2),
+    };
+    const service = createEmailService({
+      getClient: () => () => outboundEmailsQuery,
+    } as any);
+    const sendMail = jest.fn().mockRejectedValue(new Error("SMTP unavailable"));
+    (service as any).transporter = { sendMail };
+
+    await expect(
+      service.sendEmail({
+        to: ["alex@example.com", "jamie@example.com"],
+        subject: "Group message",
+        text: "Hello everyone",
+        sendAsGroup: true,
+      }),
+    ).rejects.toThrow("SMTP unavailable");
+
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(outboundEmailsQuery.whereIn).toHaveBeenCalledWith("id", [
+      "outbound-1",
+      "outbound-2",
+    ]);
+    expect(outboundEmailsQuery.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        failure_reason: "SMTP unavailable",
+      }),
+    );
+  });
+
   it("succeeds only when SMTP accepts every intended recipient", async () => {
     const expectedMailDomain =
       process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";

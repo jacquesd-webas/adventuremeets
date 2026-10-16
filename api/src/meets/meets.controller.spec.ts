@@ -1248,6 +1248,7 @@ describe("MeetsController", () => {
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: ["alex@example.com", "jamie@example.com"],
+        sendAsGroup: true,
         replyTo: "meet+meet-1@example.com",
       }),
     );

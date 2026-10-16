@@ -921,6 +921,7 @@ export class MeetsController {
 
       await this.emailService.sendEmail({
         to: Array.from(recipients.values()),
+        sendAsGroup: true,
         subject: body.subject,
         text,
         html,

@@ -734,12 +734,14 @@ export function MessageModal({
                       Group messages send one email to all the selected
                       attendees to start a group email thread. All attendees
                       will see each-other's email addresses and no meet link
-                      will be added.
+                      will be added. When sent to multiple attendees, later
+                      delivery bounces cannot be tracked per attendee.
                     </Alert>
                   ) : sendAsGroup ? (
                     <Alert severity="warning">
                       <strong>Note:</strong> E-mail addresses will be shared
-                      with the group.
+                      with the group. Later bounces cannot be tracked per
+                      attendee.
                     </Alert>
                   ) : null}
                 </>
