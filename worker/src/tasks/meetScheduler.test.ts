@@ -82,11 +82,7 @@ describe("runMeetScheduler", () => {
   it("does not duplicate the api version prefix when API_BASE_URL already includes /api/v1", async () => {
     vi.resetModules();
     process.env.API_BASE_URL = "http://api.test/api/v1";
-    const { db } = buildMockDb([
-      [{ id: "m1", name: "Open Soon" }],
-      [],
-      [],
-    ]);
+    const { db } = buildMockDb([[{ id: "m1", name: "Open Soon" }], [], []]);
     const knexModule = await import("knex");
     (knexModule.default as any).mockReturnValue(db);
 
@@ -156,7 +152,7 @@ describe("runMeetScheduler", () => {
     );
   });
 
-  it("closes open meets when either the closing date or start date has passed", async () => {
+  it("closes open meets at their closing date or one hour before the start", async () => {
     vi.resetModules();
     const { db, builder } = buildMockDb([
       [],
@@ -172,15 +168,17 @@ describe("runMeetScheduler", () => {
     const { runMeetScheduler } = await import("./meetScheduler");
     await runMeetScheduler();
 
-    const groupedWhereCall = builder.where.mock.calls.find((call: unknown[]) => {
-      const [firstArg] = call;
-      return typeof firstArg === "function";
-    });
+    const groupedWhereCall = builder.where.mock.calls.find(
+      (call: unknown[]) => {
+        const [firstArg] = call;
+        return typeof firstArg === "function";
+      },
+    );
     expect(groupedWhereCall).toBeTruthy();
 
     const nestedBuilder = {
       where: vi.fn().mockReturnThis(),
-      orWhere: vi.fn().mockReturnThis(),
+      orWhereRaw: vi.fn().mockReturnThis(),
     };
     groupedWhereCall?.[0](nestedBuilder);
 
@@ -189,10 +187,8 @@ describe("runMeetScheduler", () => {
       "<=",
       "now",
     );
-    expect(nestedBuilder.orWhere).toHaveBeenCalledWith(
-      "start_time",
-      "<=",
-      "now",
+    expect(nestedBuilder.orWhereRaw).toHaveBeenCalledWith(
+      "start_time <= now() + interval '1 hour'",
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "http://api.test/api/v1/meets/m2/status",

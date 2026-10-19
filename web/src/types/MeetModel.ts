@@ -24,6 +24,7 @@ export type Meet = {
   confirmDate?: string | Date;
   status?: string;
   statusId?: number;
+  checkinCompleted?: boolean;
   organizerName?: string;
   organizerFirstName?: string;
   organizerLastName?: string;

@@ -28,6 +28,7 @@ export function useUpdateMeetStatus() {
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["meets"] });
       queryClient.invalidateQueries({ queryKey: ["meet", variables.meetId] });
+      queryClient.invalidateQueries({ queryKey: ["attendee-history"] });
     },
   });
 

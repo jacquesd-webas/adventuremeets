@@ -619,7 +619,6 @@ export function ManageAttendeesModal({
         body: JSON.stringify({
           sendEmail: false,
           downloadReport: true,
-          isFinalReport: false,
         }),
       });
       if (!res.ok) {

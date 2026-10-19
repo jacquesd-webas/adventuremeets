@@ -23,6 +23,15 @@ let mockCheckinState = {
   failedCount: 0,
 };
 const attendeeCheckinItemSpy = vi.fn();
+const completeCheckinAsync = vi.fn();
+
+vi.mock("../../hooks/useCompleteMeetCheckin", () => ({
+  useCompleteMeetCheckin: () => ({
+    mutateAsync: completeCheckinAsync,
+    isPending: false,
+    error: null,
+  }),
+}));
 
 vi.mock("../../hooks/useFetchMeet", () => ({
   useFetchMeet: () => ({
@@ -101,6 +110,7 @@ describe("MeetCheckinPage", () => {
       failedCount: 0,
     };
     attendeeCheckinItemSpy.mockClear();
+    completeCheckinAsync.mockReset().mockResolvedValue(undefined);
     setMobileMatchMedia(false);
   });
 
@@ -187,6 +197,22 @@ describe("MeetCheckinPage", () => {
     await user.click(screen.getByRole("button", { name: "Finish Check-In" }));
 
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();
+    expect(completeCheckinAsync).toHaveBeenCalledWith("meet-1");
+  });
+
+  it("keeps check-in open until queued changes have synced", async () => {
+    mockCheckinState.pendingCount = 1;
+    render(
+      <MemoryRouter initialEntries={["/meet/meet-1/checkin"]}>
+        <Routes>
+          <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Finish Check-In" }),
+    ).toBeDisabled();
+    expect(completeCheckinAsync).not.toHaveBeenCalled();
   });
 
   it("shows an unlock control for an org admin who did not organize the meet", async () => {

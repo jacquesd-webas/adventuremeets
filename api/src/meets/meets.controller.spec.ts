@@ -67,6 +67,7 @@ describe("MeetsController", () => {
     updateImage: jest.fn(),
     removeImage: jest.fn(),
     updateStatus: jest.fn(),
+    completeCheckin: jest.fn(),
     remove: jest.fn(),
     resetConfirmedAttendeesToInvited: jest.fn(),
     listAttendees: jest.fn(),
@@ -201,6 +202,7 @@ describe("MeetsController", () => {
     ["clone", () => controller.clone("meet-1", { name: "Clone" } as any)],
     ["update", () => controller.update("meet-1", { name: "Updated" } as any)],
     ["updateStatus", () => controller.updateStatus("meet-1", { statusId: 2 })],
+    ["completeCheckin", () => controller.completeCheckin("meet-1")],
     [
       "addImage",
       () =>
@@ -260,6 +262,26 @@ describe("MeetsController", () => {
 
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("lets the organiser finish check-in and rejects other members", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.completeCheckin as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      checkin_completed: true,
+    });
+    setRoles({ organizer: true });
+
+    await expect(controller.completeCheckin("meet-1", user)).resolves.toEqual({
+      id: "meet-1",
+      checkin_completed: true,
+    });
+    expect(meetsService.completeCheckin).toHaveBeenCalledWith("meet-1");
+
+    setRoles({});
+    await expect(
+      controller.completeCheckin("meet-1", memberUser),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -873,7 +895,10 @@ describe("MeetsController", () => {
   });
 
   it("creates a final report that maps confirmed attendees to no-show", async () => {
-    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      checkinCompleted: true,
+    });
     (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
       "organizer@example.com",
     );
@@ -944,7 +969,7 @@ describe("MeetsController", () => {
     });
   });
 
-  it("creates an interim report without remapping confirmed attendees", async () => {
+  it("keeps confirmed attendees confirmed until check-in is completed", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
       "organizer@example.com",
@@ -969,7 +994,7 @@ describe("MeetsController", () => {
     await controller.createReport("meet-1", user, {
       sendEmail: true,
       downloadReport: false,
-      isFinalReport: false,
+      isFinalReport: true,
     });
 
     expect(workbookState.rows).toEqual([

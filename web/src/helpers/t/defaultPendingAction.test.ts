@@ -36,7 +36,7 @@ describe("defaultPendingAction", () => {
     vi.useRealTimers();
   });
 
-  it("defaults closed meets before the meet day to attendees for organisers", () => {
+  it("defaults closed meets before the meet day to check-in for organisers", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-01T08:00:00.000Z"));
 
@@ -47,8 +47,28 @@ describe("defaultPendingAction", () => {
         { startTime: "2026-05-02T18:00:00.000Z" },
         { canManageMeet: true },
       ),
-    ).toBe(MeetActionsEnum.Attendees);
+    ).toBe(MeetActionsEnum.Checkin);
 
+    vi.useRealTimers();
+  });
+
+  it("defaults admins and finished check-ins to the wall", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-02T08:00:00.000Z"));
+    const meet = { startTime: "2026-05-01T18:00:00.000Z" };
+    expect(
+      defaultPendingAction(MeetStatusEnum.Closed, false, meet, {
+        canManageMeet: true,
+      }),
+    ).toBe(MeetActionsEnum.Details);
+    expect(
+      defaultPendingAction(
+        MeetStatusEnum.Closed,
+        true,
+        { ...meet, checkinCompleted: true },
+        { canManageMeet: true },
+      ),
+    ).toBe(MeetActionsEnum.Details);
     vi.useRealTimers();
   });
 

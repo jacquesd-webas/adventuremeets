@@ -36,6 +36,7 @@ import { AttendeeCheckinItem } from "../components/attendeeCheckin/AttendeeCheck
 import { CheckinSearch } from "../components/attendeeCheckin/CheckinSearch";
 import { LockedMeet } from "../components/createMeetModal/LockedMeet";
 import { getMeetCheckinReturnTo } from "../helpers/meetNavigation";
+import { useCompleteMeetCheckin } from "../hooks/useCompleteMeetCheckin";
 
 type MeetCheckinLocationState = {
   returnTo?: string;
@@ -70,6 +71,7 @@ function MeetCheckinPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
+  const completeCheckin = useCompleteMeetCheckin();
   const [checkingIn, setCheckingIn] = useState<Record<string, boolean>>({});
   const [optimisticStatusByAttendeeId, setOptimisticStatusByAttendeeId] =
     useState<Record<string, string>>({});
@@ -221,6 +223,31 @@ function MeetCheckinPage() {
 
     navigate(fallbackPath, { replace: true });
   };
+
+  const handleFinish = async () => {
+    if (isReadOnly || meet?.checkinCompleted) {
+      handleClose();
+      return;
+    }
+    if (!id) return;
+    try {
+      await completeCheckin.mutateAsync(id);
+      handleClose();
+    } catch {
+      // Keep this page open so the organiser can retry.
+    }
+  };
+
+  const cannotFinish =
+    !isReadOnly &&
+    !meet?.checkinCompleted &&
+    (isLoading ||
+      Boolean(error) ||
+      isOffline ||
+      isOfflineData ||
+      pendingCount > 0 ||
+      failedCount > 0 ||
+      Object.values(checkingIn).some(Boolean));
 
   return (
     <Container
@@ -381,8 +408,20 @@ function MeetCheckinPage() {
         </Paper>
       </Stack>
       <Box sx={{ mt: 2, px: isMobile ? 2 : 0, pb: isMobile ? 2 : 0 }}>
-        <Button fullWidth variant="contained" onClick={handleClose}>
-          Finish Check-In
+        {completeCheckin.error ? (
+          <Alert severity="error" sx={{ mb: 1 }}>
+            Could not finish check-in. Please try again.
+          </Alert>
+        ) : null}
+        <Button
+          fullWidth
+          variant="contained"
+          onClick={handleFinish}
+          disabled={cannotFinish || completeCheckin.isPending}
+        >
+          {isReadOnly || meet?.checkinCompleted
+            ? "Close Check-In"
+            : "Finish Check-In"}
         </Button>
       </Box>
       <ConfirmActionDialog

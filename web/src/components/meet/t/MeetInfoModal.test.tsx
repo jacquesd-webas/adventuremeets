@@ -167,7 +167,7 @@ describe("MeetInfoModal", () => {
     expect(screen.queryByText("status alert")).not.toBeInTheDocument();
   });
 
-  it("keeps the status alert for closed meets before the start time", () => {
+  it("renders the wall for closed meets before the start time", () => {
     vi.mocked(useFetchMeet).mockReturnValue({
       data: {
         id: "meet-4",
@@ -189,8 +189,8 @@ describe("MeetInfoModal", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("status alert")).toBeInTheDocument();
-    expect(screen.queryByText("meet wall meet-4")).not.toBeInTheDocument();
+    expect(screen.getByText("meet wall meet-4")).toBeInTheDocument();
+    expect(screen.queryByText("status alert")).not.toBeInTheDocument();
   });
 
   it("shows the favourites download control next to the close action for admins", () => {
@@ -305,7 +305,9 @@ describe("MeetInfoModal", () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole("button", { name: "Download favourites" }));
+    await user.click(
+      screen.getByRole("button", { name: "Download favourites" }),
+    );
 
     expect(downloadFavouriteWallArchive).toHaveBeenCalledWith({
       meetName: "Sunrise Hike",

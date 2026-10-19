@@ -560,6 +560,7 @@ export class MeetsService {
         share_code: shareCode,
         checkin_pin: sourceMeet.checkin_pin ? this.generateCheckinPin() : null,
         status_id: MEET_STATUS.Draft,
+        checkin_completed: false,
         start_time: null,
         end_time: null,
         opening_date: null,
@@ -622,9 +623,15 @@ export class MeetsService {
       }
       const updatedRows = (await trx("meets")
         .where({ id })
-        .update(this.toDbRecord({ ...dto, currencyId }, existingMeet), [
-          "*",
-        ])) as unknown;
+        .update(
+          {
+            ...this.toDbRecord({ ...dto, currencyId }, existingMeet),
+            ...(dto.statusId === MEET_STATUS.Completed
+              ? { checkin_completed: true }
+              : {}),
+          },
+          ["*"],
+        )) as unknown;
       const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, id, dto.metaDefinitions);
@@ -643,6 +650,9 @@ export class MeetsService {
       updates.opening_date = null;
       updates.closing_date = null;
     }
+    if (statusId === MEET_STATUS.Completed) {
+      updates.checkin_completed = true;
+    }
     const updatedRows = (await this.db
       .getClient()("meets")
       .where({ id })
@@ -652,6 +662,21 @@ export class MeetsService {
       throw new NotFoundException("Meet not found");
     }
     return updated as any;
+  }
+
+  async completeCheckin(id: string) {
+    const updatedRows = await this.db
+      .getClient()("meets")
+      .where({ id, status_id: MEET_STATUS.Closed })
+      .update(
+        { checkin_completed: true, updated_at: new Date().toISOString() },
+        ["*"],
+      );
+    const updated = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
+    if (!updated) {
+      throw new BadRequestException("Only closed meets can complete check-in");
+    }
+    return updated;
   }
 
   async resetConfirmedAttendeesToInvited(
@@ -2539,6 +2564,7 @@ export class MeetsService {
       capacity: meet.capacity ?? undefined,
       waitlistSize: meet.waitlist_size ?? undefined,
       statusId: meet.status_id ?? undefined,
+      checkinCompleted: Boolean(meet.checkin_completed),
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,
@@ -3041,7 +3067,7 @@ export class MeetsService {
       .select(
         "ma.meet_id",
         "ma.status",
-        "m.status_id",
+        "m.checkin_completed",
         "m.start_time",
         "m.name",
       );
@@ -3051,7 +3077,7 @@ export class MeetsService {
       date: row.start_time,
       meetName: row.name,
       attendeeStatus:
-        row.status_id === MEET_STATUS.Completed && row.status === "confirmed"
+        row.checkin_completed && row.status === "confirmed"
           ? "no-show"
           : row.status,
     }));

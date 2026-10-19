@@ -34,7 +34,7 @@ export function isSameMeetDayOrLater(meet?: Pick<Meet, "startTime"> | null) {
 export function defaultPendingAction(
   statusId?: number | undefined | null,
   isOrganizer = false,
-  meet?: Pick<Meet, "startTime"> | null,
+  meet?: Pick<Meet, "startTime" | "checkinCompleted"> | null,
   options: DefaultPendingActionOptions = {},
 ): MeetActionsEnum | null {
   const canManageMeet = Boolean(options.canManageMeet ?? isOrganizer);
@@ -51,10 +51,9 @@ export function defaultPendingAction(
       if (canManageMeet) return MeetActionsEnum.Attendees;
       return MeetActionsEnum.Details;
     case MeetStatusEnum.Closed:
-      if (canManageMeet && isSameMeetDayOrLater(meet)) {
+      if (isOrganizer && !meet?.checkinCompleted) {
         return MeetActionsEnum.Checkin;
       }
-      if (canManageMeet) return MeetActionsEnum.Attendees;
       return MeetActionsEnum.Details;
     case MeetStatusEnum.Completed:
       return MeetActionsEnum.Details;

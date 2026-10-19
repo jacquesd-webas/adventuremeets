@@ -52,13 +52,9 @@ export function MeetInfoModal({ open, meetId, onClose }: MeetInfoModalProps) {
   const notice = useNotistack();
   const { data: meet, isLoading } = useFetchMeet(meetId);
   const [isExportingFavourites, setIsExportingFavourites] = useState(false);
-  const meetHasStarted =
-    !!meet?.startTime &&
-    !Number.isNaN(new Date(meet.startTime).getTime()) &&
-    new Date(meet.startTime).getTime() <= Date.now();
   const shouldShowMeetWall =
     meet?.statusId === MeetStatusEnum.Completed ||
-    (meet?.statusId === MeetStatusEnum.Closed && meetHasStarted);
+    meet?.statusId === MeetStatusEnum.Closed;
   const { data: wallItems } = useFetchMeetWall(
     meet?.id,
     undefined,

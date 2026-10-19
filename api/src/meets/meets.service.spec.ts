@@ -47,6 +47,39 @@ const buildBuilder = () => {
 };
 
 describe("MeetsService", () => {
+  it("marks check-in complete when completing a meet", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.update.mockResolvedValue([{ id: "meet-1", checkin_completed: true }]);
+    const db = {
+      getClient: () => () => meetsBuilder,
+    } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as MinioService);
+
+    await service.updateStatus("meet-1", 7);
+
+    expect(meetsBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status_id: 7, checkin_completed: true }),
+      ["*"],
+    );
+  });
+
+  it("only finishes check-in on closed meets", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.update.mockResolvedValue([{ id: "meet-1", checkin_completed: true }]);
+    const db = {
+      getClient: () => () => meetsBuilder,
+    } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as MinioService);
+
+    await service.completeCheckin("meet-1");
+
+    expect(meetsBuilder.where).toHaveBeenCalledWith({ id: "meet-1", status_id: 4 });
+    expect(meetsBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ checkin_completed: true }),
+      ["*"],
+    );
+  });
+
   it("includes whether each attendee has unread messages", async () => {
     const attendeesBuilder = buildBuilder();
     attendeesBuilder.select.mockResolvedValue([
@@ -445,7 +478,8 @@ describe("MeetsService", () => {
       closing_date: "2026-04-18T00:00:00Z",
       scheduled_date: "2026-04-20T08:00:00Z",
       confirm_date: "2026-04-19T00:00:00Z",
-      status_id: 3,
+      status_id: 7,
+      checkin_completed: true,
       share_code: "original-share",
       currency_id: 1,
       cost_cents: 2500,
@@ -531,6 +565,7 @@ describe("MeetsService", () => {
     expect(clonedInsertArg.name).toBe("Original meet Copy");
     expect(clonedInsertArg.organizer_id).toBe("organizer-2");
     expect(clonedInsertArg.status_id).toBe(1);
+    expect(clonedInsertArg.checkin_completed).toBe(false);
     expect(clonedInsertArg.start_time).toBeNull();
     expect(clonedInsertArg.end_time).toBeNull();
     expect(clonedInsertArg.opening_date).toBeNull();
@@ -2170,17 +2205,17 @@ describe("MeetsService", () => {
     historyBuilder.select.mockResolvedValue([
       {
         meet_id: "meet-2",
-        status_id: 7,
+        checkin_completed: true,
         start_time: "2026-03-20T08:00:00.000Z",
         name: "Cliff Walk",
         status: "confirmed",
       },
       {
         meet_id: "meet-3",
-        status_id: 3,
+        checkin_completed: false,
         start_time: "2026-02-01T09:00:00.000Z",
         name: "Trail Run",
-        status: "waitlisted",
+        status: "confirmed",
       },
     ]);
 
@@ -2208,7 +2243,7 @@ describe("MeetsService", () => {
         meetId: "meet-3",
         date: "2026-02-01T09:00:00.000Z",
         meetName: "Trail Run",
-        attendeeStatus: "waitlisted",
+        attendeeStatus: "confirmed",
       },
     ]);
 

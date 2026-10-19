@@ -96,16 +96,19 @@ async function closeOpenMeets(db: Knex) {
     .where((queryBuilder) => {
       queryBuilder
         .where("closing_date", "<=", db.fn.now())
-        .orWhere("start_time", "<=", db.fn.now());
+        .orWhereRaw("start_time <= now() + interval '1 hour'");
     })
     .select("id", "name")) as { id: string; name: string }[];
 
   rows.forEach(({ id, name }) => {
     console.info(`Closing meet: ${id} (${name})`);
-    updateStatusViaApi([id], STATUS.Closed).catch((err) => {
-      console.error(`Error closing meet ${id} (${name})`, err);
-    });
   });
+  if (rows.length > 0) {
+    await updateStatusViaApi(
+      rows.map(({ id }) => id),
+      STATUS.Closed,
+    );
+  }
   return rows.length;
 }
 

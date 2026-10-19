@@ -130,6 +130,10 @@ export class MeetDto {
   @IsNumber()
   statusId?: number;
 
+  @ApiProperty()
+  @IsBoolean()
+  checkinCompleted!: boolean;
+
   @ApiPropertyOptional()
   @IsBoolean()
   autoPlacement?: boolean;

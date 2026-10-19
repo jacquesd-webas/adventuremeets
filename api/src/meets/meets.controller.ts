@@ -503,6 +503,23 @@ export class MeetsController {
     return updated;
   }
 
+  @Patch(":id/checkin-complete")
+  async completeCheckin(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+    this.assertCanModifyExistingMeet(user, meet, "update");
+    const updated = await this.meetsService.completeCheckin(id);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "completed check-in for",
+    });
+    return updated;
+  }
+
   private async getAttendeesToReconfirm(meet: MeetDto) {
     const { attendees } = await this.meetsService.listAttendees(meet.id);
     return attendees.filter(
@@ -1288,6 +1305,7 @@ export class MeetsController {
     body?: {
       sendEmail?: boolean;
       downloadReport?: boolean;
+      // Accepted for older clients; report status follows the persisted meet flag.
       isFinalReport?: boolean;
     },
     @Res({ passthrough: true }) res?: any,
@@ -1295,7 +1313,6 @@ export class MeetsController {
     if (!user) throw new UnauthorizedException();
     const sendEmail = body?.sendEmail ?? true;
     const downloadReport = body?.downloadReport ?? false;
-    const isFinalReport = body?.isFinalReport ?? true;
     if (!sendEmail && !downloadReport) {
       throw new BadRequestException("Select at least one delivery method");
     }
@@ -1390,7 +1407,7 @@ export class MeetsController {
         email: attendee.email ?? "",
         phone: attendee.phone ?? "",
         status:
-          isFinalReport && attendee.status === "confirmed"
+          meet.checkinCompleted && attendee.status === "confirmed"
             ? "no-show"
             : (attendee.status ?? ""),
         guests: attendee.guests ?? "",
