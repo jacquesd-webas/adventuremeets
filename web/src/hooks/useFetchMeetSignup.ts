@@ -98,6 +98,10 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     confirmMessage: apiMeet.confirmMessage ?? null,
     rejectMessage: apiMeet.rejectMessage ?? null,
     hasIndemnity: apiMeet.hasIndemnity ?? apiMeet.requiresIndemnity ?? null,
+    hasPdfIndemnityTemplate:
+      apiMeet.hasPdfIndemnityTemplate ??
+      apiMeet.has_pdf_indemnity_template ??
+      null,
     indemnity: apiMeet.indemnity ?? apiMeet.indemnityText ?? null,
     allowMinorIndemnity: apiMeet.allowMinorIndemnity ?? null,
     needIndemnityConfirmationEmail:
@@ -133,6 +137,8 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
       fieldKey: definition.fieldKey ?? definition.field_key ?? "",
       label: definition.label,
       fieldType: definition.fieldType ?? definition.field_type ?? "text",
+      category:
+        definition.category === "F" ? "N" : (definition.category ?? "N"),
       required:
         definition.required === undefined
           ? undefined

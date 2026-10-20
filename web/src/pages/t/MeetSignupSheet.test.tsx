@@ -5,6 +5,23 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import MeetSignupSheet from "../MeetSignupSheet";
 
+const defaultMetaDefinitions = [
+  {
+    id: "meta-1",
+    fieldKey: "dietary",
+    label: "Dietary notes",
+    fieldType: "text",
+    required: false,
+  },
+  {
+    id: "meta-2",
+    fieldKey: "bringingWater",
+    label: "Bringing extra water?",
+    fieldType: "switch",
+    required: false,
+  },
+];
+
 const mockedMeet: Record<string, any> = {
   id: "meet-1",
   name: "Mountain Hike",
@@ -12,22 +29,7 @@ const mockedMeet: Record<string, any> = {
   statusId: 3,
   allowGuests: false,
   hasIndemnity: false,
-  metaDefinitions: [
-    {
-      id: "meta-1",
-      fieldKey: "dietary",
-      label: "Dietary notes",
-      fieldType: "text",
-      required: false,
-    },
-    {
-      id: "meta-2",
-      fieldKey: "bringingWater",
-      label: "Bringing extra water?",
-      fieldType: "switch",
-      required: false,
-    },
-  ],
+  metaDefinitions: defaultMetaDefinitions,
 };
 
 const mockedOrganization = {
@@ -57,6 +59,10 @@ let mockedIsAuthenticated = true;
 const addAttendeeAsync = vi.fn().mockResolvedValue({
   attendee: { id: "attendee-1" },
 });
+const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollIntoView",
+);
 
 vi.mock("../../hooks/useFetchMeetSignup", () => ({
   useFetchMeetSignup: () => ({
@@ -164,6 +170,19 @@ vi.mock("../../components/meet/MeetSignupSubmitted", () => ({
 }));
 
 describe("MeetSignupSheet", () => {
+  afterEach(() => {
+    if (scrollIntoViewDescriptor) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        "scrollIntoView",
+        scrollIntoViewDescriptor,
+      );
+    } else {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown })
+        .scrollIntoView;
+    }
+  });
+
   beforeEach(() => {
     addAttendeeAsync.mockClear();
     mockedIsAuthenticated = true;
@@ -174,7 +193,10 @@ describe("MeetSignupSheet", () => {
     mockedMeet.requireOrg1 = undefined;
     mockedMeet.requireOrg2 = undefined;
     mockedMeet.hasIndemnity = false;
+    mockedMeet.hasPdfIndemnityTemplate = false;
     mockedMeet.needIndemnityConfirmationEmail = false;
+    mockedMeet.metaDefinitions = defaultMetaDefinitions;
+    mockedMeet.allowGuests = false;
     mockedMeet.customField1Name = undefined;
     mockedMeet.customField2Name = undefined;
     mockedMeet.customField1HelperText = undefined;
@@ -208,6 +230,242 @@ describe("MeetSignupSheet", () => {
     expect(
       screen.getByRole("checkbox", { name: /bringing extra water/i }),
     ).toBeChecked();
+  });
+
+  it("groups adjacent categories in order and expands a collapsed group with errors", async () => {
+    const user = userEvent.setup();
+    mockedMeet.metaDefinitions = [
+      {
+        id: "travel-1",
+        fieldKey: "travel1",
+        label: "Outbound transport",
+        fieldType: "text",
+        category: "T",
+        required: true,
+      },
+      {
+        id: "travel-2",
+        fieldKey: "travel2",
+        label: "Return transport",
+        fieldType: "text",
+        category: "T",
+        required: false,
+      },
+      {
+        id: "medical-1",
+        fieldKey: "medical1",
+        label: "Medical notes",
+        fieldType: "text",
+        category: "M",
+        required: false,
+      },
+      {
+        id: "travel-3",
+        fieldKey: "travel3",
+        label: "Other transport",
+        fieldType: "text",
+        category: "T",
+        required: false,
+      },
+      {
+        id: "indemnity-1",
+        fieldKey: "indemnity1",
+        label: "Indemnity detail",
+        fieldType: "text",
+        category: "I",
+        required: false,
+      },
+      {
+        id: "pdf-1",
+        fieldKey: "pdf1",
+        label: "PDF detail",
+        fieldType: "text",
+        category: "P",
+        required: false,
+      },
+      {
+        id: "none-1",
+        fieldKey: "none1",
+        label: "Other detail",
+        fieldType: "text",
+        category: "N",
+        required: false,
+      },
+    ];
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const transportHeaders = screen.getAllByRole("button", {
+      name: "Transport",
+    });
+    expect(transportHeaders).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Medical" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Indemnity" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "PDF" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "None" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Outbound transport" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("textbox", { name: "Other transport" }),
+    ).toBeVisible();
+
+    await user.click(transportHeaders[0]);
+    expect(transportHeaders[0]).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByRole("textbox", { name: "Outbound transport" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Other transport" }),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit application" }),
+    );
+    expect(
+      await screen.findByText("Outbound transport is required"),
+    ).toBeInTheDocument();
+    expect(transportHeaders[0]).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("textbox", { name: "Outbound transport" }),
+    ).toBeVisible();
+  });
+
+  it("keeps submit enabled and scrolls to the first invalid field", async () => {
+    mockedIsAuthenticated = false;
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const submit = await screen.findByRole("button", {
+      name: "Submit application",
+    });
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    expect(await screen.findByText("Name is required")).toBeInTheDocument();
+    expect(screen.getByText("Email is required")).toBeInTheDocument();
+    expect(screen.getByText("Phone is required")).toBeInTheDocument();
+    expect(addAttendeeAsync).not.toHaveBeenCalled();
+    expect(submit).toBeEnabled();
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    expect(document.activeElement).toBe(
+      screen.getByPlaceholderText("Your name"),
+    );
+  });
+
+  it("validates required questions and indemnity on click, then submits after correction", async () => {
+    const user = userEvent.setup();
+    mockedMeet.hasIndemnity = true;
+    mockedMeet.indemnity = "Standard waiver";
+    mockedMeet.metaDefinitions = [
+      ...defaultMetaDefinitions,
+      {
+        id: "meta-3",
+        fieldKey: "medicalDetails",
+        label: "Medical details",
+        fieldType: "text",
+        required: true,
+      },
+    ];
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument(),
+    );
+    const submit = screen.getByRole("button", { name: "Submit application" });
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+    expect(screen.getByText("Medical details is required")).toBeInTheDocument();
+    expect(
+      screen.getByText("Accept the indemnity to continue"),
+    ).toBeInTheDocument();
+    expect(addAttendeeAsync).not.toHaveBeenCalled();
+
+    await user.type(
+      screen.getByRole("textbox", { name: /Medical details/i }),
+      "None",
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "I accept the indemnity" }),
+    );
+    expect(
+      screen.queryByText("Medical details is required"),
+    ).not.toBeInTheDocument();
+    await user.click(submit);
+    await waitFor(() => expect(addAttendeeAsync).toHaveBeenCalled());
+  });
+
+  it("disables submit while the signup is being saved", async () => {
+    const user = userEvent.setup();
+    let resolveSubmit:
+      | ((value: { attendee: { id: string } }) => void)
+      | undefined;
+    addAttendeeAsync.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSubmit = resolve;
+        }),
+    );
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument(),
+    );
+    const submit = screen.getByRole("button", { name: "Submit application" });
+    await user.click(submit);
+    await waitFor(() => expect(addAttendeeAsync).toHaveBeenCalled());
+    expect(submit).toBeDisabled();
+
+    resolveSubmit?.({ attendee: { id: "attendee-1" } });
+    expect(await screen.findByText("Submitted")).toBeInTheDocument();
   });
 
   it("explains when indemnity acceptance requires email confirmation", async () => {
@@ -251,6 +509,68 @@ describe("MeetSignupSheet", () => {
     );
 
     await screen.findByText("Standard waiver");
+    expect(screen.queryByText(/Not signed in\?/)).not.toBeInTheDocument();
+  });
+
+  it("skips electronic indemnity acceptance when a PDF form is supplied", async () => {
+    const user = userEvent.setup();
+    mockedMeet.hasIndemnity = true;
+    mockedMeet.hasPdfIndemnityTemplate = true;
+    mockedMeet.indemnity = "Standard waiver";
+    mockedMeet.needIndemnityConfirmationEmail = true;
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Alice Walker")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Standard waiver")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "I accept the indemnity" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit application" }),
+    ).toBeEnabled();
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit application" }),
+    );
+    await waitFor(() => {
+      expect(addAttendeeAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ indemnityAccepted: false }),
+      );
+    });
+  });
+
+  it("hides the indemnity email confirmation message for PDF forms", async () => {
+    mockedIsAuthenticated = false;
+    mockedMeet.hasIndemnity = true;
+    mockedMeet.hasPdfIndemnityTemplate = true;
+    mockedMeet.indemnity = "Standard waiver";
+    mockedMeet.needIndemnityConfirmationEmail = true;
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Mountain Hike")).toBeInTheDocument();
+    expect(screen.queryByText("Standard waiver")).not.toBeInTheDocument();
     expect(screen.queryByText(/Not signed in\?/)).not.toBeInTheDocument();
   });
 

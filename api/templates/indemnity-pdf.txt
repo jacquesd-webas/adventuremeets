@@ -1,0 +1,10 @@
+Hi {{attendeeName}},
+
+Your pre-filled indemnity form for {{meetName}} is attached. Please review, complete any remaining fields, and sign it.
+
+{{#ifOrganizerEmail}}
+Please email the signed form to {{organizerEmail}}.
+{{/ifOrganizerEmail}}
+
+Best regards,
+{{fromName}}

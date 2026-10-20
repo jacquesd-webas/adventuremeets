@@ -17,6 +17,7 @@ import {
   OrganiserReminderResponsesNeededTemplateVars,
   OrganizerReminderCheckinNeededTemplateVars,
   IndemnityConfirmationTemplateVars,
+  IndemnityPdfTemplateVars,
 } from "./email.types";
 import {
   escapeHtml,
@@ -195,6 +196,7 @@ type RenderEmailTemplateArgs =
   | [name: "password-reset-confirmation"]
   | [name: "meet-signup", vars: MeetSignupTemplateVars]
   | [name: "indemnity-confirmation", vars: IndemnityConfirmationTemplateVars]
+  | [name: "indemnity-pdf", vars: IndemnityPdfTemplateVars]
   | [name: "verify-email", vars: VerifyEmailTemplateVars]
   | [
       name: "meet-confirm" | "meet-reconfirm" | "meet-reject" | "meet-waitlist",
@@ -295,6 +297,29 @@ export function renderEmailTemplate(
       text,
       html: wrapHtml(htmlBody, confirmationVars.logoUrl),
     };
+  }
+
+  if (name === "indemnity-pdf") {
+    const pdfVars = vars as IndemnityPdfTemplateVars | undefined;
+    if (!pdfVars?.meetName) {
+      throw new Error("Missing meetName for indemnity-pdf template");
+    }
+    const varsMap = {
+      ...baseVarsMap,
+      meetName: pdfVars.meetName,
+      attendeeName: pdfVars.attendeeName || "there",
+      organizerEmail: pdfVars.organizerEmail || "",
+    };
+    const flags = { ifOrganizerEmail: Boolean(pdfVars.organizerEmail) };
+    const subject = `Indemnity form for ${pdfVars.meetName}`;
+    const text = renderTemplate("indemnity-pdf", "txt", varsMap, flags);
+    const htmlBody = renderTemplate(
+      "indemnity-pdf",
+      "html",
+      escapeAllHtml(varsMap),
+      flags,
+    );
+    return { subject, text, html: wrapHtml(htmlBody, pdfVars.logoUrl) };
   }
 
   // Meet confirmation

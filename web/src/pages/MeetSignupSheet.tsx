@@ -54,6 +54,7 @@ import {
   validateRequired,
 } from "../helpers/validation";
 import { MeetSignupFormFields } from "../components/meetSignup/MeetSignupFormFields";
+import { getMeetSignupErrors } from "./meetSignupValidation";
 
 const DEFAULT_OG_IMAGE = "/static/adventuremeets-logo.png";
 const DEFAULT_OG_DESCRIPTION = "Join this meet on AdventureMeets.";
@@ -133,7 +134,8 @@ function MeetSignupSheet() {
   const { state, setField, setMetaValue, resetState } =
     useMeetSignupSheetState();
   const { addAttendeeAsync, isLoading: isSubmitting } = useAddAttendee();
-  const { checkAttendeeAsync } = useCheckMeetAttendee();
+  const { checkAttendeeAsync, isLoading: isCheckingAttendee } =
+    useCheckMeetAttendee();
   const api = useApi();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -166,6 +168,8 @@ function MeetSignupSheet() {
   const [nameError, setNameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [isProcessingSubmit, setIsProcessingSubmit] = useState(false);
   const {
     indemnityAccepted,
     fullName,
@@ -181,6 +185,9 @@ function MeetSignupSheet() {
   const disableIdentityFields = Boolean(isAuthenticated);
   const disablePhone = false;
   const disableGuests = Boolean(guestOf);
+  const requiresElectronicIndemnity = Boolean(
+    meet?.hasIndemnity && !meet?.hasPdfIndemnityTemplate,
+  );
   const organizationFieldConfig = meet
     ? {
         customField1Name: meet.customField1Name ?? undefined,
@@ -518,6 +525,7 @@ function MeetSignupSheet() {
     setShowDuplicateModal(false);
     setSubmitted(false);
     setSubmittedAttendeeId(null);
+    setSubmitAttempted(false);
   };
 
   const handleCloseSheet = () => {
@@ -609,7 +617,7 @@ function MeetSignupSheet() {
             meetId={meet?.id}
             attendeeId={submittedAttendeeId || undefined}
             shareCode={code}
-            hasIndemnity={meet?.hasIndemnity || false}
+            hasIndemnity={requiresElectronicIndemnity}
             guests={guests}
             isMinor={isMinor}
             isOrganizationPrivate={privateOrganization?.isPrivate}
@@ -622,32 +630,8 @@ function MeetSignupSheet() {
     );
   }
 
-  const requiredMetaMissing = (meet?.metaDefinitions || []).some((field) => {
-    if (!field.required) return false;
-    const key = field.fieldKey;
-    const value = metaValues[key];
-    if (field.fieldType === "checkbox" || field.fieldType === "switch") {
-      return value !== true;
-    }
-    return value === undefined || value === null || value === "";
-  });
-
-  const isSubmitDisabled =
-    !canSubmitSignup ||
-    !fullName.trim() ||
-    (showEmailField && !email.trim()) ||
-    (showPhoneField && !phoneLocal.trim()) ||
-    (meet?.requireOrg1 &&
-      organizationFieldConfig?.customField1Name &&
-      !org1Value.trim()) ||
-    (meet?.requireOrg2 &&
-      organizationFieldConfig?.customField2Name &&
-      !org2Value.trim()) ||
-    Boolean(nameError) ||
-    (showEmailField && Boolean(emailError)) ||
-    (showPhoneField && Boolean(phoneError)) ||
-    requiredMetaMissing ||
-    Boolean(meet?.hasIndemnity && !indemnityAccepted);
+  const validationErrors =
+    submitAttempted && meet ? getMeetSignupErrors(meet, state, phoneLocal) : {};
 
   const handleNameBlur = () => {
     setNameError(validateRequired(fullName, "Name"));
@@ -720,18 +704,35 @@ function MeetSignupSheet() {
       );
 
   const handleSubmit = async () => {
-    if (!meet) return;
+    if (!meet || isProcessingSubmit || isSubmitting || isCheckingAttendee)
+      return;
+    const errors = getMeetSignupErrors(meet, state, phoneLocal);
+    setSubmitAttempted(true);
+    if (Object.keys(errors).length) {
+      requestAnimationFrame(() => {
+        const firstError = document.querySelector<HTMLElement>(
+          '[data-signup-error="true"]',
+        );
+        firstError?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        const control =
+          firstError?.querySelector<HTMLElement>("[aria-invalid='true']") ??
+          firstError?.querySelector<HTMLElement>("input[type='checkbox']");
+        control?.focus({ preventScroll: true });
+      });
+      return;
+    }
     if (isPreview) {
       setSubmitted(true);
       return;
     }
-    if (isEditing && existingAttendee) {
-      await handleUpdate();
-      return;
-    }
-    const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
-    if (!isEditing) {
-      if (!isMinor) {
+    setIsProcessingSubmit(true);
+    try {
+      if (isEditing && existingAttendee) {
+        await handleUpdate();
+        return;
+      }
+      const fullPhone = buildInternationalPhone(phoneCountry, phoneLocal);
+      if (!isEditing && !isMinor) {
         const trimmedEmail = email.trim();
         const check = await checkAttendeeAsync({
           meetId: meet.id,
@@ -744,32 +745,36 @@ function MeetSignupSheet() {
           return;
         }
       }
+      const metaPayload = buildMetaPayload();
+      const submittedEmail = showEmailField ? email : "";
+      const submittedPhone = showPhoneField
+        ? buildInternationalPhone(phoneCountry, phoneLocal)
+        : "";
+      const res = await addAttendeeAsync({
+        meetId: meet.id,
+        userId: isAuthenticated ? user?.id : undefined,
+        name: fullName,
+        email: submittedEmail,
+        phone: submittedPhone,
+        org1Value: org1Value || undefined,
+        org2Value: org2Value || undefined,
+        guestOf: guestOf || undefined,
+        isMinor: isMinor,
+        GuardianName: isMinor ? guardianName || undefined : undefined,
+        guests: wantsGuests ? guests.length : 0,
+        guestsList: wantsGuests ? guests : [],
+        indemnityAccepted: meet.hasPdfIndemnityTemplate
+          ? false
+          : indemnityAccepted,
+        indemnityMinors: "",
+        metaValues: metaPayload,
+        checkinPin: checkinPin || undefined,
+      });
+      setSubmittedAttendeeId(res?.attendee?.id ?? null);
+      setSubmitted(true);
+    } finally {
+      setIsProcessingSubmit(false);
     }
-    const metaPayload = buildMetaPayload();
-    const submittedEmail = showEmailField ? email : "";
-    const submittedPhone = showPhoneField
-      ? buildInternationalPhone(phoneCountry, phoneLocal)
-      : "";
-    const res = await addAttendeeAsync({
-      meetId: meet.id,
-      userId: isAuthenticated ? user?.id : undefined,
-      name: fullName,
-      email: submittedEmail,
-      phone: submittedPhone,
-      org1Value: org1Value || undefined,
-      org2Value: org2Value || undefined,
-      guestOf: guestOf || undefined,
-      isMinor: isMinor,
-      GuardianName: isMinor ? guardianName || undefined : undefined,
-      guests: wantsGuests ? guests.length : 0,
-      guestsList: wantsGuests ? guests : [],
-      indemnityAccepted: indemnityAccepted,
-      indemnityMinors: "",
-      metaValues: metaPayload,
-      checkinPin: checkinPin || undefined,
-    });
-    setSubmittedAttendeeId(res?.attendee?.id ?? null);
-    setSubmitted(true);
   };
 
   const handleUpdate = async () => {
@@ -788,7 +793,9 @@ function MeetSignupSheet() {
       GuardianName: isMinor ? guardianName || undefined : undefined,
       guests: wantsGuests ? guests.length : 0,
       guestsList: wantsGuests ? guests : [],
-      indemnityAccepted: indemnityAccepted,
+      indemnityAccepted: meet.hasPdfIndemnityTemplate
+        ? false
+        : indemnityAccepted,
       indemnityMinors: "",
       metaValues: metaPayload,
     };
@@ -904,9 +911,21 @@ function MeetSignupSheet() {
                   organization={organizationFieldConfig}
                   phoneCountry={phoneCountry}
                   phoneLocal={phoneLocal}
-                  nameError={nameError}
-                  emailError={emailError}
-                  phoneError={phoneError}
+                  nameError={
+                    submitAttempted
+                      ? (validationErrors.fullName ?? null)
+                      : nameError
+                  }
+                  emailError={
+                    submitAttempted
+                      ? (validationErrors.email ?? null)
+                      : emailError
+                  }
+                  phoneError={
+                    submitAttempted
+                      ? (validationErrors.phone ?? null)
+                      : phoneError
+                  }
                   disableIdentityFields={disableIdentityFields}
                   disablePhone={disablePhone}
                   disableGuests={disableGuests}
@@ -917,8 +936,11 @@ function MeetSignupSheet() {
                   guests={guests}
                   metaValues={metaValues}
                   indemnityAccepted={indemnityAccepted}
+                  errors={validationErrors}
                   isMinor={isMinor}
-                  isSubmitDisabled={isSubmitDisabled}
+                  isSubmitDisabled={
+                    isProcessingSubmit || isSubmitting || isCheckingAttendee
+                  }
                   isSubmitting={isSubmitting}
                   isEditing={isEditing}
                   isAuthenticated={isAuthenticated}

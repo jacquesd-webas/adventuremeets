@@ -10,6 +10,9 @@ import { MeetShareController } from "./meet-share.controller";
 import { UsersModule } from "../users/users.module";
 import { OrganizationsModule } from "../organizations/organizations.module";
 import { AuditLogModule } from "../audit/audit-log.module";
+import { AttendeeItemsStorageService } from "../storage/attendee-items-storage.service";
+import { IndemnityTemplateController } from "./indemnity-template.controller";
+import { IndemnityTemplateService } from "./indemnity-template.service";
 
 @Module({
   imports: [
@@ -24,8 +27,14 @@ import { AuditLogModule } from "../audit/audit-log.module";
     MeetsController,
     IncomingMailController,
     MeetShareController,
+    IndemnityTemplateController,
   ],
-  providers: [MeetsService, MinioService],
-  exports: [MeetsService],
+  providers: [
+    MeetsService,
+    MinioService,
+    AttendeeItemsStorageService,
+    IndemnityTemplateService,
+  ],
+  exports: [MeetsService, IndemnityTemplateService],
 })
 export class MeetsModule {}

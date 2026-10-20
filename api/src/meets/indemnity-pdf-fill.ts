@@ -1,0 +1,119 @@
+import {
+  PDFCheckBox,
+  PDFDocument,
+  PDFDropdown,
+  PDFOptionList,
+  PDFRadioGroup,
+  PDFSignature,
+  PDFTextField,
+} from "pdf-lib";
+import {
+  matchPdfAutoField,
+  PdfAutoFieldSource,
+} from "./indemnity-pdf-field-mappings";
+
+export type IndemnityPdfContext = {
+  meet: {
+    name?: string;
+    startTime?: string;
+    endTime?: string;
+    timeZone?: string;
+    location?: string;
+    organizationName?: string;
+  };
+  attendee: { name?: string; guardianName?: string; isMinor?: boolean };
+  answers: Record<string, string>;
+};
+
+function formatMeetDate(
+  value: string | undefined,
+  timeZone: string | undefined,
+  fieldName: string,
+  maxLength?: number,
+): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const isTimeField = /time/i.test(fieldName);
+  const options: Intl.DateTimeFormatOptions = isTimeField
+    ? {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: timeZone || "UTC",
+      }
+    : {
+        day: "2-digit",
+        month: "2-digit",
+        year: maxLength === 8 ? "2-digit" : "numeric",
+        timeZone: timeZone || "UTC",
+      };
+  return new Intl.DateTimeFormat("en-GB", options).format(date);
+}
+
+function autoValue(
+  source: PdfAutoFieldSource,
+  fieldName: string,
+  context: IndemnityPdfContext,
+  maxLength?: number,
+): string {
+  const { meet, attendee } = context;
+  switch (source) {
+    case "meetName":
+      return meet.name || "";
+    case "meetStartTime":
+      return formatMeetDate(
+        meet.startTime,
+        meet.timeZone,
+        fieldName,
+        maxLength,
+      );
+    case "meetEndTime":
+      return formatMeetDate(meet.endTime, meet.timeZone, fieldName, maxLength);
+    case "meetLocation":
+      return meet.location || "";
+    case "organizationName":
+      return meet.organizationName || "";
+    case "attendeeName":
+      return attendee.isMinor ? attendee.name || "" : "";
+    case "guardianName":
+      return attendee.isMinor ? attendee.guardianName || "" : "";
+  }
+}
+
+export async function fillIndemnityPdf(
+  template: Buffer,
+  context: IndemnityPdfContext,
+): Promise<Buffer> {
+  const pdf = await PDFDocument.load(template, { updateMetadata: false });
+  const form = pdf.getForm();
+  for (const field of form.getFields()) {
+    if (field instanceof PDFSignature) continue;
+    const name = field.getName();
+    const source =
+      field instanceof PDFTextField ? matchPdfAutoField(name) : null;
+    const value = source
+      ? autoValue(
+          source,
+          name,
+          context,
+          field instanceof PDFTextField ? field.getMaxLength() : undefined,
+        )
+      : context.answers[name] || "";
+    if (field instanceof PDFTextField) {
+      if (field.getMaxLength() && value.length > field.getMaxLength()!)
+        field.removeMaxLength();
+      field.setText(value);
+    } else if (field instanceof PDFCheckBox) {
+      if (value === "true") field.check();
+      else field.uncheck();
+    } else if (field instanceof PDFRadioGroup || field instanceof PDFDropdown) {
+      field.clear();
+      if (value && field.getOptions().includes(value)) field.select(value);
+    } else if (field instanceof PDFOptionList) {
+      field.clear();
+      if (value && field.getOptions().includes(value)) field.select(value);
+    }
+  }
+  return Buffer.from(await pdf.save());
+}

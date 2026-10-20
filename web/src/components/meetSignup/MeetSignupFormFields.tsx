@@ -2,7 +2,9 @@ import {
   Alert,
   Box,
   Button,
+  FormControl,
   FormControlLabel,
+  FormHelperText,
   Link,
   MenuItem,
   Stack,
@@ -22,6 +24,9 @@ import { Spacer } from "../common/Spacer";
 import { GuestInput } from "../../types/GuestInput";
 import type { MeetSignupSheetState } from "../../pages/MeetSignupSheetState";
 import { getMeetResponseWording } from "../../helpers/meetResponseWording";
+import type { SignupErrors } from "../../pages/meetSignupValidation";
+import { groupMeetSignupQuestions } from "./groupMeetSignupQuestions";
+import { MeetSignupQuestionGroup } from "./MeetSignupQuestionGroup";
 
 function LabeledField({
   label,
@@ -67,6 +72,7 @@ export type MeetSignupFormFieldsProps = {
   guests: GuestInput[];
   metaValues: Record<string, any>;
   indemnityAccepted: boolean;
+  errors: SignupErrors;
   isMinor: boolean;
   isSubmitDisabled: boolean;
   isSubmitting: boolean;
@@ -109,6 +115,7 @@ export function MeetSignupFormFields({
   guests,
   metaValues,
   indemnityAccepted,
+  errors,
   isMinor,
   isSubmitDisabled,
   isSubmitting,
@@ -135,10 +142,16 @@ export function MeetSignupFormFields({
   const showOrg2Field = Boolean(
     meet?.requireOrg2 && organization?.customField2Name,
   );
+  const requiresElectronicIndemnity = Boolean(
+    meet?.hasIndemnity && !meet?.hasPdfIndemnityTemplate,
+  );
 
   return (
     <Stack spacing={2} mt={2}>
-      <Stack spacing={0.5}>
+      <Stack
+        spacing={0.5}
+        data-signup-error={errors.fullName ? "true" : undefined}
+      >
         <Box
           sx={{
             display: "flex",
@@ -180,8 +193,8 @@ export function MeetSignupFormFields({
           value={fullName}
           onChange={(value) => setField("fullName", value)}
           onBlur={onNameBlur}
-          error={Boolean(nameError)}
-          helperText={nameError || undefined}
+          error={Boolean(errors.fullName || nameError)}
+          helperText={errors.fullName || nameError || undefined}
           placeholder={
             isMinor ? "Name of person attending the meet" : "Your name"
           }
@@ -222,105 +235,122 @@ export function MeetSignupFormFields({
           <>
             <Spacer height={2} />
             <Alert severity="info">
-              {meet?.hasIndemnity
+              {requiresElectronicIndemnity
                 ? "Minors must have a parent or guardian complete this form on their behalf and accept the indemnity."
                 : "Contact details of a parent or guardian are required for minors."}
             </Alert>
-            <LabeledField label="Parent or Guardian Name">
-              <NameField
-                required
-                value={guardianName}
-                onChange={(value) => setField("guardianName", value)}
-                onBlur={onNameBlur}
-                error={Boolean(nameError)}
-                helperText={nameError || undefined}
-                disabled={disableIdentityFields}
-                placeholder="Parent or guardian name"
-              />
-            </LabeledField>
+            <Box data-signup-error={errors.guardianName ? "true" : undefined}>
+              <LabeledField label="Parent or Guardian Name">
+                <NameField
+                  required
+                  value={guardianName}
+                  onChange={(value) => setField("guardianName", value)}
+                  onBlur={onNameBlur}
+                  error={Boolean(errors.guardianName)}
+                  helperText={errors.guardianName}
+                  disabled={disableIdentityFields}
+                  placeholder="Parent or guardian name"
+                />
+              </LabeledField>
+            </Box>
           </>
         ) : null}
       </Stack>
 
       {showEmailField ? (
-        <LabeledField
-          label={isMinor ? "Parent or Guardian Email" : "Email"}
-          required
-        >
-          <EmailField
+        <Box data-signup-error={errors.email ? "true" : undefined}>
+          <LabeledField
+            label={isMinor ? "Parent or Guardian Email" : "Email"}
             required
-            value={email}
-            onChange={(value) => setField("email", value)}
-            onBlur={onEmailBlur}
-            error={Boolean(emailError)}
-            helperText={emailError || undefined}
-            hideLabel
-            disabled={disableIdentityFields}
-          />
-        </LabeledField>
+          >
+            <EmailField
+              required
+              value={email}
+              onChange={(value) => setField("email", value)}
+              onBlur={onEmailBlur}
+              error={Boolean(errors.email || emailError)}
+              helperText={errors.email || emailError || undefined}
+              hideLabel
+              disabled={disableIdentityFields}
+            />
+          </LabeledField>
+        </Box>
       ) : null}
       {showPhoneField ? (
-        <LabeledField
-          label={isMinor ? "Parent or Guardian Phone" : "Phone"}
-          required
-        >
-          <InternationalPhoneField
+        <Box data-signup-error={errors.phone ? "true" : undefined}>
+          <LabeledField
+            label={isMinor ? "Parent or Guardian Phone" : "Phone"}
             required
-            country={phoneCountry}
-            local={phoneLocal}
-            onCountryChange={(value) => {
-              setPhoneCountry(value);
-              setField("phone", buildInternationalPhone(value, phoneLocal));
-            }}
-            onLocalChange={(value) => {
-              setPhoneLocal(value);
-              setField("phone", buildInternationalPhone(phoneCountry, value));
-            }}
-            onBlur={onPhoneBlur}
-            error={Boolean(phoneError)}
-            helperText={phoneError || undefined}
-            hideLabel
-            disabled={disablePhone}
-          />
-        </LabeledField>
+          >
+            <InternationalPhoneField
+              required
+              country={phoneCountry}
+              local={phoneLocal}
+              onCountryChange={(value) => {
+                setPhoneCountry(value);
+                setField("phone", buildInternationalPhone(value, phoneLocal));
+              }}
+              onLocalChange={(value) => {
+                setPhoneLocal(value);
+                setField("phone", buildInternationalPhone(phoneCountry, value));
+              }}
+              onBlur={onPhoneBlur}
+              error={Boolean(errors.phone || phoneError)}
+              helperText={errors.phone || phoneError || undefined}
+              hideLabel
+              disabled={disablePhone}
+            />
+          </LabeledField>
+        </Box>
       ) : null}
       {showOrg1Field ? (
-        <LabeledField
-          label={organization?.customField1Name || "Custom field 1"}
-          required
-        >
-          <TextField
-            placeholder={organization?.customField1HelperText || undefined}
-            inputProps={{
-              "aria-label": organization?.customField1Name || "Custom field 1",
-            }}
-            value={org1Value}
-            onChange={(event) => setField("org1Value", event.target.value)}
-            fullWidth
-          />
-        </LabeledField>
+        <Box data-signup-error={errors.org1Value ? "true" : undefined}>
+          <LabeledField
+            label={organization?.customField1Name || "Custom field 1"}
+            required
+          >
+            <TextField
+              placeholder={organization?.customField1HelperText || undefined}
+              inputProps={{
+                "aria-label":
+                  organization?.customField1Name || "Custom field 1",
+              }}
+              value={org1Value}
+              onChange={(event) => setField("org1Value", event.target.value)}
+              error={Boolean(errors.org1Value)}
+              helperText={errors.org1Value}
+              fullWidth
+            />
+          </LabeledField>
+        </Box>
       ) : null}
       {showOrg2Field ? (
-        <LabeledField
-          label={organization?.customField2Name || "Custom field 2"}
-          required
-        >
-          <TextField
-            placeholder={organization?.customField2HelperText || undefined}
-            inputProps={{
-              "aria-label": organization?.customField2Name || "Custom field 2",
-            }}
-            value={org2Value}
-            onChange={(event) => setField("org2Value", event.target.value)}
-            fullWidth
-          />
-        </LabeledField>
+        <Box data-signup-error={errors.org2Value ? "true" : undefined}>
+          <LabeledField
+            label={organization?.customField2Name || "Custom field 2"}
+            required
+          >
+            <TextField
+              placeholder={organization?.customField2HelperText || undefined}
+              inputProps={{
+                "aria-label":
+                  organization?.customField2Name || "Custom field 2",
+              }}
+              value={org2Value}
+              onChange={(event) => setField("org2Value", event.target.value)}
+              error={Boolean(errors.org2Value)}
+              helperText={errors.org2Value}
+              fullWidth
+            />
+          </LabeledField>
+        </Box>
       ) : null}
       <GuestSwitchField
         allowGuests={Boolean(meet.allowGuests)}
         disabled={disableGuests}
         wantsGuests={wantsGuests}
         guests={guests}
+        guestErrors={errors}
         maxGuests={Number(meet.maxGuests || 0)}
         onToggle={(checked) => {
           setField("wantsGuests", checked);
@@ -331,79 +361,108 @@ export function MeetSignupFormFields({
         onGuestsChange={(nextGuests) => setField("guests", nextGuests)}
         LabeledFieldComponent={LabeledField}
       />
-      {(meet.metaDefinitions || []).map((field: any) => {
-        const key = field.fieldKey;
-        const value = metaValues[key];
+      {groupMeetSignupQuestions(meet.metaDefinitions || []).map((group) => (
+        <MeetSignupQuestionGroup
+          key={group.key}
+          category={group.category}
+          hasError={group.questions.some((field) =>
+            Boolean(errors[`meta:${field.fieldKey}`]),
+          )}
+        >
+          {group.questions.map((field) => {
+            const key = field.fieldKey;
+            const value = metaValues[key];
 
-        if (field.fieldType === "checkbox" || field.fieldType === "switch") {
-          return (
-            <FormControlLabel
-              key={field.id}
-              control={
-                <Switch
-                  checked={Boolean(value)}
-                  onChange={(e) => setMetaValue(key, e.target.checked)}
-                />
-              }
-              label={`${field.label}${field.required ? " *" : ""}`}
-            />
-          );
-        }
+            if (
+              field.fieldType === "checkbox" ||
+              field.fieldType === "switch"
+            ) {
+              return (
+                <FormControl
+                  key={field.id}
+                  error={Boolean(errors[`meta:${key}`])}
+                  data-signup-error={errors[`meta:${key}`] ? "true" : undefined}
+                >
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={Boolean(value)}
+                        onChange={(e) => setMetaValue(key, e.target.checked)}
+                      />
+                    }
+                    label={`${field.label}${field.required ? " *" : ""}`}
+                  />
+                  {errors[`meta:${key}`] && (
+                    <FormHelperText>{errors[`meta:${key}`]}</FormHelperText>
+                  )}
+                </FormControl>
+              );
+            }
 
-        if (field.fieldType === "select") {
-          const options = Array.isArray(field.config?.options)
-            ? field.config.options
-            : [];
-          return (
-            <LabeledField
-              key={field.id}
-              label={field.label}
-              required={field.required}
-            >
-              <TextField
-                select
-                value={typeof value === "string" ? value : ""}
-                onChange={(e) => setMetaValue(key, e.target.value)}
-                fullWidth
+            if (field.fieldType === "select") {
+              const options = Array.isArray(field.config?.options)
+                ? field.config.options
+                : [];
+              return (
+                <Box
+                  key={field.id}
+                  data-signup-error={errors[`meta:${key}`] ? "true" : undefined}
+                >
+                  <LabeledField label={field.label} required={field.required}>
+                    <TextField
+                      select
+                      value={typeof value === "string" ? value : ""}
+                      inputProps={{ "aria-label": field.label }}
+                      onChange={(e) => setMetaValue(key, e.target.value)}
+                      error={Boolean(errors[`meta:${key}`])}
+                      helperText={errors[`meta:${key}`]}
+                      fullWidth
+                    >
+                      <MenuItem value="">Select an option</MenuItem>
+                      {options.map((option: string) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </LabeledField>
+                </Box>
+              );
+            }
+
+            return (
+              <Box
+                key={field.id}
+                data-signup-error={errors[`meta:${key}`] ? "true" : undefined}
               >
-                <MenuItem value="">Select an option</MenuItem>
-                {options.map((option: string) => (
-                  <MenuItem key={option} value={option}>
-                    {option}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </LabeledField>
-          );
-        }
-
-        return (
-          <LabeledField
-            key={field.id}
-            label={field.label}
-            required={field.required}
-          >
-            <TextField
-              type={field.fieldType === "number" ? "number" : "text"}
-              value={
-                typeof value === "number" || typeof value === "string"
-                  ? value
-                  : ""
-              }
-              onChange={(e) =>
-                setMetaValue(
-                  key,
-                  field.fieldType === "number" && e.target.value !== ""
-                    ? Number(e.target.value)
-                    : e.target.value,
-                )
-              }
-              fullWidth
-            />
-          </LabeledField>
-        );
-      })}
-      {meet.hasIndemnity && (
+                <LabeledField label={field.label} required={field.required}>
+                  <TextField
+                    type={field.fieldType === "number" ? "number" : "text"}
+                    inputProps={{ "aria-label": field.label }}
+                    value={
+                      typeof value === "number" || typeof value === "string"
+                        ? value
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setMetaValue(
+                        key,
+                        field.fieldType === "number" && e.target.value !== ""
+                          ? Number(e.target.value)
+                          : e.target.value,
+                      )
+                    }
+                    error={Boolean(errors[`meta:${key}`])}
+                    helperText={errors[`meta:${key}`]}
+                    fullWidth
+                  />
+                </LabeledField>
+              </Box>
+            );
+          })}
+        </MeetSignupQuestionGroup>
+      ))}
+      {requiresElectronicIndemnity && (
         <Stack spacing={1} mt={2}>
           <Alert
             severity="warning"
@@ -412,17 +471,25 @@ export function MeetSignupFormFields({
           >
             {meet.indemnity || "Indemnity details not provided."}
           </Alert>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={indemnityAccepted}
-                onChange={(e) => {
-                  setField("indemnityAccepted", e.target.checked);
-                }}
-              />
-            }
-            label="I accept the indemnity"
-          />
+          <FormControl
+            error={Boolean(errors.indemnityAccepted)}
+            data-signup-error={errors.indemnityAccepted ? "true" : undefined}
+          >
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={indemnityAccepted}
+                  onChange={(e) => {
+                    setField("indemnityAccepted", e.target.checked);
+                  }}
+                />
+              }
+              label="I accept the indemnity"
+            />
+            {errors.indemnityAccepted && (
+              <FormHelperText>{errors.indemnityAccepted}</FormHelperText>
+            )}
+          </FormControl>
           {meet.needIndemnityConfirmationEmail && !isAuthenticated ? (
             <Alert severity="info" sx={{ py: 0.5 }}>
               Not signed in? We&apos;ll email you a link to confirm your

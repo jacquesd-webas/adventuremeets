@@ -51,7 +51,9 @@ export type CreateMeetPayload = {
     fieldKey: string;
     label: string;
     fieldType: string;
+    category?: "T" | "M" | "I" | "N" | "P";
     required?: boolean;
+    pdfFormFieldId?: string | null;
     config?: Record<string, any>;
   }[];
 };

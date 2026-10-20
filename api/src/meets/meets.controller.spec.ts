@@ -95,6 +95,7 @@ describe("MeetsController", () => {
 
   const auditLogService = {
     addRecord: jest.fn(),
+    findAttendeeMeetRecords: jest.fn(),
   } as unknown as AuditLogService;
 
   const db = {
@@ -894,6 +895,29 @@ describe("MeetsController", () => {
     });
   });
 
+  it("audits an attendee withdrawing an application", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.updateAttendee as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-1", status: "cancelled" },
+    });
+
+    await controller.withdrawAttendee("share-123", "attendee-1");
+
+    expect(meetsService.updateAttendee).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+      { status: "cancelled" },
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: null,
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "withdrew from",
+      target: "meet Sunrise Hike",
+    });
+  });
+
   it("creates a final report that maps confirmed attendees to no-show", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue({
       ...meet,
@@ -1607,6 +1631,52 @@ describe("MeetsController", () => {
       action: "marked message read for",
       target: "meet Sunrise Hike",
     });
+  });
+
+  it("lists attendee audit entries alongside messages for the meet organiser", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.listAttendeeMessages as jest.Mock).mockResolvedValue([
+      { id: "message-1", timestamp: "2026-10-20T10:00:00Z" },
+    ]);
+    (auditLogService.findAttendeeMeetRecords as jest.Mock).mockResolvedValue([
+      {
+        id: "audit-1",
+        timestamp: "2026-10-20T09:00:00Z",
+        description: "Applied",
+      },
+    ]);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.listAttendeeMessages("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      messages: [{ id: "message-1", timestamp: "2026-10-20T10:00:00Z" }],
+      auditLogs: [
+        {
+          id: "audit-1",
+          timestamp: "2026-10-20T09:00:00Z",
+          description: "Applied",
+        },
+      ],
+    });
+    expect(auditLogService.findAttendeeMeetRecords).toHaveBeenCalledWith(
+      "org-1",
+      "meet-1",
+      "attendee-1",
+    );
+  });
+
+  it("prevents another organiser from viewing attendee activity", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.listAttendeeMessages("meet-1", "attendee-1", {
+        ...user,
+        id: "other-organizer",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(auditLogService.findAttendeeMeetRecords).not.toHaveBeenCalled();
   });
 
   it("resends a failed attendee email and writes an audit log", async () => {

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MeetCard } from "../MeetCard";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
@@ -43,6 +43,8 @@ function makeMeet(overrides: Partial<Meet> = {}): Meet {
 }
 
 describe("MeetCard", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   const baseProps = {
     statusLabel: "Open",
     setSelectedMeetId: vi.fn(),
@@ -51,6 +53,37 @@ describe("MeetCard", () => {
     canManageMeet: true,
     canAccessManageMenu: true,
   };
+
+  it("opens a closed meet directly when its organiser taps the card on mobile", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: true,
+        media: query,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const onClick = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <MeetCard
+          meet={makeMeet({
+            statusId: MeetStatusEnum.Closed,
+            checkinCompleted: true,
+          })}
+          {...baseProps}
+          onClick={onClick}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByText("Mountain Hike"));
+    expect(onClick).toHaveBeenCalledOnce();
+  });
 
   it("shows applicants, approved, waitlist, and rejected counts for organizer upcoming meets", () => {
     render(

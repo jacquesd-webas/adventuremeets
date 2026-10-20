@@ -64,6 +64,25 @@ describe("renderEmailTemplate", () => {
     expect(result.html).toContain("confirm-indemnity?token=token");
   });
 
+  it("renders the separate PDF indemnity email with safe attendee details", () => {
+    const result = renderEmailTemplate("indemnity-pdf", {
+      meetName: "River & Ridge",
+      attendeeName: "Alex <Walker>",
+      organizerEmail: "leader@example.com",
+    });
+
+    expect(result.subject).toBe("Indemnity form for River & Ridge");
+    expect(result.text).toContain(
+      "pre-filled indemnity form for River & Ridge is attached",
+    );
+    expect(result.text).toContain(
+      "Please email the signed form to leader@example.com.",
+    );
+    expect(result.html).toContain("Alex &lt;Walker&gt;");
+    expect(result.html).toContain("River &amp; Ridge");
+    expect(result.html).toContain('href="mailto:leader@example.com"');
+  });
+
   it("renders the default meet confirmation message with formatted start time", () => {
     const result = renderEmailTemplate("meet-confirm", {
       meetName: "Sunrise Hike",

@@ -1007,17 +1007,25 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+    if (
+      !this.authService.hasRole(user, meet.organizationId!, "organizer") ||
+      (!this.authService.hasRole(user, meet.organizationId!, "admin") &&
+        user.id !== meet.organizerId)
+    ) {
       throw new ForbiddenException(
         "You do not have permission to view attendee messages for this meet",
       );
     }
 
-    const messages = await this.meetsService.listAttendeeMessages(
-      id,
-      attendeeId,
-    );
-    return { messages };
+    const [messages, auditLogs] = await Promise.all([
+      this.meetsService.listAttendeeMessages(meet.id, attendeeId),
+      this.auditLogService.findAttendeeMeetRecords(
+        meet.organizationId!,
+        meet.id,
+        attendeeId,
+      ),
+    ]);
+    return { messages, auditLogs };
   }
 
   @Patch(":id/messages/:messageId/read")

@@ -1,0 +1,13 @@
+<h2 style="margin: 0 0 12px 0; font-size: 20px">Your indemnity form</h2>
+<p style="margin: 0 0 16px 0">Hi {{attendeeName}},</p>
+<p style="margin: 0 0 16px 0">
+  Your pre-filled indemnity form for {{meetName}} is attached. Please review,
+  complete any remaining fields, and sign it.
+</p>
+{{#ifOrganizerEmail}}
+<p style="margin: 0 0 16px 0">
+  Please email the signed form to
+  <a href="mailto:{{organizerEmail}}">{{organizerEmail}}</a>.
+</p>
+{{/ifOrganizerEmail}}
+<p style="margin: 0">Best regards,<br />{{fromName}}</p>

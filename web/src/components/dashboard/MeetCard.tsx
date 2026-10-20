@@ -227,7 +227,10 @@ export function MeetCard({
       }}
       onClick={() => {
         if (typeof onClick === "function") {
-          if (isMobile) {
+          if (
+            isMobile &&
+            !(isOrganizerForMeet && meet.statusId === MeetStatusEnum.Closed)
+          ) {
             menuButtonRef.current?.click();
           } else {
             onClick();

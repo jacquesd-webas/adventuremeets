@@ -1,10 +1,12 @@
 import { EmailDeliveryStatus } from "./EmailDeliveryStatus";
+import { AttendeeAuditEntry } from "./AttendeeAuditEntry";
 import { Box, CircularProgress, Paper, Stack, Typography } from "@mui/material";
 import CallReceivedOutlinedIcon from "@mui/icons-material/CallReceivedOutlined";
 import CallMadeOutlinedIcon from "@mui/icons-material/CallMadeOutlined";
 import { useMemo, useState } from "react";
 import {
   AttendeeMessage,
+  AttendeeAuditLog,
   useFetchAttendeeMessages,
 } from "../../hooks/useFetchAttendeeMessages";
 import { useMarkAttendeeMessageRead } from "../../hooks/useMarkAttendeeMessageRead";
@@ -21,6 +23,10 @@ type ParsedMessage = AttendeeMessage & {
   body: string;
   direction: "received" | "sent";
 };
+
+type TimelineEntry =
+  | { kind: "message"; message: ParsedMessage; timestamp?: string }
+  | { kind: "audit"; log: AttendeeAuditLog; timestamp: string };
 
 const decodeQuotedPrintable = (value: string) => {
   const input = value.replace(/=\n/g, "");
@@ -126,10 +132,12 @@ export function AttendeeMessages({
   attendeeId,
   attendeeEmail,
 }: AttendeeMessagesProps) {
-  const { data, isLoading, error } = useFetchAttendeeMessages(
-    meetId,
-    attendeeId,
-  );
+  const {
+    data,
+    auditLogs = [],
+    isLoading,
+    error,
+  } = useFetchAttendeeMessages(meetId, attendeeId);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { markRead } = useMarkAttendeeMessageRead();
   const { resend, isLoading: isResending } = useResendAttendeeEmail();
@@ -153,6 +161,27 @@ export function AttendeeMessages({
         };
       }),
     [data, attendeeEmail],
+  );
+
+  const timeline = useMemo<TimelineEntry[]>(
+    () =>
+      [
+        ...messages.map((message) => ({
+          kind: "message" as const,
+          message,
+          timestamp: message.timestamp,
+        })),
+        ...auditLogs.map((log) => ({
+          kind: "audit" as const,
+          log,
+          timestamp: log.timestamp,
+        })),
+      ].sort((first, second) => {
+        const firstTime = Date.parse(first.timestamp || "") || 0;
+        const secondTime = Date.parse(second.timestamp || "") || 0;
+        return secondTime - firstTime;
+      }),
+    [messages, auditLogs],
   );
 
   if (!attendeeId) {
@@ -179,128 +208,136 @@ export function AttendeeMessages({
     );
   }
 
-  if (!messages.length) {
+  if (!timeline.length) {
     return (
       <Typography variant="body2" color="text.secondary">
-        No messages
+        No messages or activity
       </Typography>
     );
   }
 
   return (
     <Stack spacing={2}>
-      {messages.map((message) => (
-        <Paper
-          key={message.id}
-          variant="outlined"
-          sx={{ p: 2, pb: 1, cursor: "pointer" }}
-          onClick={() => {
-            const isExpanding = !expandedIds.has(message.id);
-            setExpandedIds((prev) => {
-              const next = new Set(prev);
-              if (next.has(message.id)) {
-                next.delete(message.id);
-              } else {
-                next.add(message.id);
+      {timeline.map((entry) => {
+        if (entry.kind === "audit") {
+          return (
+            <AttendeeAuditEntry key={`audit-${entry.log.id}`} log={entry.log} />
+          );
+        }
+        const message = entry.message;
+        return (
+          <Paper
+            key={message.id}
+            variant="outlined"
+            sx={{ p: 2, pb: 1, cursor: "pointer" }}
+            onClick={() => {
+              const isExpanding = !expandedIds.has(message.id);
+              setExpandedIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(message.id)) {
+                  next.delete(message.id);
+                } else {
+                  next.add(message.id);
+                }
+                return next;
+              });
+              if (isExpanding && message.isRead === false && meetId) {
+                markRead({ meetId, messageId: message.id, attendeeId });
               }
-              return next;
-            });
-            if (isExpanding && message.isRead === false && meetId) {
-              markRead({ meetId, messageId: message.id, attendeeId });
-            }
-          }}
-          aria-expanded={expandedIds.has(message.id)}
-        >
-          <Stack spacing={1}>
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              justifyContent="space-between"
-            >
-              <Stack direction="row" spacing={1} alignItems="center">
-                {message.direction === "sent" ? (
-                  <CallMadeOutlinedIcon
-                    fontSize="small"
-                    color="action"
-                    aria-label="Sent"
-                  />
-                ) : (
-                  <CallReceivedOutlinedIcon
-                    fontSize="small"
-                    color="action"
-                    aria-label="Received"
-                  />
-                )}
-                <Typography variant="subtitle2">{message.subject}</Typography>
-                {message.direction === "received" &&
-                message.isRead === false ? (
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      bgcolor: "error.main",
-                    }}
-                  />
-                ) : null}
-              </Stack>
+            }}
+            aria-expanded={expandedIds.has(message.id)}
+          >
+            <Stack spacing={1}>
               <Stack
                 direction="row"
-                spacing={0.75}
+                spacing={1}
                 alignItems="center"
-                sx={{ flexShrink: 0 }}
+                justifyContent="space-between"
               >
-                <Typography variant="caption" color="text.secondary">
-                  {message.timestamp
-                    ? new Date(message.timestamp).toLocaleString()
-                    : "—"}
-                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {message.direction === "sent" ? (
+                    <CallMadeOutlinedIcon
+                      fontSize="small"
+                      color="action"
+                      aria-label="Sent"
+                    />
+                  ) : (
+                    <CallReceivedOutlinedIcon
+                      fontSize="small"
+                      color="action"
+                      aria-label="Received"
+                    />
+                  )}
+                  <Typography variant="subtitle2">{message.subject}</Typography>
+                  {message.direction === "received" &&
+                  message.isRead === false ? (
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        bgcolor: "error.main",
+                      }}
+                    />
+                  ) : null}
+                </Stack>
+                <Stack
+                  direction="row"
+                  spacing={0.75}
+                  alignItems="center"
+                  sx={{ flexShrink: 0 }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {message.timestamp
+                      ? new Date(message.timestamp).toLocaleString()
+                      : "—"}
+                  </Typography>
+                </Stack>
               </Stack>
-            </Stack>
-            <Typography
-              variant="body2"
-              sx={{
-                whiteSpace: "pre-line",
-                mt: 1,
-                maxWidth: "100%",
-                overflowWrap: "anywhere",
-                wordBreak: "break-word",
-              }}
-            >
-              <Box
-                component="span"
+              <Typography
+                variant="body2"
                 sx={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: expandedIds.has(message.id) ? "unset" : 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
+                  whiteSpace: "pre-line",
+                  mt: 1,
+                  maxWidth: "100%",
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
                 }}
               >
-                {message.body || "—"}
-              </Box>
-            </Typography>
-            {message.direction === "sent" && (
-              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                <EmailDeliveryStatus
-                  status={message.emailStatus}
-                  isResending={isResending}
-                  onResend={
-                    message.emailStatus === "failed" && meetId && attendeeId
-                      ? () =>
-                          resend({
-                            meetId,
-                            attendeeId,
-                            messageId: message.id,
-                          })
-                      : undefined
-                  }
-                />
-              </Box>
-            )}
-          </Stack>
-        </Paper>
-      ))}
+                <Box
+                  component="span"
+                  sx={{
+                    display: "-webkit-box",
+                    WebkitLineClamp: expandedIds.has(message.id) ? "unset" : 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  {message.body || "—"}
+                </Box>
+              </Typography>
+              {message.direction === "sent" && (
+                <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                  <EmailDeliveryStatus
+                    status={message.emailStatus}
+                    isResending={isResending}
+                    onResend={
+                      message.emailStatus === "failed" && meetId && attendeeId
+                        ? () =>
+                            resend({
+                              meetId,
+                              attendeeId,
+                              messageId: message.id,
+                            })
+                        : undefined
+                    }
+                  />
+                </Box>
+              )}
+            </Stack>
+          </Paper>
+        );
+      })}
     </Stack>
   );
 }

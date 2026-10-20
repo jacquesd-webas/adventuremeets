@@ -16,6 +16,31 @@ describe("useApi", () => {
     window.localStorage.clear();
   });
 
+  it("reads a private PDF response as a blob", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("%PDF-preview", {
+          headers: { "Content-Type": "application/pdf" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() =>
+      useApi({ baseUrl: "http://localhost:8000" }),
+    );
+
+    const pdf = await result.current.getBlob(
+      "/meets/meet-1/indemnity-template/preview",
+    );
+
+    expect(pdf).toBeInstanceOf(Blob);
+    expect(pdf.type).toBe("application/pdf");
+    expect(pdf.size).toBeGreaterThan(0);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "http://localhost:8000/api/v1/meets/meet-1/indemnity-template/preview",
+    );
+  });
+
   it("refreshes the token and retries after a 401", async () => {
     window.localStorage.setItem("accessToken", "old-access");
     window.localStorage.setItem("refreshToken", "old-refresh");

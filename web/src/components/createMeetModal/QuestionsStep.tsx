@@ -19,6 +19,7 @@ import { SelectTemplate } from "./SelectTemplate";
 import { HelpBanner } from "./HelpBanner";
 import { useFetchOrganization } from "../../hooks/useFetchOrganization";
 import { mergeImportedQuestions } from "./mergeImportedQuestions";
+import { QuestionCategoryBadge } from "./QuestionCategoryBadge";
 
 export const QuestionsStep = ({
   state,
@@ -42,6 +43,7 @@ export const QuestionsStep = ({
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2),
       type,
+      category: "N",
       label: "",
       optionsInput: "",
       includeInReports: false,
@@ -323,38 +325,57 @@ export const QuestionsStep = ({
                     disabled={disabled}
                   />
                 )}
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  alignItems={{ xs: "flex-start", sm: "center" }}
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: 1,
+                  }}
                 >
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={Boolean(field.required)}
-                        disabled={disabled}
-                        onChange={(e) =>
-                          updateField(field.id, { required: e.target.checked })
-                        }
-                      />
-                    }
-                    label="Required"
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    alignItems={{ xs: "flex-start", sm: "center" }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={Boolean(field.required)}
+                          disabled={disabled}
+                          onChange={(e) =>
+                            updateField(field.id, {
+                              required: e.target.checked,
+                            })
+                          }
+                        />
+                      }
+                      label="Required"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={Boolean(field.includeInReports)}
+                          disabled={disabled}
+                          onChange={(e) =>
+                            updateField(field.id, {
+                              includeInReports: e.target.checked,
+                            })
+                          }
+                        />
+                      }
+                      label="Include in reports"
+                    />
+                  </Stack>
+                  <QuestionCategoryBadge
+                    category={field.category}
+                    pdfFormFieldId={field.pdfFormFieldId}
+                    questionLabel={field.label}
+                    disabled={disabled}
+                    onChange={(category) => updateField(field.id, { category })}
                   />
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={Boolean(field.includeInReports)}
-                        disabled={disabled}
-                        onChange={(e) =>
-                          updateField(field.id, {
-                            includeInReports: e.target.checked,
-                          })
-                        }
-                      />
-                    }
-                    label="Include in reports"
-                  />
-                </Stack>
+                </Box>
                 {isHelpEnabled ? (
                   <Typography variant="body2" color="text.secondary">
                     Required means the attendee must answer before submitting.

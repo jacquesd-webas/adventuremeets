@@ -7,6 +7,7 @@ jest.mock("../email/email.templates", () => ({
 }));
 
 import {
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
@@ -21,6 +22,7 @@ import { UserProfile } from "../users/dto/user-profile.dto";
 import { UsersService } from "../users/users.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import { OrganizationsService } from "../organizations/organizations.service";
+import { IndemnityTemplateService } from "../meets/indemnity-template.service";
 
 describe("AttendeesController", () => {
   let controller: AttendeesController;
@@ -61,6 +63,11 @@ describe("AttendeesController", () => {
   const organizationsService = {
     findLogoUrlById: jest.fn(),
   } as unknown as OrganizationsService;
+
+  const indemnityTemplates = {
+    createAttendeePdf: jest.fn(),
+    hasTemplate: jest.fn(),
+  } as unknown as IndemnityTemplateService;
 
   const user: UserProfile = {
     id: "user-1",
@@ -103,10 +110,13 @@ describe("AttendeesController", () => {
       usersService,
       auditLogService,
       organizationsService,
+      indemnityTemplates,
     );
     (organizationsService.findLogoUrlById as jest.Mock).mockResolvedValue(
       "https://cdn.example.com/logos/org-1.webp",
     );
+    (indemnityTemplates.createAttendeePdf as jest.Mock).mockResolvedValue(null);
+    (indemnityTemplates.hasTemplate as jest.Mock).mockResolvedValue(false);
   });
 
   it.each([
@@ -468,6 +478,212 @@ describe("AttendeesController", () => {
     expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
   });
 
+  it("sends the filled indemnity PDF before the signup email", async () => {
+    const strictMeet = {
+      ...meet,
+      hasIndemnity: true,
+      hasPdfIndemnityTemplate: true,
+      needIndemnityConfirmationEmail: true,
+    };
+    (meetsService.findOne as jest.Mock).mockResolvedValue(strictMeet);
+    (meetsService.addAttendee as jest.Mock).mockResolvedValue({
+      attendee: {
+        id: "attendee-2",
+        status: "pending",
+        name: "Riley",
+        email: "riley@example.com",
+      },
+    });
+    const content = Buffer.from("filled pdf");
+    (indemnityTemplates.createAttendeePdf as jest.Mock).mockResolvedValue({
+      filename: "consent-prefilled.pdf",
+      content,
+    });
+
+    await controller.add(
+      "meet-1",
+      { name: "Riley", email: "riley@example.com", indemnityAccepted: false },
+      {
+        headers: {},
+        ip: "127.0.0.1",
+      } as unknown as Request,
+    );
+
+    expect(indemnityTemplates.createAttendeePdf).toHaveBeenCalledWith(
+      strictMeet,
+      expect.objectContaining({ id: "attendee-2" }),
+    );
+    const sends = (emailService.sendEmail as jest.Mock).mock.calls.map(
+      ([options]) => options,
+    );
+    expect(sends).toHaveLength(2);
+    expect(sends[0]).toEqual(
+      expect.objectContaining({
+        to: "riley@example.com",
+        templateName: "indemnity-pdf",
+        attachments: [
+          {
+            filename: "consent-prefilled.pdf",
+            content,
+            contentType: "application/pdf",
+          },
+        ],
+      }),
+    );
+    expect(sends[1]).toEqual(
+      expect.objectContaining({
+        to: "riley@example.com",
+        templateName: "meet-signup",
+      }),
+    );
+    expect(sends[1].attachments).toBeUndefined();
+    expect(renderEmailTemplate).toHaveBeenNthCalledWith(
+      1,
+      "indemnity-pdf",
+      expect.objectContaining({ meetName: meet.name, attendeeName: "Riley" }),
+    );
+    expect(renderEmailTemplate).toHaveBeenNthCalledWith(
+      2,
+      "meet-signup",
+      expect.objectContaining({ meetName: meet.name }),
+    );
+  });
+
+  it("sends the PDF before the RSVP acknowledgement", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      autoPlacement: true,
+      hasPdfIndemnityTemplate: true,
+    });
+    (meetsService.addAttendee as jest.Mock).mockResolvedValue({
+      attendee: {
+        id: "attendee-2",
+        status: "pending",
+        email: "riley@example.com",
+      },
+    });
+    (meetsService.autoPlaceAttendees as jest.Mock).mockResolvedValue({
+      attendee: {
+        id: "attendee-2",
+        status: "confirmed",
+        email: "riley@example.com",
+      },
+    });
+    (indemnityTemplates.createAttendeePdf as jest.Mock).mockResolvedValue({
+      filename: "consent-prefilled.pdf",
+      content: Buffer.from("filled pdf"),
+    });
+
+    await controller.add(
+      "meet-1",
+      {
+        name: "Riley",
+        email: "riley@example.com",
+        indemnityAccepted: false,
+      },
+      { headers: {}, ip: "127.0.0.1" } as unknown as Request,
+    );
+
+    const sends = (emailService.sendEmail as jest.Mock).mock.calls.map(
+      ([options]) => options,
+    );
+    expect(sends.map((email) => email.templateName)).toEqual([
+      "indemnity-pdf",
+      "meet-signup",
+    ]);
+    expect(renderEmailTemplate).toHaveBeenCalledWith(
+      "meet-signup",
+      expect.objectContaining({ isRsvpMode: true }),
+    );
+    expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
+  });
+
+  it("does not send the signup email when the PDF email fails", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      hasPdfIndemnityTemplate: true,
+    });
+    (meetsService.addAttendee as jest.Mock).mockResolvedValue({
+      attendee: {
+        id: "attendee-2",
+        status: "pending",
+        email: "riley@example.com",
+      },
+    });
+    (indemnityTemplates.createAttendeePdf as jest.Mock).mockResolvedValue({
+      filename: "consent-prefilled.pdf",
+      content: Buffer.from("filled pdf"),
+    });
+    (emailService.sendEmail as jest.Mock).mockRejectedValueOnce(
+      new Error("SMTP unavailable"),
+    );
+
+    await expect(
+      controller.add(
+        "meet-1",
+        {
+          name: "Riley",
+          email: "riley@example.com",
+          indemnityAccepted: false,
+        },
+        { headers: {}, ip: "127.0.0.1" } as unknown as Request,
+      ),
+    ).rejects.toThrow("SMTP unavailable");
+
+    expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
+    expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
+  });
+
+  it("does not generate a PDF for an electronic indemnity", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      hasIndemnity: true,
+      hasPdfIndemnityTemplate: false,
+    });
+    (meetsService.addAttendee as jest.Mock).mockResolvedValue({
+      attendee: {
+        id: "attendee-2",
+        status: "pending",
+        email: "riley@example.com",
+      },
+    });
+
+    await controller.add(
+      "meet-1",
+      {
+        name: "Riley",
+        email: "riley@example.com",
+        indemnityAccepted: true,
+      },
+      { headers: {}, ip: "127.0.0.1" } as unknown as Request,
+    );
+
+    expect(indemnityTemplates.createAttendeePdf).not.toHaveBeenCalled();
+    expect(
+      (emailService.sendEmail as jest.Mock).mock.calls[0][0].attachments,
+    ).toBeUndefined();
+  });
+
+  it("requires an email before accepting a signup with a consent PDF", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      hasIndemnity: true,
+      hasPdfIndemnityTemplate: true,
+    });
+
+    await expect(
+      controller.add(
+        "meet-1",
+        { name: "Child Example", indemnityAccepted: false },
+        {
+          headers: {},
+          ip: "127.0.0.1",
+        } as unknown as Request,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(meetsService.addAttendee).not.toHaveBeenCalled();
+  });
+
   it("sends an indemnity confirmation email for anonymous acceptance", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue({
       ...meet,
@@ -638,10 +854,36 @@ describe("AttendeesController", () => {
       userId: "user-1",
       attendeeId: "attendee-1",
       meetId: "meet-1",
-      action: "updated attendee for",
+      action: "set attendee status to checked-in for",
       target: "meet Sunrise Hike",
     });
   });
+
+  it.each([
+    ["confirmed", "accepted application for"],
+    ["rejected", "rejected application for"],
+    ["waitlisted", "set attendee status to waitlisted for"],
+  ])(
+    "audits an organiser setting attendee status to %s",
+    async (status, action) => {
+      (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+      (authService.hasRole as jest.Mock).mockReturnValue(true);
+      (meetsService.updateAttendee as jest.Mock).mockResolvedValue({
+        attendee: { id: "attendee-1", status },
+      });
+
+      await controller.update("meet-1", "attendee-1", { status }, user);
+
+      expect(auditLogService.addRecord).toHaveBeenCalledWith({
+        orgId: "org-1",
+        userId: user.id,
+        attendeeId: "attendee-1",
+        meetId: "meet-1",
+        action,
+        target: "meet Sunrise Hike",
+      });
+    },
+  );
 
   it("rejects attendee updates from another organizer in the same organization", async () => {
     const dto = { status: "confirmed" };

@@ -70,6 +70,7 @@ export type Meet = {
   confirmMessage?: string;
   rejectMessage?: string;
   hasIndemnity?: boolean;
+  hasPdfIndemnityTemplate?: boolean;
   indemnity?: string;
   allowMinorIndemnity?: boolean;
   needIndemnityConfirmationEmail?: boolean;
@@ -87,6 +88,7 @@ export type Meet = {
     fieldKey: string;
     label: string;
     fieldType: string;
+    category?: "T" | "M" | "I" | "N" | "P";
     required?: boolean;
     position?: number;
     config?: Record<string, any>;

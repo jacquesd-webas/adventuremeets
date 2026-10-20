@@ -52,7 +52,7 @@ describe("defaultPendingAction", () => {
     vi.useRealTimers();
   });
 
-  it("defaults admins and finished check-ins to the wall", () => {
+  it("defaults admins and organisers with completed check-in to the wall", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-02T08:00:00.000Z"));
     const meet = { startTime: "2026-05-01T18:00:00.000Z" };

@@ -5,7 +5,7 @@ describe("Meet check-in", () => {
     const unique = Date.now();
     const meetName = `Bob Checkin Meet ${unique}`;
     const description = "Short description for bob checkin test.";
-    const start = new Date(Date.now() + 120 * 1000);
+    const start = new Date(Date.now() + (120 + 3600) * 1000); // 1 hour 2 mins from now
 
     const attendees = Array.from({ length: 5 }, (_, index) => ({
       name: `Attendee ${index + 1}`,
@@ -111,7 +111,27 @@ describe("Meet check-in", () => {
     cy.contains(confirmedAttendees[0].name).click();
     cy.contains(confirmedAttendees[1].name).click();
 
+    cy.intercept("PATCH", "**/api/v1/meets/*/checkin-complete").as(
+      "finishCheckin",
+    );
     cy.contains("button", "Finish Check-In").click();
+    cy.wait("@finishCheckin")
+      .its("response.statusCode")
+      .should("eq", 200);
+    cy.contains("Meets").should("be.visible");
+
+    cy.contains(meetName).scrollIntoView().click();
+    cy.get('[data-testid="close-meet-details"]').should("be.visible");
+    cy.contains("Meet Feedback").should("be.visible");
+    cy.url().should("not.include", "/checkin");
+    cy.get('[data-testid="close-meet-details"]').click();
+
+    openMeetRowMenu();
+    cy.contains("Check-in").click();
+    cy.url().should("include", "/checkin");
+    cy.contains("button", "Close Check-In").should("be.visible");
+    cy.contains(confirmedAttendees[0].name).should("be.visible");
+    cy.contains("button", "Close Check-In").click();
     cy.contains("Meets").should("be.visible");
 
     cy.wait(30000);

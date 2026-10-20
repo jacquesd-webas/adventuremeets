@@ -311,13 +311,19 @@ describe("Create meet flow", () => {
     ).should("be.visible");
     cy.get('[data-testid="meet-cost"]').should("contain.text", "45");
 
-    cy.contains("Trail experience level").should("be.visible");
-    cy.contains("Preferred pace").should("be.visible");
-    cy.contains("Will you bring extra water?").should("be.visible");
-    cy.contains("Agree to leave no trace?").should("be.visible");
+    cy.contains("Trail experience level").scrollIntoView().should("be.visible");
+    cy.contains("Preferred pace").scrollIntoView().should("be.visible");
+    cy.contains("Will you bring extra water?")
+      .scrollIntoView()
+      .should("be.visible");
+    cy.contains("Agree to leave no trace?")
+      .scrollIntoView()
+      .should("be.visible");
 
     cy.contains(
       "By attending this meet, you acknowledge the inherent risks of outdoor activities",
-    ).should("be.visible");
+    )
+      .scrollIntoView()
+      .should("be.visible");
   });
 });

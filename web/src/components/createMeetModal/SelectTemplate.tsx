@@ -137,6 +137,7 @@ const mapDefinitionsToQuestions = (
       id: fallbackId,
       type: fieldType,
       label: definition.label || "",
+      category: "N",
       required: Boolean(definition.required),
       includeInReports: definition.config?.includeInReports ?? false,
       options:

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   IsBoolean,
+  IsIn,
   IsDateString,
   IsInt,
   IsNumber,
@@ -33,6 +34,19 @@ export class MeetMetaDefinitionInputDto {
   @IsOptional()
   @IsBoolean()
   required?: boolean;
+
+  @ApiPropertyOptional({ enum: ["T", "M", "I", "N", "P"], default: "N" })
+  @IsOptional()
+  @IsIn(["T", "M", "I", "N", "P"])
+  category?: "T" | "M" | "I" | "N" | "P";
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: "Name of the field in the uploaded PDF form",
+  })
+  @IsOptional()
+  @IsString()
+  pdfFormFieldId?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

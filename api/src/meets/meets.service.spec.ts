@@ -49,7 +49,9 @@ const buildBuilder = () => {
 describe("MeetsService", () => {
   it("marks check-in complete when completing a meet", async () => {
     const meetsBuilder = buildBuilder();
-    meetsBuilder.update.mockResolvedValue([{ id: "meet-1", checkin_completed: true }]);
+    meetsBuilder.update.mockResolvedValue([
+      { id: "meet-1", checkin_completed: true },
+    ]);
     const db = {
       getClient: () => () => meetsBuilder,
     } as unknown as DatabaseService;
@@ -65,7 +67,9 @@ describe("MeetsService", () => {
 
   it("only finishes check-in on closed meets", async () => {
     const meetsBuilder = buildBuilder();
-    meetsBuilder.update.mockResolvedValue([{ id: "meet-1", checkin_completed: true }]);
+    meetsBuilder.update.mockResolvedValue([
+      { id: "meet-1", checkin_completed: true },
+    ]);
     const db = {
       getClient: () => () => meetsBuilder,
     } as unknown as DatabaseService;
@@ -73,7 +77,10 @@ describe("MeetsService", () => {
 
     await service.completeCheckin("meet-1");
 
-    expect(meetsBuilder.where).toHaveBeenCalledWith({ id: "meet-1", status_id: 4 });
+    expect(meetsBuilder.where).toHaveBeenCalledWith({
+      id: "meet-1",
+      status_id: 4,
+    });
     expect(meetsBuilder.update).toHaveBeenCalledWith(
       expect.objectContaining({ checkin_completed: true }),
       ["*"],
@@ -247,10 +254,14 @@ describe("MeetsService", () => {
     const metaBuilder = buildBuilder();
     metaBuilder.select = jest.fn().mockResolvedValue([]);
 
+    const templateBuilder = buildBuilder();
+    templateBuilder.first.mockResolvedValue({ meet_id: "meet-1" });
+
     const client: any = (table: string) => {
       if (table === "meets as m") return meetBuilder;
       if (table === "meet_images") return imageBuilder;
       if (table === "meet_meta_definitions") return metaBuilder;
+      if (table === "meet_indemnity_templates") return templateBuilder;
       return buildBuilder();
     };
     client.raw = jest.fn(() => "raw");
@@ -263,6 +274,7 @@ describe("MeetsService", () => {
     expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
     expect(result.confirmedCount).toBe(4);
     expect(result.rejectedCount).toBe(2);
+    expect(result.hasPdfIndemnityTemplate).toBe(true);
     expect(result.images).toEqual([
       expect.objectContaining({
         id: "image-1",
@@ -525,6 +537,12 @@ describe("MeetsService", () => {
       },
     ]);
 
+    const indemnityTemplateBuilder = buildBuilder();
+    indemnityTemplateBuilder.first.mockResolvedValue({
+      object_key: "meets/meet-1/indemnity/form.pdf",
+      filename: "parent-consent.pdf",
+    });
+
     const organizerBuilder = buildBuilder();
     organizerBuilder.first.mockResolvedValue({
       first_name: "Jane",
@@ -543,6 +561,7 @@ describe("MeetsService", () => {
       if (table === "meets") return meetsBuilder;
       if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
       if (table === "meet_images") return imagesBuilder;
+      if (table === "meet_indemnity_templates") return indemnityTemplateBuilder;
       if (table === "users") return organizerBuilder;
       if (table === "meet_attendees") return attendeesBuilder;
       if (table === "meet_meta_values as mv") return metaValuesBuilder;
@@ -566,6 +585,12 @@ describe("MeetsService", () => {
     expect(clonedInsertArg.organizer_id).toBe("organizer-2");
     expect(clonedInsertArg.status_id).toBe(1);
     expect(clonedInsertArg.checkin_completed).toBe(false);
+    expect(indemnityTemplateBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meet_id: "meet-2",
+        object_key: "meets/meet-1/indemnity/form.pdf",
+      }),
+    );
     expect(clonedInsertArg.start_time).toBeNull();
     expect(clonedInsertArg.end_time).toBeNull();
     expect(clonedInsertArg.opening_date).toBeNull();
@@ -1085,6 +1110,33 @@ describe("MeetsService", () => {
     ).resolves.toBe(true);
   });
 
+  it("does not require electronic acceptance when a meet has a PDF indemnity", async () => {
+    const service = new MeetsService(
+      { getClient: jest.fn() } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+    jest.spyOn(service, "findOne").mockResolvedValue({
+      id: "meet-1",
+      hasIndemnity: true,
+      hasPdfIndemnityTemplate: true,
+      metaDefinitions: [],
+    } as any);
+    jest.spyOn(service, "findAttendeeForEdit").mockResolvedValue({
+      attendee: {
+        id: "attendee-1",
+        name: "Sam",
+        email: "sam@example.com",
+        phone: "+27123456789",
+        indemnityAccepted: false,
+        metaValues: [],
+      },
+    } as any);
+
+    await expect(
+      service.attendeeHasMissingFields("meet-1", "attendee-1"),
+    ).resolves.toBe(false);
+  });
+
   it("skips exact email-name duplicates and returns email conflicts with different names", async () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.select.mockResolvedValue([
@@ -1322,7 +1374,12 @@ describe("MeetsService", () => {
 
     const metaDefinitionsBuilder = buildBuilder();
     metaDefinitionsBuilder.select.mockResolvedValue([
-      { id: "meta-1", field_key: "fitness" },
+      {
+        id: "meta-1",
+        field_key: "fitness",
+        category: "M",
+        pdf_form_field_id: "Fitness level",
+      },
       { id: "meta-2", field_key: "dietary" },
     ]);
     metaDefinitionsBuilder.update.mockResolvedValue([]);
@@ -1347,8 +1404,9 @@ describe("MeetsService", () => {
         {
           id: "meta-1",
           fieldKey: "fitness",
-          label: "Fitness",
+          label: "How would you rate your fitness?",
           fieldType: "text",
+          category: "T",
           required: true,
         },
         {
@@ -1371,9 +1429,11 @@ describe("MeetsService", () => {
     });
     expect(metaDefinitionsBuilder.update).toHaveBeenNthCalledWith(2, {
       field_key: "fitness",
-      label: "Fitness",
+      label: "How would you rate your fitness?",
       field_type: "text",
       required: true,
+      category: "T",
+      pdf_form_field_id: "Fitness level",
       position: 0,
       config: {},
       updated_at: "now",
@@ -1385,6 +1445,7 @@ describe("MeetsService", () => {
         label: "Pace",
         field_type: "select",
         required: false,
+        category: "N",
         position: 1,
         config: { options: ["Slow", "Fast"] },
       }),

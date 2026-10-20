@@ -40,7 +40,7 @@ const meetFixture = {
   metaDefinitions: [],
 };
 
-let currentMeetFixture = meetFixture;
+let currentMeetFixture: Record<string, any> = meetFixture;
 let mockedOrganization = {
   id: "org-1",
   name: "Adventure Meets",
@@ -251,6 +251,23 @@ describe("CreateMeetModal edit mode", () => {
     ).toBeChecked();
   });
 
+  it("maps legacy form-based question categories to None", () => {
+    const state = mapMeetToState({
+      ...meetFixture,
+      metaDefinitions: [
+        {
+          id: "question-1",
+          fieldKey: "experience",
+          label: "Experience",
+          fieldType: "text",
+          category: "F",
+        },
+      ],
+    });
+
+    expect(state.questions[0].category).toBe("N");
+  });
+
   it("automatically enables self check-in when walk-ins are enabled", async () => {
     const user = userEvent.setup();
     currentMeetFixture = {
@@ -327,6 +344,47 @@ describe("CreateMeetModal edit mode", () => {
         requirePhone: true,
         requireOrg1: true,
         requireOrg2: true,
+      }),
+      "meet-1",
+    );
+  });
+
+  it("saves a changed PDF question category without losing its form field mapping", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      metaDefinitions: [
+        {
+          id: "question-1",
+          fieldKey: "pdf-parent-name",
+          label: "Parent name",
+          fieldType: "text",
+          category: "P",
+          pdfFormFieldId: "ParentName",
+          required: false,
+          config: { source: "indemnity-pdf" },
+        },
+      ],
+    };
+
+    renderCreateMeetModal();
+    await user.click(screen.getByText("Questions"));
+    await user.click(
+      screen.getByRole("button", { name: "Category for Parent name: PDF" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Medical" }));
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metaDefinitions: [
+          expect.objectContaining({
+            id: "question-1",
+            category: "M",
+            pdfFormFieldId: "ParentName",
+            fieldKey: "pdf-parent-name",
+          }),
+        ],
       }),
       "meet-1",
     );

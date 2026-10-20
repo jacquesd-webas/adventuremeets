@@ -43,6 +43,18 @@ export class AuditLogService {
   constructor(private readonly database: DatabaseService) {}
 
   private async getSubjectLabel(input: CreateAuditLogInput) {
+    if (input.userId) {
+      const user = await this.database
+        .getClient()("users")
+        .where({ id: input.userId })
+        .select("first_name", "last_name")
+        .first();
+
+      return (
+        [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "User"
+      );
+    }
+
     if (input.attendeeId) {
       const attendee = await this.database
         .getClient()("meet_attendees")
@@ -52,18 +64,6 @@ export class AuditLogService {
 
       const attendeeName = attendee?.name?.trim();
       return attendeeName || "Attendee";
-    }
-
-    if (input.userId) {
-      const user = await this.database
-        .getClient()("users")
-        .where({ id: input.userId })
-        .select("first_name", "last_name")
-        .first();
-
-      if (user?.first_name && user?.last_name) {
-        return `${user.first_name} ${user.last_name}`;
-      }
     }
 
     return "User";
@@ -176,5 +176,24 @@ export class AuditLogService {
       limit,
       total: Number(countRow?.count ?? 0),
     };
+  }
+
+  async findAttendeeMeetRecords(
+    orgId: string,
+    meetId: string,
+    attendeeId: string,
+  ): Promise<Pick<AuditLogRecord, "id" | "timestamp" | "description">[]> {
+    const rows = await this.database
+      .getClient()("audit_log")
+      .where({ org_id: orgId, meet_id: meetId, attendee_id: attendeeId })
+      .select("id", "created_at", "description")
+      .orderBy("created_at", "desc")
+      .orderBy("id", "desc");
+
+    return rows.map((row: any) => ({
+      id: row.id,
+      timestamp: row.created_at,
+      description: row.description,
+    }));
   }
 }

@@ -7,6 +7,7 @@ type ApiOptions = {
 
 type RequestModeOptions = {
   includeJsonContentType?: boolean;
+  responseType?: "json" | "blob";
 };
 
 class ApiError extends Error {
@@ -144,7 +145,8 @@ export function useApi(options: ApiOptions = {}) {
     isRetry = false,
     modeOptions: RequestModeOptions = {},
   ): Promise<T> {
-    const { includeJsonContentType = true } = modeOptions;
+    const { includeJsonContentType = true, responseType = "json" } =
+      modeOptions;
     const token = getAccessToken();
     const headers = mergeHeaders(
       buildHeaders(token, includeJsonContentType),
@@ -194,11 +196,21 @@ export function useApi(options: ApiOptions = {}) {
     if (res.status === 204) {
       return undefined as T;
     }
+    if (responseType === "blob") {
+      return (await res.blob()) as T;
+    }
     return (await res.json()) as T;
   }
 
   async function get<T>(path: string, init?: RequestInit) {
     return request<T>(path, { ...init, method: "GET" });
+  }
+
+  async function getBlob(path: string, init?: RequestInit) {
+    return request<Blob>(path, { ...init, method: "GET" }, false, {
+      includeJsonContentType: false,
+      responseType: "blob",
+    });
   }
 
   async function post<T>(path: string, body?: Json, init?: RequestInit) {
@@ -234,5 +246,5 @@ export function useApi(options: ApiOptions = {}) {
     return request<T>(path, { ...init, method: "DELETE" });
   }
 
-  return { baseUrl, get, post, patch, postForm, del };
+  return { baseUrl, get, getBlob, post, patch, postForm, del };
 }

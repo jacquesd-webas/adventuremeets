@@ -14,6 +14,7 @@ export function mapTemplateDefinitionsToQuestions(template?: Template) {
       ? (definition.fieldType as CreateMeetState["questions"][number]["type"])
       : "text",
     label: definition.label || "",
+    category: "N" as const,
     required: Boolean(definition.required),
     includeInReports: definition.config?.includeInReports ?? false,
     options:

@@ -479,11 +479,18 @@ export class MeetsService {
         "label",
         "field_type",
         "required",
+        "category",
         "position",
+        "pdf_form_field_id",
         "config",
       );
+    const indemnityTemplate = await this.db
+      .getClient()("meet_indemnity_templates")
+      .where({ meet_id: meet.id })
+      .first("meet_id");
     const meetWithImage = {
       ...meet,
+      has_pdf_indemnity_template: Boolean(indemnityTemplate),
       image_url: images[0]?.url ?? meet.image_url ?? undefined,
     };
     const attendingAttendees =
@@ -535,7 +542,19 @@ export class MeetsService {
       const sourceMetaDefinitions = await trx("meet_meta_definitions")
         .where({ meet_id: id })
         .orderBy("position", "asc")
-        .select("field_key", "label", "field_type", "required", "config");
+        .select(
+          "field_key",
+          "label",
+          "field_type",
+          "required",
+          "category",
+          "pdf_form_field_id",
+          "config",
+        );
+
+      const sourceIndemnityTemplate = await trx("meet_indemnity_templates")
+        .where({ meet_id: id })
+        .first("object_key", "filename");
 
       const sourceImages = await trx("meet_images")
         .where({ meet_id: id })
@@ -582,9 +601,20 @@ export class MeetsService {
             label: definition.label,
             fieldType: definition.field_type,
             required: definition.required,
+            category: definition.category,
+            pdfFormFieldId: definition.pdf_form_field_id,
             config: definition.config ?? {},
           })),
         );
+      }
+
+      if (sourceIndemnityTemplate) {
+        await trx("meet_indemnity_templates").insert({
+          meet_id: clonedMeet.id,
+          object_key: sourceIndemnityTemplate.object_key,
+          filename: sourceIndemnityTemplate.filename,
+          created_at: now,
+        });
       }
 
       if (sourceImages.length > 0) {
@@ -799,7 +829,11 @@ export class MeetsService {
       return true;
     }
 
-    if (meet.hasIndemnity && !attendee.indemnityAccepted) {
+    if (
+      meet.hasIndemnity &&
+      !meet.hasPdfIndemnityTemplate &&
+      !attendee.indemnityAccepted
+    ) {
       return true;
     }
 
@@ -892,7 +926,15 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position", "config");
+      .select(
+        "id",
+        "label",
+        "field_type",
+        "required",
+        "category",
+        "position",
+        "config",
+      );
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -913,6 +955,7 @@ export class MeetsService {
         label: definition.label,
         fieldType: definition.field_type,
         required: definition.required,
+        category: definition.category ?? "N",
         position: definition.position,
         config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
@@ -934,7 +977,15 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position", "config");
+      .select(
+        "id",
+        "label",
+        "field_type",
+        "required",
+        "category",
+        "position",
+        "config",
+      );
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -955,6 +1006,7 @@ export class MeetsService {
         label: definition.label,
         fieldType: definition.field_type,
         required: definition.required,
+        category: definition.category ?? "N",
         position: definition.position,
         config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
@@ -2586,6 +2638,7 @@ export class MeetsService {
       rejectMessage: meet.reject_message ?? meet.rejectMessage ?? undefined,
       waitlistMessage: meet.waitlist_message ?? undefined,
       hasIndemnity: meet.has_indemnity ?? undefined,
+      hasPdfIndemnityTemplate: meet.has_pdf_indemnity_template ?? undefined,
       indemnity: meet.indemnity ?? undefined,
       allowMinorIndemnity: meet.allow_minor_indemnity ?? undefined,
       needIndemnityConfirmationEmail:
@@ -2623,7 +2676,9 @@ export class MeetsService {
         label: definition.label,
         fieldType: definition.field_type,
         required: definition.required,
+        category: definition.category ?? "N",
         position: definition.position,
+        pdfFormFieldId: definition.pdf_form_field_id ?? null,
         config: definition.config,
       })),
     };
@@ -2779,6 +2834,8 @@ export class MeetsService {
         label: definition.label,
         field_type: definition.fieldType,
         required: Boolean(definition.required),
+        category: definition.category,
+        pdf_form_field_id: definition.pdfFormFieldId,
         position: index,
         config: definition.config ?? {},
       }))
@@ -2789,9 +2846,11 @@ export class MeetsService {
 
     const existing = (await trx("meet_meta_definitions")
       .where({ meet_id: meetId })
-      .select("id", "field_key")) as Array<{
+      .select("id", "field_key", "category", "pdf_form_field_id")) as Array<{
       id: string;
       field_key: string;
+      category: "T" | "M" | "I" | "N" | "P";
+      pdf_form_field_id: string | null;
     }>;
 
     const existingById = new Map(
@@ -2808,6 +2867,8 @@ export class MeetsService {
       label: string;
       field_type: string;
       required: boolean;
+      category: "T" | "M" | "I" | "N" | "P";
+      pdf_form_field_id: string | null;
       position: number;
       config: Record<string, any>;
     }> = [];
@@ -2817,6 +2878,8 @@ export class MeetsService {
       label: string;
       field_type: string;
       required: boolean;
+      category: "T" | "M" | "I" | "N" | "P";
+      pdf_form_field_id: string | null;
       position: number;
       config: Record<string, any>;
     }> = [];
@@ -2844,6 +2907,11 @@ export class MeetsService {
           label: definition.label,
           field_type: definition.field_type,
           required: definition.required,
+          category: definition.category ?? matched.category ?? "N",
+          pdf_form_field_id:
+            definition.pdf_form_field_id === undefined
+              ? matched.pdf_form_field_id
+              : definition.pdf_form_field_id,
           position: definition.position,
           config: definition.config,
         });
@@ -2856,6 +2924,8 @@ export class MeetsService {
         label: definition.label,
         field_type: definition.field_type,
         required: definition.required,
+        category: definition.category ?? "N",
+        pdf_form_field_id: definition.pdf_form_field_id ?? null,
         position: definition.position,
         config: definition.config,
       });
@@ -2899,6 +2969,8 @@ export class MeetsService {
           label: definition.label,
           field_type: definition.field_type,
           required: definition.required,
+          category: definition.category,
+          pdf_form_field_id: definition.pdf_form_field_id,
           position: definition.position,
           config: definition.config,
           updated_at: updatedAtValue,

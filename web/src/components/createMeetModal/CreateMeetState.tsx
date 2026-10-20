@@ -13,11 +13,13 @@ export const steps = [
 export type QuestionField = {
   id: string;
   type: "text" | "select" | "switch" | "checkbox";
+  category?: "T" | "M" | "I" | "N" | "P";
   label: string;
   required?: boolean;
   includeInReports?: boolean;
   options?: string[];
   fieldKey?: string;
+  pdfFormFieldId?: string;
   optionsInput?: string;
 };
 
@@ -57,6 +59,7 @@ export type CreateMeetState = {
   waitlistResponse: string;
   indemnityAccepted: boolean;
   indemnityText: string;
+  usePdfIndemnity: boolean;
   allowMinorSign: boolean;
   needIndemnityConfirmationEmail: boolean;
   needIndemnityConfirmationPhone: boolean;
@@ -105,6 +108,7 @@ export const initialState: CreateMeetState = {
   waitlistResponse: "",
   indemnityAccepted: false,
   indemnityText: "",
+  usePdfIndemnity: false,
   allowMinorSign: false,
   needIndemnityConfirmationEmail: false,
   needIndemnityConfirmationPhone: false,
@@ -176,6 +180,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     waitlistResponse: meet.waitlistMessage ?? "",
     indemnityAccepted: meet.hasIndemnity ?? false,
     indemnityText: meet.indemnity ?? "",
+    usePdfIndemnity: meet.hasPdfIndemnityTemplate ?? false,
     allowMinorSign: meet.allowMinorIndemnity ?? false,
     needIndemnityConfirmationEmail:
       meet.needIndemnityConfirmationEmail ?? false,
@@ -188,6 +193,13 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
             crypto.randomUUID?.() ??
             Math.random().toString(36).slice(2),
           type: definition.fieldType ?? definition.field_type ?? "text", // XXX TODO: fix this
+          category:
+            definition.category === "F"
+              ? "N"
+              : (definition.category ??
+                ((definition.pdfFormFieldId ?? definition.pdf_form_field_id)
+                  ? "P"
+                  : "N")),
           label: definition.label ?? "",
           required: definition.required ?? false,
           includeInReports: definition.config?.includeInReports ?? false,
@@ -199,6 +211,10 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
             : "",
           fieldKey:
             definition.fieldKey ?? definition.field_key ?? definition.id,
+          pdfFormFieldId:
+            definition.pdfFormFieldId ??
+            definition.pdf_form_field_id ??
+            undefined,
         }))
       : [],
     statusId: meet.statusId ?? null,

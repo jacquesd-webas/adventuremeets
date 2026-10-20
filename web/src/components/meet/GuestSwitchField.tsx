@@ -5,38 +5,40 @@ import {
   Stack,
   Switch,
   TextField,
-} from "@mui/material"
-import type { ReactNode } from "react"
-import { GuestInput } from "../../types/GuestInput"
+} from "@mui/material";
+import type { ReactNode } from "react";
+import { GuestInput } from "../../types/GuestInput";
 type LabeledFieldComponent = (props: {
-  label: string
-  required?: boolean
-  children: ReactNode
-}) => JSX.Element
+  label: string;
+  required?: boolean;
+  children: ReactNode;
+}) => JSX.Element;
 
 type GuestSwitchFieldProps = {
-  allowGuests: boolean
-  disabled?: boolean
-  wantsGuests: boolean
-  guests: GuestInput[]
-  maxGuests: number
-  onToggle: (checked: boolean) => void
-  onGuestsChange: (guests: GuestInput[]) => void
-  LabeledFieldComponent: LabeledFieldComponent
-}
+  allowGuests: boolean;
+  disabled?: boolean;
+  wantsGuests: boolean;
+  guests: GuestInput[];
+  guestErrors?: Record<string, string>;
+  maxGuests: number;
+  onToggle: (checked: boolean) => void;
+  onGuestsChange: (guests: GuestInput[]) => void;
+  LabeledFieldComponent: LabeledFieldComponent;
+};
 
 export function GuestSwitchField({
   allowGuests,
   disabled = false,
   wantsGuests,
   guests,
+  guestErrors = {},
   maxGuests,
   onToggle,
   onGuestsChange,
   LabeledFieldComponent,
 }: GuestSwitchFieldProps) {
-  if (!allowGuests || disabled) return null
-  const canAddGuests = maxGuests <= 0 || guests.length < maxGuests
+  if (!allowGuests || disabled) return null;
+  const canAddGuests = maxGuests <= 0 || guests.length < maxGuests;
 
   return (
     <Stack spacing={1}>
@@ -52,18 +54,22 @@ export function GuestSwitchField({
       {wantsGuests && !disabled && (
         <Stack spacing={1}>
           {guests.map((guest, index) => (
-            <Box key={index}>
-              <LabeledFieldComponent
-                label={`Guest ${index + 1} name`}
-                required
-              >
+            <Box
+              key={index}
+              data-signup-error={
+                guestErrors[`guest:${index}`] ? "true" : undefined
+              }
+            >
+              <LabeledFieldComponent label={`Guest ${index + 1} name`} required>
                 <TextField
                   value={guest.name}
                   onChange={(e) => {
-                    const next = [...guests]
-                    next[index] = { ...next[index], name: e.target.value }
-                    onGuestsChange(next)
+                    const next = [...guests];
+                    next[index] = { ...next[index], name: e.target.value };
+                    onGuestsChange(next);
                   }}
+                  error={Boolean(guestErrors[`guest:${index}`])}
+                  helperText={guestErrors[`guest:${index}`]}
                   fullWidth
                 />
               </LabeledFieldComponent>
@@ -79,12 +85,12 @@ export function GuestSwitchField({
                     <Switch
                       checked={guest.isMinor}
                       onChange={(e) => {
-                        const next = [...guests]
+                        const next = [...guests];
                         next[index] = {
                           ...next[index],
                           isMinor: e.target.checked,
-                        }
-                        onGuestsChange(next)
+                        };
+                        onGuestsChange(next);
                       }}
                     />
                   }
@@ -94,8 +100,8 @@ export function GuestSwitchField({
                   size="small"
                   color="inherit"
                   onClick={() => {
-                    const next = guests.filter((_, idx) => idx !== index)
-                    onGuestsChange(next)
+                    const next = guests.filter((_, idx) => idx !== index);
+                    onGuestsChange(next);
                   }}
                 >
                   Remove
@@ -109,8 +115,8 @@ export function GuestSwitchField({
               variant="outlined"
               disabled={!canAddGuests}
               onClick={() => {
-                if (!canAddGuests) return
-                onGuestsChange([...guests, { name: "", isMinor: false }])
+                if (!canAddGuests) return;
+                onGuestsChange([...guests, { name: "", isMinor: false }]);
               }}
             >
               {canAddGuests ? "+ Add guest" : "Guest limit reached"}
@@ -119,5 +125,5 @@ export function GuestSwitchField({
         </Stack>
       )}
     </Stack>
-  )
+  );
 }

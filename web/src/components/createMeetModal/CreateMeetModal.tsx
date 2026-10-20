@@ -101,6 +101,7 @@ export function CreateMeetModal({
   const [showSteps, setShowSteps] = useState(!fullScreen);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const previewRestoreAppliedRef = useRef(false);
+  const initializedMeetIdRef = useRef<string | null>(null);
   const orgDefaultsAppliedKeyRef = useRef<string | null>(null);
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
@@ -169,6 +170,7 @@ export function CreateMeetModal({
   // Reset to first step when opened/closed
   useEffect(() => {
     if (!open) {
+      initializedMeetIdRef.current = null;
       setActiveStep(0);
       setHelpBannerState({});
       setIsAdminUnlockEnabled(false);
@@ -267,7 +269,7 @@ export function CreateMeetModal({
   useEffect(() => {
     if (!open || !meetIdProp) return;
     setIsLoadingMeet(isFetchingMeet);
-    if (fetchedMeet) {
+    if (fetchedMeet && initializedMeetIdRef.current !== meetIdProp) {
       const mapped = mapMeetToState(fetchedMeet as Record<string, any>);
       setState(mapped);
       setBaselineState(mapped);
@@ -282,6 +284,7 @@ export function CreateMeetModal({
           null,
       );
       setFieldErrors([]);
+      initializedMeetIdRef.current = meetIdProp;
     }
   }, [open, meetIdProp, fetchedMeet, isFetchingMeet]);
 
@@ -443,7 +446,9 @@ export function CreateMeetModal({
       case 2:
         return {
           hasIndemnity: draft.indemnityAccepted,
-          indemnity: draft.indemnityText || undefined,
+          indemnity: draft.usePdfIndemnity
+            ? ""
+            : draft.indemnityText || undefined,
           allowMinorIndemnity: draft.allowMinorSign,
           needIndemnityConfirmationEmail: draft.needIndemnityConfirmationEmail,
           needIndemnityConfirmationPhone: draft.needIndemnityConfirmationPhone,
@@ -456,19 +461,36 @@ export function CreateMeetModal({
           requireOrg2: draft.requireOrg2,
           metaDefinitions: draft.questions.map((question, index) => ({
             id: question.id,
-            fieldKey: draft.organizationId
-              ? buildMeetQuestionFieldKey(draft.organizationId, question.label)
-              : question.fieldKey || question.id || `field_${index + 1}`,
+            fieldKey:
+              question.pdfFormFieldId && question.fieldKey
+                ? question.fieldKey
+                : draft.organizationId
+                  ? buildMeetQuestionFieldKey(
+                      draft.organizationId,
+                      question.label,
+                    )
+                  : question.fieldKey || question.id || `field_${index + 1}`,
             label: question.label,
             fieldType: question.type,
+            category:
+              question.category ?? (question.pdfFormFieldId ? "P" : "N"),
             required: Boolean(question.required),
+            pdfFormFieldId: question.pdfFormFieldId ?? null,
             config:
               question.type === "select"
                 ? {
                     options: question.options ?? [],
                     includeInReports: Boolean(question.includeInReports),
+                    ...(question.pdfFormFieldId
+                      ? { source: "indemnity-pdf" }
+                      : {}),
                   }
-                : { includeInReports: Boolean(question.includeInReports) },
+                : {
+                    includeInReports: Boolean(question.includeInReports),
+                    ...(question.pdfFormFieldId
+                      ? { source: "indemnity-pdf" }
+                      : {}),
+                  },
           })),
         };
       case 4:
@@ -796,6 +818,7 @@ export function CreateMeetModal({
       case 2:
         return (
           <IndemnityStep
+            meetId={meetId}
             state={state}
             setState={(fn) => setState(fn)}
             disabled={isMeetLocked}
