@@ -13,7 +13,10 @@ import {
 } from "./dto/create-meet.dto";
 import { MeetDto } from "./dto/meet.dto";
 import { MeetImageDto } from "./dto/meet-image.dto";
-import { CreateMeetAttendeeDto } from "../attendees/dto/create-meet-attendee.dto";
+import {
+  CreateMeetAttendeeDto,
+  GuestInputDto,
+} from "../attendees/dto/create-meet-attendee.dto";
 import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetAttendeeDto } from "../attendees/dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
@@ -781,6 +784,7 @@ export class MeetsService {
         "phone",
         "name",
         "guests",
+        "guests_list",
         "guest_of",
         "is_minor",
         "guardian_name",
@@ -1154,6 +1158,31 @@ export class MeetsService {
     }, {});
   }
 
+  private validateGuests(
+    meet: { named_guests?: boolean; max_guests?: number | null },
+    count: number | undefined,
+    guestsList: GuestInputDto[] | undefined,
+  ): GuestInputDto[] {
+    const guestCount = count ?? 0;
+    if (meet.max_guests && guestCount > meet.max_guests) {
+      throw new BadRequestException(
+        `You may bring up to ${meet.max_guests} guests`,
+      );
+    }
+    if (!meet.named_guests || guestCount === 0) return [];
+    if (
+      !guestsList ||
+      guestsList.length !== guestCount ||
+      guestsList.some((guest) => !guest.name?.trim())
+    ) {
+      throw new BadRequestException("Each guest must have a name");
+    }
+    return guestsList.map((guest) => ({
+      name: guest.name.trim(),
+      isMinor: guest.isMinor === true,
+    }));
+  }
+
   async addAttendee(
     meetId: string,
     dto: CreateMeetAttendeeDto,
@@ -1174,10 +1203,17 @@ export class MeetsService {
             "auto_placement",
             "checkin_pin",
             "need_indemnity_confirmation_email",
+            "named_guests",
+            "max_guests",
           );
         if (!meet) {
           throw new NotFoundException("Meet not found");
         }
+        const guestsList = this.validateGuests(
+          meet,
+          dto.guests,
+          dto.guestsList,
+        );
 
         const guardianName =
           dto.GuardianName ?? (dto as any).guardianName ?? null;
@@ -1227,6 +1263,8 @@ export class MeetsService {
             "email",
             "phone",
             "user_id",
+            "guests",
+            "guests_list",
           );
           const normalizedName = (dto.name || "").trim().toLowerCase();
           let invited = candidates.length === 1 ? candidates[0] : undefined;
@@ -1259,6 +1297,10 @@ export class MeetsService {
                   org1_value: dto.org1Value ?? invited.org1_value ?? null,
                   org2_value: dto.org2Value ?? invited.org2_value ?? null,
                   guests: dto.guests ?? invited.guests ?? null,
+                  guests_list:
+                    dto.guests === undefined
+                      ? invited.guests_list
+                      : JSON.stringify(guestsList),
                   is_minor: dto.isMinor ?? invited.is_minor ?? false,
                   guardian_name: guardianName,
                   indemnity_accepted: indemnityAccepted,
@@ -1358,6 +1400,7 @@ export class MeetsService {
             org1_value: dto.org1Value ?? null,
             org2_value: dto.org2Value ?? null,
             guests: dto.guests ?? null,
+            guests_list: JSON.stringify(guestsList),
             guest_of: dto.guestOf ?? null,
             sequence: nextSequence,
             is_minor: dto.isMinor ?? false,
@@ -1913,6 +1956,14 @@ export class MeetsService {
   ) {
     try {
       const updated = await this.db.getClient().transaction(async (trx) => {
+        let guestsList: GuestInputDto[] | undefined;
+        if (dto.guests !== undefined) {
+          const meet = await trx("meets")
+            .where({ id: meetId })
+            .first("named_guests", "max_guests");
+          if (!meet) throw new NotFoundException("Meet not found");
+          guestsList = this.validateGuests(meet, dto.guests, dto.guestsList);
+        }
         const guardianName =
           dto.GuardianName ?? (dto as any).guardianName ?? undefined;
         let statusOverride: string | undefined;
@@ -1934,6 +1985,10 @@ export class MeetsService {
               org1_value: dto.org1Value,
               org2_value: dto.org2Value,
               guests: dto.guests,
+              guests_list:
+                guestsList === undefined
+                  ? undefined
+                  : JSON.stringify(guestsList),
               is_minor: dto.isMinor,
               guardian_name: guardianName,
               indemnity_accepted: dto.indemnityAccepted,
@@ -2454,6 +2509,7 @@ export class MeetsService {
       auto_placement: dto.autoPlacement,
       auto_promote_waitlist: dto.autoPromoteWaitlist,
       allow_guests: dto.allowGuests,
+      named_guests: dto.namedGuests,
       checkin_pin: this.resolveCheckinPin(
         dto.allowSelfCheckin,
         existingMeet?.checkin_pin,
@@ -2620,6 +2676,7 @@ export class MeetsService {
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,
+      namedGuests: meet.named_guests ?? undefined,
       allowSelfCheckin:
         meet.checkin_pin === undefined ? undefined : Boolean(meet.checkin_pin),
       checkinPin: meet.checkin_pin ?? undefined,
@@ -3178,6 +3235,7 @@ export class MeetsService {
       org1Value: attendee.org1_value ?? undefined,
       org2Value: attendee.org2_value ?? undefined,
       guests: attendee.guests ?? undefined,
+      guestsList: attendee.guests_list ?? undefined,
       guestOf: attendee.guest_of ?? undefined,
       isMinor: attendee.is_minor ?? undefined,
       guardianName: attendee.guardian_name ?? undefined,

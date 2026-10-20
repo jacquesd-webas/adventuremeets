@@ -71,7 +71,7 @@ export function SelectTemplate({
         }}
       >
         <Select
-          aria-label="Template"
+          SelectDisplayProps={{ "aria-label": "Template" }}
           value={selectedId}
           displayEmpty
           onChange={(event) => setSelectedId(event.target.value)}

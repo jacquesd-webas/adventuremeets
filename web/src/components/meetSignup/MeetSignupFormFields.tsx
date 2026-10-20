@@ -347,6 +347,7 @@ export function MeetSignupFormFields({
       ) : null}
       <GuestSwitchField
         allowGuests={Boolean(meet.allowGuests)}
+        namedGuests={Boolean(meet.namedGuests)}
         disabled={disableGuests}
         wantsGuests={wantsGuests}
         guests={guests}

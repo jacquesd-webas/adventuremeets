@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 
 export type AddAttendeePayload = {
@@ -29,6 +29,7 @@ type AddAttendeeResponse = {
 
 export function useAddAttendee() {
   const api = useApi();
+  const queryClient = useQueryClient();
 
   const mutation = useMutation<AddAttendeeResponse, Error, AddAttendeePayload>({
     mutationFn: async ({ meetId, ...payload }) => {
@@ -36,6 +37,12 @@ export function useAddAttendee() {
         `/meets/${meetId}/attendees`,
         payload,
       );
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["meet"] });
+      queryClient.invalidateQueries({
+        queryKey: ["meet-attendees", variables.meetId],
+      });
     },
   });
 

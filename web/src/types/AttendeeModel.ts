@@ -13,6 +13,7 @@ export type Attendee = {
   phone?: string;
   email?: string;
   guests: number;
+  guestsList?: { name: string; isMinor: boolean }[];
   guestOf?: string;
   isMinor?: boolean;
   guardianName?: string;

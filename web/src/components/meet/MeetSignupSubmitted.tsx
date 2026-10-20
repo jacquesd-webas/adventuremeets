@@ -29,6 +29,8 @@ type MeetSignupSubmittedProps = {
   attendeeId?: string;
   shareCode?: string;
   hasIndemnity: boolean;
+  hasPdfIndemnityTemplate?: boolean;
+  namedGuests?: boolean;
   guests?: GuestInput[];
   isMinor?: boolean;
   isGuest?: boolean;
@@ -48,6 +50,8 @@ export function MeetSignupSubmitted({
   attendeeId,
   shareCode,
   hasIndemnity,
+  hasPdfIndemnityTemplate = false,
+  namedGuests = false,
   isMinor = false,
   isGuest = false,
   guests = [],
@@ -86,13 +90,25 @@ export function MeetSignupSubmitted({
   };
 
   const shareLink =
-    shareCode && typeof window !== "undefined"
+    shareCode && attendeeId && typeof window !== "undefined"
       ? `${window.location.origin}/meets/${shareCode}?guestOf=${attendeeId}`
       : "";
 
-  const handleCopyLink = async () => {
+  const getGuestInviteLink = (guestName: string) => {
+    if (!shareLink || !guestName.trim()) return shareLink;
+    const url = new URL(shareLink);
+    url.searchParams.set("name", guestName.trim());
+    return url.toString();
+  };
+
+  const handleCopyLink = async (guestName: string) => {
     if (!shareLink || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(shareLink);
+    try {
+      await navigator.clipboard.writeText(getGuestInviteLink(guestName));
+      notice.success("Guest invite link copied");
+    } catch {
+      notice.error("Unable to copy guest invite link");
+    }
   };
 
   const handleSignIndemnity = (guestName: string) => {
@@ -106,17 +122,14 @@ export function MeetSignupSubmitted({
     nav(url.pathname + url.search);
   };
 
-  const handleSendInvite = (guestName: string) => {
-    if (!shareLink) return;
+  const getSendInviteHref = (guestName: string) => {
     const subject = encodeURIComponent("Meet invite");
     const body = encodeURIComponent(
-      `Hi ${guestName || "there"},\n\n${wording.minorInviteMessage}: ${shareLink}`,
+      `Hi ${guestName || "there"},\n\n${wording.minorInviteMessage}: ${getGuestInviteLink(guestName)}`,
     );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    return `mailto:?subject=${subject}&body=${body}`;
   };
 
-  const hasMinorIndemnity =
-    hasIndemnity && guests.some((guest) => guest.isMinor);
   const canRememberAnswers =
     isAuthenticated &&
     !isGuest &&
@@ -225,23 +238,20 @@ export function MeetSignupSubmitted({
               </Stack>
             </>
           )}
-          {guests.length > 0 && (
+          {guests.length > 0 && (namedGuests || hasIndemnity) && (
             <Box sx={{ width: "100%", pt: 1, textAlign: "left" }}>
               <Typography variant="subtitle1" fontWeight={700}>
-                {hasIndemnity
-                  ? "Guest Indemnity Required"
-                  : "Guest Information"}
+                Guest Information
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                You may optionally send your guests an invite link so that they
+                also receive notifications about the meet.
               </Typography>
               {hasIndemnity && (
                 <Typography variant="body2" color="text.secondary">
-                  Guests need to sign an indemnity for this meet. Please use the
-                  buttons on the right to send them the link to sign up and sign
-                  the indemnity.{" "}
-                  {hasMinorIndemnity && (
-                    <strong>
-                      Minors need to have a parent or guardian fill in the form.
-                    </strong>
-                  )}
+                  Bear in mind that this meet does require indemnity to be
+                  accepted, so check with the organiser if you need your guests
+                  to fill in the form.
                 </Typography>
               )}
               <Stack spacing={1} sx={{ width: "100%", pt: 1 }}>
@@ -264,20 +274,25 @@ export function MeetSignupSubmitted({
                       {guest.name || `Guest ${index + 1}`}
                     </Typography>
                     <Stack direction="row" spacing={1}>
-                      {guest.isMinor && hasIndemnity && (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={() => handleSignIndemnity(guest.name)}
-                          disabled={!shareLink}
-                        >
-                          Sign indemnity
-                        </Button>
-                      )}
+                      {guest.isMinor &&
+                        hasIndemnity &&
+                        !hasPdfIndemnityTemplate && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => handleSignIndemnity(guest.name)}
+                            disabled={!shareLink}
+                          >
+                            Sign indemnity
+                          </Button>
+                        )}
                       <Button
+                        component="a"
                         size="small"
                         variant="outlined"
-                        onClick={() => handleSendInvite(guest.name)}
+                        href={
+                          shareLink ? getSendInviteHref(guest.name) : undefined
+                        }
                         disabled={!shareLink}
                       >
                         Send invite
@@ -285,7 +300,7 @@ export function MeetSignupSubmitted({
                       <Button
                         size="small"
                         variant="outlined"
-                        onClick={handleCopyLink}
+                        onClick={() => void handleCopyLink(guest.name)}
                         disabled={!shareLink}
                       >
                         Copy link

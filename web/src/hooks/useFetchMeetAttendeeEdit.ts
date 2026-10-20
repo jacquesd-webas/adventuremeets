@@ -10,6 +10,7 @@ type MeetAttendeeEditResponse = {
     org1Value?: string | null;
     org2Value?: string | null;
     guests?: number | null;
+    guestsList?: { name: string; isMinor: boolean }[];
     isMinor?: boolean | null;
     guardianName?: string | null;
     indemnityAccepted?: boolean | null;

@@ -157,6 +157,10 @@ export class MeetDto {
 
   @ApiPropertyOptional()
   @IsBoolean()
+  namedGuests?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
   allowSelfCheckin?: boolean;
 
   @ApiPropertyOptional()

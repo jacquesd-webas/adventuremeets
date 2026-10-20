@@ -159,8 +159,9 @@ export const IndemnityStep = ({
               <Typography>Enable strict indemnity</Typography>
             </Stack>
             <Typography variant="caption" color="text.secondary">
-              Attendees must be signed in to accept indemnity or confirm their
-              acceptance by email.
+              Only enable this if you specifically require attendees to be
+              signed in or confirm their acceptance by email for legal reasons.
+              Usually the normal acceptance of indemnity is enough.
             </Typography>
           </Stack>
         ) : null}

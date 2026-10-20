@@ -863,6 +863,55 @@ describe("MeetsService", () => {
     );
   });
 
+  it("requires and stores each guest name for a named-guests meet", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      auto_placement: false,
+      named_guests: true,
+      max_guests: 2,
+    });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({ max: 0 });
+    attendeeBuilder.insert.mockResolvedValue([{ id: "attendee-1" }]);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (callback: any) => callback(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    await expect(
+      service.addAttendee("meet-1", { name: "Host", guests: 1 }),
+    ).rejects.toThrow(BadRequestException);
+
+    await service.addAttendee("meet-1", {
+      name: "Host",
+      guests: 1,
+      guestsList: [{ name: "  Alex  ", isMinor: false }],
+    });
+    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guests: 1,
+        guests_list: JSON.stringify([{ name: "Alex", isMinor: false }]),
+      }),
+      ["*"],
+    );
+
+    meetBuilder.first.mockResolvedValue({
+      auto_placement: false,
+      named_guests: false,
+    });
+    await service.addAttendee("meet-1", { name: "Another host", guests: 1 });
+    expect(attendeeBuilder.insert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ guests: 1, guests_list: "[]" }),
+      ["*"],
+    );
+  });
+
   it("keeps indemnity unaccepted until anonymous email confirmation", async () => {
     const meetBuilder = buildBuilder();
     meetBuilder.first.mockResolvedValue({

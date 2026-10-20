@@ -44,6 +44,7 @@ export type CreateMeetState = {
   autoApprove: boolean;
   autoCloseWaitlist: boolean;
   allowGuests: boolean;
+  namedGuests: boolean;
   allowSelfCheckin: boolean;
   allowWalkins: boolean;
   requireEmail: boolean;
@@ -93,6 +94,7 @@ export const initialState: CreateMeetState = {
   autoApprove: false,
   autoCloseWaitlist: false,
   allowGuests: false,
+  namedGuests: false,
   allowSelfCheckin: false,
   allowWalkins: false,
   requireEmail: true,
@@ -165,6 +167,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     autoApprove: meet.autoPlacement ?? true,
     autoCloseWaitlist: meet.autoPromoteWaitlist ?? false,
     allowGuests: meet.allowGuests ?? false,
+    namedGuests: meet.namedGuests ?? false,
     allowSelfCheckin: meet.allowSelfCheckin ?? false,
     allowWalkins: meet.allowWalkins ?? false,
     requireEmail: meet.requireEmail ?? false,

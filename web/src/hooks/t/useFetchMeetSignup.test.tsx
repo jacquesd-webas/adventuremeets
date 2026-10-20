@@ -15,6 +15,7 @@ it("includes the PDF indemnity template flag in signup meet data", async () => {
     name: "Mountain Hike",
     hasIndemnity: true,
     hasPdfIndemnityTemplate: true,
+    namedGuests: true,
     metaDefinitions: [
       { id: "meta-1", fieldKey: "travel", label: "Travel", category: "T" },
       { id: "meta-2", fieldKey: "notes", label: "Notes", category: "F" },
@@ -31,6 +32,7 @@ it("includes the PDF indemnity template flag in signup meet data", async () => {
 
   await waitFor(() => {
     expect(result.current.data?.hasPdfIndemnityTemplate).toBe(true);
+    expect(result.current.data?.namedGuests).toBe(true);
     expect(
       result.current.data?.metaDefinitions?.map((field) => field.category),
     ).toEqual(["T", "N"]);

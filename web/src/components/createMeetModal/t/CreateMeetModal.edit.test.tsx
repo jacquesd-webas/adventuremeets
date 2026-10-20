@@ -305,6 +305,25 @@ describe("CreateMeetModal edit mode", () => {
     );
   });
 
+  it("saves the named guests setting from Limits", async () => {
+    const user = userEvent.setup();
+    renderCreateMeetModal();
+
+    await user.click(screen.getByText("Limits"));
+    const namedGuests = screen.getByRole("checkbox", {
+      name: "Must be named guests",
+    });
+    expect(namedGuests).not.toBeChecked();
+
+    await user.click(namedGuests);
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({ namedGuests: true }),
+      "meet-1",
+    );
+  });
+
   it("saves required attendee field flags from the questions step", async () => {
     const user = userEvent.setup();
     currentMeetFixture = {

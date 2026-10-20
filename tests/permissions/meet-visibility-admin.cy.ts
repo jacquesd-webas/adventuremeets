@@ -100,7 +100,7 @@ describe("Meet visibility - admin", () => {
     cy.get('textarea[placeholder="Describe your meet in detail here"]')
       .clear()
       .type("Temporary admin edit that should be discarded.");
-    cy.get('svg[data-testid="CloseIcon"]').last().parent("button").click();
+    cy.get('button[aria-label="Close meet editor"]').click();
     cy.contains("Discard changes?").should("be.visible");
     cy.contains(
       "You have unsaved changes. Leaving this step will discard them.",

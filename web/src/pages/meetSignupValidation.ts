@@ -41,12 +41,20 @@ export function getMeetSignupErrors(
     );
   }
   if (state.wantsGuests) {
-    state.guests.forEach((guest, index) => {
-      addError(
-        `guest:${index}`,
-        validateRequired(guest.name, `Guest ${index + 1} name`),
-      );
-    });
+    if (state.guests.length === 0) {
+      errors.guests = "Enter the number of guests";
+    }
+    if (meet.maxGuests && state.guests.length > meet.maxGuests) {
+      errors.guests = `You may bring up to ${meet.maxGuests} guests`;
+    }
+    if (meet.namedGuests) {
+      state.guests.forEach((guest, index) => {
+        addError(
+          `guest:${index}`,
+          validateRequired(guest.name, `Guest ${index + 1} name`),
+        );
+      });
+    }
   }
   for (const field of meet.metaDefinitions || []) {
     if (!field.required) continue;

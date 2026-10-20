@@ -7,6 +7,7 @@ const meet: Meet = {
   name: "Mountain Hike",
   organizerId: "user-1",
   hasIndemnity: true,
+  namedGuests: true,
   requireEmail: false,
   requirePhone: false,
   metaDefinitions: [
@@ -42,6 +43,25 @@ it("validates minor guardian details, guests, required switches, and indemnity",
     "meta:consent": "Medical consent is required",
     indemnityAccepted: "Accept the indemnity to continue",
   });
+});
+
+it("accepts a guest count without names when the meet does not require named guests", () => {
+  const errors = getMeetSignupErrors(
+    { ...meet, namedGuests: false },
+    state,
+    "",
+  );
+  expect(errors).not.toHaveProperty("guest:0");
+  expect(errors).not.toHaveProperty("guests");
+});
+
+it("requires at least one guest after the guest switch is enabled", () => {
+  const errors = getMeetSignupErrors(
+    { ...meet, namedGuests: false },
+    { ...state, guests: [] },
+    "",
+  );
+  expect(errors.guests).toBe("Enter the number of guests");
 });
 
 it("does not require electronic acceptance when the indemnity is a PDF form", () => {

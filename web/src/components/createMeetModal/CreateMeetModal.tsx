@@ -509,6 +509,7 @@ export function CreateMeetModal({
           autoPlacement: draft.autoApprove,
           autoPromoteWaitlist: draft.autoCloseWaitlist,
           allowGuests: draft.allowGuests,
+          namedGuests: draft.allowGuests && draft.namedGuests,
           allowSelfCheckin: draft.allowSelfCheckin,
           allowWalkins: draft.allowWalkins,
           maxGuests:
@@ -1025,7 +1026,10 @@ export function CreateMeetModal({
                   <VerticalSplitOutlinedIcon />
                 )}
               </IconButton>
-              <IconButton onClick={() => handleCancel()}>
+              <IconButton
+                aria-label="Close meet editor"
+                onClick={() => handleCancel()}
+              >
                 <CloseIcon />
               </IconButton>
             </Stack>

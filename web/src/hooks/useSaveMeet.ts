@@ -26,6 +26,7 @@ export type CreateMeetPayload = {
   autoPlacement?: boolean;
   autoPromoteWaitlist?: boolean;
   allowGuests?: boolean;
+  namedGuests?: boolean;
   allowSelfCheckin?: boolean;
   allowWalkins?: boolean;
   requireEmail?: boolean;

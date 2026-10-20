@@ -81,6 +81,123 @@ describe("MeetSignupSubmitted", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses the named guest link for email invites and copying", async () => {
+    const user = userEvent.setup();
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <AuthContext.Provider
+          value={{
+            user: undefined,
+            isLoading: false,
+            isAuthenticated: false,
+            meUpdatedAt: 0,
+            refreshSession: vi.fn(),
+            logout: vi.fn(),
+          }}
+        >
+          <MeetSignupSubmitted
+            hasIndemnity={false}
+            namedGuests
+            shareCode="share-code"
+            attendeeId="host-1"
+            guests={[{ name: "Guest Person", isMinor: false }]}
+          />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    const guestLink = new URL("/meets/share-code", window.location.origin);
+    guestLink.searchParams.set("guestOf", "host-1");
+    guestLink.searchParams.set("name", "Guest Person");
+    const mailto = new URL(
+      screen.getByRole("link", { name: "Send invite" }).getAttribute("href")!,
+    );
+    expect(mailto.protocol).toBe("mailto:");
+    expect(mailto.searchParams.get("body")).toContain(guestLink.toString());
+
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(writeText).toHaveBeenCalledWith(guestLink.toString());
+    expect(success).toHaveBeenCalledWith("Guest invite link copied");
+    writeText.mockRestore();
+  });
+
+  it.each([
+    {
+      namedGuests: true,
+      hasIndemnity: false,
+      hasPdfIndemnityTemplate: false,
+      showsGuidance: true,
+    },
+    {
+      namedGuests: false,
+      hasIndemnity: true,
+      hasPdfIndemnityTemplate: false,
+      showsGuidance: true,
+    },
+    {
+      namedGuests: false,
+      hasIndemnity: true,
+      hasPdfIndemnityTemplate: true,
+      showsGuidance: true,
+    },
+    {
+      namedGuests: false,
+      hasIndemnity: false,
+      hasPdfIndemnityTemplate: false,
+      showsGuidance: false,
+    },
+  ])(
+    "shows guest guidance for namedGuests=$namedGuests, hasIndemnity=$hasIndemnity, and PDF=$hasPdfIndemnityTemplate",
+    ({ namedGuests, hasIndemnity, hasPdfIndemnityTemplate, showsGuidance }) => {
+      render(
+        <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <AuthContext.Provider
+            value={{
+              user: undefined,
+              isLoading: false,
+              isAuthenticated: false,
+              meUpdatedAt: 0,
+              refreshSession: vi.fn(),
+              logout: vi.fn(),
+            }}
+          >
+            <MeetSignupSubmitted
+              hasIndemnity={hasIndemnity}
+              hasPdfIndemnityTemplate={hasPdfIndemnityTemplate}
+              namedGuests={namedGuests}
+              shareCode="share-code"
+              attendeeId="host-1"
+              guests={[{ name: "Guest Person", isMinor: true }]}
+            />
+          </AuthContext.Provider>
+        </MemoryRouter>,
+      );
+
+      const guidance = screen.queryByText(
+        /You may optionally send your guests an invite link/,
+      );
+      const indemnityNote = screen.queryByText(
+        /check with the organiser if you need your guests/,
+      );
+      expect(Boolean(guidance)).toBe(showsGuidance);
+      expect(Boolean(indemnityNote)).toBe(hasIndemnity);
+      expect(Boolean(screen.queryByRole("link", { name: "Send invite" }))).toBe(
+        showsGuidance,
+      );
+      expect(
+        Boolean(screen.queryByRole("button", { name: "Sign indemnity" })),
+      ).toBe(hasIndemnity && !hasPdfIndemnityTemplate);
+    },
+  );
+
   it("copies answers immediately when remember my answers is checked", async () => {
     const user = userEvent.setup();
 

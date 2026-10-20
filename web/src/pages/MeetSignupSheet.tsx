@@ -185,9 +185,6 @@ function MeetSignupSheet() {
   const disableIdentityFields = Boolean(isAuthenticated);
   const disablePhone = false;
   const disableGuests = Boolean(guestOf);
-  const requiresElectronicIndemnity = Boolean(
-    meet?.hasIndemnity && !meet?.hasPdfIndemnityTemplate,
-  );
   const organizationFieldConfig = meet
     ? {
         customField1Name: meet.customField1Name ?? undefined,
@@ -372,10 +369,11 @@ function MeetSignupSheet() {
     setField("wantsGuests", guestsCount > 0);
     setField(
       "guests",
-      Array.from({ length: Math.max(0, guestsCount) }, () => ({
-        name: "",
-        isMinor: false,
-      })),
+      Array.from(
+        { length: Math.max(0, guestsCount) },
+        (_, index) =>
+          editAttendee.guestsList?.[index] ?? { name: "", isMinor: false },
+      ),
     );
     if (editAttendee.indemnityAccepted !== undefined) {
       setField("indemnityAccepted", Boolean(editAttendee.indemnityAccepted));
@@ -617,7 +615,9 @@ function MeetSignupSheet() {
             meetId={meet?.id}
             attendeeId={submittedAttendeeId || undefined}
             shareCode={code}
-            hasIndemnity={requiresElectronicIndemnity}
+            hasIndemnity={Boolean(meet?.hasIndemnity)}
+            hasPdfIndemnityTemplate={Boolean(meet?.hasPdfIndemnityTemplate)}
+            namedGuests={Boolean(meet?.namedGuests)}
             guests={guests}
             isMinor={isMinor}
             isOrganizationPrivate={privateOrganization?.isPrivate}
@@ -762,7 +762,7 @@ function MeetSignupSheet() {
         isMinor: isMinor,
         GuardianName: isMinor ? guardianName || undefined : undefined,
         guests: wantsGuests ? guests.length : 0,
-        guestsList: wantsGuests ? guests : [],
+        guestsList: wantsGuests && meet.namedGuests ? guests : [],
         indemnityAccepted: meet.hasPdfIndemnityTemplate
           ? false
           : indemnityAccepted,
@@ -792,7 +792,7 @@ function MeetSignupSheet() {
       isMinor: isMinor,
       GuardianName: isMinor ? guardianName || undefined : undefined,
       guests: wantsGuests ? guests.length : 0,
-      guestsList: wantsGuests ? guests : [],
+      guestsList: wantsGuests && meet.namedGuests ? guests : [],
       indemnityAccepted: meet.hasPdfIndemnityTemplate
         ? false
         : indemnityAccepted,

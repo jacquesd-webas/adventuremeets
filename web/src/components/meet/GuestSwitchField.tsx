@@ -2,6 +2,7 @@ import {
   Box,
   Button,
   FormControlLabel,
+  FormHelperText,
   Stack,
   Switch,
   TextField,
@@ -16,6 +17,7 @@ type LabeledFieldComponent = (props: {
 
 type GuestSwitchFieldProps = {
   allowGuests: boolean;
+  namedGuests: boolean;
   disabled?: boolean;
   wantsGuests: boolean;
   guests: GuestInput[];
@@ -28,6 +30,7 @@ type GuestSwitchFieldProps = {
 
 export function GuestSwitchField({
   allowGuests,
+  namedGuests,
   disabled = false,
   wantsGuests,
   guests,
@@ -53,75 +56,111 @@ export function GuestSwitchField({
       />
       {wantsGuests && !disabled && (
         <Stack spacing={1}>
-          {guests.map((guest, index) => (
-            <Box
-              key={index}
-              data-signup-error={
-                guestErrors[`guest:${index}`] ? "true" : undefined
-              }
-            >
-              <LabeledFieldComponent label={`Guest ${index + 1} name`} required>
+          {!namedGuests ? (
+            <Box data-signup-error={guestErrors.guests ? "true" : undefined}>
+              <LabeledFieldComponent label="Number of guests" required>
                 <TextField
-                  value={guest.name}
-                  onChange={(e) => {
-                    const next = [...guests];
-                    next[index] = { ...next[index], name: e.target.value };
-                    onGuestsChange(next);
+                  type="number"
+                  value={guests.length || ""}
+                  onChange={(event) => {
+                    const count = Number(event.target.value);
+                    if (!Number.isInteger(count) || count < 0 || count > 1000)
+                      return;
+                    onGuestsChange(
+                      Array.from(
+                        { length: count },
+                        (_, index) =>
+                          guests[index] ?? { name: "", isMinor: false },
+                      ),
+                    );
                   }}
-                  error={Boolean(guestErrors[`guest:${index}`])}
-                  helperText={guestErrors[`guest:${index}`]}
+                  inputProps={{ min: 1, max: maxGuests > 0 ? maxGuests : 1000 }}
+                  error={Boolean(guestErrors.guests)}
+                  helperText={guestErrors.guests}
                   fullWidth
                 />
               </LabeledFieldComponent>
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mt: 0.5 }}
-              >
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={guest.isMinor}
+            </Box>
+          ) : null}
+          {namedGuests && (
+            <>
+              {guests.map((guest, index) => (
+                <Box
+                  key={index}
+                  data-signup-error={
+                    guestErrors[`guest:${index}`] ? "true" : undefined
+                  }
+                >
+                  <LabeledFieldComponent
+                    label={`Guest ${index + 1} name`}
+                    required
+                  >
+                    <TextField
+                      value={guest.name}
                       onChange={(e) => {
                         const next = [...guests];
-                        next[index] = {
-                          ...next[index],
-                          isMinor: e.target.checked,
-                        };
+                        next[index] = { ...next[index], name: e.target.value };
                         onGuestsChange(next);
                       }}
+                      error={Boolean(guestErrors[`guest:${index}`])}
+                      helperText={guestErrors[`guest:${index}`]}
+                      fullWidth
                     />
-                  }
-                  label="Guest is a minor"
-                />
+                  </LabeledFieldComponent>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ mt: 0.5 }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={guest.isMinor}
+                          onChange={(e) => {
+                            const next = [...guests];
+                            next[index] = {
+                              ...next[index],
+                              isMinor: e.target.checked,
+                            };
+                            onGuestsChange(next);
+                          }}
+                        />
+                      }
+                      label="Guest is a minor"
+                    />
+                    <Button
+                      size="small"
+                      color="inherit"
+                      onClick={() => {
+                        const next = guests.filter((_, idx) => idx !== index);
+                        onGuestsChange(next);
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </Stack>
+                </Box>
+              ))}
+              <Box data-signup-error={guestErrors.guests ? "true" : undefined}>
                 <Button
                   size="small"
-                  color="inherit"
+                  variant="outlined"
+                  disabled={!canAddGuests}
                   onClick={() => {
-                    const next = guests.filter((_, idx) => idx !== index);
-                    onGuestsChange(next);
+                    if (!canAddGuests) return;
+                    onGuestsChange([...guests, { name: "", isMinor: false }]);
                   }}
                 >
-                  Remove
+                  {canAddGuests ? "+ Add guest" : "Guest limit reached"}
                 </Button>
-              </Stack>
-            </Box>
-          ))}
-          <Box>
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={!canAddGuests}
-              onClick={() => {
-                if (!canAddGuests) return;
-                onGuestsChange([...guests, { name: "", isMinor: false }]);
-              }}
-            >
-              {canAddGuests ? "+ Add guest" : "Guest limit reached"}
-            </Button>
-          </Box>
+                {guestErrors.guests && (
+                  <FormHelperText error>{guestErrors.guests}</FormHelperText>
+                )}
+              </Box>
+            </>
+          )}
         </Stack>
       )}
     </Stack>
