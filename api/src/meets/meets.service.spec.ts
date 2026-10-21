@@ -47,6 +47,50 @@ const buildBuilder = () => {
 };
 
 describe("MeetsService", () => {
+  it("uses the latest matching answers from this user's adult signups in the same organization", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({ organization_id: "org-1" });
+    const definitionsBuilder = buildBuilder();
+    definitionsBuilder.select.mockResolvedValue([
+      { field_key: "dietary", label: "Dietary notes", field_type: "text" },
+      { field_key: "water", label: "Bring water?", field_type: "switch" },
+    ]);
+    const valuesBuilder = buildBuilder();
+    valuesBuilder.select.mockResolvedValue([
+      { label: "  DIETARY  notes ", field_type: "text", value: "Vegan" },
+      { label: "Dietary notes", field_type: "text", value: "Vegetarian" },
+      { label: "Bring water?", field_type: "switch", value: "false" },
+      { label: "Unrelated", field_type: "text", value: "Ignore" },
+    ]);
+    const client = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_meta_definitions") return definitionsBuilder;
+      if (table === "meet_meta_values as mv") return valuesBuilder;
+      return buildBuilder();
+    };
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    await expect(
+      service.findPreviousAnswers("user-1", "meet-1"),
+    ).resolves.toEqual({
+      dietary: "Vegan",
+      water: "false",
+    });
+    expect(valuesBuilder.where).toHaveBeenCalledWith("ma.user_id", "user-1");
+    expect(valuesBuilder.where).toHaveBeenCalledWith("ma.is_minor", false);
+    expect(valuesBuilder.where).toHaveBeenCalledWith(
+      "m.organization_id",
+      "org-1",
+    );
+    expect(valuesBuilder.whereNot).toHaveBeenCalledWith("ma.meet_id", "meet-1");
+
+    await service.findPreviousAnswers("user-1", "meet-1", true);
+    expect(valuesBuilder.where).toHaveBeenCalledWith("ma.is_minor", true);
+  });
+
   it("marks check-in complete when completing a meet", async () => {
     const meetsBuilder = buildBuilder();
     meetsBuilder.update.mockResolvedValue([
@@ -522,7 +566,9 @@ describe("MeetsService", () => {
         },
       ])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ field_key: "fitness" }])
+      .mockResolvedValueOnce([
+        { field_key: "fitness", label: "Fitness", field_type: "text" },
+      ])
       .mockResolvedValueOnce([{ id: "meta-2", field_key: "fitness" }]);
 
     const imagesBuilder = buildBuilder();

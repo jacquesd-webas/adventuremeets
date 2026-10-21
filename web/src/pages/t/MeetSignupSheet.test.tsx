@@ -54,7 +54,10 @@ const mockedUser = {
 const mockedUserMetaValues = [
   { key: "dietary", value: "No peanuts" },
   { key: "bringingWater", value: "true" },
+  { key: "acceptTerms", value: "true" },
 ];
+let mockedPreviousAnswers: Record<string, string> = {};
+let mockedMinorPreviousAnswers: Record<string, string> = {};
 let mockedIsAuthenticated = true;
 const addAttendeeAsync = vi.fn().mockResolvedValue({
   attendee: { id: "attendee-1" },
@@ -117,6 +120,17 @@ vi.mock("../../context/authContext", () => ({
 vi.mock("../../hooks/useFetchUserMetaValues", () => ({
   useFetchUserMetaValues: () => ({
     data: mockedUserMetaValues,
+    isLoading: false,
+  }),
+}));
+
+vi.mock("../../hooks/useFetchPreviousMeetAnswers", () => ({
+  useFetchPreviousMeetAnswers: (
+    _meetId: string,
+    _userId: string,
+    isMinor: boolean,
+  ) => ({
+    data: isMinor ? mockedMinorPreviousAnswers : mockedPreviousAnswers,
     isLoading: false,
   }),
 }));
@@ -186,6 +200,8 @@ describe("MeetSignupSheet", () => {
   beforeEach(() => {
     addAttendeeAsync.mockClear();
     mockedIsAuthenticated = true;
+    mockedPreviousAnswers = {};
+    mockedMinorPreviousAnswers = {};
     mockedMeet.statusId = 3;
     mockedMeet.checkinPin = undefined;
     mockedMeet.requireEmail = undefined;
@@ -208,6 +224,17 @@ describe("MeetSignupSheet", () => {
   });
 
   it("autofills the signed-in user's identity, phone, and saved autofill answers", async () => {
+    const user = userEvent.setup();
+    mockedMeet.metaDefinitions = [
+      ...defaultMetaDefinitions,
+      {
+        id: "meta-3",
+        fieldKey: "acceptTerms",
+        label: "Accept terms?",
+        fieldType: "checkbox",
+        required: false,
+      },
+    ];
     const queryClient = new QueryClient();
 
     render(
@@ -229,7 +256,110 @@ describe("MeetSignupSheet", () => {
     expect(screen.getByDisplayValue("5550004444")).toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", { name: /bringing extra water/i }),
-    ).toBeChecked();
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: /accept terms/i }),
+    ).not.toBeChecked();
+    expect(screen.getAllByText("From profile")).toHaveLength(1);
+    await user.hover(screen.getByText("From profile"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "This value was auto-populated from your profile.",
+    );
+  });
+
+  it("fills unanswered questions from earlier meets without replacing saved autofill answers", async () => {
+    const user = userEvent.setup();
+    mockedMeet.metaDefinitions = [
+      ...defaultMetaDefinitions,
+      {
+        id: "meta-3",
+        fieldKey: "medical",
+        label: "Medical notes",
+        fieldType: "text",
+        required: false,
+      },
+    ];
+    mockedPreviousAnswers = {
+      dietary: "Vegetarian",
+      medical: "Asthma inhaler",
+    };
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByDisplayValue("Asthma inhaler"),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("No peanuts")).toBeInTheDocument();
+    expect(screen.getByText("From prev meet")).toBeInTheDocument();
+    await user.hover(screen.getByText("From prev meet"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "This value was populated from a previous meet.",
+    );
+    await user.clear(screen.getByRole("textbox", { name: "Medical notes" }));
+    expect(screen.queryByText("From prev meet")).not.toBeInTheDocument();
+  });
+
+  it("uses minor answers when signing up a minor and restores adult answers when switched back", async () => {
+    const user = userEvent.setup();
+    mockedMinorPreviousAnswers = {
+      dietary: "Child avoids dairy",
+      bringingWater: "true",
+    };
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByDisplayValue("No peanuts")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("checkbox", { name: /fill in on-behalf of a minor/i }),
+    );
+    expect(
+      await screen.findByDisplayValue("Child avoids dairy"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: /bringing extra water/i }),
+    ).not.toBeChecked();
+    await user.click(
+      screen.getByRole("checkbox", { name: /fill in on-behalf of a minor/i }),
+    );
+    expect(await screen.findByDisplayValue("No peanuts")).toBeInTheDocument();
+  });
+
+  it("does not prefill previous answers for a signed-out visitor", async () => {
+    mockedIsAuthenticated = false;
+    mockedPreviousAnswers = { dietary: "Vegetarian" };
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole("textbox", { name: "Dietary notes" }),
+    ).toHaveValue("");
   });
 
   it("groups adjacent categories in order and expands a collapsed group with errors", async () => {

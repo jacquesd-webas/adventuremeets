@@ -14,8 +14,10 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  DefaultValuePipe,
   Logger,
   ForbiddenException,
+  ParseBoolPipe,
 } from "@nestjs/common";
 import {
   ApiBody,
@@ -235,6 +237,22 @@ export class MeetsController {
       }
     }
     return meet;
+  }
+
+  @Get(":id([0-9a-fA-F-]{36})/my-previous-answers")
+  async findMyPreviousAnswers(
+    @Param("id") id: string,
+    @Query("isMinor", new DefaultValuePipe(false), ParseBoolPipe)
+    isMinor: boolean,
+    @User() user?: UserProfile,
+  ): Promise<{ metaValues: Record<string, string> }> {
+    if (!user) throw new UnauthorizedException();
+    const metaValues = await this.meetsService.findPreviousAnswers(
+      user.id,
+      id,
+      isMinor,
+    );
+    return { metaValues };
   }
 
   @Public()

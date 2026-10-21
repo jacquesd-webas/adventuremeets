@@ -1127,34 +1127,55 @@ export class MeetsService {
   async findPreviousAnswers(
     userId: string,
     meetId: string,
+    isMinor: boolean = false,
     trx?: any,
   ): Promise<Record<string, string>> {
     const db = trx ?? this.db.getClient();
-    const definitions = await db("meet_meta_definitions")
+    const meet = await db("meets")
+      .where({ id: meetId })
+      .first("organization_id");
+    if (!meet) return {};
+
+    const definitions = (await db("meet_meta_definitions")
       .where({ meet_id: meetId })
-      .select("field_key");
-    const fieldKeys = definitions.map(
-      (definition: any) => definition.field_key,
-    );
-    if (!fieldKeys.length) {
-      return {};
-    }
+      .select("field_key", "label", "field_type")) as Array<{
+      field_key: string;
+      label: string;
+      field_type: string;
+    }>;
+    if (!definitions.length) return {};
+
     const rows = (await db("meet_meta_values as mv")
       .join("meet_meta_definitions as md", "md.id", "mv.meta_definition_id")
       .join("meet_attendees as ma", "ma.id", "mv.attendee_id")
+      .join("meets as m", "m.id", "ma.meet_id")
       .where("ma.user_id", userId)
-      .whereIn("md.field_key", fieldKeys)
+      .where("ma.is_minor", isMinor)
+      .where("m.organization_id", meet.organization_id)
+      .whereNot("ma.meet_id", meetId)
       .orderBy("mv.updated_at", "desc")
       .orderBy("mv.created_at", "desc")
-      .select("md.field_key", "mv.value")) as Array<{
-      field_key: string;
+      .select("md.label", "md.field_type", "mv.value")) as Array<{
+      label: string;
+      field_type: string;
       value: string;
     }>;
-    return rows.reduce<Record<string, string>>((acc, row) => {
-      if (!acc[row.field_key]) {
-        acc[row.field_key] = row.value;
-      }
-      return acc;
+
+    const questionKey = (label: string, fieldType: string) =>
+      `${fieldType}:${label.trim().replace(/\s+/g, " ").toLowerCase()}`;
+    const latestByQuestion = new Map<string, string>();
+    rows.forEach((row) => {
+      if (!row.value?.trim()) return;
+      const key = questionKey(row.label, row.field_type);
+      if (!latestByQuestion.has(key)) latestByQuestion.set(key, row.value);
+    });
+
+    return definitions.reduce<Record<string, string>>((answers, definition) => {
+      const value = latestByQuestion.get(
+        questionKey(definition.label, definition.field_type),
+      );
+      if (value !== undefined) answers[definition.field_key] = value;
+      return answers;
     }, {});
   }
 
@@ -3068,6 +3089,7 @@ export class MeetsService {
     const previousAnswers = await this.findPreviousAnswers(
       organizerId,
       meetId,
+      false,
       trx,
     );
     const metaDefinitions = await trx("meet_meta_definitions")

@@ -43,6 +43,7 @@ import { LoginForm } from "../components/auth/LoginForm";
 import { MeetStatusAlert } from "../components/meet/MeetStatusAlert";
 import { useAuth } from "../context/authContext";
 import { useFetchUserMetaValues } from "../hooks/useFetchUserMetaValues";
+import { useFetchPreviousMeetAnswers } from "../hooks/useFetchPreviousMeetAnswers";
 import { useFetchOrganization } from "../hooks/useFetchOrganization";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { getOrganizationBackground } from "../helpers/organizationTheme";
@@ -54,6 +55,7 @@ import {
   validateRequired,
 } from "../helpers/validation";
 import { MeetSignupFormFields } from "../components/meetSignup/MeetSignupFormFields";
+import type { SignupAnswerSource } from "../components/meetSignup/MeetSignupAnswerSourceBadge";
 import { getMeetSignupErrors } from "./meetSignupValidation";
 
 const DEFAULT_OG_IMAGE = "/static/adventuremeets-logo.png";
@@ -144,7 +146,12 @@ function MeetSignupSheet() {
   const queryClient = useQueryClient();
   const mobilePreviewTopOffset = "var(--preview-banner-height, 0px)";
   const suppressAutofillRef = useRef(false);
-  const metaAutofillRef = useRef(false);
+  const metaAutofillRef = useRef<{
+    userId: string;
+    isMinor: boolean;
+    values: Record<string, string | number | boolean>;
+    sources: Record<string, SignupAnswerSource>;
+  } | null>(null);
   const editPrefillRef = useRef(false);
   const queryPrefillRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
@@ -194,10 +201,14 @@ function MeetSignupSheet() {
       }
     : null;
 
+  const prefillUserId = isAuthenticated && !isEditing ? user?.id : undefined;
   const { data: userMetaValues, isLoading: userMetaLoading } =
-    useFetchUserMetaValues(user?.id, meet?.organizationId);
-  const hasMinorQueryPrefill =
-    !isEditing && parseBooleanQuery(searchParams.get("isMinor")) === true;
+    useFetchUserMetaValues(
+      isMinor ? undefined : prefillUserId,
+      meet?.organizationId,
+    );
+  const { data: previousAnswers, isLoading: previousAnswersLoading } =
+    useFetchPreviousMeetAnswers(meet?.id, prefillUserId, isMinor);
 
   const loggedInName = user
     ? [user.firstName, user.lastName].filter(Boolean).join(" ") ||
@@ -231,58 +242,129 @@ function MeetSignupSheet() {
     loggedInName,
   ]);
 
-  // Auto-fill questions based on users profile
+  // Fill questions from the signed-in user's saved answers or earlier meets.
   useEffect(() => {
-    if (hasMinorQueryPrefill || isMinor) return;
-    if (!isAuthenticated || !meet || userMetaLoading) return;
-    if (metaAutofillRef.current) return;
-    if (!userMetaValues.length) {
-      metaAutofillRef.current = true;
+    if (isEditing) return;
+    if (!prefillUserId || !meet || userMetaLoading || previousAnswersLoading)
       return;
+    const previousPrefill = metaAutofillRef.current;
+    if (
+      previousPrefill?.userId === prefillUserId &&
+      previousPrefill.isMinor === isMinor
+    )
+      return;
+    const byKey = new Map<
+      string,
+      { value: string | number | boolean | null; source: SignupAnswerSource }
+    >(
+      Object.entries(previousAnswers).map(([key, value]) => [
+        key,
+        { value, source: "previous-meet" },
+      ]),
+    );
+    if (!isMinor) {
+      userMetaValues.forEach((item) => {
+        if (item.value !== null && item.value !== "") {
+          byKey.set(item.key, { value: item.value, source: "profile" });
+        }
+      });
     }
-    const byKey = new Map(userMetaValues.map((item) => [item.key, item.value]));
+    const filledValues: Record<string, string | number | boolean> = {};
+    const filledSources: Record<string, SignupAnswerSource> = {};
     (meet.metaDefinitions || []).forEach((field: any) => {
       const key = field.fieldKey;
       const existingValue = metaValues[key];
+      const wasPrefilled =
+        previousPrefill &&
+        Object.prototype.hasOwnProperty.call(previousPrefill.values, key) &&
+        existingValue === previousPrefill.values[key];
+      if (field.fieldType === "checkbox" || field.fieldType === "switch") {
+        if (wasPrefilled) setMetaValue(key, null);
+        return;
+      }
       if (
         existingValue !== undefined &&
         existingValue !== null &&
-        existingValue !== ""
+        existingValue !== "" &&
+        !wasPrefilled
       ) {
         return;
       }
-      const raw = byKey.get(key);
-      if (raw === undefined) return;
-      if (field.fieldType === "checkbox" || field.fieldType === "switch") {
-        setMetaValue(key, raw === "true");
+      const answer = byKey.get(key);
+      const raw = answer?.value;
+      if (!answer || raw === undefined || raw === null || raw === "") {
+        if (wasPrefilled) setMetaValue(key, null);
         return;
       }
       if (field.fieldType === "number") {
         const parsed = Number(raw);
         if (!Number.isNaN(parsed)) {
           setMetaValue(key, parsed);
+          filledValues[key] = parsed;
+          filledSources[key] = answer.source;
+        } else if (wasPrefilled) {
+          setMetaValue(key, null);
         }
         return;
       }
-      setMetaValue(key, raw);
+      if (
+        field.fieldType === "select" &&
+        Array.isArray(field.config?.options) &&
+        !field.config.options.includes(String(raw))
+      ) {
+        if (wasPrefilled) setMetaValue(key, null);
+        return;
+      }
+      const value = String(raw);
+      setMetaValue(key, value);
+      filledValues[key] = value;
+      filledSources[key] = answer.source;
     });
-    metaAutofillRef.current = true;
+    metaAutofillRef.current = {
+      userId: prefillUserId,
+      isMinor,
+      values: filledValues,
+      sources: filledSources,
+    };
   }, [
-    isAuthenticated,
-    hasMinorQueryPrefill,
+    isEditing,
     isMinor,
     meet,
     metaValues,
+    prefillUserId,
+    previousAnswers,
+    previousAnswersLoading,
     setMetaValue,
     userMetaLoading,
     userMetaValues,
   ]);
 
+  const metaValueSources: Record<string, SignupAnswerSource> = {};
+  const currentPrefill = metaAutofillRef.current;
+  if (currentPrefill) {
+    Object.entries(currentPrefill.sources).forEach(([key, source]) => {
+      if (metaValues[key] === currentPrefill.values[key]) {
+        metaValueSources[key] = source;
+      }
+    });
+  }
+
+  const handleMetaValueChange = (
+    key: string,
+    value: string | number | boolean,
+  ) => {
+    if (metaAutofillRef.current) {
+      delete metaAutofillRef.current.values[key];
+      delete metaAutofillRef.current.sources[key];
+    }
+    setMetaValue(key, value);
+  };
+
   // Suppress auto-filling when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
       suppressAutofillRef.current = false;
-      metaAutofillRef.current = false;
+      metaAutofillRef.current = null;
     }
   }, [isAuthenticated]);
 
@@ -341,7 +423,7 @@ function MeetSignupSheet() {
     if (!meet) return;
     editPrefillRef.current = true;
     suppressAutofillRef.current = true;
-    metaAutofillRef.current = true;
+    metaAutofillRef.current = null;
     setExistingAttendee({ id: editAttendee.id });
     setLastCheckedContact({
       email: editAttendee.email ?? "",
@@ -935,6 +1017,7 @@ function MeetSignupSheet() {
                   wantsGuests={wantsGuests}
                   guests={guests}
                   metaValues={metaValues}
+                  metaValueSources={metaValueSources}
                   indemnityAccepted={indemnityAccepted}
                   errors={validationErrors}
                   isMinor={isMinor}
@@ -955,7 +1038,7 @@ function MeetSignupSheet() {
                   onEmailBlur={handleEmailBlur}
                   onPhoneBlur={handlePhoneBlur}
                   setField={setField}
-                  setMetaValue={setMetaValue}
+                  setMetaValue={handleMetaValueChange}
                   setPhoneCountry={setPhoneCountry}
                   setPhoneLocal={setPhoneLocal}
                 />

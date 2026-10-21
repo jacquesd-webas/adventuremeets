@@ -59,6 +59,7 @@ describe("MeetsController", () => {
     clone: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
+    findPreviousAnswers: jest.fn(),
     update: jest.fn(),
     listImages: jest.fn(),
     addImage: jest.fn(),
@@ -197,6 +198,10 @@ describe("MeetsController", () => {
     ],
     ["findOne", () => controller.findOne("meet-1")],
     [
+      "findMyPreviousAnswers",
+      () => controller.findMyPreviousAnswers("meet-1", false),
+    ],
+    [
       "create",
       () => controller.create({ name: "Meet", organizationId: "org-1" } as any),
     ],
@@ -265,6 +270,24 @@ describe("MeetsController", () => {
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
+
+  it.each([false, true])(
+    "returns only the signed-in user's previous answers for isMinor=%s",
+    async (isMinor) => {
+      (meetsService.findPreviousAnswers as jest.Mock).mockResolvedValue({
+        dietary: "Vegan",
+      });
+
+      await expect(
+        controller.findMyPreviousAnswers("meet-1", isMinor, memberUser),
+      ).resolves.toEqual({ metaValues: { dietary: "Vegan" } });
+      expect(meetsService.findPreviousAnswers).toHaveBeenCalledWith(
+        memberUser.id,
+        "meet-1",
+        isMinor,
+      );
+    },
+  );
 
   it("lets the organiser finish check-in and rejects other members", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);

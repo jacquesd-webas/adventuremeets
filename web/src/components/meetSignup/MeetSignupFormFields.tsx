@@ -5,6 +5,7 @@ import {
   FormControl,
   FormControlLabel,
   FormHelperText,
+  InputAdornment,
   Link,
   MenuItem,
   Stack,
@@ -27,6 +28,10 @@ import { getMeetResponseWording } from "../../helpers/meetResponseWording";
 import type { SignupErrors } from "../../pages/meetSignupValidation";
 import { groupMeetSignupQuestions } from "./groupMeetSignupQuestions";
 import { MeetSignupQuestionGroup } from "./MeetSignupQuestionGroup";
+import {
+  MeetSignupAnswerSourceBadge,
+  type SignupAnswerSource,
+} from "./MeetSignupAnswerSourceBadge";
 
 function LabeledField({
   label,
@@ -71,6 +76,7 @@ export type MeetSignupFormFieldsProps = {
   wantsGuests: boolean;
   guests: GuestInput[];
   metaValues: Record<string, any>;
+  metaValueSources: Record<string, SignupAnswerSource>;
   indemnityAccepted: boolean;
   errors: SignupErrors;
   isMinor: boolean;
@@ -114,6 +120,7 @@ export function MeetSignupFormFields({
   wantsGuests,
   guests,
   metaValues,
+  metaValueSources,
   indemnityAccepted,
   errors,
   isMinor,
@@ -373,6 +380,7 @@ export function MeetSignupFormFields({
           {group.questions.map((field) => {
             const key = field.fieldKey;
             const value = metaValues[key];
+            const source = metaValueSources[key];
 
             if (
               field.fieldType === "checkbox" ||
@@ -384,15 +392,22 @@ export function MeetSignupFormFields({
                   error={Boolean(errors[`meta:${key}`])}
                   data-signup-error={errors[`meta:${key}`] ? "true" : undefined}
                 >
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={Boolean(value)}
-                        onChange={(e) => setMetaValue(key, e.target.checked)}
-                      />
-                    }
-                    label={`${field.label}${field.required ? " *" : ""}`}
-                  />
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={Boolean(value)}
+                          onChange={(e) => setMetaValue(key, e.target.checked)}
+                        />
+                      }
+                      label={`${field.label}${field.required ? " *" : ""}`}
+                    />
+                    {source && <MeetSignupAnswerSourceBadge source={source} />}
+                  </Stack>
                   {errors[`meta:${key}`] && (
                     <FormHelperText>{errors[`meta:${key}`]}</FormHelperText>
                   )}
@@ -417,6 +432,19 @@ export function MeetSignupFormFields({
                       onChange={(e) => setMetaValue(key, e.target.value)}
                       error={Boolean(errors[`meta:${key}`])}
                       helperText={errors[`meta:${key}`]}
+                      InputProps={
+                        source
+                          ? {
+                              endAdornment: (
+                                <InputAdornment position="end" sx={{ mr: 2.5 }}>
+                                  <MeetSignupAnswerSourceBadge
+                                    source={source}
+                                  />
+                                </InputAdornment>
+                              ),
+                            }
+                          : undefined
+                      }
                       fullWidth
                     >
                       <MenuItem value="">Select an option</MenuItem>
@@ -455,6 +483,17 @@ export function MeetSignupFormFields({
                     }
                     error={Boolean(errors[`meta:${key}`])}
                     helperText={errors[`meta:${key}`]}
+                    InputProps={
+                      source
+                        ? {
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <MeetSignupAnswerSourceBadge source={source} />
+                              </InputAdornment>
+                            ),
+                          }
+                        : undefined
+                    }
                     fullWidth
                   />
                 </LabeledField>
