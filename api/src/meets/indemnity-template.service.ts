@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "crypto";
+import type { Knex } from "knex";
 import {
   PDFCheckBox,
   PDFDocument,
@@ -12,6 +13,7 @@ import {
 import { DatabaseService } from "../database/database.service";
 import { AttendeeItemsStorageService } from "../storage/attendee-items-storage.service";
 import {
+  isPdfSignatureDateField,
   matchPdfAutoField,
   PdfAutoField,
 } from "./indemnity-pdf-field-mappings";
@@ -58,12 +60,14 @@ export async function detectPdfQuestions(
 
   const questions: GeneratedPdfQuestion[] = [];
   const autoFields: PdfAutoField[] = [];
-  for (const field of pdf.getForm().getFields()) {
+  const fields = pdf.getForm().getFields();
+  const fieldNames = fields.map((field) => field.getName());
+  for (const field of fields) {
     if (field instanceof PDFSignature) continue;
     const pdfFieldName = field.getName();
-    if (!pdfFieldName.trim()) continue;
+    if (!pdfFieldName.trim() || isPdfSignatureDateField(pdfFieldName)) continue;
     if (field instanceof PDFTextField) {
-      const source = matchPdfAutoField(pdfFieldName);
+      const source = matchPdfAutoField(pdfFieldName, fieldNames);
       if (source) {
         autoFields.push({ pdfFieldName, source });
         continue;
@@ -118,19 +122,25 @@ export class IndemnityTemplateService {
     private readonly storage: AttendeeItemsStorageService,
   ) {}
 
+  private pdfForMeet(db: Knex, meetId: string) {
+    return db("meets as m")
+      .join("indemnity_pdfs as p", "p.id", "m.indemnity_pdfs_id")
+      .where("m.id", meetId);
+  }
+
   async hasTemplate(meetId: string): Promise<boolean> {
-    const row = await this.db
-      .getClient()("meet_indemnity_templates")
-      .where({ meet_id: meetId })
-      .first("meet_id");
+    const row = await this.pdfForMeet(this.db.getClient(), meetId).first(
+      "p.id",
+    );
     return Boolean(row);
   }
 
   async get(meetId: string) {
-    const row = await this.db
-      .getClient()("meet_indemnity_templates")
-      .where({ meet_id: meetId })
-      .first("filename", "created_at", "object_key");
+    const row = await this.pdfForMeet(this.db.getClient(), meetId).first(
+      "p.filename",
+      "p.created_at",
+      "p.object_key",
+    );
     if (!row) return null;
     const pdf = await this.storage.download(row.object_key);
     const { autoFields } = await detectPdfQuestions(pdf);
@@ -138,10 +148,9 @@ export class IndemnityTemplateService {
   }
 
   async getPreview(meetId: string): Promise<Buffer | null> {
-    const row = await this.db
-      .getClient()("meet_indemnity_templates")
-      .where({ meet_id: meetId })
-      .first("object_key");
+    const row = await this.pdfForMeet(this.db.getClient(), meetId).first(
+      "p.object_key",
+    );
     return row ? this.storage.download(row.object_key) : null;
   }
 
@@ -159,10 +168,17 @@ export class IndemnityTemplateService {
     let oldObjectKey: string | undefined;
     try {
       await this.db.getClient().transaction(async (trx) => {
-        const existingTemplate = await trx("meet_indemnity_templates")
-          .where({ meet_id: meetId })
-          .first("object_key");
-        oldObjectKey = existingTemplate?.object_key;
+        const meet = await trx("meets")
+          .where({ id: meetId })
+          .forUpdate()
+          .first("indemnity_pdfs_id");
+        const oldPdfId = meet?.indemnity_pdfs_id;
+        if (oldPdfId) {
+          const oldPdf = await trx("indemnity_pdfs")
+            .where({ id: oldPdfId })
+            .first("object_key");
+          oldObjectKey = oldPdf?.object_key;
+        }
         const definitions = await trx("meet_meta_definitions")
           .where({ meet_id: meetId })
           .select("id", "config");
@@ -208,13 +224,26 @@ export class IndemnityTemplateService {
             })),
           );
         }
+        const pdfId = randomUUID();
+        await trx("indemnity_pdfs").insert({
+          id: pdfId,
+          object_key: objectKey,
+          filename,
+        });
+        await trx("meets")
+          .where({ id: meetId })
+          .update({ indemnity_pdfs_id: pdfId, require_email: true });
         await trx("meet_indemnity_templates")
           .insert({ meet_id: meetId, object_key: objectKey, filename })
           .onConflict("meet_id")
           .merge({ object_key: objectKey, filename, created_at: trx.fn.now() });
-        await trx("meets")
-          .where({ id: meetId })
-          .update({ require_email: true });
+        if (oldPdfId) {
+          const stillUsed = await trx("meets")
+            .where({ indemnity_pdfs_id: oldPdfId })
+            .first("id");
+          if (!stillUsed)
+            await trx("indemnity_pdfs").where({ id: oldPdfId }).del();
+        }
       });
     } catch (error) {
       await this.storage.remove(objectKey).catch(() => undefined);
@@ -222,9 +251,9 @@ export class IndemnityTemplateService {
     }
     if (oldObjectKey) {
       const stillReferenced = await this.db
-        .getClient()("meet_indemnity_templates")
+        .getClient()("indemnity_pdfs")
         .where({ object_key: oldObjectKey })
-        .first("meet_id");
+        .first("id");
       if (!stillReferenced)
         await this.storage.remove(oldObjectKey).catch(() => undefined);
     }
@@ -234,11 +263,16 @@ export class IndemnityTemplateService {
   async remove(meetId: string): Promise<void> {
     let objectKey: string | undefined;
     await this.db.getClient().transaction(async (trx) => {
-      const template = await trx("meet_indemnity_templates")
-        .where({ meet_id: meetId })
+      const meet = await trx("meets")
+        .where({ id: meetId })
+        .forUpdate()
+        .first("indemnity_pdfs_id");
+      const pdfId = meet?.indemnity_pdfs_id;
+      if (!pdfId) return;
+      const pdf = await trx("indemnity_pdfs")
+        .where({ id: pdfId })
         .first("object_key");
-      if (!template) return;
-      objectKey = template.object_key;
+      objectKey = pdf?.object_key;
       const definitions = await trx("meet_meta_definitions")
         .where({ meet_id: meetId })
         .select("id", "config");
@@ -255,9 +289,23 @@ export class IndemnityTemplateService {
           );
         await trx("meet_meta_definitions").whereIn("id", pdfIds).del();
       }
+      await trx("meets")
+        .where({ id: meetId })
+        .update({ indemnity_pdfs_id: null });
       await trx("meet_indemnity_templates").where({ meet_id: meetId }).del();
+      const stillUsed = await trx("meets")
+        .where({ indemnity_pdfs_id: pdfId })
+        .first("id");
+      if (!stillUsed) await trx("indemnity_pdfs").where({ id: pdfId }).del();
     });
-    if (objectKey) await this.storage.remove(objectKey).catch(() => undefined);
+    if (objectKey) {
+      const stillReferenced = await this.db
+        .getClient()("indemnity_pdfs")
+        .where({ object_key: objectKey })
+        .first("id");
+      if (!stillReferenced)
+        await this.storage.remove(objectKey).catch(() => undefined);
+    }
   }
 
   async createAttendeePdf(
@@ -278,9 +326,10 @@ export class IndemnityTemplateService {
     },
   ): Promise<{ filename: string; content: Buffer } | null> {
     const db = this.db.getClient();
-    const template = await db("meet_indemnity_templates")
-      .where({ meet_id: meet.id })
-      .first("object_key", "filename");
+    const template = await this.pdfForMeet(db, meet.id).first(
+      "p.object_key",
+      "p.filename",
+    );
     if (!template) return null;
 
     const definitions = await db("meet_meta_definitions")

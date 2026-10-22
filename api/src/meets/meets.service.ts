@@ -487,13 +487,8 @@ export class MeetsService {
         "pdf_form_field_id",
         "config",
       );
-    const indemnityTemplate = await this.db
-      .getClient()("meet_indemnity_templates")
-      .where({ meet_id: meet.id })
-      .first("meet_id");
     const meetWithImage = {
       ...meet,
-      has_pdf_indemnity_template: Boolean(indemnityTemplate),
       image_url: images[0]?.url ?? meet.image_url ?? undefined,
     };
     const attendingAttendees =
@@ -555,9 +550,11 @@ export class MeetsService {
           "config",
         );
 
-      const sourceIndemnityTemplate = await trx("meet_indemnity_templates")
-        .where({ meet_id: id })
-        .first("object_key", "filename");
+      const sourceIndemnityTemplate = sourceMeet.indemnity_pdfs_id
+        ? await trx("indemnity_pdfs")
+            .where({ id: sourceMeet.indemnity_pdfs_id })
+            .first("object_key", "filename")
+        : null;
 
       const sourceImages = await trx("meet_images")
         .where({ meet_id: id })
@@ -612,6 +609,7 @@ export class MeetsService {
       }
 
       if (sourceIndemnityTemplate) {
+        // Keep the legacy table current so older application code can read clones.
         await trx("meet_indemnity_templates").insert({
           meet_id: clonedMeet.id,
           object_key: sourceIndemnityTemplate.object_key,
@@ -1534,11 +1532,14 @@ export class MeetsService {
           "indemnity",
           "time_zone",
           "has_indemnity",
-          "need_indemnity_confirmation_email",
+          "indemnity_pdfs_id",
         );
-      if (!meet?.has_indemnity || !meet.need_indemnity_confirmation_email) {
+      if (!meet?.has_indemnity) {
+        throw new BadRequestException("This meet does not require indemnity");
+      }
+      if (meet.indemnity_pdfs_id) {
         throw new BadRequestException(
-          "This meet does not require email confirmation of indemnity",
+          "PDF indemnity cannot be accepted through this link",
         );
       }
 
@@ -2716,7 +2717,7 @@ export class MeetsService {
       rejectMessage: meet.reject_message ?? meet.rejectMessage ?? undefined,
       waitlistMessage: meet.waitlist_message ?? undefined,
       hasIndemnity: meet.has_indemnity ?? undefined,
-      hasPdfIndemnityTemplate: meet.has_pdf_indemnity_template ?? undefined,
+      hasPdfIndemnityTemplate: Boolean(meet.indemnity_pdfs_id),
       indemnity: meet.indemnity ?? undefined,
       allowMinorIndemnity: meet.allow_minor_indemnity ?? undefined,
       needIndemnityConfirmationEmail:

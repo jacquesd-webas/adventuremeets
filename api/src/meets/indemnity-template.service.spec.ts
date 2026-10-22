@@ -6,6 +6,56 @@ import {
 } from "./indemnity-template.service";
 
 describe("detectPdfQuestions", () => {
+  it("omits signature date fields from generated questions", async () => {
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage();
+    const form = pdf.getForm();
+    for (const name of [
+      "Parent Signature Date",
+      "Witness Signature Date",
+      "parentSignatureDate",
+      "Date of Signature",
+      "Child Date of Birth",
+    ]) {
+      form.createTextField(name).addToPage(page);
+    }
+
+    const result = await detectPdfQuestions(Buffer.from(await pdf.save()));
+    expect(result.questions.map((question) => question.label)).toEqual([
+      "Child Date of Birth",
+    ]);
+    expect(result.autoFields).toEqual([]);
+  });
+
+  it("maps a generic signer name only without a parent or guardian field", async () => {
+    const fallbackPdf = await PDFDocument.create();
+    fallbackPdf
+      .getForm()
+      .createTextField("Name")
+      .addToPage(fallbackPdf.addPage());
+    const fallback = await detectPdfQuestions(
+      Buffer.from(await fallbackPdf.save()),
+    );
+    expect(fallback.autoFields).toEqual([
+      { pdfFieldName: "Name", source: "signatoryName" },
+    ]);
+    expect(fallback.questions).toEqual([]);
+
+    const explicitPdf = await PDFDocument.create();
+    const page = explicitPdf.addPage();
+    explicitPdf.getForm().createTextField("Name").addToPage(page);
+    explicitPdf.getForm().createTextField("Guardian Name").addToPage(page);
+    const explicit = await detectPdfQuestions(
+      Buffer.from(await explicitPdf.save()),
+    );
+    expect(explicit.autoFields).toEqual([
+      { pdfFieldName: "Guardian Name", source: "guardianName" },
+    ]);
+    expect(explicit.questions).toEqual([
+      expect.objectContaining({ label: "Name" }),
+    ]);
+  });
+
   it("creates questions from fillable text, checkbox and choice fields", async () => {
     const pdf = await PDFDocument.create();
     const page = pdf.addPage();
@@ -102,7 +152,11 @@ describe("detectPdfQuestions", () => {
       object_key: "meets/one/indemnity/form.pdf",
       created_at: new Date(),
     });
-    const query = { where: jest.fn().mockReturnThis(), first };
+    const query = {
+      join: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      first,
+    };
     const db = { getClient: () => () => query };
     const storage = {
       download: jest.fn().mockResolvedValue(Buffer.from(await pdf.save())),
@@ -110,7 +164,11 @@ describe("detectPdfQuestions", () => {
     const service = new IndemnityTemplateService(db as any, storage as any);
 
     const result = await service.get("meet-1");
-    expect(first).toHaveBeenCalledWith("filename", "created_at", "object_key");
+    expect(first).toHaveBeenCalledWith(
+      "p.filename",
+      "p.created_at",
+      "p.object_key",
+    );
     expect(storage.download).toHaveBeenCalledWith(
       "meets/one/indemnity/form.pdf",
     );
@@ -123,7 +181,11 @@ describe("detectPdfQuestions", () => {
     const first = jest
       .fn()
       .mockResolvedValue({ object_key: "meets/one/indemnity/form.pdf" });
-    const db = { getClient: () => () => ({ where: () => ({ first }) }) };
+    const db = {
+      getClient: () => () => ({
+        join: () => ({ where: () => ({ first }) }),
+      }),
+    };
     const pdf = Buffer.from("%PDF-preview");
     const storage = { download: jest.fn().mockResolvedValue(pdf) };
     const service = new IndemnityTemplateService(db as any, storage as any);
@@ -153,7 +215,12 @@ describe("detectPdfQuestions", () => {
     };
     const meetQuery = {
       where: jest.fn().mockReturnThis(),
+      forUpdate: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue({ indemnity_pdfs_id: null }),
       update: jest.fn().mockResolvedValue(undefined),
+    };
+    const pdfQuery = {
+      insert: jest.fn().mockResolvedValue(undefined),
     };
     const client = Object.assign(
       (table: string) =>
@@ -161,7 +228,9 @@ describe("detectPdfQuestions", () => {
           ? definitions
           : table === "meet_indemnity_templates"
             ? templateQuery
-            : meetQuery,
+            : table === "indemnity_pdfs"
+              ? pdfQuery
+              : meetQuery,
       {
         transaction: async (callback: (trx: unknown) => Promise<void>) =>
           callback(client),
@@ -191,9 +260,25 @@ describe("detectPdfQuestions", () => {
   });
 
   it("removes a saved PDF and its unanswered questions", async () => {
-    const template = {
+    const legacyTemplate = {
       where: jest.fn().mockReturnThis(),
-      first: jest.fn().mockResolvedValue({ object_key: "form.pdf" }),
+      del: jest.fn().mockResolvedValue(1),
+    };
+    const meet = {
+      where: jest.fn().mockReturnThis(),
+      forUpdate: jest.fn().mockReturnThis(),
+      first: jest
+        .fn()
+        .mockResolvedValueOnce({ indemnity_pdfs_id: "pdf-1" })
+        .mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue(1),
+    };
+    const pdf = {
+      where: jest.fn().mockReturnThis(),
+      first: jest
+        .fn()
+        .mockResolvedValueOnce({ object_key: "form.pdf" })
+        .mockResolvedValue(undefined),
       del: jest.fn().mockResolvedValue(1),
     };
     const definitions = {
@@ -211,11 +296,15 @@ describe("detectPdfQuestions", () => {
     };
     const client = Object.assign(
       (table: string) =>
-        table === "meet_indemnity_templates"
-          ? template
-          : table === "meet_meta_definitions"
-            ? definitions
-            : values,
+        table === "meets"
+          ? meet
+          : table === "indemnity_pdfs"
+            ? pdf
+            : table === "meet_indemnity_templates"
+              ? legacyTemplate
+              : table === "meet_meta_definitions"
+                ? definitions
+                : values,
       {
         transaction: async (callback: (trx: unknown) => Promise<void>) =>
           callback(client),
@@ -234,15 +323,67 @@ describe("detectPdfQuestions", () => {
     ]);
     expect(definitions.whereIn).toHaveBeenCalledWith("id", ["pdf-1"]);
     expect(definitions.del).toHaveBeenCalledTimes(1);
-    expect(template.del).toHaveBeenCalledTimes(1);
+    expect(legacyTemplate.del).toHaveBeenCalledTimes(1);
+    expect(pdf.del).toHaveBeenCalledTimes(1);
     expect(storage.remove).toHaveBeenCalledWith("form.pdf");
 
+    meet.first.mockResolvedValueOnce({ indemnity_pdfs_id: "pdf-1" });
+    pdf.first.mockResolvedValueOnce({ object_key: "form.pdf" });
     values.first.mockResolvedValueOnce({ meta_definition_id: "pdf-1" });
     await expect(service.remove("meet-1")).rejects.toThrow(
       "Cannot remove a form after attendees have answered it",
     );
     expect(definitions.del).toHaveBeenCalledTimes(1);
-    expect(template.del).toHaveBeenCalledTimes(1);
+    expect(legacyTemplate.del).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a PDF used by a cloned meet when the original removes it", async () => {
+    const meets = {
+      where: jest.fn().mockReturnThis(),
+      forUpdate: jest.fn().mockReturnThis(),
+      first: jest
+        .fn()
+        .mockResolvedValueOnce({ indemnity_pdfs_id: "pdf-1" })
+        .mockResolvedValueOnce({ id: "cloned-meet" }),
+      update: jest.fn().mockResolvedValue(1),
+    };
+    const pdfs = {
+      where: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue({ object_key: "shared.pdf" }),
+      del: jest.fn(),
+    };
+    const legacy = {
+      where: jest.fn().mockReturnThis(),
+      del: jest.fn().mockResolvedValue(1),
+    };
+    const definitions = {
+      where: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue([]),
+    };
+    const client = Object.assign(
+      (table: string) => {
+        if (table === "meets") return meets;
+        if (table === "indemnity_pdfs") return pdfs;
+        if (table === "meet_indemnity_templates") return legacy;
+        return definitions;
+      },
+      {
+        transaction: async (callback: (trx: unknown) => Promise<void>) =>
+          callback(client),
+      },
+    );
+    const storage = { remove: jest.fn() };
+    const service = new IndemnityTemplateService(
+      { getClient: () => client } as any,
+      storage as any,
+    );
+
+    await service.remove("original-meet");
+
+    expect(meets.update).toHaveBeenCalledWith({ indemnity_pdfs_id: null });
+    expect(legacy.del).toHaveBeenCalledTimes(1);
+    expect(pdfs.del).not.toHaveBeenCalled();
+    expect(storage.remove).not.toHaveBeenCalled();
   });
 
   it("stores an attendee-specific PDF filled from persisted answers", async () => {
@@ -254,6 +395,7 @@ describe("detectPdfQuestions", () => {
     pdf.getForm().createTextField("Allergies").addToPage(page);
     const template = Buffer.from(await pdf.save());
     const makeQuery = (result?: unknown) => ({
+      join: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       first: jest.fn().mockResolvedValue(result),
       select: jest.fn().mockResolvedValue(result),
@@ -262,7 +404,7 @@ describe("detectPdfQuestions", () => {
       merge: jest.fn().mockResolvedValue(undefined),
     });
     const queries = {
-      meet_indemnity_templates: makeQuery({
+      "meets as m": makeQuery({
         object_key: "template.pdf",
         filename: "consent.pdf",
       }),

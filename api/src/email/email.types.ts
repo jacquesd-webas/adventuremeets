@@ -9,6 +9,7 @@ export type EmailTemplateName =
   | "meet-waitlist"
   | "meet-message"
   | "indemnity-confirmation"
+  | "indemnity-request"
   | "indemnity-pdf"
   | "organization-invite"
   | "organiser-reminder-responses-needed"
@@ -41,6 +42,13 @@ export type IndemnityConfirmationTemplateVars = {
   meetName: string;
   attendeeName?: string;
   confirmationUrl: string;
+  logoUrl?: string;
+};
+
+export type IndemnityRequestTemplateVars = {
+  meetName: string;
+  attendeeName?: string;
+  acceptanceUrl: string;
   logoUrl?: string;
 };
 

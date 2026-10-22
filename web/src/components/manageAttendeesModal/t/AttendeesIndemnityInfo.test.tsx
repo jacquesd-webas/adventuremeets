@@ -70,6 +70,47 @@ describe("AttendeesIndemnityInfo", () => {
     );
   });
 
+  it.each([
+    { hasIndemnity: true, hasPdfIndemnityTemplate: false },
+    { hasIndemnity: false, hasPdfIndemnityTemplate: true },
+  ])(
+    "allows resending unaccepted indemnity with $hasPdfIndemnityTemplate PDF form",
+    async ({ hasIndemnity, hasPdfIndemnityTemplate }) => {
+      resendIndemnityConfirmationAsync.mockResolvedValue({ sent: true });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <AttendeesIndemnityInfo
+            {...baseProps}
+            hasIndemnity={hasIndemnity}
+            hasPdfIndemnityTemplate={hasPdfIndemnityTemplate}
+            indemnityAccepted={false}
+          />
+        </QueryClientProvider>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Resend indemnity" }));
+
+      await waitFor(() =>
+        expect(resendIndemnityConfirmationAsync).toHaveBeenCalledWith({
+          meetId: "meet-1",
+          attendeeId: "attendee-1",
+        }),
+      );
+    },
+  );
+
+  it("does not offer resend after indemnity was accepted", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AttendeesIndemnityInfo {...baseProps} indemnityAccepted />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Resend indemnity" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the acceptance fingerprint and confirmation details", () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -91,7 +132,9 @@ describe("AttendeesIndemnityInfo", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Accepted" }));
+    const accepted = screen.getByRole("button", { name: "Accepted" });
+    expect(accepted.tagName).toBe("SPAN");
+    fireEvent.click(accepted);
 
     expect(screen.getByText("Acceptance fingerprint")).toBeInTheDocument();
     expect(screen.getByText("By: Alex Walker")).toBeInTheDocument();
@@ -118,14 +161,16 @@ describe("AttendeesIndemnityInfo", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Accepted" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Accepted" }), {
+      key: "Enter",
+    });
 
     expect(screen.getByRole("presentation")).toBeInTheDocument();
     expect(screen.getByText("Acceptance fingerprint")).toBeInTheDocument();
     expect(screen.getByText("By: Alex Walker")).toBeInTheDocument();
   });
 
-  it("does not show acceptance fingerprint details to non-admins", () => {
+  it("does not show acceptance fingerprint details without permission", () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <AttendeesIndemnityInfo

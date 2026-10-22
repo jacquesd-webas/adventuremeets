@@ -16,7 +16,7 @@ export function useResendIndemnityConfirmation() {
     mutationFn: ({ meetId, attendeeId }: ResendIndemnityConfirmationPayload) =>
       api.post(`/meets/${meetId}/attendees/${attendeeId}/resend-indemnity`, {}),
     onSuccess: (_data, variables) => {
-      notice.success("Indemnity confirmation email sent");
+      notice.success("Indemnity email sent");
       queryClient.invalidateQueries({
         queryKey: ["meet-attendees", variables.meetId],
       });

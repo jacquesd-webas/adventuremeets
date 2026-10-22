@@ -118,12 +118,57 @@ export class AttendeesController {
       ...email,
       attendeeId: attendee.id,
       meetId: meet.id,
-      attachments: [{
-        filename: pdf.filename,
-        content: pdf.content,
-        contentType: "application/pdf",
-      }],
+      attachments: [
+        {
+          filename: pdf.filename,
+          content: pdf.content,
+          contentType: "application/pdf",
+        },
+      ],
       templateName: "indemnity-pdf",
+      messageReferences: messageId
+        ? [{ messageId, recipient: attendee.email }]
+        : [],
+    });
+  }
+
+  private async sendIndemnityRequestEmail(
+    meet: {
+      id: string;
+      name: string;
+      shareCode?: string;
+      organizationId?: string;
+    },
+    attendee: { id: string; email: string; name?: string },
+    logoUrl?: string,
+  ) {
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const token = this.meetsService.createIndemnityConfirmationToken(
+      meet.id,
+      attendee.id,
+      attendee.email,
+    );
+    const acceptanceUrl = `${frontendUrl}/meets/${meet.shareCode || meet.id}/${attendee.id}/confirm-indemnity?token=${encodeURIComponent(token)}&request=1`;
+    const email = renderEmailTemplate("indemnity-request", {
+      meetName: meet.name,
+      attendeeName: attendee.name,
+      acceptanceUrl,
+      logoUrl,
+    });
+    const messageId = await this.emailService.saveMessage({
+      to: attendee.email,
+      ...email,
+      attendeeId: attendee.id,
+      meetId: meet.id,
+    });
+    await this.emailService.sendEmail({
+      to: attendee.email,
+      ...email,
+      attendeeId: attendee.id,
+      meetId: meet.id,
+      templateName: "indemnity-request",
       messageReferences: messageId
         ? [{ messageId, recipient: attendee.email }]
         : [],
@@ -140,11 +185,7 @@ export class AttendeesController {
 
     const meet = await this.meetsService.findOne(meetId);
     this.assertCanAccessMeetAttendees(user, meet);
-    return await this.meetsService.listAttendees(
-      meetId,
-      filter,
-      this.authService.hasRole(user, meet.organizationId!, "admin"),
-    );
+    return await this.meetsService.listAttendees(meetId, filter, true);
   }
 
   @Public()
@@ -180,7 +221,9 @@ export class AttendeesController {
     }
 
     if (meet.hasPdfIndemnityTemplate && !dto.email?.trim()) {
-      throw new BadRequestException("An email address is required to receive the consent PDF");
+      throw new BadRequestException(
+        "An email address is required to receive the consent PDF",
+      );
     }
 
     let { attendee } = await this.meetsService.addAttendee(
@@ -373,10 +416,8 @@ export class AttendeesController {
 
     const meet = await this.meetsService.findOne(meetId);
     this.assertCanAccessMeetAttendees(user, meet);
-    if (!meet.needIndemnityConfirmationEmail) {
-      throw new BadRequestException(
-        "This meet does not require email confirmation of indemnity",
-      );
+    if (!meet.hasIndemnity && !meet.hasPdfIndemnityTemplate) {
+      throw new BadRequestException("This meet does not require indemnity");
     }
     const { attendee } = await this.meetsService.findAttendeeForEdit(
       meet.id,
@@ -388,28 +429,48 @@ export class AttendeesController {
     if (!attendee.email) {
       throw new BadRequestException("Attendee does not have an email address");
     }
-    const hasPendingAcceptance =
-      await this.meetsService.hasPendingIndemnityAcceptance(
-        meet.id,
-        attendeeId,
+    const logoUrl = meet.organizationId
+      ? await this.organizationsService.findLogoUrlById(meet.organizationId)
+      : undefined;
+    let auditAction: string;
+    if (meet.hasPdfIndemnityTemplate) {
+      const filledPdf = await this.indemnityTemplates.createAttendeePdf(
+        meet,
+        attendee,
       );
-    if (!hasPendingAcceptance) {
-      throw new BadRequestException(
-        "Attendee has not submitted indemnity acceptance for confirmation",
+      if (!filledPdf) {
+        throw new InternalServerErrorException(
+          "Could not generate the indemnity form",
+        );
+      }
+      await this.sendPrefilledIndemnityEmail(
+        meet,
+        attendee,
+        filledPdf,
+        logoUrl,
       );
+      auditAction = "resent indemnity PDF for";
+    } else {
+      const hasPendingAcceptance =
+        meet.needIndemnityConfirmationEmail &&
+        (await this.meetsService.hasPendingIndemnityAcceptance(
+          meet.id,
+          attendeeId,
+        ));
+      if (hasPendingAcceptance) {
+        await this.sendIndemnityConfirmationEmail(meet, attendee, logoUrl);
+        auditAction = "resent indemnity confirmation for";
+      } else {
+        await this.sendIndemnityRequestEmail(meet, attendee, logoUrl);
+        auditAction = "resent indemnity request for";
+      }
     }
-
-    await this.sendIndemnityConfirmationEmail(meet, {
-      id: attendee.id,
-      email: attendee.email,
-      name: attendee.name,
-    });
     await this.auditLogService.addRecord({
       orgId: meet.organizationId ?? "",
       userId: user.id,
       attendeeId,
       meetId: meet.id,
-      action: "resent indemnity confirmation for",
+      action: auditAction,
       target: `meet ${meet.name || "meet"}`,
     });
     return { sent: true };

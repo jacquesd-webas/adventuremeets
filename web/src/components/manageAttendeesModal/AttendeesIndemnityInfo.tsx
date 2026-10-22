@@ -19,6 +19,7 @@ import { AttendeeIndemnityFingerprintDetails } from "./AttendeeIndemnityFingerpr
 
 type AttendeesIndemnityInfoProps = {
   hasIndemnity?: boolean;
+  hasPdfIndemnityTemplate?: boolean;
   indemnityAccepted: boolean;
   indemnityAcceptance?: Attendee["indemnityAcceptance"];
   needIndemnityConfirmationEmail?: boolean;
@@ -39,6 +40,7 @@ type AttendeesIndemnityInfoProps = {
 
 export function AttendeesIndemnityInfo({
   hasIndemnity = false,
+  hasPdfIndemnityTemplate = false,
   indemnityAccepted,
   indemnityAcceptance,
   needIndemnityConfirmationEmail = false,
@@ -70,9 +72,7 @@ export function AttendeesIndemnityInfo({
     canManageMeet &&
     meetId &&
     attendeeEmail &&
-    needIndemnityConfirmationEmail &&
-    indemnityAcceptance?.acceptedAt &&
-    !indemnityAcceptance?.confirmedAt &&
+    (hasIndemnity || hasPdfIndemnityTemplate) &&
     !indemnityAccepted,
   );
 
@@ -102,7 +102,7 @@ export function AttendeesIndemnityInfo({
         <Typography variant="body2" color="text.secondary">
           Indemnity:
         </Typography>
-        {hasIndemnity ? (
+        {hasIndemnity || hasPdfIndemnityTemplate ? (
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
             {indemnityAccepted ? null : (
               <DisabledByDefaultIcon
@@ -110,23 +110,31 @@ export function AttendeesIndemnityInfo({
               />
             )}
             {indemnityAccepted && canViewIndemnityFingerprint ? (
-              <Button
-                size="small"
-                variant="text"
-                startIcon={
-                  <CheckBoxIcon sx={{ color: "success.main", fontSize: 18 }} />
-                }
-                onClick={(event) => setAcceptanceAnchor(event.currentTarget)}
-                sx={{ minWidth: "auto", px: 0.5, py: 0 }}
-              >
-                Accepted
-              </Button>
+              <>
+                <CheckBoxIcon sx={{ color: "success.main", fontSize: 18 }} />
+                <Typography
+                  variant="body2"
+                  component="span"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(event) => setAcceptanceAnchor(event.currentTarget)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setAcceptanceAnchor(event.currentTarget);
+                    }
+                  }}
+                  sx={{ cursor: "pointer" }}
+                >
+                  Accepted
+                </Typography>
+              </>
             ) : indemnityAccepted ? (
               <Typography variant="body2">Accepted</Typography>
             ) : (
               <Typography variant="body2">Not Accepted</Typography>
             )}
-            {!indemnityAccepted && needIndemnityConfirmationEmail ? (
+            {!indemnityAccepted ? (
               <LockedTooltipWrapper isReadOnly={!canManageMeet}>
                 <Button
                   size="small"

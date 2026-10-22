@@ -278,6 +278,7 @@ describe("MeetsService", () => {
       organizer_id: "org-1",
       organization_id: "org-2",
       status_id: 2,
+      indemnity_pdfs_id: "pdf-1",
       confirmed_count: 4,
       rejected_count: 2,
     };
@@ -298,14 +299,10 @@ describe("MeetsService", () => {
     const metaBuilder = buildBuilder();
     metaBuilder.select = jest.fn().mockResolvedValue([]);
 
-    const templateBuilder = buildBuilder();
-    templateBuilder.first.mockResolvedValue({ meet_id: "meet-1" });
-
     const client: any = (table: string) => {
       if (table === "meets as m") return meetBuilder;
       if (table === "meet_images") return imageBuilder;
       if (table === "meet_meta_definitions") return metaBuilder;
-      if (table === "meet_indemnity_templates") return templateBuilder;
       return buildBuilder();
     };
     client.raw = jest.fn(() => "raw");
@@ -543,6 +540,7 @@ describe("MeetsService", () => {
       allow_guests: true,
       checkin_pin: "ABC123",
       allow_walkins: true,
+      indemnity_pdfs_id: "pdf-1",
       max_guests: 2,
       created_at: "2026-04-01T00:00:00Z",
       updated_at: "2026-04-02T00:00:00Z",
@@ -607,6 +605,7 @@ describe("MeetsService", () => {
       if (table === "meets") return meetsBuilder;
       if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
       if (table === "meet_images") return imagesBuilder;
+      if (table === "indemnity_pdfs") return indemnityTemplateBuilder;
       if (table === "meet_indemnity_templates") return indemnityTemplateBuilder;
       if (table === "users") return organizerBuilder;
       if (table === "meet_attendees") return attendeesBuilder;
@@ -631,6 +630,7 @@ describe("MeetsService", () => {
     expect(clonedInsertArg.organizer_id).toBe("organizer-2");
     expect(clonedInsertArg.status_id).toBe(1);
     expect(clonedInsertArg.checkin_completed).toBe(false);
+    expect(clonedInsertArg.indemnity_pdfs_id).toBe("pdf-1");
     expect(indemnityTemplateBuilder.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         meet_id: "meet-2",
@@ -1079,6 +1079,84 @@ describe("MeetsService", () => {
       }),
     );
     expect(acceptanceBuilder.insert).not.toHaveBeenCalled();
+  });
+
+  it("records acceptance from a requested electronic indemnity link", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      id: "meet-1",
+      indemnity: "Waiver text",
+      has_indemnity: true,
+      need_indemnity_confirmation_email: false,
+    });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      id: "attendee-1",
+      email: "walker@example.com",
+      name: "Trail Walker",
+      indemnity_accepted: false,
+    });
+    const acceptanceBuilder = buildBuilder();
+    acceptanceBuilder.first.mockResolvedValue(undefined);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_attendee_indemnity_acceptances") {
+        return acceptanceBuilder;
+      }
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+    const token = service.createIndemnityConfirmationToken(
+      "meet-1",
+      "attendee-1",
+      "walker@example.com",
+    );
+
+    await expect(
+      service.confirmIndemnityAcceptance("meet-1", "attendee-1", token),
+    ).resolves.toEqual({ indemnityAccepted: true });
+
+    expect(attendeeBuilder.update).toHaveBeenCalledWith({
+      indemnity_accepted: true,
+      updated_at: expect.any(String),
+    });
+    expect(acceptanceBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendee_id: "attendee-1",
+        confirmation_method: "email",
+        indemnity_text_hash: expect.any(String),
+      }),
+    );
+  });
+
+  it("does not accept a PDF indemnity through an electronic link", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      id: "meet-1",
+      has_indemnity: true,
+      indemnity_pdfs_id: "pdf-1",
+    });
+    const attendeeBuilder = buildBuilder();
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    await expect(
+      service.confirmIndemnityAcceptance("meet-1", "attendee-1", "token"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(attendeeBuilder.update).not.toHaveBeenCalled();
   });
 
   it("rejects duplicate adult attendee updates with a conflict error", async () => {

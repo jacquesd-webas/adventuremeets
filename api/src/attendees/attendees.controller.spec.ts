@@ -162,7 +162,7 @@ describe("AttendeesController", () => {
     expect(meetsService.listAttendees).toHaveBeenCalledWith(
       "meet-1",
       "confirmed",
-      false,
+      true,
     );
   });
 
@@ -732,6 +732,7 @@ describe("AttendeesController", () => {
   it("resends an outstanding indemnity confirmation email", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue({
       ...meet,
+      hasIndemnity: true,
       needIndemnityConfirmationEmail: true,
     });
     (authService.hasRole as jest.Mock).mockReturnValue(true);
@@ -768,6 +769,103 @@ describe("AttendeesController", () => {
         action: "resent indemnity confirmation for",
       }),
     );
+  });
+
+  it.each([false, true])(
+    "emails an acceptance link when electronic indemnity was not accepted (email confirmation: %s)",
+    async (needIndemnityConfirmationEmail) => {
+      (meetsService.findOne as jest.Mock).mockResolvedValue({
+        ...meet,
+        hasIndemnity: true,
+        needIndemnityConfirmationEmail,
+      });
+      (authService.hasRole as jest.Mock).mockReturnValue(true);
+      (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+        attendee: {
+          id: "attendee-4",
+          name: "Email Confirm",
+          email: "confirm@example.com",
+          indemnityAccepted: false,
+        },
+      });
+      (
+        meetsService.createIndemnityConfirmationToken as jest.Mock
+      ).mockReturnValue("acceptance-token");
+      (
+        meetsService.hasPendingIndemnityAcceptance as jest.Mock
+      ).mockResolvedValue(false);
+
+      await expect(
+        controller.resendIndemnityConfirmation("meet-1", "attendee-4", user),
+      ).resolves.toEqual({ sent: true });
+
+      if (needIndemnityConfirmationEmail) {
+        expect(meetsService.hasPendingIndemnityAcceptance).toHaveBeenCalledWith(
+          "meet-1",
+          "attendee-4",
+        );
+      } else {
+        expect(
+          meetsService.hasPendingIndemnityAcceptance,
+        ).not.toHaveBeenCalled();
+      }
+      expect(renderEmailTemplate).toHaveBeenCalledWith(
+        "indemnity-request",
+        expect.objectContaining({
+          acceptanceUrl: expect.stringContaining(
+            "token=acceptance-token&request=1",
+          ),
+        }),
+      );
+      expect(emailService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "confirm@example.com",
+          templateName: "indemnity-request",
+        }),
+      );
+    },
+  );
+
+  it("resends a filled PDF for an attendee who has not accepted indemnity", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      hasPdfIndemnityTemplate: true,
+    });
+    (authService.hasRole as jest.Mock).mockReturnValue(true);
+    const attendee = {
+      id: "attendee-4",
+      name: "Email Confirm",
+      email: "confirm@example.com",
+      indemnityAccepted: false,
+    };
+    (meetsService.findAttendeeForEdit as jest.Mock).mockResolvedValue({
+      attendee,
+    });
+    (indemnityTemplates.createAttendeePdf as jest.Mock).mockResolvedValue({
+      filename: "indemnity-prefilled.pdf",
+      content: Buffer.from("pdf"),
+    });
+
+    await expect(
+      controller.resendIndemnityConfirmation("meet-1", "attendee-4", user),
+    ).resolves.toEqual({ sent: true });
+
+    expect(indemnityTemplates.createAttendeePdf).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "meet-1" }),
+      attendee,
+    );
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "confirm@example.com",
+        templateName: "indemnity-pdf",
+        attachments: [
+          expect.objectContaining({ filename: "indemnity-prefilled.pdf" }),
+        ],
+      }),
+    );
+    expect(
+      meetsService.createIndemnityConfirmationToken,
+    ).not.toHaveBeenCalled();
   });
 
   it("skips email side effects when the attendee has no email address", async () => {

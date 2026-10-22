@@ -1,0 +1,10 @@
+Hi {{attendeeName}},
+
+The indemnity for {{meetName}} has not yet been accepted. Please review the indemnity and accept it using this link:
+
+{{acceptanceUrl}}
+
+This link expires in 7 days. If you did not sign up for this meet, you can ignore this email.
+
+Best regards,
+{{fromName}}

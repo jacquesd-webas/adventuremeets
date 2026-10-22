@@ -25,7 +25,7 @@ function MeetAttendeesPage() {
   }
 
   const currentOrganizationRole = meet.organizationId
-    ? user?.organizations?.[meet.organizationId] ?? null
+    ? (user?.organizations?.[meet.organizationId] ?? null)
     : null;
   const permissions = getMeetPermissions({
     currentUserId: user?.id,
@@ -44,7 +44,7 @@ function MeetAttendeesPage() {
       canViewMeet={permissions.canViewMeet}
       canManageMeet={permissions.canManageMeet}
       isOrganizer={permissions.isOrganizerForMeet}
-      canViewIndemnityFingerprint={currentOrganizationRole === "admin"}
+      canViewIndemnityFingerprint={permissions.canManageMeet}
       onClose={() => nav("/plan")}
     />
   );

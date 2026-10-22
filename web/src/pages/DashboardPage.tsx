@@ -380,7 +380,7 @@ function DashboardPage() {
         canViewMeet={selectedMeetPermissions.canViewMeet}
         canManageMeet={selectedMeetPermissions.canManageMeet}
         isOrganizer={selectedMeetPermissions.isOrganizerForMeet}
-        canViewIndemnityFingerprint={currentOrganizationRole === "admin"}
+        canViewIndemnityFingerprint={selectedMeetPermissions.canManageMeet}
         pendingAction={pendingAction || undefined}
         setPendingAction={setPendingAction}
         setSelectedMeetId={setSelectedMeetId}

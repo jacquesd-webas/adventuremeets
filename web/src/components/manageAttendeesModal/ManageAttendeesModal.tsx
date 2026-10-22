@@ -710,6 +710,7 @@ export function ManageAttendeesModal({
                 <Stack spacing={2}>
                   <AttendeesIndemnityInfo
                     hasIndemnity={meet?.hasIndemnity}
+                    hasPdfIndemnityTemplate={meet?.hasPdfIndemnityTemplate}
                     indemnityAccepted={selectedAttendee.indemnityAccepted}
                     indemnityAcceptance={selectedAttendee.indemnityAcceptance}
                     needIndemnityConfirmationEmail={
@@ -860,6 +861,7 @@ export function ManageAttendeesModal({
               <>
                 <AttendeesIndemnityInfo
                   hasIndemnity={meet?.hasIndemnity}
+                  hasPdfIndemnityTemplate={meet?.hasPdfIndemnityTemplate}
                   indemnityAccepted={selectedAttendee.indemnityAccepted}
                   indemnityAcceptance={selectedAttendee.indemnityAcceptance}
                   needIndemnityConfirmationEmail={

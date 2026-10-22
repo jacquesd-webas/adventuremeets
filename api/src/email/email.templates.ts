@@ -17,6 +17,7 @@ import {
   OrganiserReminderResponsesNeededTemplateVars,
   OrganizerReminderCheckinNeededTemplateVars,
   IndemnityConfirmationTemplateVars,
+  IndemnityRequestTemplateVars,
   IndemnityPdfTemplateVars,
 } from "./email.types";
 import {
@@ -196,6 +197,7 @@ type RenderEmailTemplateArgs =
   | [name: "password-reset-confirmation"]
   | [name: "meet-signup", vars: MeetSignupTemplateVars]
   | [name: "indemnity-confirmation", vars: IndemnityConfirmationTemplateVars]
+  | [name: "indemnity-request", vars: IndemnityRequestTemplateVars]
   | [name: "indemnity-pdf", vars: IndemnityPdfTemplateVars]
   | [name: "verify-email", vars: VerifyEmailTemplateVars]
   | [
@@ -296,6 +298,33 @@ export function renderEmailTemplate(
       subject,
       text,
       html: wrapHtml(htmlBody, confirmationVars.logoUrl),
+    };
+  }
+
+  if (name === "indemnity-request") {
+    const requestVars = vars as IndemnityRequestTemplateVars | undefined;
+    if (!requestVars?.meetName || !requestVars.acceptanceUrl) {
+      throw new Error(
+        "Missing meetName or acceptanceUrl for indemnity-request template",
+      );
+    }
+    const varsMap = {
+      ...baseVarsMap,
+      meetName: requestVars.meetName,
+      attendeeName: requestVars.attendeeName || "there",
+      acceptanceUrl: requestVars.acceptanceUrl,
+    };
+    const subject = `Please accept the indemnity for ${requestVars.meetName}`;
+    const text = renderTemplate("indemnity-request", "txt", varsMap);
+    const htmlBody = renderTemplate(
+      "indemnity-request",
+      "html",
+      escapeAllHtml(varsMap),
+    );
+    return {
+      subject,
+      text,
+      html: wrapHtml(htmlBody, requestVars.logoUrl),
     };
   }
 

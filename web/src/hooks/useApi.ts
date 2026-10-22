@@ -199,7 +199,8 @@ export function useApi(options: ApiOptions = {}) {
     if (responseType === "blob") {
       return (await res.blob()) as T;
     }
-    return (await res.json()) as T;
+    const body = await res.text();
+    return (body ? JSON.parse(body) : null) as T;
   }
 
   async function get<T>(path: string, init?: RequestInit) {

@@ -17,13 +17,11 @@ describe("useApi", () => {
   });
 
   it("reads a private PDF response as a blob", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response("%PDF-preview", {
-          headers: { "Content-Type": "application/pdf" },
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("%PDF-preview", {
+        headers: { "Content-Type": "application/pdf" },
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const { result } = renderHook(() =>
       useApi({ baseUrl: "http://localhost:8000" }),
@@ -39,6 +37,21 @@ describe("useApi", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "http://localhost:8000/api/v1/meets/meet-1/indemnity-template/preview",
     );
+  });
+
+  it("treats an empty successful indemnity template response as no template", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() =>
+      useApi({ baseUrl: "http://localhost:8000" }),
+    );
+
+    await expect(
+      result.current.get("/meets/meet-1/indemnity-template"),
+    ).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes the token and retries after a 401", async () => {

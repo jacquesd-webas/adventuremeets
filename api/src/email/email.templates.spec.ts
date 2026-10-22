@@ -64,6 +64,25 @@ describe("renderEmailTemplate", () => {
     expect(result.html).toContain("confirm-indemnity?token=token");
   });
 
+  it("renders an indemnity acceptance request without claiming prior acceptance", () => {
+    const result = renderEmailTemplate("indemnity-request", {
+      meetName: "River & Ridge",
+      attendeeName: "Alex <Walker>",
+      acceptanceUrl:
+        "https://app.example.com/meets/share-123/attendee-1/confirm-indemnity?token=token&request=1",
+    });
+
+    expect(result.subject).toBe(
+      "Please accept the indemnity for River & Ridge",
+    );
+    expect(result.text).toContain("has not yet been accepted");
+    expect(result.text).toContain("token=token&request=1");
+    expect(result.text).not.toContain("&amp;request=1");
+    expect(result.html).toContain("Alex &lt;Walker&gt;");
+    expect(result.html).toContain("River &amp; Ridge");
+    expect(result.html).not.toContain("You accepted the indemnity");
+  });
+
   it("renders the separate PDF indemnity email with safe attendee details", () => {
     const result = renderEmailTemplate("indemnity-pdf", {
       meetName: "River & Ridge",

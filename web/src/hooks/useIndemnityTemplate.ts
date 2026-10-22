@@ -14,11 +14,14 @@ export type PdfQuestion = {
 export type PdfAutoField = {
   pdfFieldName: string;
   source:
+    | "meetName"
     | "meetStartTime"
     | "meetEndTime"
     | "meetLocation"
+    | "organizationName"
     | "attendeeName"
-    | "guardianName";
+    | "guardianName"
+    | "signatoryName";
 };
 
 const templateKey = (meetId: string) => ["meet", meetId, "indemnity-template"];
