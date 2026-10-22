@@ -78,6 +78,27 @@ describe("fillIndemnityPdf", () => {
     );
   });
 
+  it("uses an adult attendee's name for a parent or guardian field", async () => {
+    const template = await PDFDocument.create();
+    template
+      .getForm()
+      .createTextField("Parent full name")
+      .addToPage(template.addPage());
+
+    const filled = await fillIndemnityPdf(Buffer.from(await template.save()), {
+      meet: {},
+      attendee: { name: "Adult Example", isMinor: false },
+      answers: {},
+    });
+
+    expect(
+      (await PDFDocument.load(filled))
+        .getForm()
+        .getTextField("Parent full name")
+        .getText(),
+    ).toBe("Adult Example");
+  });
+
   it("uses one font and size even when form widgets request automatic sizing", async () => {
     const template = await PDFDocument.create();
     const page = template.addPage();

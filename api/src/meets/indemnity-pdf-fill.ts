@@ -94,7 +94,9 @@ function autoValue(
     case "attendeeName":
       return attendee.isMinor ? attendee.name || "" : "";
     case "guardianName":
-      return attendee.isMinor ? attendee.guardianName || "" : "";
+      return attendee.isMinor
+        ? attendee.guardianName || ""
+        : attendee.name || "";
     case "signatoryName":
       return attendee.isMinor
         ? attendee.guardianName || ""
