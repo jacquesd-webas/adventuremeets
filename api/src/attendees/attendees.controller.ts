@@ -12,6 +12,8 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
   UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
@@ -26,13 +28,14 @@ import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { EmailTemplateName } from "../email/email.types";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { UsersService } from "../users/users.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import { OrganizationsService } from "../organizations/organizations.service";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 import { ConfirmIndemnityDto } from "./dto/confirm-indemnity.dto";
 import { IndemnityTemplateService } from "../meets/indemnity-template.service";
+import { indemnityReplyToken } from "../meets/indemnity-reply-token";
 
 @ApiTags("Attendees")
 @Controller("meets/:meetId/attendees")
@@ -118,6 +121,7 @@ export class AttendeesController {
       ...email,
       attendeeId: attendee.id,
       meetId: meet.id,
+      replyTo: `meet+${meet.id}+${attendee.id}+${indemnityReplyToken(meet.id, attendee.id)}@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
       attachments: [
         {
           filename: pdf.filename,
@@ -186,6 +190,29 @@ export class AttendeesController {
     const meet = await this.meetsService.findOne(meetId);
     this.assertCanAccessMeetAttendees(user, meet);
     return await this.meetsService.listAttendees(meetId, filter, true);
+  }
+
+  @Get(":attendeeId/signed-indemnity")
+  async signedIndemnity(
+    @Param("meetId") meetId: string,
+    @Param("attendeeId") attendeeId: string,
+    @User() user: UserProfile | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    if (!user) throw new UnauthorizedException();
+    const meet = await this.meetsService.findOne(meetId);
+    if (!meet) throw new NotFoundException("Meet not found");
+    this.assertCanAccessMeetAttendees(user, meet);
+    const pdf = await this.indemnityTemplates.getSignedAttendeePdf(
+      meetId,
+      attendeeId,
+    );
+    if (!pdf) throw new NotFoundException("Signed indemnity PDF not found");
+    response.setHeader("Content-Type", "application/pdf");
+    response.setHeader("Content-Disposition", "inline");
+    response.setHeader("Cache-Control", "private, no-store");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    return new StreamableFile(pdf);
   }
 
   @Public()

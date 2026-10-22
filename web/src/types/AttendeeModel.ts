@@ -18,6 +18,7 @@ export type Attendee = {
   isMinor?: boolean;
   guardianName?: string;
   indemnityAccepted: boolean;
+  hasSignedIndemnityPdf?: boolean;
   indemnityMinors?: string;
   indemnityAcceptance?: {
     acceptedAt?: string;

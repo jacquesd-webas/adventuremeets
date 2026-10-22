@@ -4,6 +4,8 @@ import { IncomingMailController } from "./incoming-mail.controller";
 import { DatabaseService } from "../database/database.service";
 import { EmailService } from "../email/email.service";
 import { AuditLogService } from "../audit/audit-log.service";
+import { IndemnityTemplateService } from "./indemnity-template.service";
+import { indemnityReplyToken } from "./indemnity-reply-token";
 
 describe("IncomingMailController", () => {
   let controller: IncomingMailController;
@@ -20,6 +22,7 @@ describe("IncomingMailController", () => {
       where: jest.fn().mockReturnThis(),
       andWhereRaw:
         table === "meetAttendees" ? jest.fn().mockReturnThis() : undefined,
+      andWhere: jest.fn().mockReturnThis(),
       first: firstMocks[table],
     };
     return builder;
@@ -46,6 +49,9 @@ describe("IncomingMailController", () => {
   const auditLogService = {
     addRecord: jest.fn(),
   } as unknown as AuditLogService;
+  const indemnityTemplates = {
+    saveSignedAttendeePdf: jest.fn(),
+  } as unknown as IndemnityTemplateService;
 
   const response = () =>
     ({
@@ -54,7 +60,12 @@ describe("IncomingMailController", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new IncomingMailController(db, emailService, auditLogService);
+    controller = new IncomingMailController(
+      db,
+      emailService,
+      auditLogService,
+      indemnityTemplates,
+    );
     process.env.MAIL_DOMAIN = "adventuremeets.apps.fringecoding.com";
   });
 
@@ -278,5 +289,97 @@ describe("IncomingMailController", () => {
       meetId: "meet-1",
       description: "Incoming mail for meet Sunrise Hike",
     });
+  });
+
+  it("stores an attached PDF and marks the addressed attendee accepted", async () => {
+    firstMocks.meets.mockResolvedValue({
+      id: "meet-1",
+      organization_id: "org-1",
+      organizer_id: "user-1",
+      name: "Sunrise Hike",
+      indemnity_pdfs_id: "pdf-1",
+    });
+    firstMocks.users.mockResolvedValue({ email: "organizer@example.com" });
+    firstMocks.meetAttendees.mockResolvedValue({
+      id: "attendee-1",
+      name: "Alex",
+      email: "sender@example.com",
+    });
+    (emailService.parseMessageContent as jest.Mock).mockReturnValue({
+      subject: "Signed form",
+      pertinentBody: "Attached",
+      body: "Attached",
+    });
+    const pdf = Buffer.from("%PDF-1.4\nreturned form");
+    const raw = Buffer.from(
+      [
+        "Subject: Signed form",
+        "MIME-Version: 1.0",
+        'Content-Type: multipart/mixed; boundary="part"',
+        "",
+        "--part",
+        "Content-Type: text/plain",
+        "",
+        "Attached",
+        "--part",
+        'Content-Type: application/pdf; name="signed.pdf"',
+        'Content-Disposition: attachment; filename="signed.pdf"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        pdf.toString("base64"),
+        "--part--",
+      ].join("\r\n"),
+    );
+    await controller.handleIncoming(
+      `meet+meet-1+attendee-1+${indemnityReplyToken("meet-1", "attendee-1")}@adventuremeets.apps.fringecoding.com`,
+      "sender@example.com",
+      undefined as any,
+      raw,
+      {} as Request,
+      response(),
+    );
+    expect(indemnityTemplates.saveSignedAttendeePdf).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+      { filename: "signed.pdf", content: pdf },
+    );
+  });
+
+  it("does not accept a PDF sent to an address without a valid reply token", async () => {
+    firstMocks.meets.mockResolvedValue({
+      id: "meet-1",
+      organization_id: "org-1",
+      organizer_id: "user-1",
+      name: "Sunrise Hike",
+      indemnity_pdfs_id: "pdf-1",
+    });
+    firstMocks.users.mockResolvedValue({ email: "organizer@example.com" });
+    firstMocks.meetAttendees.mockResolvedValue({
+      id: "attendee-1",
+      name: "Alex",
+      email: "sender@example.com",
+    });
+    const raw = [
+      "Subject: Signed form",
+      'Content-Type: multipart/mixed; boundary="part"',
+      "",
+      "--part",
+      "Content-Type: application/pdf",
+      "Content-Disposition: attachment; filename=signed.pdf",
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from("%PDF-1.4\nsigned").toString("base64"),
+      "--part--",
+    ].join("\r\n");
+    await controller.handleIncoming(
+      "meet+meet-1+attendee-1+invalid@adventuremeets.apps.fringecoding.com",
+      "sender@example.com",
+      undefined as any,
+      raw,
+      {} as Request,
+      response(),
+    );
+    expect(indemnityTemplates.saveSignedAttendeePdf).not.toHaveBeenCalled();
+    expect(emailService.sendEmail).toHaveBeenCalled();
   });
 });

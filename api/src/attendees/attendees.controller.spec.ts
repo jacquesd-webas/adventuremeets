@@ -23,6 +23,7 @@ import { UsersService } from "../users/users.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import { OrganizationsService } from "../organizations/organizations.service";
 import { IndemnityTemplateService } from "../meets/indemnity-template.service";
+import { indemnityReplyToken } from "../meets/indemnity-reply-token";
 
 describe("AttendeesController", () => {
   let controller: AttendeesController;
@@ -67,6 +68,7 @@ describe("AttendeesController", () => {
   const indemnityTemplates = {
     createAttendeePdf: jest.fn(),
     hasTemplate: jest.fn(),
+    getSignedAttendeePdf: jest.fn(),
   } as unknown as IndemnityTemplateService;
 
   const user: UserProfile = {
@@ -201,6 +203,46 @@ describe("AttendeesController", () => {
       "meet-1",
       "confirmed",
       true,
+    );
+  });
+
+  it("only gives the organizer or admin access to a stored signed PDF", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (authService.hasRole as jest.Mock).mockImplementation(
+      (_user, _orgId, role) => role === "organizer",
+    );
+    const response = { setHeader: jest.fn() } as any;
+    await expect(
+      controller.signedIndemnity("meet-1", "attendee-1", undefined, response),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      controller.signedIndemnity(
+        "meet-1",
+        "attendee-1",
+        { ...user, id: "other" },
+        response,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(indemnityTemplates.getSignedAttendeePdf).not.toHaveBeenCalled();
+
+    const pdf = Buffer.from("%PDF-1.4");
+    (indemnityTemplates.getSignedAttendeePdf as jest.Mock).mockResolvedValue(
+      pdf,
+    );
+    const result = await controller.signedIndemnity(
+      "meet-1",
+      "attendee-1",
+      user,
+      response,
+    );
+    expect(result.getStream()).toBeDefined();
+    expect(indemnityTemplates.getSignedAttendeePdf).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+    );
+    expect(response.setHeader).toHaveBeenCalledWith(
+      "Cache-Control",
+      "private, no-store",
     );
   });
 
@@ -521,6 +563,7 @@ describe("AttendeesController", () => {
       expect.objectContaining({
         to: "riley@example.com",
         templateName: "indemnity-pdf",
+        replyTo: `meet+meet-1+attendee-2+${indemnityReplyToken("meet-1", "attendee-2")}@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
         attachments: [
           {
             filename: "consent-prefilled.pdf",

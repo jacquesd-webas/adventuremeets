@@ -5,6 +5,65 @@ import {
   IndemnityTemplateService,
 } from "./indemnity-template.service";
 
+describe("signed attendee indemnity", () => {
+  it("stores the PDF and marks acceptance together", async () => {
+    const insert = jest.fn().mockReturnValue({
+      onConflict: () => ({ merge: jest.fn().mockResolvedValue(undefined) }),
+    });
+    const update = jest.fn().mockResolvedValue(1);
+    const trx = Object.assign(
+      jest.fn((table: string) => ({
+        where: jest.fn().mockReturnValue({
+          first: jest
+            .fn()
+            .mockResolvedValue(
+              table === "meet_attendees" ? { id: "a-1" } : null,
+            ),
+          update,
+        }),
+        insert,
+      })),
+      { fn: { now: () => "now" } },
+    );
+    const db = {
+      getClient: () => ({
+        transaction: (callback: (trx: any) => Promise<void>) => callback(trx),
+      }),
+    };
+    const storage = { upload: jest.fn(), remove: jest.fn() };
+    const service = new IndemnityTemplateService(db as any, storage as any);
+    const pdf = Buffer.from("%PDF-1.4\nsigned");
+
+    await service.saveSignedAttendeePdf("meet-1", "a-1", {
+      filename: "signed.pdf",
+      content: pdf,
+    });
+
+    expect(storage.upload).toHaveBeenCalledWith(
+      expect.stringContaining("meets/meet-1/attendees/a-1/"),
+      pdf,
+    );
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "signed-indemnity", attendee_id: "a-1" }),
+    );
+    expect(update).toHaveBeenCalledWith({
+      indemnity_accepted: true,
+      updated_at: "now",
+    });
+  });
+
+  it("rejects a non-PDF before saving", async () => {
+    const storage = { upload: jest.fn() };
+    const service = new IndemnityTemplateService({} as any, storage as any);
+    await expect(
+      service.saveSignedAttendeePdf("meet-1", "a-1", {
+        content: Buffer.from("hello"),
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+});
+
 describe("detectPdfQuestions", () => {
   it("omits signature date fields from generated questions", async () => {
     const pdf = await PDFDocument.create();

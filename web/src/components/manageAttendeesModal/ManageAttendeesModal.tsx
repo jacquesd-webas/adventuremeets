@@ -712,6 +712,9 @@ export function ManageAttendeesModal({
                     hasIndemnity={meet?.hasIndemnity}
                     hasPdfIndemnityTemplate={meet?.hasPdfIndemnityTemplate}
                     indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    hasSignedIndemnityPdf={
+                      selectedAttendee.hasSignedIndemnityPdf
+                    }
                     indemnityAcceptance={selectedAttendee.indemnityAcceptance}
                     needIndemnityConfirmationEmail={
                       meet?.needIndemnityConfirmationEmail
@@ -863,6 +866,7 @@ export function ManageAttendeesModal({
                   hasIndemnity={meet?.hasIndemnity}
                   hasPdfIndemnityTemplate={meet?.hasPdfIndemnityTemplate}
                   indemnityAccepted={selectedAttendee.indemnityAccepted}
+                  hasSignedIndemnityPdf={selectedAttendee.hasSignedIndemnityPdf}
                   indemnityAcceptance={selectedAttendee.indemnityAcceptance}
                   needIndemnityConfirmationEmail={
                     meet?.needIndemnityConfirmationEmail

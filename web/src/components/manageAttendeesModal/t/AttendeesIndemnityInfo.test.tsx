@@ -11,6 +11,14 @@ vi.mock("../../../hooks/useResendIndemnityConfirmation", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useSignedIndemnityPdf", () => ({
+  useSignedIndemnityPdf: () => ({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 const baseProps = {
   attendeeId: "attendee-1",
   meetId: "meet-1",
@@ -168,6 +176,26 @@ describe("AttendeesIndemnityInfo", () => {
     expect(screen.getByRole("presentation")).toBeInTheDocument();
     expect(screen.getByText("Acceptance fingerprint")).toBeInTheDocument();
     expect(screen.getByText("By: Alex Walker")).toBeInTheDocument();
+  });
+
+  it("opens a returned signed PDF from the accepted text", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AttendeesIndemnityInfo
+          {...baseProps}
+          hasPdfIndemnityTemplate
+          hasSignedIndemnityPdf
+          indemnityAccepted
+          canViewIndemnityFingerprint
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Accepted" }));
+    expect(screen.getByText("Signed indemnity form")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Acceptance fingerprint"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not show acceptance fingerprint details without permission", () => {

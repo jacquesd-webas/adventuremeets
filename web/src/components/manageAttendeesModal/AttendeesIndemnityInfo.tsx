@@ -16,11 +16,13 @@ import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
 import type { Attendee } from "../../types/AttendeeModel";
 import { useResendIndemnityConfirmation } from "../../hooks/useResendIndemnityConfirmation";
 import { AttendeeIndemnityFingerprintDetails } from "./AttendeeIndemnityFingerprintDetails";
+import { AttendeeSignedIndemnityPdf } from "./AttendeeSignedIndemnityPdf";
 
 type AttendeesIndemnityInfoProps = {
   hasIndemnity?: boolean;
   hasPdfIndemnityTemplate?: boolean;
   indemnityAccepted: boolean;
+  hasSignedIndemnityPdf?: boolean;
   indemnityAcceptance?: Attendee["indemnityAcceptance"];
   needIndemnityConfirmationEmail?: boolean;
   meetId?: string | null;
@@ -42,6 +44,7 @@ export function AttendeesIndemnityInfo({
   hasIndemnity = false,
   hasPdfIndemnityTemplate = false,
   indemnityAccepted,
+  hasSignedIndemnityPdf = false,
   indemnityAcceptance,
   needIndemnityConfirmationEmail = false,
   meetId,
@@ -66,6 +69,12 @@ export function AttendeesIndemnityInfo({
   const [acceptanceAnchor, setAcceptanceAnchor] = useState<HTMLElement | null>(
     null,
   );
+  const [signedPdfOpen, setSignedPdfOpen] = useState(false);
+  const showSignedPdf = Boolean(hasSignedIndemnityPdf && meetId);
+  const openAcceptance = (element: HTMLElement) => {
+    if (showSignedPdf) setSignedPdfOpen(true);
+    else setAcceptanceAnchor(element);
+  };
   const { resendIndemnityConfirmationAsync, isResendingIndemnity } =
     useResendIndemnityConfirmation();
   const canResendIndemnity = Boolean(
@@ -117,11 +126,11 @@ export function AttendeesIndemnityInfo({
                   component="span"
                   role="button"
                   tabIndex={0}
-                  onClick={(event) => setAcceptanceAnchor(event.currentTarget)}
+                  onClick={(event) => openAcceptance(event.currentTarget)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      setAcceptanceAnchor(event.currentTarget);
+                      openAcceptance(event.currentTarget);
                     }
                   }}
                   sx={{ cursor: "pointer" }}
@@ -149,6 +158,14 @@ export function AttendeesIndemnityInfo({
             ) : null}
             {canViewIndemnityFingerprint ? (
               <>
+                {showSignedPdf && meetId ? (
+                  <AttendeeSignedIndemnityPdf
+                    open={signedPdfOpen}
+                    onClose={() => setSignedPdfOpen(false)}
+                    meetId={meetId}
+                    attendeeId={attendeeId}
+                  />
+                ) : null}
                 <Popover
                   open={!isMobile && Boolean(acceptanceAnchor)}
                   anchorEl={acceptanceAnchor}

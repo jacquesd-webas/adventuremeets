@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "crypto";
+import { basename } from "path";
 import type { Knex } from "knex";
 import {
   PDFCheckBox,
@@ -388,5 +389,85 @@ export class IndemnityTemplateService {
     if (previousKey)
       await this.storage.remove(previousKey).catch(() => undefined);
     return { filename, content };
+  }
+
+  async saveSignedAttendeePdf(
+    meetId: string,
+    attendeeId: string,
+    file: { filename?: string; content: Buffer },
+  ): Promise<void> {
+    if (
+      !file.content.length ||
+      file.content.length > 10 * 1024 * 1024 ||
+      file.content.subarray(0, 5).toString() !== "%PDF-"
+    ) {
+      throw new BadRequestException(
+        "Signed indemnity attachment must be a PDF under 10 MB",
+      );
+    }
+    const db = this.db.getClient();
+    const filename =
+      basename(file.filename || "signed-indemnity.pdf")
+        .split("")
+        .filter(
+          (character) =>
+            character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127,
+        )
+        .join("")
+        .slice(0, 255) || "signed-indemnity.pdf";
+    const objectKey = `meets/${meetId}/attendees/${attendeeId}/indemnity/${randomUUID()}.pdf`;
+    await this.storage.upload(objectKey, file.content);
+    let previousKey: string | undefined;
+    try {
+      await db.transaction(async (trx) => {
+        const attendee = await trx("meet_attendees")
+          .where({ id: attendeeId, meet_id: meetId })
+          .first("id");
+        if (!attendee)
+          throw new BadRequestException("Attendee does not belong to meet");
+        const previous = await trx("meet_attendee_attachments")
+          .where({
+            attendee_id: attendeeId,
+            meet_id: meetId,
+            kind: "signed-indemnity",
+          })
+          .first("object_key");
+        previousKey = previous?.object_key;
+        await trx("meet_attendee_attachments")
+          .insert({
+            meet_id: meetId,
+            attendee_id: attendeeId,
+            kind: "signed-indemnity",
+            object_key: objectKey,
+            filename,
+            content_type: "application/pdf",
+          })
+          .onConflict(["attendee_id", "kind"])
+          .merge({ object_key: objectKey, filename, created_at: trx.fn.now() });
+        await trx("meet_attendees")
+          .where({ id: attendeeId, meet_id: meetId })
+          .update({ indemnity_accepted: true, updated_at: trx.fn.now() });
+      });
+    } catch (error) {
+      await this.storage.remove(objectKey).catch(() => undefined);
+      throw error;
+    }
+    if (previousKey && previousKey !== objectKey)
+      await this.storage.remove(previousKey).catch(() => undefined);
+  }
+
+  async getSignedAttendeePdf(
+    meetId: string,
+    attendeeId: string,
+  ): Promise<Buffer | null> {
+    const attachment = await this.db
+      .getClient()("meet_attendee_attachments")
+      .where({
+        meet_id: meetId,
+        attendee_id: attendeeId,
+        kind: "signed-indemnity",
+      })
+      .first("object_key");
+    return attachment ? this.storage.download(attachment.object_key) : null;
   }
 }

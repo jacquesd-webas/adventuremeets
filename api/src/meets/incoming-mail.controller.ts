@@ -19,6 +19,9 @@ import { DatabaseService } from "../database/database.service";
 import { Public } from "../auth/decorators/public.decorator";
 import { EmailService } from "../email/email.service";
 import { AuditLogService } from "../audit/audit-log.service";
+import { simpleParser } from "mailparser";
+import { IndemnityTemplateService } from "./indemnity-template.service";
+import { validIndemnityReplyToken } from "./indemnity-reply-token";
 
 @ApiTags("Mail")
 @Controller()
@@ -27,6 +30,7 @@ export class IncomingMailController {
     private readonly db: DatabaseService,
     private readonly emailService: EmailService,
     private readonly auditLogService: AuditLogService,
+    private readonly indemnityTemplates: IndemnityTemplateService,
   ) {}
 
   @Public()
@@ -70,22 +74,25 @@ export class IncomingMailController {
 
     const mailDomain =
       process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";
+    const escapedDomain = mailDomain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const match = rcpt?.match(
-      new RegExp(`<?([^@<>]+)@${mailDomain.replace(".", "\\.")}>?`, "i"),
+      new RegExp(`<?([^@<>]+)@${escapedDomain}>?`, "i"),
     );
     const rcptLocal = match?.[1];
-    const meetId = rcptLocal?.startsWith("meet+")
+    const meetAddress = rcptLocal?.startsWith("meet+")
       ? rcptLocal.slice("meet+".length)
       : rcptLocal;
+    const [meetId, addressedAttendeeId, replyToken] =
+      meetAddress?.split("+") || [];
 
-    const rawBody =
-      (req as any).rawBody?.toString?.() ??
-      (Buffer.isBuffer(body) ? body.toString() : undefined) ??
-      (typeof body === "string"
+    const rawBuffer = Buffer.isBuffer((req as any).rawBody)
+      ? ((req as any).rawBody as Buffer)
+      : Buffer.isBuffer(body)
         ? body
-        : typeof body === "object"
-          ? JSON.stringify(body)
-          : "");
+        : Buffer.from(
+            typeof body === "string" ? body : JSON.stringify(body ?? ""),
+          );
+    const rawBody = rawBuffer.toString("utf8");
 
     if (!rcptLocal || !rawBody) {
       res.status(HttpStatus.OK);
@@ -109,7 +116,13 @@ export class IncomingMailController {
     // Make sure meet, sender and recipients are real
     const meet = await this.db
       .getClient()("meets")
-      .select("id", "organization_id", "organizer_id", "name")
+      .select(
+        "id",
+        "organization_id",
+        "organizer_id",
+        "name",
+        "indemnity_pdfs_id",
+      )
       .where("id", meetId)
       .first();
 
@@ -129,12 +142,45 @@ export class IncomingMailController {
       return { status: "meet organiser not found" };
     }
 
-    const attendee = await this.db
+    const attendeeQuery = this.db
       .getClient()("meet_attendees")
       .select("id", "name", "email")
       .where("meet_id", meetId)
-      .andWhereRaw("lower(email) = lower(?)", [sender])
-      .first();
+      .andWhereRaw("lower(email) = lower(?)", [sender]);
+    if (addressedAttendeeId) attendeeQuery.andWhere("id", addressedAttendeeId);
+    const attendee = await attendeeQuery.first();
+
+    const parsedMail = meet.indemnity_pdfs_id
+      ? await simpleParser(rawBuffer)
+      : null;
+    if (
+      parsedMail &&
+      addressedAttendeeId &&
+      validIndemnityReplyToken(meetId, addressedAttendeeId, replyToken)
+    ) {
+      const pdf = parsedMail.attachments.find(
+        (attachment) =>
+          attachment.content.length > 0 &&
+          attachment.content.length <= 10 * 1024 * 1024 &&
+          attachment.content.subarray(0, 5).toString() === "%PDF-",
+      );
+      if (pdf && attendee) {
+        await this.indemnityTemplates.saveSignedAttendeePdf(
+          meetId,
+          attendee.id,
+          {
+            filename: pdf.filename || undefined,
+            content: pdf.content,
+          },
+        );
+        await this.auditLogService.addRecord({
+          orgId: meet.organization_id,
+          attendeeId: attendee.id,
+          meetId: meet.id,
+          description: `Signed indemnity PDF received for ${attendee.name || "attendee"}`,
+        });
+      }
+    }
 
     // It's okay if we dont' have an attendee - the email could come from anyone
 
@@ -144,7 +190,13 @@ export class IncomingMailController {
       subject,
       pertinentBody,
       body: fullBody,
-    } = this.emailService.parseMessageContent(rawBody);
+    } = parsedMail
+      ? {
+          subject: parsedMail.subject || "No subject",
+          pertinentBody: parsedMail.text || "",
+          body: parsedMail.text || "",
+        }
+      : this.emailService.parseMessageContent(rawBody);
     const attendeeLabel = attendee?.name?.trim() || sender;
     const forwardedBody = [
       `You received a message from ${attendeeLabel} about meet ${meet.name}.`,
@@ -169,7 +221,9 @@ export class IncomingMailController {
       attendeeId: attendee?.id ?? null,
       from: sender,
       to: organizer?.email ?? null,
-      rawContent: rawBody,
+      rawContent: parsedMail
+        ? `Subject: ${subject}\n\n${parsedMail.text || ""}`
+        : rawBody,
     });
 
     await this.auditLogService.addRecord({

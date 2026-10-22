@@ -897,6 +897,14 @@ export class MeetsService {
           ) AS has_unread_messages
         `),
         this.db.getClient().raw(`
+          EXISTS (
+            SELECT 1 FROM meet_attendee_attachments attachment
+            WHERE attachment.attendee_id = meet_attendees.id
+              AND attachment.meet_id = meet_attendees.meet_id
+              AND attachment.kind = 'signed-indemnity'
+          ) AS has_signed_indemnity_pdf
+        `),
+        this.db.getClient().raw(`
           (
             SELECT jsonb_build_object(
               'acceptedAt', ia.accepted_at,
@@ -3263,6 +3271,7 @@ export class MeetsService {
       isMinor: attendee.is_minor ?? undefined,
       guardianName: attendee.guardian_name ?? undefined,
       indemnityAccepted: attendee.indemnity_accepted ?? undefined,
+      hasSignedIndemnityPdf: attendee.has_signed_indemnity_pdf === true,
       indemnityMinors: attendee.indemnity_minors ?? undefined,
       indemnityAcceptance: attendee.indemnity_acceptance ?? undefined,
       paidFullAt: attendee.paid_full_at ?? undefined,
