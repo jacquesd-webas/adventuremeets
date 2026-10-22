@@ -195,6 +195,7 @@ describe("EmailService.sendEmail", () => {
       expect.objectContaining({
         to: ["alex@example.com", "jamie@example.com"],
         html: "<p>Hello everyone</p>",
+        from: expect.any(String),
         envelope: {
           from: expect.not.stringContaining("bounce+"),
           to: ["alex@example.com", "jamie@example.com"],
@@ -335,6 +336,8 @@ describe("EmailService.sendEmail", () => {
         subject: "Subject",
         text: "Body",
         html: "<html><body><p>Body</p></body></html>",
+        meetId: "meet-1",
+        fromName: "Taylor (AdventureMeets)",
       }),
     ).resolves.toBeUndefined();
 
@@ -343,6 +346,11 @@ describe("EmailService.sendEmail", () => {
         to: "alex@example.com",
         subject: "Subject",
         text: "Body",
+        from: {
+          name: "Taylor (AdventureMeets)",
+          address:
+            process.env.MAIL_DEFAULT_FROM || `noreply@${expectedMailDomain}`,
+        },
       }),
     );
     expect(sendMail).toHaveBeenCalledWith(

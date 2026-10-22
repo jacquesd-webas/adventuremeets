@@ -14,6 +14,7 @@ export type SendEmailOptions = {
   text: string;
   html?: string;
   from?: string;
+  fromName?: string;
   replyTo?: string;
   attachments?: Attachment[];
   organizationId?: string;
@@ -294,6 +295,7 @@ export class EmailService {
       text,
       html,
       from,
+      fromName,
       replyTo,
       attachments,
       organizationId,
@@ -339,6 +341,9 @@ export class EmailService {
       ]),
     );
     const resolvedFrom = meetId ? this.defaultFrom : from || this.defaultFrom;
+    const messageFrom = fromName?.trim()
+      ? { name: fromName.trim(), address: resolvedFrom }
+      : resolvedFrom;
     const resolvedReplyTo = meetId
       ? replyTo || `meet+${meetId}@${this.mailDomain}`
       : replyTo;
@@ -355,7 +360,7 @@ export class EmailService {
           subject,
           text,
           html,
-          from: resolvedFrom,
+          from: messageFrom,
           replyTo: resolvedReplyTo,
           attachments,
           envelope: { from: resolvedFrom, to: expectedRecipients },
@@ -407,7 +412,7 @@ export class EmailService {
         html: html
           ? this.addTrackingPixel(html, this.buildTrackingUrl(trackingToken!))
           : html,
-        from: resolvedFrom,
+        from: messageFrom,
         replyTo: resolvedReplyTo,
         attachments,
         envelope: {

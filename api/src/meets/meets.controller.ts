@@ -887,6 +887,9 @@ export class MeetsController {
     const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
     const organizerName = meet.organizerName || "the organiser";
     const organizerEmail = meet.organizerEmail || "";
+    const fromName = meet.organizerName
+      ? `${meet.organizerName?.trim()} (AdventureMeets)`
+      : "AdventureMeets";
     const includeStatusUrl =
       body.sendAsGroup === true ? false : body.includeStatusUrl !== false;
     const meetReplyTo = `meet+${meet.id}@${process.env.MAIL_DOMAIN}`;
@@ -960,6 +963,7 @@ export class MeetsController {
         subject: body.subject,
         text,
         html,
+        fromName,
         replyTo: meetReplyTo,
         messageReferences,
       });
@@ -989,6 +993,7 @@ export class MeetsController {
             subject: body.subject,
             text,
             html,
+            fromName,
             meetId: meet.id,
             attendeeId,
             replyTo: meetReplyTo,

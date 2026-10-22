@@ -1268,6 +1268,7 @@ describe("MeetsController", () => {
         attendeeId: "attendee-1",
         meetId: "meet-1",
         replyTo: "meet+meet-1@example.com",
+        fromName: "Taylor (AdventureMeets)",
       }),
     );
     expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
@@ -1322,6 +1323,7 @@ describe("MeetsController", () => {
         to: ["alex@example.com", "jamie@example.com"],
         sendAsGroup: true,
         replyTo: "meet+meet-1@example.com",
+        fromName: "Taylor (AdventureMeets)",
       }),
     );
     expect(emailService.saveMessage).toHaveBeenCalledWith(
