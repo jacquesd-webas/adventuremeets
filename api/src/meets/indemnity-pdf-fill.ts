@@ -92,7 +92,7 @@ function autoValue(
     case "organizationName":
       return meet.organizationName || "";
     case "attendeeName":
-      return attendee.isMinor ? attendee.name || "" : "";
+      return attendee.name || "";
     case "guardianName":
       return attendee.isMinor
         ? attendee.guardianName || ""

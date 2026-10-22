@@ -78,12 +78,11 @@ describe("fillIndemnityPdf", () => {
     );
   });
 
-  it("uses an adult attendee's name for a parent or guardian field", async () => {
+  it("uses an adult attendee's name for both child and parent fields", async () => {
     const template = await PDFDocument.create();
-    template
-      .getForm()
-      .createTextField("Parent full name")
-      .addToPage(template.addPage());
+    const page = template.addPage();
+    template.getForm().createTextField("Parent full name").addToPage(page);
+    template.getForm().createTextField("Child full name").addToPage(page);
 
     const filled = await fillIndemnityPdf(Buffer.from(await template.save()), {
       meet: {},
@@ -91,12 +90,13 @@ describe("fillIndemnityPdf", () => {
       answers: {},
     });
 
-    expect(
-      (await PDFDocument.load(filled))
-        .getForm()
-        .getTextField("Parent full name")
-        .getText(),
-    ).toBe("Adult Example");
+    const form = (await PDFDocument.load(filled)).getForm();
+    expect(form.getTextField("Parent full name").getText()).toBe(
+      "Adult Example",
+    );
+    expect(form.getTextField("Child full name").getText()).toBe(
+      "Adult Example",
+    );
   });
 
   it("uses one font and size even when form widgets request automatic sizing", async () => {
