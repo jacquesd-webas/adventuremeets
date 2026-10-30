@@ -233,6 +233,179 @@ describe("IncomingMailController", () => {
     expect(res.status).toHaveBeenCalledWith(HttpStatus.CREATED);
   });
 
+  it("records an organiser reply to a copied attendee as outbound without forwarding it back", async () => {
+    firstMocks.meets.mockResolvedValue({
+      id: "meet-1",
+      organization_id: "org-1",
+      organizer_id: "user-1",
+      name: "Sunrise Hike",
+    });
+    firstMocks.users.mockResolvedValue({ email: "ME@gmail.com" });
+    firstMocks.meetAttendees.mockResolvedValue({ id: "attendee-2" });
+    const raw = [
+      "From: Me <me@gmail.com>",
+      "To: meet+meet-1@adventuremeets.apps.fringecoding.com",
+      "Cc: Penny <penny@gmail.com>",
+      "Subject: Re: Sunrise Hike",
+      "",
+      "Thanks, Penny",
+    ].join("\r\n");
+    const res = response();
+
+    await expect(
+      controller.handleIncoming(
+        "meet+meet-1@adventuremeets.apps.fringecoding.com",
+        "me@gmail.com",
+        undefined as any,
+        raw,
+        {} as Request,
+        res,
+      ),
+    ).resolves.toEqual({ status: "ok" });
+
+    expect(emailService.saveIncomingMessage).toHaveBeenCalledWith({
+      meetId: "meet-1",
+      attendeeId: "attendee-2",
+      from: "me@gmail.com",
+      to: "penny@gmail.com",
+      rawContent: raw,
+    });
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      attendeeId: "attendee-2",
+      meetId: "meet-1",
+      description: "Outgoing mail for meet Sunrise Hike",
+    });
+    expect(res.status).toHaveBeenCalledWith(HttpStatus.CREATED);
+  });
+
+  it("saves the readable text of an HTML-only organiser reply", async () => {
+    firstMocks.meets.mockResolvedValue({
+      id: "meet-1",
+      organization_id: "org-1",
+      organizer_id: "user-1",
+      name: "Sunrise Hike",
+    });
+    firstMocks.users.mockResolvedValue({ email: "me@gmail.com" });
+    firstMocks.meetAttendees.mockResolvedValue({ id: "attendee-2" });
+    const raw = [
+      "From: me@gmail.com",
+      "To: meet+meet-1@adventuremeets.apps.fringecoding.com",
+      "Cc: penny@gmail.com",
+      "Subject: Re: Sunrise Hike",
+      "MIME-Version: 1.0",
+      'Content-Type: multipart/alternative; boundary="Apple-Mail-ABC"',
+      "",
+      "--Apple-Mail-ABC",
+      "Content-Type: text/html; charset=utf-8",
+      "Content-Transfer-Encoding: quoted-printable",
+      "",
+      "<div>It=E2=80=99s up to you.</div>",
+      "--Apple-Mail-ABC--",
+    ].join("\r\n");
+
+    await controller.handleIncoming(
+      "meet+meet-1@adventuremeets.apps.fringecoding.com",
+      "me@gmail.com",
+      undefined as any,
+      raw,
+      {} as Request,
+      response(),
+    );
+
+    expect(emailService.saveIncomingMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendeeId: "attendee-2",
+        rawContent: "Subject: Re: Sunrise Hike\n\nIt’s up to you.",
+      }),
+    );
+  });
+
+  it("records a group reply for each attendee in To and CC", async () => {
+    firstMocks.meets.mockResolvedValue({
+      id: "meet-1",
+      organization_id: "org-1",
+      organizer_id: "user-1",
+      name: "Sunrise Hike",
+    });
+    firstMocks.users.mockResolvedValue({ email: "me@gmail.com" });
+    firstMocks.meetAttendees
+      .mockResolvedValueOnce({ id: "attendee-1" })
+      .mockResolvedValueOnce({ id: "attendee-2" });
+    const raw = [
+      "From: me@gmail.com",
+      "To: meet+meet-1@adventuremeets.apps.fringecoding.com, Alex <alex@example.com>",
+      "Cc: Penny <penny@gmail.com>, me@gmail.com",
+      "Subject: Update",
+      "",
+      "See you there",
+    ].join("\r\n");
+
+    await controller.handleIncoming(
+      "meet+meet-1@adventuremeets.apps.fringecoding.com",
+      "me@gmail.com",
+      undefined as any,
+      raw,
+      {} as Request,
+      response(),
+    );
+
+    expect(emailService.saveIncomingMessage).toHaveBeenCalledTimes(2);
+    expect(emailService.saveIncomingMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendeeId: "attendee-1",
+        to: "alex@example.com",
+      }),
+    );
+    expect(emailService.saveIncomingMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendeeId: "attendee-2",
+        to: "penny@gmail.com",
+      }),
+    );
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("keeps the existing behaviour for an organiser replying only to the meet address", async () => {
+    firstMocks.meets.mockResolvedValue({
+      id: "meet-1",
+      organization_id: "org-1",
+      organizer_id: "user-1",
+      name: "Sunrise Hike",
+    });
+    firstMocks.users.mockResolvedValue({ email: "me@gmail.com" });
+    firstMocks.meetAttendees.mockResolvedValue(null);
+    (emailService.parseMessageContent as jest.Mock).mockReturnValue({
+      subject: "Test",
+      pertinentBody: "Testing",
+      body: "Testing",
+    });
+    const raw = [
+      "From: me@gmail.com",
+      "To: meet+meet-1+attendee-1+token@adventuremeets.apps.fringecoding.com",
+      "Subject: Test",
+      "",
+      "Testing",
+    ].join("\r\n");
+
+    await controller.handleIncoming(
+      "meet+meet-1+attendee-1+token@adventuremeets.apps.fringecoding.com",
+      "me@gmail.com",
+      undefined as any,
+      raw,
+      {} as Request,
+      response(),
+    );
+
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "me@gmail.com" }),
+    );
+    expect(emailService.saveIncomingMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ attendeeId: null, from: "me@gmail.com" }),
+    );
+  });
+
   it("uses the fallback subject and null attendee when no attendee matches", async () => {
     firstMocks.meets.mockResolvedValue({
       id: "meet-1",

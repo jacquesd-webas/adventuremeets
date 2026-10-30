@@ -350,6 +350,23 @@ describe("MeetsService", () => {
         content: "Subject: Re: Update\n\nThanks",
         attendee_email: "alex@example.com",
       },
+      {
+        message_id: "message-3",
+        timestamp: "2026-06-19T12:00:00.000Z",
+        from: "organizer@example.com",
+        to: "alex@example.com",
+        content: [
+          "Subject: Re: Update",
+          "",
+          "--Apple-Mail-ABC",
+          "Content-Type: text/html; charset=utf-8",
+          "Content-Transfer-Encoding: quoted-printable",
+          "",
+          "<div>It=E2=80=99s fine.</div>",
+          "--Apple-Mail-ABC--",
+        ].join("\n"),
+        attendee_email: "alex@example.com",
+      },
     ]);
 
     const client: any = (table: string) => {
@@ -373,6 +390,11 @@ describe("MeetsService", () => {
       expect.objectContaining({
         id: "message-2",
         direction: "received",
+      }),
+      expect.objectContaining({
+        id: "message-3",
+        direction: "sent",
+        content: "Subject: Re: Update\n\nIt’s fine.",
       }),
     ]);
   });

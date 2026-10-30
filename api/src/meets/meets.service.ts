@@ -28,6 +28,7 @@ import { v4 as uuid } from "uuid";
 import { MEET_STATUS } from "./constants/meet-status.enum";
 import { type WallItemReaction } from "../wall/dto/update-wall-item-reaction.dto";
 import { WallItemDto } from "../wall/dto/wall-item.dto";
+import { normalizeIncomingMessageContent } from "../email/incoming-message-content";
 
 type InvitedAttendeeUploadInput = {
   name: string;
@@ -3178,22 +3179,24 @@ export class MeetsService {
         "oe.recipient_email",
         "oe.opened_at",
       );
-    return rows.map((row: any) => ({
-      id: row.message_id,
-      timestamp: row.timestamp,
-      from: row.from,
-      to: row.to,
-      isRead: row.is_read ?? false,
-      content: row.content,
-      emailStatus: row.email_status ?? null,
-      recipientEmail: row.recipient_email ?? null,
-      openedAt: row.opened_at ?? null,
-      direction: this.getAttendeeMessageDirection(
-        row.from,
-        row.to,
-        row.attendee_email,
-      ),
-    }));
+    return Promise.all(
+      rows.map(async (row: any) => ({
+        id: row.message_id,
+        timestamp: row.timestamp,
+        from: row.from,
+        to: row.to,
+        isRead: row.is_read ?? false,
+        content: await normalizeIncomingMessageContent(row.content),
+        emailStatus: row.email_status ?? null,
+        recipientEmail: row.recipient_email ?? null,
+        openedAt: row.opened_at ?? null,
+        direction: this.getAttendeeMessageDirection(
+          row.from,
+          row.to,
+          row.attendee_email,
+        ),
+      })),
+    );
   }
 
   private getAttendeeMessageDirection(
