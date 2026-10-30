@@ -71,7 +71,7 @@ export function SelectTemplate({
         }}
       >
         <Select
-          aria-label="Template"
+          SelectDisplayProps={{ "aria-label": "Template" }}
           value={selectedId}
           displayEmpty
           onChange={(event) => setSelectedId(event.target.value)}
@@ -137,6 +137,7 @@ const mapDefinitionsToQuestions = (
       id: fallbackId,
       type: fieldType,
       label: definition.label || "",
+      category: "N",
       required: Boolean(definition.required),
       includeInReports: definition.config?.includeInReports ?? false,
       options:

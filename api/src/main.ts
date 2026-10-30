@@ -8,8 +8,8 @@ import { loadEnv } from "./config/env.loader";
 async function bootstrap() {
   loadEnv();
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
-  
-  const bootstrapLogger = new Logger('Bootstrap');
+
+  const bootstrapLogger = new Logger("Bootstrap");
   app.useLogger(bootstrapLogger);
   const logger = bootstrapLogger;
 
@@ -23,16 +23,16 @@ async function bootstrap() {
     "/api/v1/incoming",
     express.raw({
       type: ["message/rfc822", "text/plain"],
-      limit: "10mb",
-    })
+      limit: "20mb",
+    }),
   );
-  
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
       forbidUnknownValues: true,
-    })
+    }),
   );
 
   const config = new DocumentBuilder()
@@ -40,11 +40,11 @@ async function bootstrap() {
     .setVersion("1.0")
     .addBearerAuth(
       {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
       },
-      "bearer"
+      "bearer",
     )
     .build();
   const document = SwaggerModule.createDocument(app, config);
@@ -68,14 +68,14 @@ async function bootstrap() {
   let host = apiBaseUrl.split("//").pop()!.split(":")[0].split("/")[0];
   if (!host) {
     logger?.warn?.(
-      "Unable to determine host from API_BASEURL, defaulting to localhost"
+      "Unable to determine host from API_BASEURL, defaulting to localhost",
     );
     host = "localhost";
   }
   let port = parseInt(apiBaseUrl.split(":").pop()!.split("/")[0], 10);
   if (!port || isNaN(port)) {
     logger?.warn?.(
-      "Unable to determine port from API_BASEURL, defaulting to 8080"
+      "Unable to determine port from API_BASEURL, defaulting to 8080",
     );
     port = 8080;
   }

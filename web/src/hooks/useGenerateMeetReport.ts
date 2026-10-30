@@ -5,19 +5,13 @@ type GenerateMeetReportPayload = {
   meetId: string;
   sendEmail: boolean;
   downloadReport: boolean;
-  isFinalReport?: boolean;
 };
 
 export function useGenerateMeetReport() {
   const api = useApi();
 
   const mutation = useMutation<Blob | null, Error, GenerateMeetReportPayload>({
-    mutationFn: async ({
-      meetId,
-      sendEmail,
-      downloadReport,
-      isFinalReport = true,
-    }) => {
+    mutationFn: async ({ meetId, sendEmail, downloadReport }) => {
       const token =
         typeof window !== "undefined"
           ? window.localStorage.getItem("accessToken")
@@ -28,7 +22,7 @@ export function useGenerateMeetReport() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ sendEmail, downloadReport, isFinalReport }),
+        body: JSON.stringify({ sendEmail, downloadReport }),
       });
       if (!res.ok) {
         const message = await res.text();

@@ -165,11 +165,13 @@ describe("ManageAttendeesModal", () => {
     (fetch as any).mockResolvedValue({
       ok: true,
       status: 200,
-      json: vi.fn().mockResolvedValue({
-        created: 0,
-        skipped: 0,
-        conflicts: [],
-      }),
+      text: vi.fn().mockResolvedValue(
+        JSON.stringify({
+          created: 0,
+          skipped: 0,
+          conflicts: [],
+        }),
+      ),
     });
     vi.useRealTimers();
     updateMeetAttendeeAsync.mockReset();
@@ -462,34 +464,38 @@ describe("ManageAttendeesModal", () => {
     (fetch as any).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: vi.fn().mockResolvedValue({
-        created: 1,
-        skipped: 0,
-        conflicts: [
-          {
-            rowNumber: 4,
-            email: "alex@example.com",
-            uploadedName: "Alex Rider",
-            conflictingNames: ["Alex"],
-            existingAttendeeId: "a1",
-            attendee: {
+      text: vi.fn().mockResolvedValue(
+        JSON.stringify({
+          created: 1,
+          skipped: 0,
+          conflicts: [
+            {
               rowNumber: 4,
-              name: "Alex Rider",
               email: "alex@example.com",
-              phone: "+27123456789",
+              uploadedName: "Alex Rider",
+              conflictingNames: ["Alex"],
+              existingAttendeeId: "a1",
+              attendee: {
+                rowNumber: 4,
+                name: "Alex Rider",
+                email: "alex@example.com",
+                phone: "+27123456789",
+              },
             },
-          },
-        ],
-      }),
+          ],
+        }),
+      ),
     });
     (fetch as any).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: vi.fn().mockResolvedValue({
-        replaced: 1,
-        addedAsMinor: 0,
-        ignored: 0,
-      }),
+      text: vi.fn().mockResolvedValue(
+        JSON.stringify({
+          replaced: 1,
+          addedAsMinor: 0,
+          ignored: 0,
+        }),
+      ),
     });
 
     const queryClient = new QueryClient();

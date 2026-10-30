@@ -215,7 +215,9 @@ describe("Create meet with template", () => {
     cy.get('[data-testid="start-time-input"]').clear().type(startValue);
     cy.contains("button", "Save & Continue").click();
 
-    cy.get('[aria-label="Template"]').click();
+    cy.get('[role="combobox"][aria-label="Template"]', { timeout: 10_000 })
+      .should("not.have.attr", "aria-disabled", "true")
+      .click();
     cy.contains('[role="option"]', templateNameOne).click();
     cy.get('input[aria-label="Require attendees to accept indemnity"]').check({
       force: true,
@@ -279,17 +281,24 @@ describe("Create meet with template", () => {
 
     cy.contains("button", "Publish").click();
     cy.contains(meetName).should("be.visible");
+    cy.wait(11_000);
 
     cy.get("@shareLink").then((shareLink) => {
       cy.visit(String(shareLink));
     });
 
-    cy.contains(indemnityText).should("be.visible");
-    cy.contains("I accept the indemnity").should("be.visible");
-    cy.contains(questionOne).should("be.visible");
-    cy.contains(questionTwo).should("be.visible");
-    cy.contains(questionThree).should("be.visible");
-    cy.contains(questionFour).should("be.visible");
+    cy.contains(questionOne).scrollIntoView().should("be.visible");
+    cy.contains(questionTwo).scrollIntoView().should("be.visible");
+    cy.contains(questionThree).scrollIntoView().should("be.visible");
+    cy.contains(questionFour).scrollIntoView().should("be.visible");
+    cy.contains(indemnityText).scrollIntoView().should("be.visible");
+    cy.contains("I accept the indemnity")
+      .closest("label")
+      .scrollIntoView()
+      .should("be.visible")
+      .click()
+      .find('input[type="checkbox"]')
+      .should("be.checked");
   });
 });
 

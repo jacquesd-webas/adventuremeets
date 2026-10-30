@@ -13,7 +13,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useApi } from "../../hooks/useApi";
 import { useNotistack } from "../../hooks/useNotistack";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { attendeeMessageQueryKeys } from "../../hooks/attendeeMessageQueryKeys";
 
 type AttendeeMetaValue = {
   definitionId: string;
@@ -49,7 +50,24 @@ export function OrganizerMetaEditDialog({
   const { error, success } = useNotistack();
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [indemnityValue, setIndemnityValue] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const updateResponses = useMutation({
+    mutationFn: (updatePayload: Record<string, unknown>) =>
+      api.patch(`/meets/${meetId}/attendees/${attendeeId}`, updatePayload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["meet-attendees", meetId] }),
+        queryClient.invalidateQueries({
+          queryKey: attendeeMessageQueryKeys.attendee(meetId, attendeeId),
+        }),
+      ]);
+      success("Responses updated");
+      onClose();
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      error(`Unable to update responses: ${message}`);
+    },
+  });
 
   const orderedFields = useMemo(() => {
     return [...metaValues].sort((a, b) => {
@@ -73,32 +91,19 @@ export function OrganizerMetaEditDialog({
     setIndemnityValue(Boolean(indemnityAccepted));
   }, [open, metaValues, indemnityAccepted]);
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const payload = orderedFields.map((field) => ({
-        definitionId: field.definitionId,
-        value:
-          field.fieldType === "checkbox" || field.fieldType === "switch"
-            ? String(Boolean(values[field.definitionId]))
-            : String(values[field.definitionId] ?? ""),
-      }));
-      const updatePayload: Record<string, any> = { metaValues: payload };
-      if (hasIndemnity) {
-        updatePayload.indemnityAccepted = indemnityValue;
-      }
-      await api.patch(`/meets/${meetId}/attendees/${attendeeId}`, updatePayload);
-      await queryClient.invalidateQueries({
-        queryKey: ["meet-attendees", meetId],
-      });
-      success("Responses updated");
-      onClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      error(`Unable to update responses: ${message}`);
-    } finally {
-      setIsSaving(false);
+  const handleSave = () => {
+    const payload = orderedFields.map((field) => ({
+      definitionId: field.definitionId,
+      value:
+        field.fieldType === "checkbox" || field.fieldType === "switch"
+          ? String(Boolean(values[field.definitionId]))
+          : String(values[field.definitionId] ?? ""),
+    }));
+    const updatePayload: Record<string, unknown> = { metaValues: payload };
+    if (hasIndemnity) {
+      updatePayload.indemnityAccepted = indemnityValue;
     }
+    updateResponses.mutate(updatePayload);
   };
 
   return (
@@ -202,10 +207,14 @@ export function OrganizerMetaEditDialog({
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={isSaving}>
+        <Button onClick={onClose} disabled={updateResponses.isPending}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={handleSave} disabled={isSaving}>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={updateResponses.isPending}
+        >
           Save
         </Button>
       </DialogActions>

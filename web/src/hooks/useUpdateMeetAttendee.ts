@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import { setCachedMeetAttendees } from "../helpers/checkinOfflineStore";
+import { attendeeMessageQueryKeys } from "./attendeeMessageQueryKeys";
 
 type UpdateMeetAttendeePayload = {
   meetId: string;
@@ -26,7 +27,7 @@ export function useUpdateMeetAttendee() {
     }) => {
       const payload = { status, paidFullAt, paidDepositAt, guests };
       Object.keys(payload).forEach(
-        (key) => payload[key] === undefined && delete payload[key]
+        (key) => payload[key] === undefined && delete payload[key],
       );
       return api.patch(`/meets/${meetId}/attendees/${attendeeId}`, payload);
     },
@@ -81,6 +82,12 @@ export function useUpdateMeetAttendee() {
       }
       queryClient.invalidateQueries({
         queryKey: ["meet-attendees", variables.meetId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: attendeeMessageQueryKeys.attendee(
+          variables.meetId,
+          variables.attendeeId,
+        ),
       });
     },
   });

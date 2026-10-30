@@ -11,6 +11,14 @@ vi.mock("../../../hooks/useResendIndemnityConfirmation", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useSignedIndemnityPdf", () => ({
+  useSignedIndemnityPdf: () => ({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 const baseProps = {
   attendeeId: "attendee-1",
   meetId: "meet-1",
@@ -70,12 +78,54 @@ describe("AttendeesIndemnityInfo", () => {
     );
   });
 
+  it.each([
+    { hasIndemnity: true, hasPdfIndemnityTemplate: false },
+    { hasIndemnity: false, hasPdfIndemnityTemplate: true },
+  ])(
+    "allows resending unaccepted indemnity with $hasPdfIndemnityTemplate PDF form",
+    async ({ hasIndemnity, hasPdfIndemnityTemplate }) => {
+      resendIndemnityConfirmationAsync.mockResolvedValue({ sent: true });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <AttendeesIndemnityInfo
+            {...baseProps}
+            hasIndemnity={hasIndemnity}
+            hasPdfIndemnityTemplate={hasPdfIndemnityTemplate}
+            indemnityAccepted={false}
+          />
+        </QueryClientProvider>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Resend indemnity" }));
+
+      await waitFor(() =>
+        expect(resendIndemnityConfirmationAsync).toHaveBeenCalledWith({
+          meetId: "meet-1",
+          attendeeId: "attendee-1",
+        }),
+      );
+    },
+  );
+
+  it("does not offer resend after indemnity was accepted", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AttendeesIndemnityInfo {...baseProps} indemnityAccepted />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Resend indemnity" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the acceptance fingerprint and confirmation details", () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <AttendeesIndemnityInfo
           {...baseProps}
           indemnityAccepted
+          canViewIndemnityFingerprint
           needIndemnityConfirmationEmail
           indemnityAcceptance={{
             acceptedAt: "2026-09-30T10:00:00.000Z",
@@ -90,7 +140,9 @@ describe("AttendeesIndemnityInfo", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Accepted" }));
+    const accepted = screen.getByRole("button", { name: "Accepted" });
+    expect(accepted.tagName).toBe("SPAN");
+    fireEvent.click(accepted);
 
     expect(screen.getByText("Acceptance fingerprint")).toBeInTheDocument();
     expect(screen.getByText("By: Alex Walker")).toBeInTheDocument();
@@ -108,6 +160,7 @@ describe("AttendeesIndemnityInfo", () => {
         <AttendeesIndemnityInfo
           {...baseProps}
           indemnityAccepted
+          canViewIndemnityFingerprint
           indemnityAcceptance={{
             acceptedAt: "2026-09-30T10:00:00.000Z",
             acceptedByName: "Alex Walker",
@@ -116,10 +169,55 @@ describe("AttendeesIndemnityInfo", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Accepted" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Accepted" }), {
+      key: "Enter",
+    });
 
     expect(screen.getByRole("presentation")).toBeInTheDocument();
     expect(screen.getByText("Acceptance fingerprint")).toBeInTheDocument();
     expect(screen.getByText("By: Alex Walker")).toBeInTheDocument();
+  });
+
+  it("opens a returned signed PDF from the accepted text", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AttendeesIndemnityInfo
+          {...baseProps}
+          hasPdfIndemnityTemplate
+          hasSignedIndemnityPdf
+          indemnityAccepted
+          canViewIndemnityFingerprint
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Accepted" }));
+    expect(screen.getByText("Signed indemnity form")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Acceptance fingerprint"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show acceptance fingerprint details without permission", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AttendeesIndemnityInfo
+          {...baseProps}
+          indemnityAccepted
+          indemnityAcceptance={{
+            acceptedAt: "2026-09-30T10:00:00.000Z",
+            acceptanceIp: "203.0.113.10",
+          }}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Accepted" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Acceptance fingerprint"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("IP: 203.0.113.10")).not.toBeInTheDocument();
   });
 });

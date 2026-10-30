@@ -2,7 +2,7 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
 import { EmailService } from "../email/email.service";
 import { OrganizationsService } from "./organizations.service";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 
 const buildBuilder = () => {
   const builder: any = {};
@@ -46,14 +46,14 @@ const createTransaction = (builders: Record<string, any>) => {
 
 describe("OrganizationsService", () => {
   const emailService = {} as EmailService;
-  const minioService = {
+  const objectStorageService = {
     upload: jest.fn(),
     remove: jest.fn(),
-  } as unknown as MinioService;
+  } as unknown as ObjectStorageService;
 
   beforeEach(() => {
-    (minioService.upload as jest.Mock).mockReset();
-    (minioService.remove as jest.Mock).mockReset();
+    (objectStorageService.upload as jest.Mock).mockReset();
+    (objectStorageService.remove as jest.Mock).mockReset();
   });
 
   it("returns whether the organization allows members to view all meets", async () => {
@@ -70,7 +70,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(service.canOrganizationShareMeets("org-1")).resolves.toBe(
       true,
@@ -90,7 +94,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(service.canOrganizationShareMeets("org-1")).resolves.toBe(
       false,
@@ -107,7 +115,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(service.canOrganizationShareMeets("org-1")).rejects.toThrow(
       new NotFoundException("Organization not found"),
@@ -159,7 +171,7 @@ describe("OrganizationsService", () => {
       {
         sendEmail,
       } as unknown as EmailService,
-      minioService,
+      objectStorageService,
     );
 
     const result = await service.createInviteLink(
@@ -208,7 +220,11 @@ describe("OrganizationsService", () => {
     client.transaction = jest.fn().mockResolvedValue(trx);
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
     jest.spyOn(service, "findById").mockResolvedValue({
       id: "org-9",
       name: "Summit Club",
@@ -269,7 +285,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(service.leaveOrganization("org-2", "user-1")).resolves.toBe(
       undefined,
@@ -299,7 +319,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(service.leaveOrganization("org-1", "user-1")).rejects.toThrow(
       new BadRequestException("You cannot leave your last active organization"),
@@ -330,7 +354,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(service.leaveOrganization("org-2", "user-1")).resolves.toBe(
       undefined,
@@ -362,7 +390,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(
       service.removeEmptyPrivateOrganizationsForUser("user-1", "org-joined"),
@@ -430,7 +462,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(service.listInviteLinks("org-1")).resolves.toEqual([
       expect.objectContaining({
@@ -504,7 +540,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     const result = await service.acceptInvite(
       "invite-1",
@@ -590,7 +630,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await service.acceptInvite("invite-1", "user-1", "alice@example.com");
 
@@ -655,7 +699,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await service.acceptInvite("invite-1", "user-1", "alice@example.com");
 
@@ -696,25 +744,31 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    (minioService.upload as jest.Mock).mockResolvedValue({
+    (objectStorageService.upload as jest.Mock).mockResolvedValue({
       objectKey: "logos/org-1/new.webp",
       url: "https://cdn.example.com/logos/new.webp",
     });
-    (minioService.remove as jest.Mock).mockResolvedValue(undefined);
+    (objectStorageService.remove as jest.Mock).mockResolvedValue(undefined);
 
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     const result = await service.uploadLogo("org-1", {
       buffer: tinyPngBuffer,
       mimetype: "image/png",
     });
 
-    expect(minioService.upload).toHaveBeenCalledWith(
+    expect(objectStorageService.upload).toHaveBeenCalledWith(
       expect.stringMatching(/^logos\/org-1\/.+\.webp$/),
       expect.any(Buffer),
       "image/webp",
     );
-    expect(minioService.remove).toHaveBeenCalledWith("logos/org-1/old.webp");
+    expect(objectStorageService.remove).toHaveBeenCalledWith(
+      "logos/org-1/old.webp",
+    );
     expect(organizationsBuilder.update).toHaveBeenCalledWith(
       expect.objectContaining({
         logo_object_key: "logos/org-1/new.webp",
@@ -755,7 +809,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(
       service.acceptInvite("invite-1", "user-1", "bob@example.com"),
@@ -790,7 +848,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(
       service.acceptInvite("invite-1", "user-1", "alice@example.com"),
@@ -811,7 +873,11 @@ describe("OrganizationsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new OrganizationsService(db, emailService, minioService);
+    const service = new OrganizationsService(
+      db,
+      emailService,
+      objectStorageService,
+    );
 
     await expect(
       service.acceptInvite("invite-1", "user-1", "alice@example.com"),

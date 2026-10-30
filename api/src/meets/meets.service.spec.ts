@@ -1,6 +1,6 @@
 import { MeetsService } from "./meets.service";
 import { DatabaseService } from "../database/database.service";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import {
   BadRequestException,
   ConflictException,
@@ -47,6 +47,90 @@ const buildBuilder = () => {
 };
 
 describe("MeetsService", () => {
+  it("uses the latest matching answers from this user's adult signups in the same organization", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({ organization_id: "org-1" });
+    const definitionsBuilder = buildBuilder();
+    definitionsBuilder.select.mockResolvedValue([
+      { field_key: "dietary", label: "Dietary notes", field_type: "text" },
+      { field_key: "water", label: "Bring water?", field_type: "switch" },
+    ]);
+    const valuesBuilder = buildBuilder();
+    valuesBuilder.select.mockResolvedValue([
+      { label: "  DIETARY  notes ", field_type: "text", value: "Vegan" },
+      { label: "Dietary notes", field_type: "text", value: "Vegetarian" },
+      { label: "Bring water?", field_type: "switch", value: "false" },
+      { label: "Unrelated", field_type: "text", value: "Ignore" },
+    ]);
+    const client = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_meta_definitions") return definitionsBuilder;
+      if (table === "meet_meta_values as mv") return valuesBuilder;
+      return buildBuilder();
+    };
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await expect(
+      service.findPreviousAnswers("user-1", "meet-1"),
+    ).resolves.toEqual({
+      dietary: "Vegan",
+      water: "false",
+    });
+    expect(valuesBuilder.where).toHaveBeenCalledWith("ma.user_id", "user-1");
+    expect(valuesBuilder.where).toHaveBeenCalledWith("ma.is_minor", false);
+    expect(valuesBuilder.where).toHaveBeenCalledWith(
+      "m.organization_id",
+      "org-1",
+    );
+    expect(valuesBuilder.whereNot).toHaveBeenCalledWith("ma.meet_id", "meet-1");
+
+    await service.findPreviousAnswers("user-1", "meet-1", true);
+    expect(valuesBuilder.where).toHaveBeenCalledWith("ma.is_minor", true);
+  });
+
+  it("marks check-in complete when completing a meet", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.update.mockResolvedValue([
+      { id: "meet-1", checkin_completed: true },
+    ]);
+    const db = {
+      getClient: () => () => meetsBuilder,
+    } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as ObjectStorageService);
+
+    await service.updateStatus("meet-1", 7);
+
+    expect(meetsBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status_id: 7, checkin_completed: true }),
+      ["*"],
+    );
+  });
+
+  it("only finishes check-in on closed meets", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.update.mockResolvedValue([
+      { id: "meet-1", checkin_completed: true },
+    ]);
+    const db = {
+      getClient: () => () => meetsBuilder,
+    } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as ObjectStorageService);
+
+    await service.completeCheckin("meet-1");
+
+    expect(meetsBuilder.where).toHaveBeenCalledWith({
+      id: "meet-1",
+      status_id: 4,
+    });
+    expect(meetsBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ checkin_completed: true }),
+      ["*"],
+    );
+  });
+
   it("includes whether each attendee has unread messages", async () => {
     const attendeesBuilder = buildBuilder();
     attendeesBuilder.select.mockResolvedValue([
@@ -80,9 +164,11 @@ describe("MeetsService", () => {
     client.raw = jest.fn((sql: string) => sql);
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const service = new MeetsService(db, {} as MinioService);
+    const service = new MeetsService(db, {} as ObjectStorageService);
 
-    await expect(service.listAttendees("meet-1")).resolves.toEqual({
+    await expect(
+      service.listAttendees("meet-1", undefined, true),
+    ).resolves.toEqual({
       attendees: [
         expect.objectContaining({
           id: "attendee-1",
@@ -136,8 +222,8 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const created = await service.create({
       name: "Test meet",
@@ -192,6 +278,7 @@ describe("MeetsService", () => {
       organizer_id: "org-1",
       organization_id: "org-2",
       status_id: 2,
+      indemnity_pdfs_id: "pdf-1",
       confirmed_count: 4,
       rejected_count: 2,
     };
@@ -221,13 +308,14 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const result = await service.findOne("meet-1");
     expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
     expect(result.confirmedCount).toBe(4);
     expect(result.rejectedCount).toBe(2);
+    expect(result.hasPdfIndemnityTemplate).toBe(true);
     expect(result.images).toEqual([
       expect.objectContaining({
         id: "image-1",
@@ -262,6 +350,23 @@ describe("MeetsService", () => {
         content: "Subject: Re: Update\n\nThanks",
         attendee_email: "alex@example.com",
       },
+      {
+        message_id: "message-3",
+        timestamp: "2026-06-19T12:00:00.000Z",
+        from: "organizer@example.com",
+        to: "alex@example.com",
+        content: [
+          "Subject: Re: Update",
+          "",
+          "--Apple-Mail-ABC",
+          "Content-Type: text/html; charset=utf-8",
+          "Content-Transfer-Encoding: quoted-printable",
+          "",
+          "<div>It=E2=80=99s fine.</div>",
+          "--Apple-Mail-ABC--",
+        ].join("\n"),
+        attendee_email: "alex@example.com",
+      },
     ]);
 
     const client: any = (table: string) => {
@@ -270,8 +375,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const result = await service.listAttendeeMessages("meet-1", "attendee-1");
 
@@ -285,6 +390,11 @@ describe("MeetsService", () => {
       expect.objectContaining({
         id: "message-2",
         direction: "received",
+      }),
+      expect.objectContaining({
+        id: "message-3",
+        direction: "sent",
+        content: "Subject: Re: Update\n\nIt’s fine.",
       }),
     ]);
   });
@@ -345,8 +455,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const result = await service.findOne("meet-1", "user-1");
 
@@ -413,8 +523,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const result = await service.findAttendeeStatus("meet-1", "attendee-1");
 
@@ -443,7 +553,8 @@ describe("MeetsService", () => {
       closing_date: "2026-04-18T00:00:00Z",
       scheduled_date: "2026-04-20T08:00:00Z",
       confirm_date: "2026-04-19T00:00:00Z",
-      status_id: 3,
+      status_id: 7,
+      checkin_completed: true,
       share_code: "original-share",
       currency_id: 1,
       cost_cents: 2500,
@@ -451,6 +562,7 @@ describe("MeetsService", () => {
       allow_guests: true,
       checkin_pin: "ABC123",
       allow_walkins: true,
+      indemnity_pdfs_id: "pdf-1",
       max_guests: 2,
       created_at: "2026-04-01T00:00:00Z",
       updated_at: "2026-04-02T00:00:00Z",
@@ -474,7 +586,9 @@ describe("MeetsService", () => {
         },
       ])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ field_key: "fitness" }])
+      .mockResolvedValueOnce([
+        { field_key: "fitness", label: "Fitness", field_type: "text" },
+      ])
       .mockResolvedValueOnce([{ id: "meta-2", field_key: "fitness" }]);
 
     const imagesBuilder = buildBuilder();
@@ -488,6 +602,12 @@ describe("MeetsService", () => {
         is_primary: true,
       },
     ]);
+
+    const indemnityTemplateBuilder = buildBuilder();
+    indemnityTemplateBuilder.first.mockResolvedValue({
+      object_key: "meets/meet-1/indemnity/form.pdf",
+      filename: "parent-consent.pdf",
+    });
 
     const organizerBuilder = buildBuilder();
     organizerBuilder.first.mockResolvedValue({
@@ -507,6 +627,8 @@ describe("MeetsService", () => {
       if (table === "meets") return meetsBuilder;
       if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
       if (table === "meet_images") return imagesBuilder;
+      if (table === "indemnity_pdfs") return indemnityTemplateBuilder;
+      if (table === "meet_indemnity_templates") return indemnityTemplateBuilder;
       if (table === "users") return organizerBuilder;
       if (table === "meet_attendees") return attendeesBuilder;
       if (table === "meet_meta_values as mv") return metaValuesBuilder;
@@ -517,8 +639,8 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const cloned = await service.clone("meet-1", {
       name: "Original meet Copy",
@@ -529,6 +651,14 @@ describe("MeetsService", () => {
     expect(clonedInsertArg.name).toBe("Original meet Copy");
     expect(clonedInsertArg.organizer_id).toBe("organizer-2");
     expect(clonedInsertArg.status_id).toBe(1);
+    expect(clonedInsertArg.checkin_completed).toBe(false);
+    expect(clonedInsertArg.indemnity_pdfs_id).toBe("pdf-1");
+    expect(indemnityTemplateBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meet_id: "meet-2",
+        object_key: "meets/meet-1/indemnity/form.pdf",
+      }),
+    );
     expect(clonedInsertArg.start_time).toBeNull();
     expect(clonedInsertArg.end_time).toBeNull();
     expect(clonedInsertArg.opening_date).toBeNull();
@@ -587,8 +717,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const startDate = new Date("2026-04-24T00:00:00Z");
     const endDate = new Date("2026-06-07T23:59:59Z");
@@ -651,8 +781,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await service.findAll("all", 1, 20, ["org-1"], false, "user-1");
 
@@ -698,8 +828,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn((sql: string) => sql);
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await service.findAll("my", 1, 20, ["org-1"], false, "user-1");
 
@@ -744,8 +874,8 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.addAttendee("meet-1", {
@@ -779,8 +909,8 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await service.addAttendee("meet-1", {
       name: "Walk In",
@@ -799,6 +929,166 @@ describe("MeetsService", () => {
       }),
       ["*"],
     );
+  });
+
+  it("requires and stores each guest name for a named-guests meet", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      auto_placement: false,
+      named_guests: true,
+      max_guests: 2,
+    });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({ max: 0 });
+    attendeeBuilder.insert.mockResolvedValue([{ id: "attendee-1" }]);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (callback: any) => callback(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await expect(
+      service.addAttendee("meet-1", { name: "Host", guests: 1 }),
+    ).rejects.toThrow(BadRequestException);
+
+    await service.addAttendee("meet-1", {
+      name: "Host",
+      guests: 1,
+      guestsList: [{ name: "  Alex  ", isMinor: false }],
+    });
+    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guests: 1,
+        guests_list: JSON.stringify([{ name: "Alex", isMinor: false }]),
+      }),
+      ["*"],
+    );
+
+    meetBuilder.first.mockResolvedValue({
+      auto_placement: false,
+      named_guests: false,
+    });
+    await service.addAttendee("meet-1", { name: "Another host", guests: 1 });
+    expect(attendeeBuilder.insert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ guests: 1, guests_list: "[]" }),
+      ["*"],
+    );
+  });
+
+  it("reduces the inviting attendee's guest count when a guest signs up", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({ auto_placement: false });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.update.mockResolvedValue([{ id: "host-1" }]);
+    attendeeBuilder.first.mockResolvedValue({ max: 0 });
+    attendeeBuilder.insert.mockResolvedValue([
+      { id: "guest-1", guest_of: "host-1" },
+    ]);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn((sql: string) => sql);
+    client.transaction = jest.fn(async (callback: any) => callback(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await service.addAttendee("meet-1", {
+      name: "Guest",
+      guestOf: "host-1",
+    });
+
+    expect(attendeeBuilder.where).toHaveBeenCalledWith({
+      id: "host-1",
+      meet_id: "meet-1",
+    });
+    expect(attendeeBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guests: "greatest(coalesce(guests, 0) - 1, 0)",
+      }),
+      ["id"],
+    );
+    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ guest_of: "host-1" }),
+      ["*"],
+    );
+    expect(meetBuilder.forUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+      attendeeBuilder.update.mock.invocationCallOrder[0],
+    );
+    expect(attendeeBuilder.update.mock.invocationCallOrder[0]).toBeLessThan(
+      attendeeBuilder.insert.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("reduces the host's guest count when a guest accepts an invitation", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({ auto_placement: false });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.select.mockResolvedValue([
+      { id: "invited-1", email: "guest@example.com" },
+    ]);
+    attendeeBuilder.update
+      .mockResolvedValueOnce([{ id: "host-1" }])
+      .mockResolvedValueOnce([{ id: "invited-1", status: "confirmed" }]);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn((sql: string) => sql);
+    client.transaction = jest.fn(async (callback: any) => callback(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await service.addAttendee("meet-1", {
+      name: "Guest",
+      email: "guest@example.com",
+      guestOf: "host-1",
+    });
+
+    expect(attendeeBuilder.update).toHaveBeenCalledTimes(2);
+    expect(attendeeBuilder.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ guest_of: "host-1", status: "confirmed" }),
+      ["*"],
+    );
+    expect(attendeeBuilder.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a guest invite from an attendee in another meet", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({ auto_placement: false });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.update.mockResolvedValue([]);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn((sql: string) => sql);
+    client.transaction = jest.fn(async (callback: any) => callback(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await expect(
+      service.addAttendee("meet-1", { name: "Guest", guestOf: "host-2" }),
+    ).rejects.toThrow(BadRequestException);
+    expect(attendeeBuilder.where).toHaveBeenCalledWith({
+      id: "host-2",
+      meet_id: "meet-1",
+    });
+    expect(attendeeBuilder.insert).not.toHaveBeenCalled();
   });
 
   it("keeps indemnity unaccepted until anonymous email confirmation", async () => {
@@ -833,7 +1123,7 @@ describe("MeetsService", () => {
 
     const service = new MeetsService(
       { getClient: () => client } as unknown as DatabaseService,
-      {} as MinioService,
+      {} as ObjectStorageService,
     );
 
     const result = await service.addAttendee("meet-1", {
@@ -857,6 +1147,33 @@ describe("MeetsService", () => {
       }),
     );
     expect(result.attendee.indemnityAccepted).toBe(false);
+  });
+
+  it("expires indemnity confirmation links one day after the meet starts", () => {
+    const service = new MeetsService(
+      {} as DatabaseService,
+      {} as ObjectStorageService,
+    );
+    const startTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const token = service.createIndemnityConfirmationToken(
+      "meet-1",
+      "attendee-1",
+      "walker@example.com",
+      startTime,
+    );
+
+    expect(Number(token.split(".")[0])).toBe(
+      Math.floor(Date.parse(startTime) / 1000) + 24 * 60 * 60,
+    );
+    expect(() =>
+      service.createIndemnityConfirmationToken(
+        "meet-1",
+        "attendee-1",
+        "walker@example.com",
+        undefined,
+      ),
+    ).toThrow(BadRequestException);
   });
 
   it("confirms indemnity without changing attendee status", async () => {
@@ -896,12 +1213,13 @@ describe("MeetsService", () => {
 
     const service = new MeetsService(
       { getClient: () => client } as unknown as DatabaseService,
-      {} as MinioService,
+      {} as ObjectStorageService,
     );
     const token = service.createIndemnityConfirmationToken(
       "meet-1",
       "attendee-1",
       "walker@example.com",
+      new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     );
 
     await expect(
@@ -924,6 +1242,85 @@ describe("MeetsService", () => {
     expect(acceptanceBuilder.insert).not.toHaveBeenCalled();
   });
 
+  it("records acceptance from a requested electronic indemnity link", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      id: "meet-1",
+      indemnity: "Waiver text",
+      has_indemnity: true,
+      need_indemnity_confirmation_email: false,
+    });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      id: "attendee-1",
+      email: "walker@example.com",
+      name: "Trail Walker",
+      indemnity_accepted: false,
+    });
+    const acceptanceBuilder = buildBuilder();
+    acceptanceBuilder.first.mockResolvedValue(undefined);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      if (table === "meet_attendee_indemnity_acceptances") {
+        return acceptanceBuilder;
+      }
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+    const token = service.createIndemnityConfirmationToken(
+      "meet-1",
+      "attendee-1",
+      "walker@example.com",
+      new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    );
+
+    await expect(
+      service.confirmIndemnityAcceptance("meet-1", "attendee-1", token),
+    ).resolves.toEqual({ indemnityAccepted: true });
+
+    expect(attendeeBuilder.update).toHaveBeenCalledWith({
+      indemnity_accepted: true,
+      updated_at: expect.any(String),
+    });
+    expect(acceptanceBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendee_id: "attendee-1",
+        confirmation_method: "email",
+        indemnity_text_hash: expect.any(String),
+      }),
+    );
+  });
+
+  it("does not accept a PDF indemnity through an electronic link", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({
+      id: "meet-1",
+      has_indemnity: true,
+      indemnity_pdfs_id: "pdf-1",
+    });
+    const attendeeBuilder = buildBuilder();
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.transaction = jest.fn(async (cb: any) => cb(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await expect(
+      service.confirmIndemnityAcceptance("meet-1", "attendee-1", "token"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(attendeeBuilder.update).not.toHaveBeenCalled();
+  });
+
   it("rejects duplicate adult attendee updates with a conflict error", async () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.update.mockRejectedValue({
@@ -939,8 +1336,8 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.updateAttendee("meet-1", "attendee-1", {
@@ -960,8 +1357,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const result = await service.resetConfirmedAttendeesToInvited(
       "meet-1",
@@ -1040,12 +1437,39 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.attendeeHasMissingFields("meet-1", "attendee-1"),
     ).resolves.toBe(true);
+  });
+
+  it("does not require electronic acceptance when a meet has a PDF indemnity", async () => {
+    const service = new MeetsService(
+      { getClient: jest.fn() } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+    jest.spyOn(service, "findOne").mockResolvedValue({
+      id: "meet-1",
+      hasIndemnity: true,
+      hasPdfIndemnityTemplate: true,
+      metaDefinitions: [],
+    } as any);
+    jest.spyOn(service, "findAttendeeForEdit").mockResolvedValue({
+      attendee: {
+        id: "attendee-1",
+        name: "Sam",
+        email: "sam@example.com",
+        phone: "+27123456789",
+        indemnityAccepted: false,
+        metaValues: [],
+      },
+    } as any);
+
+    await expect(
+      service.attendeeHasMissingFields("meet-1", "attendee-1"),
+    ).resolves.toBe(false);
   });
 
   it("skips exact email-name duplicates and returns email conflicts with different names", async () => {
@@ -1072,8 +1496,8 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.addInvitedAttendees("meet-1", [
@@ -1161,8 +1585,8 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.resolveInvitedAttendeeUploadConflicts("meet-1", [
@@ -1260,8 +1684,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const result = await service.findAttendeeByContact(
       "meet-1",
@@ -1285,7 +1709,12 @@ describe("MeetsService", () => {
 
     const metaDefinitionsBuilder = buildBuilder();
     metaDefinitionsBuilder.select.mockResolvedValue([
-      { id: "meta-1", field_key: "fitness" },
+      {
+        id: "meta-1",
+        field_key: "fitness",
+        category: "M",
+        pdf_form_field_id: "Fitness level",
+      },
       { id: "meta-2", field_key: "dietary" },
     ]);
     metaDefinitionsBuilder.update.mockResolvedValue([]);
@@ -1302,16 +1731,17 @@ describe("MeetsService", () => {
     client.fn = { now: jest.fn(() => "now") };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await service.update("meet-1", {
       metaDefinitions: [
         {
           id: "meta-1",
           fieldKey: "fitness",
-          label: "Fitness",
+          label: "How would you rate your fitness?",
           fieldType: "text",
+          category: "T",
           required: true,
         },
         {
@@ -1334,9 +1764,11 @@ describe("MeetsService", () => {
     });
     expect(metaDefinitionsBuilder.update).toHaveBeenNthCalledWith(2, {
       field_key: "fitness",
-      label: "Fitness",
+      label: "How would you rate your fitness?",
       field_type: "text",
       required: true,
+      category: "T",
+      pdf_form_field_id: "Fitness level",
       position: 0,
       config: {},
       updated_at: "now",
@@ -1348,6 +1780,7 @@ describe("MeetsService", () => {
         label: "Pace",
         field_type: "select",
         required: false,
+        category: "N",
         position: 1,
         config: { options: ["Slow", "Fast"] },
       }),
@@ -1381,8 +1814,8 @@ describe("MeetsService", () => {
     client.fn = { now: jest.fn(() => "now") };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.update("meet-1", {
@@ -1438,8 +1871,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(service.listImages("meet-1")).resolves.toEqual({
       images: [
@@ -1485,8 +1918,8 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.updateImage("meet-1", "image-2", { isPrimary: true }),
@@ -1530,10 +1963,10 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {
+    const objectStorage = {
       remove: jest.fn().mockResolvedValue(undefined),
-    } as unknown as MinioService;
-    const service = new MeetsService(db, minio);
+    } as unknown as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(service.removeImage("meet-1", "image-1")).resolves.toEqual({
       removed: true,
@@ -1541,7 +1974,7 @@ describe("MeetsService", () => {
 
     expect(imageBuilder.del).toHaveBeenCalled();
     expect(imageBuilder.update).toHaveBeenCalledWith({ is_primary: true });
-    expect(minio.remove as jest.Mock).toHaveBeenCalledWith(
+    expect(objectStorage.remove as jest.Mock).toHaveBeenCalledWith(
       "meets/meet-1/primary.jpg",
     );
   });
@@ -1566,13 +1999,13 @@ describe("MeetsService", () => {
     client.transaction = jest.fn(async (cb: any) => cb(client));
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {
+    const objectStorage = {
       upload: jest.fn().mockResolvedValue({
         objectKey: "meets/meet-1/uploaded.png",
         url: "https://cdn.example.com/uploaded.png",
       }),
-    } as unknown as MinioService;
-    const service = new MeetsService(db, minio);
+    } as unknown as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const portraitPng = Buffer.from(
       "89504e470d0a1a0a0000000d494844520000012c00000258080600000072b60d240000000049454e44ae426082",
@@ -1654,13 +2087,13 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {
+    const objectStorage = {
       upload: jest.fn().mockResolvedValue({
         objectKey: "wall/meet-1/item.png",
         url: "https://cdn.example.com/wall.png",
       }),
-    } as unknown as MinioService;
-    const service = new MeetsService(db, minio);
+    } as unknown as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     const portraitPng = Buffer.from(
       "89504e470d0a1a0a0000000d494844520000012c00000258080600000072b60d240000000049454e44ae426082",
@@ -1698,7 +2131,7 @@ describe("MeetsService", () => {
       }),
     });
 
-    expect(minio.upload).toHaveBeenCalledWith(
+    expect(objectStorage.upload).toHaveBeenCalledWith(
       expect.stringMatching(/^wall\/meet-1\//),
       portraitPng,
       "image/png",
@@ -1754,8 +2187,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.listWallItems("meet-1", { userId: "user-1" }),
@@ -1816,8 +2249,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.listWallItems("meet-1", { attendeeId: "attendee-1" }),
@@ -1856,8 +2289,8 @@ describe("MeetsService", () => {
     );
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
     const listWallItemsSpy = jest
       .spyOn(service, "listWallItems")
       .mockResolvedValue({
@@ -1923,8 +2356,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.updateWallItemComment("meet-1", "wall-1", "  Updated comment  ", {
@@ -1961,8 +2394,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.updateWallItemComment("meet-1", "wall-1", "Updated comment", {
@@ -1989,8 +2422,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.removeWallItem("meet-1", "wall-1", { userId: "user-1" }),
@@ -2016,8 +2449,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.removeWallItem("meet-1", "wall-1", { userId: "user-2" }),
@@ -2060,8 +2493,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.updateWallItemReaction(
@@ -2126,8 +2559,8 @@ describe("MeetsService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.updateWallItemReaction(
@@ -2168,17 +2601,17 @@ describe("MeetsService", () => {
     historyBuilder.select.mockResolvedValue([
       {
         meet_id: "meet-2",
-        status_id: 7,
+        checkin_completed: true,
         start_time: "2026-03-20T08:00:00.000Z",
         name: "Cliff Walk",
         status: "confirmed",
       },
       {
         meet_id: "meet-3",
-        status_id: 3,
+        checkin_completed: false,
         start_time: "2026-02-01T09:00:00.000Z",
         name: "Trail Run",
-        status: "waitlisted",
+        status: "confirmed",
       },
     ]);
 
@@ -2190,8 +2623,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.listAttendeeHistory("meet-1", "attendee-1"),
@@ -2206,7 +2639,7 @@ describe("MeetsService", () => {
         meetId: "meet-3",
         date: "2026-02-01T09:00:00.000Z",
         meetName: "Trail Run",
-        attendeeStatus: "waitlisted",
+        attendeeStatus: "confirmed",
       },
     ]);
 
@@ -2234,8 +2667,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.listAttendeeHistory("meet-1", "attendee-1"),
@@ -2255,8 +2688,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await expect(
       service.listAttendeeHistory("meet-1", "missing-attendee"),
@@ -2281,8 +2714,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await service.listAttendeeHistory("meet-1", "attendee-1");
 
@@ -2310,8 +2743,8 @@ describe("MeetsService", () => {
     client.raw = jest.fn(() => "raw");
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new MeetsService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new MeetsService(db, objectStorage);
 
     await service.listAttendeeHistory("meet-1", "attendee-1");
 

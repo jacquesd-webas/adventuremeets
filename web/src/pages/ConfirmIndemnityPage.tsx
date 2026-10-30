@@ -8,7 +8,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApi } from "../hooks/useApi";
 import { useFetchMeetSignup } from "../hooks/useFetchMeetSignup";
@@ -21,7 +21,9 @@ export default function ConfirmIndemnityPage() {
   const [searchParams] = useSearchParams();
   const [confirmed, setConfirmed] = useState(false);
   const api = useApi();
+  const queryClient = useQueryClient();
   const token = searchParams.get("token") || "";
+  const isAcceptanceRequest = searchParams.get("request") === "1";
   const { data: meet, isLoading: isMeetLoading } = useFetchMeetSignup(code);
 
   const confirmation = useMutation({
@@ -29,7 +31,17 @@ export default function ConfirmIndemnityPage() {
       api.post(`/meets/${code}/attendees/${attendeeId}/confirm-indemnity`, {
         token,
       }),
-    onSuccess: () => setConfirmed(true),
+    onSuccess: () => {
+      setConfirmed(true);
+      void queryClient.invalidateQueries({
+        queryKey: ["attendee-status", attendeeId],
+      });
+      if (meet?.id) {
+        void queryClient.invalidateQueries({
+          queryKey: ["meet-attendees", meet.id],
+        });
+      }
+    },
   });
 
   const statusUrl = code && attendeeId ? `/meets/${code}/${attendeeId}` : "/";
@@ -39,7 +51,9 @@ export default function ConfirmIndemnityPage() {
       <Paper variant="outlined" sx={{ p: 4 }}>
         <Stack spacing={3} alignItems="stretch">
           <Typography variant="h5" component="h1">
-            Confirm indemnity acceptance
+            {isAcceptanceRequest
+              ? "Accept indemnity"
+              : "Confirm indemnity acceptance"}
           </Typography>
           <Stack spacing={1}>
             <Typography variant="subtitle1" component="h2" fontWeight={600}>
@@ -57,7 +71,9 @@ export default function ConfirmIndemnityPage() {
           </Stack>
           {confirmed ? (
             <Alert severity="success">
-              Your indemnity acceptance has been confirmed.
+              {isAcceptanceRequest
+                ? "Your indemnity acceptance has been recorded."
+                : "Your indemnity acceptance has been confirmed."}
             </Alert>
           ) : confirmation.isError ? (
             <Alert severity="error">
@@ -69,10 +85,13 @@ export default function ConfirmIndemnityPage() {
             <Alert severity="error">
               This confirmation link is incomplete.
             </Alert>
+          ) : isAcceptanceRequest && !isMeetLoading && !meet?.indemnity ? (
+            <Alert severity="error">Indemnity details are not available.</Alert>
           ) : (
             <Typography>
-              Confirm that you accepted the indemnity when signing up for this
-              meet.
+              {isAcceptanceRequest
+                ? "Please read the indemnity above before accepting it."
+                : "Confirm that you accepted the indemnity when signing up for this meet."}
             </Typography>
           )}
           <Box>
@@ -84,13 +103,19 @@ export default function ConfirmIndemnityPage() {
               <Button
                 variant="contained"
                 disabled={
-                  !token || !code || !attendeeId || confirmation.isPending
+                  !token ||
+                  !code ||
+                  !attendeeId ||
+                  confirmation.isPending ||
+                  (isAcceptanceRequest && (isMeetLoading || !meet?.indemnity))
                 }
                 onClick={() => confirmation.mutate()}
               >
                 {confirmation.isPending
                   ? "Confirming…"
-                  : "Confirm indemnity acceptance"}
+                  : isAcceptanceRequest
+                    ? "I accept the indemnity"
+                    : "Confirm indemnity acceptance"}
               </Button>
             )}
           </Box>

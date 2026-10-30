@@ -24,7 +24,7 @@ export async function up(knex: Knex): Promise<void> {
       .onDelete("CASCADE")
       .index();
     table.string("from", 255).notNullable();
-    table.string("to", 255).notNullable();
+    table.text("to").notNullable();
     table
       .uuid("message_content_id")
       .notNullable()

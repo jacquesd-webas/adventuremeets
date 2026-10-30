@@ -23,7 +23,15 @@ export type AttendeeMessage = {
   direction?: "received" | "sent";
 };
 
-type MessagesResponse = { messages: AttendeeMessage[] } | AttendeeMessage[];
+export type AttendeeAuditLog = {
+  id: string;
+  timestamp: string;
+  description: string;
+};
+
+type MessagesResponse =
+  | { messages: AttendeeMessage[]; auditLogs?: AttendeeAuditLog[] }
+  | AttendeeMessage[];
 
 export function useFetchAttendeeMessages(
   meetId?: string | null,
@@ -38,13 +46,14 @@ export function useFetchAttendeeMessages(
       const res = await api.get<MessagesResponse>(
         `/meets/${meetId}/attendees/${attendeeId}/messages`,
       );
-      if (Array.isArray(res)) return res;
-      return (res as any).messages ?? [];
+      if (Array.isArray(res)) return { messages: res, auditLogs: [] };
+      return { messages: res.messages ?? [], auditLogs: res.auditLogs ?? [] };
     },
   });
 
   return {
-    data: (query.data || []) as AttendeeMessage[],
+    data: query.data?.messages ?? [],
+    auditLogs: query.data?.auditLogs ?? [],
     isLoading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
   };

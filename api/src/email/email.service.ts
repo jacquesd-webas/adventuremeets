@@ -14,6 +14,7 @@ export type SendEmailOptions = {
   text: string;
   html?: string;
   from?: string;
+  fromName?: string;
   replyTo?: string;
   attachments?: Attachment[];
   organizationId?: string;
@@ -22,6 +23,7 @@ export type SendEmailOptions = {
   meetId?: string;
   templateName?: string;
   messageReferences?: EmailMessageReference[];
+  sendAsGroup?: boolean;
 };
 
 @Injectable()
@@ -70,7 +72,7 @@ export class EmailService {
     const body =
       `Subject: ${parsed.subject}\n\n` +
       (parsed.pertinentBody || parsed.body || content);
-    const sender = meetId ? this.defaultFrom : from || this.defaultFrom;
+    const sender = from || this.defaultFrom;
     const recipients = Array.isArray(to) ? to.join(", ") : to;
 
     const contentId = await this.resolveMessageContentId(body);
@@ -293,6 +295,7 @@ export class EmailService {
       text,
       html,
       from,
+      fromName,
       replyTo,
       attachments,
       organizationId,
@@ -337,7 +340,10 @@ export class EmailService {
         email.tracking_token,
       ]),
     );
-    const resolvedFrom = meetId ? this.defaultFrom : from || this.defaultFrom;
+    const resolvedFrom = from || this.defaultFrom;
+    const messageFrom = fromName?.trim()
+      ? { name: fromName.trim(), address: resolvedFrom }
+      : resolvedFrom;
     const resolvedReplyTo = meetId
       ? replyTo || `meet+${meetId}@${this.mailDomain}`
       : replyTo;
@@ -346,6 +352,56 @@ export class EmailService {
         Array.isArray(to) ? to.join(",") : to
       } subject="${subject}"`,
     );
+    if (options.sendAsGroup && expectedRecipients.length > 1) {
+      let info: nodemailer.SentMessageInfo;
+      try {
+        info = await this.transporter.sendMail({
+          to: expectedRecipients,
+          subject,
+          text,
+          html,
+          from: messageFrom,
+          replyTo: resolvedReplyTo,
+          attachments,
+          envelope: { from: resolvedFrom, to: expectedRecipients },
+        });
+      } catch (error) {
+        await this.updateOutboundEmailRecords(
+          expectedRecipients,
+          outboundEmailIds,
+          "failed",
+          undefined,
+          error instanceof Error ? error.message : String(error),
+        );
+        throw error;
+      }
+
+      const acceptedRecipients = this.normalizeRecipientList(
+        (info?.accepted ?? []) as Array<string | { address?: string }>,
+      );
+      const rejectedRecipients = expectedRecipients.filter(
+        (recipient) => !acceptedRecipients.includes(recipient),
+      );
+      await this.updateOutboundEmailRecords(
+        acceptedRecipients,
+        outboundEmailIds,
+        "sent",
+        info?.messageId,
+      );
+      if (rejectedRecipients.length) {
+        const failureReason = `SMTP did not accept recipient(s): ${rejectedRecipients.join(", ")}`;
+        await this.updateOutboundEmailRecords(
+          rejectedRecipients,
+          outboundEmailIds,
+          "failed",
+          undefined,
+          failureReason,
+        );
+        throw new Error(failureReason);
+      }
+      return;
+    }
+
     const failures: Error[] = [];
     for (const recipient of expectedRecipients) {
       const trackingToken = outboundEmailTokens.get(recipient);
@@ -356,7 +412,7 @@ export class EmailService {
         html: html
           ? this.addTrackingPixel(html, this.buildTrackingUrl(trackingToken!))
           : html,
-        from: resolvedFrom,
+        from: messageFrom,
         replyTo: resolvedReplyTo,
         attachments,
         envelope: {

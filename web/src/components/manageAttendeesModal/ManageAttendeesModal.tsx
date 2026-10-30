@@ -60,6 +60,7 @@ type ManageAttendeesModalProps = {
   canViewMeet?: boolean;
   canManageMeet?: boolean;
   isOrganizer?: boolean;
+  canViewIndemnityFingerprint?: boolean;
 };
 
 export function ManageAttendeesModal({
@@ -68,6 +69,7 @@ export function ManageAttendeesModal({
   meetId,
   isOrganizer,
   canManageMeet,
+  canViewIndemnityFingerprint = false,
 }: ManageAttendeesModalProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
@@ -617,7 +619,6 @@ export function ManageAttendeesModal({
         body: JSON.stringify({
           sendEmail: false,
           downloadReport: true,
-          isFinalReport: false,
         }),
       });
       if (!res.ok) {
@@ -709,7 +710,11 @@ export function ManageAttendeesModal({
                 <Stack spacing={2}>
                   <AttendeesIndemnityInfo
                     hasIndemnity={meet?.hasIndemnity}
+                    hasPdfIndemnityTemplate={meet?.hasPdfIndemnityTemplate}
                     indemnityAccepted={selectedAttendee.indemnityAccepted}
+                    hasSignedIndemnityPdf={
+                      selectedAttendee.hasSignedIndemnityPdf
+                    }
                     indemnityAcceptance={selectedAttendee.indemnityAcceptance}
                     needIndemnityConfirmationEmail={
                       meet?.needIndemnityConfirmationEmail
@@ -726,6 +731,7 @@ export function ManageAttendeesModal({
                     onGuestDecrement={() => handleGuestCountChange(-1)}
                     onInvite={handleInviteMessage}
                     canManageMeet={canManageAttendees}
+                    canViewIndemnityFingerprint={canViewIndemnityFingerprint}
                   />
                   <Divider />
                   <AttendeeResponses responses={selectedAttendee.metaValues} />
@@ -858,7 +864,9 @@ export function ManageAttendeesModal({
               <>
                 <AttendeesIndemnityInfo
                   hasIndemnity={meet?.hasIndemnity}
+                  hasPdfIndemnityTemplate={meet?.hasPdfIndemnityTemplate}
                   indemnityAccepted={selectedAttendee.indemnityAccepted}
+                  hasSignedIndemnityPdf={selectedAttendee.hasSignedIndemnityPdf}
                   indemnityAcceptance={selectedAttendee.indemnityAcceptance}
                   needIndemnityConfirmationEmail={
                     meet?.needIndemnityConfirmationEmail
@@ -875,6 +883,7 @@ export function ManageAttendeesModal({
                   onGuestDecrement={() => handleGuestCountChange(-1)}
                   onInvite={handleInviteMessage}
                   canManageMeet={canManageAttendees}
+                  canViewIndemnityFingerprint={canViewIndemnityFingerprint}
                 />
                 <Divider sx={{ mt: 1, mb: 2 }} />
                 <AttendeeResponses

@@ -16,10 +16,13 @@ import { LockedTooltipWrapper } from "../LockedTooltipWrapper";
 import type { Attendee } from "../../types/AttendeeModel";
 import { useResendIndemnityConfirmation } from "../../hooks/useResendIndemnityConfirmation";
 import { AttendeeIndemnityFingerprintDetails } from "./AttendeeIndemnityFingerprintDetails";
+import { AttendeeSignedIndemnityPdf } from "./AttendeeSignedIndemnityPdf";
 
 type AttendeesIndemnityInfoProps = {
   hasIndemnity?: boolean;
+  hasPdfIndemnityTemplate?: boolean;
   indemnityAccepted: boolean;
+  hasSignedIndemnityPdf?: boolean;
   indemnityAcceptance?: Attendee["indemnityAcceptance"];
   needIndemnityConfirmationEmail?: boolean;
   meetId?: string | null;
@@ -34,11 +37,14 @@ type AttendeesIndemnityInfoProps = {
   onGuestDecrement: () => void;
   onInvite: () => void;
   canManageMeet?: boolean;
+  canViewIndemnityFingerprint?: boolean;
 };
 
 export function AttendeesIndemnityInfo({
   hasIndemnity = false,
+  hasPdfIndemnityTemplate = false,
   indemnityAccepted,
+  hasSignedIndemnityPdf = false,
   indemnityAcceptance,
   needIndemnityConfirmationEmail = false,
   meetId,
@@ -53,6 +59,7 @@ export function AttendeesIndemnityInfo({
   onGuestDecrement,
   onInvite,
   canManageMeet = true,
+  canViewIndemnityFingerprint = false,
 }: AttendeesIndemnityInfoProps) {
   const safeGuests = guests ?? 0;
   const theme = useTheme();
@@ -62,15 +69,19 @@ export function AttendeesIndemnityInfo({
   const [acceptanceAnchor, setAcceptanceAnchor] = useState<HTMLElement | null>(
     null,
   );
+  const [signedPdfOpen, setSignedPdfOpen] = useState(false);
+  const showSignedPdf = Boolean(hasSignedIndemnityPdf && meetId);
+  const openAcceptance = (element: HTMLElement) => {
+    if (showSignedPdf) setSignedPdfOpen(true);
+    else setAcceptanceAnchor(element);
+  };
   const { resendIndemnityConfirmationAsync, isResendingIndemnity } =
     useResendIndemnityConfirmation();
   const canResendIndemnity = Boolean(
     canManageMeet &&
     meetId &&
     attendeeEmail &&
-    needIndemnityConfirmationEmail &&
-    indemnityAcceptance?.acceptedAt &&
-    !indemnityAcceptance?.confirmedAt &&
+    (hasIndemnity || hasPdfIndemnityTemplate) &&
     !indemnityAccepted,
   );
 
@@ -100,29 +111,39 @@ export function AttendeesIndemnityInfo({
         <Typography variant="body2" color="text.secondary">
           Indemnity:
         </Typography>
-        {hasIndemnity ? (
+        {hasIndemnity || hasPdfIndemnityTemplate ? (
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
             {indemnityAccepted ? null : (
               <DisabledByDefaultIcon
                 sx={{ color: "error.main", fontSize: 18 }}
               />
             )}
-            {indemnityAccepted ? (
-              <Button
-                size="small"
-                variant="text"
-                startIcon={
-                  <CheckBoxIcon sx={{ color: "success.main", fontSize: 18 }} />
-                }
-                onClick={(event) => setAcceptanceAnchor(event.currentTarget)}
-                sx={{ minWidth: "auto", px: 0.5, py: 0 }}
-              >
-                Accepted
-              </Button>
+            {indemnityAccepted && canViewIndemnityFingerprint ? (
+              <>
+                <CheckBoxIcon sx={{ color: "success.main", fontSize: 18 }} />
+                <Typography
+                  variant="body2"
+                  component="span"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(event) => openAcceptance(event.currentTarget)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openAcceptance(event.currentTarget);
+                    }
+                  }}
+                  sx={{ cursor: "pointer" }}
+                >
+                  Accepted
+                </Typography>
+              </>
+            ) : indemnityAccepted ? (
+              <Typography variant="body2">Accepted</Typography>
             ) : (
               <Typography variant="body2">Not Accepted</Typography>
             )}
-            {!indemnityAccepted && needIndemnityConfirmationEmail ? (
+            {!indemnityAccepted ? (
               <LockedTooltipWrapper isReadOnly={!canManageMeet}>
                 <Button
                   size="small"
@@ -135,36 +156,52 @@ export function AttendeesIndemnityInfo({
                 </Button>
               </LockedTooltipWrapper>
             ) : null}
-            <Popover
-              open={!isMobile && Boolean(acceptanceAnchor)}
-              anchorEl={acceptanceAnchor}
-              onClose={() => setAcceptanceAnchor(null)}
-              anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-            >
-              <AttendeeIndemnityFingerprintDetails
-                indemnityAcceptance={indemnityAcceptance}
-                needIndemnityConfirmationEmail={needIndemnityConfirmationEmail}
-              />
-            </Popover>
-            <Drawer
-              anchor="bottom"
-              open={isMobile && Boolean(acceptanceAnchor)}
-              onClose={() => setAcceptanceAnchor(null)}
-              ModalProps={{
-                sx: { zIndex: theme.zIndex.modal + 1 },
-              }}
-              PaperProps={{
-                sx: {
-                  borderTopLeftRadius: 12,
-                  borderTopRightRadius: 12,
-                },
-              }}
-            >
-              <AttendeeIndemnityFingerprintDetails
-                indemnityAcceptance={indemnityAcceptance}
-                needIndemnityConfirmationEmail={needIndemnityConfirmationEmail}
-              />
-            </Drawer>
+            {canViewIndemnityFingerprint ? (
+              <>
+                {showSignedPdf && meetId ? (
+                  <AttendeeSignedIndemnityPdf
+                    open={signedPdfOpen}
+                    onClose={() => setSignedPdfOpen(false)}
+                    meetId={meetId}
+                    attendeeId={attendeeId}
+                  />
+                ) : null}
+                <Popover
+                  open={!isMobile && Boolean(acceptanceAnchor)}
+                  anchorEl={acceptanceAnchor}
+                  onClose={() => setAcceptanceAnchor(null)}
+                  anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                >
+                  <AttendeeIndemnityFingerprintDetails
+                    indemnityAcceptance={indemnityAcceptance}
+                    needIndemnityConfirmationEmail={
+                      needIndemnityConfirmationEmail
+                    }
+                  />
+                </Popover>
+                <Drawer
+                  anchor="bottom"
+                  open={isMobile && Boolean(acceptanceAnchor)}
+                  onClose={() => setAcceptanceAnchor(null)}
+                  ModalProps={{
+                    sx: { zIndex: theme.zIndex.modal + 1 },
+                  }}
+                  PaperProps={{
+                    sx: {
+                      borderTopLeftRadius: 12,
+                      borderTopRightRadius: 12,
+                    },
+                  }}
+                >
+                  <AttendeeIndemnityFingerprintDetails
+                    indemnityAcceptance={indemnityAcceptance}
+                    needIndemnityConfirmationEmail={
+                      needIndemnityConfirmationEmail
+                    }
+                  />
+                </Drawer>
+              </>
+            ) : null}
           </Box>
         ) : (
           <Typography variant="body2">Not required</Typography>

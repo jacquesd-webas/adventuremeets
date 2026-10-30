@@ -5,7 +5,7 @@ You can view your {{responseNoun}} status here:
 {{statusUrl}}
 {{/ifStatusUrl}}
 {{#ifOrganizerEmail}}
-If you have questions, contact {{organizerName}} at {{organizerEmail}}.
+If you have questions, contact {{organizerName}} at {{organizerEmail}} or just reply to this email.
 {{/ifOrganizerEmail}}
 
 Best regards,

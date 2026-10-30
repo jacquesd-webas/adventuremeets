@@ -13,7 +13,10 @@ import {
 } from "./dto/create-meet.dto";
 import { MeetDto } from "./dto/meet.dto";
 import { MeetImageDto } from "./dto/meet-image.dto";
-import { CreateMeetAttendeeDto } from "../attendees/dto/create-meet-attendee.dto";
+import {
+  CreateMeetAttendeeDto,
+  GuestInputDto,
+} from "../attendees/dto/create-meet-attendee.dto";
 import { UpdateMeetDto } from "./dto/update-meet.dto";
 import { UpdateMeetAttendeeDto } from "../attendees/dto/update-meet-attendee.dto";
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
@@ -25,6 +28,7 @@ import { v4 as uuid } from "uuid";
 import { MEET_STATUS } from "./constants/meet-status.enum";
 import { type WallItemReaction } from "../wall/dto/update-wall-item-reaction.dto";
 import { WallItemDto } from "../wall/dto/wall-item.dto";
+import { normalizeIncomingMessageContent } from "../email/incoming-message-content";
 
 type InvitedAttendeeUploadInput = {
   name: string;
@@ -479,7 +483,9 @@ export class MeetsService {
         "label",
         "field_type",
         "required",
+        "category",
         "position",
+        "pdf_form_field_id",
         "config",
       );
     const meetWithImage = {
@@ -535,7 +541,21 @@ export class MeetsService {
       const sourceMetaDefinitions = await trx("meet_meta_definitions")
         .where({ meet_id: id })
         .orderBy("position", "asc")
-        .select("field_key", "label", "field_type", "required", "config");
+        .select(
+          "field_key",
+          "label",
+          "field_type",
+          "required",
+          "category",
+          "pdf_form_field_id",
+          "config",
+        );
+
+      const sourceIndemnityTemplate = sourceMeet.indemnity_pdfs_id
+        ? await trx("indemnity_pdfs")
+            .where({ id: sourceMeet.indemnity_pdfs_id })
+            .first("object_key", "filename")
+        : null;
 
       const sourceImages = await trx("meet_images")
         .where({ meet_id: id })
@@ -560,6 +580,7 @@ export class MeetsService {
         share_code: shareCode,
         checkin_pin: sourceMeet.checkin_pin ? this.generateCheckinPin() : null,
         status_id: MEET_STATUS.Draft,
+        checkin_completed: false,
         start_time: null,
         end_time: null,
         opening_date: null,
@@ -581,9 +602,21 @@ export class MeetsService {
             label: definition.label,
             fieldType: definition.field_type,
             required: definition.required,
+            category: definition.category,
+            pdfFormFieldId: definition.pdf_form_field_id,
             config: definition.config ?? {},
           })),
         );
+      }
+
+      if (sourceIndemnityTemplate) {
+        // Keep the legacy table current so older application code can read clones.
+        await trx("meet_indemnity_templates").insert({
+          meet_id: clonedMeet.id,
+          object_key: sourceIndemnityTemplate.object_key,
+          filename: sourceIndemnityTemplate.filename,
+          created_at: now,
+        });
       }
 
       if (sourceImages.length > 0) {
@@ -622,9 +655,15 @@ export class MeetsService {
       }
       const updatedRows = (await trx("meets")
         .where({ id })
-        .update(this.toDbRecord({ ...dto, currencyId }, existingMeet), [
-          "*",
-        ])) as unknown;
+        .update(
+          {
+            ...this.toDbRecord({ ...dto, currencyId }, existingMeet),
+            ...(dto.statusId === MEET_STATUS.Completed
+              ? { checkin_completed: true }
+              : {}),
+          },
+          ["*"],
+        )) as unknown;
       const meet = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, id, dto.metaDefinitions);
@@ -643,6 +682,9 @@ export class MeetsService {
       updates.opening_date = null;
       updates.closing_date = null;
     }
+    if (statusId === MEET_STATUS.Completed) {
+      updates.checkin_completed = true;
+    }
     const updatedRows = (await this.db
       .getClient()("meets")
       .where({ id })
@@ -652,6 +694,21 @@ export class MeetsService {
       throw new NotFoundException("Meet not found");
     }
     return updated as any;
+  }
+
+  async completeCheckin(id: string) {
+    const updatedRows = await this.db
+      .getClient()("meets")
+      .where({ id, status_id: MEET_STATUS.Closed })
+      .update(
+        { checkin_completed: true, updated_at: new Date().toISOString() },
+        ["*"],
+      );
+    const updated = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
+    if (!updated) {
+      throw new BadRequestException("Only closed meets can complete check-in");
+    }
+    return updated;
   }
 
   async resetConfirmedAttendeesToInvited(
@@ -726,6 +783,7 @@ export class MeetsService {
         "phone",
         "name",
         "guests",
+        "guests_list",
         "guest_of",
         "is_minor",
         "guardian_name",
@@ -774,7 +832,11 @@ export class MeetsService {
       return true;
     }
 
-    if (meet.hasIndemnity && !attendee.indemnityAccepted) {
+    if (
+      meet.hasIndemnity &&
+      !meet.hasPdfIndemnityTemplate &&
+      !attendee.indemnityAccepted
+    ) {
       return true;
     }
 
@@ -808,7 +870,11 @@ export class MeetsService {
     return attendee;
   }
 
-  async listAttendees(meetId: string, filter?: string) {
+  async listAttendees(
+    meetId: string,
+    filter?: string,
+    includeIndemnityFingerprint = false,
+  ) {
     const attendeesQuery = this.db
       .getClient()("meet_attendees")
       .where({ meet_id: meetId });
@@ -832,11 +898,22 @@ export class MeetsService {
           ) AS has_unread_messages
         `),
         this.db.getClient().raw(`
+          EXISTS (
+            SELECT 1 FROM meet_attendee_attachments attachment
+            WHERE attachment.attendee_id = meet_attendees.id
+              AND attachment.meet_id = meet_attendees.meet_id
+              AND attachment.kind = 'signed-indemnity'
+          ) AS has_signed_indemnity_pdf
+        `),
+        this.db.getClient().raw(`
           (
             SELECT jsonb_build_object(
               'acceptedAt', ia.accepted_at,
               'confirmedAt', ia.confirmed_at,
-              'confirmationMethod', ia.confirmation_method,
+              'confirmationMethod', ia.confirmation_method
+              ${
+                includeIndemnityFingerprint
+                  ? `,
               'indemnityTextHash', ia.indemnity_text_hash,
               'acceptanceIp', ia.acceptance_ip,
               'acceptanceUserAgent', ia.acceptance_user_agent,
@@ -844,7 +921,9 @@ export class MeetsService {
               'acceptedByEmail', ia.accepted_by_email,
               'acceptedByPhone', ia.accepted_by_phone,
               'locale', ia.locale,
-              'timeZone', ia.time_zone
+              'timeZone', ia.time_zone`
+                  : ""
+              }
             )
             FROM meet_attendee_indemnity_acceptances ia
             WHERE ia.attendee_id = meet_attendees.id
@@ -858,7 +937,15 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position", "config");
+      .select(
+        "id",
+        "label",
+        "field_type",
+        "required",
+        "category",
+        "position",
+        "config",
+      );
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -879,6 +966,7 @@ export class MeetsService {
         label: definition.label,
         fieldType: definition.field_type,
         required: definition.required,
+        category: definition.category ?? "N",
         position: definition.position,
         config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
@@ -900,7 +988,15 @@ export class MeetsService {
       .getClient()("meet_meta_definitions")
       .where({ meet_id: meetId })
       .orderBy("position", "asc")
-      .select("id", "label", "field_type", "required", "position", "config");
+      .select(
+        "id",
+        "label",
+        "field_type",
+        "required",
+        "category",
+        "position",
+        "config",
+      );
     const metaValues = await this.db
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
@@ -921,6 +1017,7 @@ export class MeetsService {
         label: definition.label,
         fieldType: definition.field_type,
         required: definition.required,
+        category: definition.category ?? "N",
         position: definition.position,
         config: definition.config ?? undefined,
         value: valuesByAttendee[attendee.id]?.[definition.id] ?? null,
@@ -1037,35 +1134,81 @@ export class MeetsService {
   async findPreviousAnswers(
     userId: string,
     meetId: string,
+    isMinor: boolean = false,
     trx?: any,
   ): Promise<Record<string, string>> {
     const db = trx ?? this.db.getClient();
-    const definitions = await db("meet_meta_definitions")
+    const meet = await db("meets")
+      .where({ id: meetId })
+      .first("organization_id");
+    if (!meet) return {};
+
+    const definitions = (await db("meet_meta_definitions")
       .where({ meet_id: meetId })
-      .select("field_key");
-    const fieldKeys = definitions.map(
-      (definition: any) => definition.field_key,
-    );
-    if (!fieldKeys.length) {
-      return {};
-    }
+      .select("field_key", "label", "field_type")) as Array<{
+      field_key: string;
+      label: string;
+      field_type: string;
+    }>;
+    if (!definitions.length) return {};
+
     const rows = (await db("meet_meta_values as mv")
       .join("meet_meta_definitions as md", "md.id", "mv.meta_definition_id")
       .join("meet_attendees as ma", "ma.id", "mv.attendee_id")
+      .join("meets as m", "m.id", "ma.meet_id")
       .where("ma.user_id", userId)
-      .whereIn("md.field_key", fieldKeys)
+      .where("ma.is_minor", isMinor)
+      .where("m.organization_id", meet.organization_id)
+      .whereNot("ma.meet_id", meetId)
       .orderBy("mv.updated_at", "desc")
       .orderBy("mv.created_at", "desc")
-      .select("md.field_key", "mv.value")) as Array<{
-      field_key: string;
+      .select("md.label", "md.field_type", "mv.value")) as Array<{
+      label: string;
+      field_type: string;
       value: string;
     }>;
-    return rows.reduce<Record<string, string>>((acc, row) => {
-      if (!acc[row.field_key]) {
-        acc[row.field_key] = row.value;
-      }
-      return acc;
+
+    const questionKey = (label: string, fieldType: string) =>
+      `${fieldType}:${label.trim().replace(/\s+/g, " ").toLowerCase()}`;
+    const latestByQuestion = new Map<string, string>();
+    rows.forEach((row) => {
+      if (!row.value?.trim()) return;
+      const key = questionKey(row.label, row.field_type);
+      if (!latestByQuestion.has(key)) latestByQuestion.set(key, row.value);
+    });
+
+    return definitions.reduce<Record<string, string>>((answers, definition) => {
+      const value = latestByQuestion.get(
+        questionKey(definition.label, definition.field_type),
+      );
+      if (value !== undefined) answers[definition.field_key] = value;
+      return answers;
     }, {});
+  }
+
+  private validateGuests(
+    meet: { named_guests?: boolean; max_guests?: number | null },
+    count: number | undefined,
+    guestsList: GuestInputDto[] | undefined,
+  ): GuestInputDto[] {
+    const guestCount = count ?? 0;
+    if (meet.max_guests && guestCount > meet.max_guests) {
+      throw new BadRequestException(
+        `You may bring up to ${meet.max_guests} guests`,
+      );
+    }
+    if (!meet.named_guests || guestCount === 0) return [];
+    if (
+      !guestsList ||
+      guestsList.length !== guestCount ||
+      guestsList.some((guest) => !guest.name?.trim())
+    ) {
+      throw new BadRequestException("Each guest must have a name");
+    }
+    return guestsList.map((guest) => ({
+      name: guest.name.trim(),
+      isMinor: guest.isMinor === true,
+    }));
   }
 
   async addAttendee(
@@ -1088,9 +1231,31 @@ export class MeetsService {
             "auto_placement",
             "checkin_pin",
             "need_indemnity_confirmation_email",
+            "named_guests",
+            "max_guests",
           );
         if (!meet) {
           throw new NotFoundException("Meet not found");
+        }
+        const guestsList = this.validateGuests(
+          meet,
+          dto.guests,
+          dto.guestsList,
+        );
+        if (dto.guestOf) {
+          await trx("meets").where({ id: meetId }).forUpdate().first("id");
+          const [host] = await trx("meet_attendees")
+            .where({ id: dto.guestOf, meet_id: meetId })
+            .update(
+              {
+                guests: trx.raw("greatest(coalesce(guests, 0) - 1, 0)"),
+                updated_at: new Date().toISOString(),
+              },
+              ["id"],
+            );
+          if (!host) {
+            throw new BadRequestException("Guest invite attendee not found");
+          }
         }
 
         const guardianName =
@@ -1141,6 +1306,9 @@ export class MeetsService {
             "email",
             "phone",
             "user_id",
+            "guests",
+            "guests_list",
+            "guest_of",
           );
           const normalizedName = (dto.name || "").trim().toLowerCase();
           let invited = candidates.length === 1 ? candidates[0] : undefined;
@@ -1162,6 +1330,11 @@ export class MeetsService {
             }
           }
           if (invited) {
+            if (invited.id === dto.guestOf) {
+              throw new BadRequestException(
+                "An attendee cannot invite themselves",
+              );
+            }
             const [row] = await trx("meet_attendees")
               .where({ meet_id: meetId, id: invited.id })
               .update(
@@ -1173,6 +1346,11 @@ export class MeetsService {
                   org1_value: dto.org1Value ?? invited.org1_value ?? null,
                   org2_value: dto.org2Value ?? invited.org2_value ?? null,
                   guests: dto.guests ?? invited.guests ?? null,
+                  guests_list:
+                    dto.guests === undefined
+                      ? invited.guests_list
+                      : JSON.stringify(guestsList),
+                  guest_of: dto.guestOf ?? invited.guest_of ?? null,
                   is_minor: dto.isMinor ?? invited.is_minor ?? false,
                   guardian_name: guardianName,
                   indemnity_accepted: indemnityAccepted,
@@ -1272,6 +1450,7 @@ export class MeetsService {
             org1_value: dto.org1Value ?? null,
             org2_value: dto.org2Value ?? null,
             guests: dto.guests ?? null,
+            guests_list: JSON.stringify(guestsList),
             guest_of: dto.guestOf ?? null,
             sequence: nextSequence,
             is_minor: dto.isMinor ?? false,
@@ -1350,8 +1529,15 @@ export class MeetsService {
     meetId: string,
     attendeeId: string,
     email: string,
+    meetStartTime: string | undefined,
   ) {
-    const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+    const expiresAt =
+      Math.floor(Date.parse(meetStartTime ?? "") / 1000) + 24 * 60 * 60;
+    if (!Number.isFinite(expiresAt)) {
+      throw new BadRequestException(
+        "Meet start time is required for indemnity confirmation",
+      );
+    }
     const signature = this.signIndemnityConfirmation(
       meetId,
       attendeeId,
@@ -1384,11 +1570,14 @@ export class MeetsService {
           "indemnity",
           "time_zone",
           "has_indemnity",
-          "need_indemnity_confirmation_email",
+          "indemnity_pdfs_id",
         );
-      if (!meet?.has_indemnity || !meet.need_indemnity_confirmation_email) {
+      if (!meet?.has_indemnity) {
+        throw new BadRequestException("This meet does not require indemnity");
+      }
+      if (meet.indemnity_pdfs_id) {
         throw new BadRequestException(
-          "This meet does not require email confirmation of indemnity",
+          "PDF indemnity cannot be accepted through this link",
         );
       }
 
@@ -1827,6 +2016,14 @@ export class MeetsService {
   ) {
     try {
       const updated = await this.db.getClient().transaction(async (trx) => {
+        let guestsList: GuestInputDto[] | undefined;
+        if (dto.guests !== undefined) {
+          const meet = await trx("meets")
+            .where({ id: meetId })
+            .first("named_guests", "max_guests");
+          if (!meet) throw new NotFoundException("Meet not found");
+          guestsList = this.validateGuests(meet, dto.guests, dto.guestsList);
+        }
         const guardianName =
           dto.GuardianName ?? (dto as any).guardianName ?? undefined;
         let statusOverride: string | undefined;
@@ -1848,6 +2045,10 @@ export class MeetsService {
               org1_value: dto.org1Value,
               org2_value: dto.org2Value,
               guests: dto.guests,
+              guests_list:
+                guestsList === undefined
+                  ? undefined
+                  : JSON.stringify(guestsList),
               is_minor: dto.isMinor,
               guardian_name: guardianName,
               indemnity_accepted: dto.indemnityAccepted,
@@ -2368,6 +2569,7 @@ export class MeetsService {
       auto_placement: dto.autoPlacement,
       auto_promote_waitlist: dto.autoPromoteWaitlist,
       allow_guests: dto.allowGuests,
+      named_guests: dto.namedGuests,
       checkin_pin: this.resolveCheckinPin(
         dto.allowSelfCheckin,
         existingMeet?.checkin_pin,
@@ -2530,9 +2732,11 @@ export class MeetsService {
       capacity: meet.capacity ?? undefined,
       waitlistSize: meet.waitlist_size ?? undefined,
       statusId: meet.status_id ?? undefined,
+      checkinCompleted: Boolean(meet.checkin_completed),
       autoPlacement: meet.auto_placement ?? undefined,
       autoPromoteWaitlist: meet.auto_promote_waitlist ?? undefined,
       allowGuests: meet.allow_guests ?? undefined,
+      namedGuests: meet.named_guests ?? undefined,
       allowSelfCheckin:
         meet.checkin_pin === undefined ? undefined : Boolean(meet.checkin_pin),
       checkinPin: meet.checkin_pin ?? undefined,
@@ -2551,6 +2755,7 @@ export class MeetsService {
       rejectMessage: meet.reject_message ?? meet.rejectMessage ?? undefined,
       waitlistMessage: meet.waitlist_message ?? undefined,
       hasIndemnity: meet.has_indemnity ?? undefined,
+      hasPdfIndemnityTemplate: Boolean(meet.indemnity_pdfs_id),
       indemnity: meet.indemnity ?? undefined,
       allowMinorIndemnity: meet.allow_minor_indemnity ?? undefined,
       needIndemnityConfirmationEmail:
@@ -2588,7 +2793,9 @@ export class MeetsService {
         label: definition.label,
         fieldType: definition.field_type,
         required: definition.required,
+        category: definition.category ?? "N",
         position: definition.position,
+        pdfFormFieldId: definition.pdf_form_field_id ?? null,
         config: definition.config,
       })),
     };
@@ -2744,6 +2951,8 @@ export class MeetsService {
         label: definition.label,
         field_type: definition.fieldType,
         required: Boolean(definition.required),
+        category: definition.category,
+        pdf_form_field_id: definition.pdfFormFieldId,
         position: index,
         config: definition.config ?? {},
       }))
@@ -2754,9 +2963,11 @@ export class MeetsService {
 
     const existing = (await trx("meet_meta_definitions")
       .where({ meet_id: meetId })
-      .select("id", "field_key")) as Array<{
+      .select("id", "field_key", "category", "pdf_form_field_id")) as Array<{
       id: string;
       field_key: string;
+      category: "T" | "M" | "I" | "N" | "P";
+      pdf_form_field_id: string | null;
     }>;
 
     const existingById = new Map(
@@ -2773,6 +2984,8 @@ export class MeetsService {
       label: string;
       field_type: string;
       required: boolean;
+      category: "T" | "M" | "I" | "N" | "P";
+      pdf_form_field_id: string | null;
       position: number;
       config: Record<string, any>;
     }> = [];
@@ -2782,6 +2995,8 @@ export class MeetsService {
       label: string;
       field_type: string;
       required: boolean;
+      category: "T" | "M" | "I" | "N" | "P";
+      pdf_form_field_id: string | null;
       position: number;
       config: Record<string, any>;
     }> = [];
@@ -2809,6 +3024,11 @@ export class MeetsService {
           label: definition.label,
           field_type: definition.field_type,
           required: definition.required,
+          category: definition.category ?? matched.category ?? "N",
+          pdf_form_field_id:
+            definition.pdf_form_field_id === undefined
+              ? matched.pdf_form_field_id
+              : definition.pdf_form_field_id,
           position: definition.position,
           config: definition.config,
         });
@@ -2821,6 +3041,8 @@ export class MeetsService {
         label: definition.label,
         field_type: definition.field_type,
         required: definition.required,
+        category: definition.category ?? "N",
+        pdf_form_field_id: definition.pdf_form_field_id ?? null,
         position: definition.position,
         config: definition.config,
       });
@@ -2864,6 +3086,8 @@ export class MeetsService {
           label: definition.label,
           field_type: definition.field_type,
           required: definition.required,
+          category: definition.category,
+          pdf_form_field_id: definition.pdf_form_field_id,
           position: definition.position,
           config: definition.config,
           updated_at: updatedAtValue,
@@ -2904,6 +3128,7 @@ export class MeetsService {
     const previousAnswers = await this.findPreviousAnswers(
       organizerId,
       meetId,
+      false,
       trx,
     );
     const metaDefinitions = await trx("meet_meta_definitions")
@@ -2954,22 +3179,24 @@ export class MeetsService {
         "oe.recipient_email",
         "oe.opened_at",
       );
-    return rows.map((row: any) => ({
-      id: row.message_id,
-      timestamp: row.timestamp,
-      from: row.from,
-      to: row.to,
-      isRead: row.is_read ?? false,
-      content: row.content,
-      emailStatus: row.email_status ?? null,
-      recipientEmail: row.recipient_email ?? null,
-      openedAt: row.opened_at ?? null,
-      direction: this.getAttendeeMessageDirection(
-        row.from,
-        row.to,
-        row.attendee_email,
-      ),
-    }));
+    return Promise.all(
+      rows.map(async (row: any) => ({
+        id: row.message_id,
+        timestamp: row.timestamp,
+        from: row.from,
+        to: row.to,
+        isRead: row.is_read ?? false,
+        content: await normalizeIncomingMessageContent(row.content),
+        emailStatus: row.email_status ?? null,
+        recipientEmail: row.recipient_email ?? null,
+        openedAt: row.opened_at ?? null,
+        direction: this.getAttendeeMessageDirection(
+          row.from,
+          row.to,
+          row.attendee_email,
+        ),
+      })),
+    );
   }
 
   private getAttendeeMessageDirection(
@@ -3032,7 +3259,7 @@ export class MeetsService {
       .select(
         "ma.meet_id",
         "ma.status",
-        "m.status_id",
+        "m.checkin_completed",
         "m.start_time",
         "m.name",
       );
@@ -3042,7 +3269,7 @@ export class MeetsService {
       date: row.start_time,
       meetName: row.name,
       attendeeStatus:
-        row.status_id === MEET_STATUS.Completed && row.status === "confirmed"
+        row.checkin_completed && row.status === "confirmed"
           ? "no-show"
           : row.status,
     }));
@@ -3071,10 +3298,12 @@ export class MeetsService {
       org1Value: attendee.org1_value ?? undefined,
       org2Value: attendee.org2_value ?? undefined,
       guests: attendee.guests ?? undefined,
+      guestsList: attendee.guests_list ?? undefined,
       guestOf: attendee.guest_of ?? undefined,
       isMinor: attendee.is_minor ?? undefined,
       guardianName: attendee.guardian_name ?? undefined,
       indemnityAccepted: attendee.indemnity_accepted ?? undefined,
+      hasSignedIndemnityPdf: attendee.has_signed_indemnity_pdf === true,
       indemnityMinors: attendee.indemnity_minors ?? undefined,
       indemnityAcceptance: attendee.indemnity_acceptance ?? undefined,
       paidFullAt: attendee.paid_full_at ?? undefined,

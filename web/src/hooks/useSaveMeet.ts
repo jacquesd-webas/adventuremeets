@@ -26,6 +26,7 @@ export type CreateMeetPayload = {
   autoPlacement?: boolean;
   autoPromoteWaitlist?: boolean;
   allowGuests?: boolean;
+  namedGuests?: boolean;
   allowSelfCheckin?: boolean;
   allowWalkins?: boolean;
   requireEmail?: boolean;
@@ -51,7 +52,9 @@ export type CreateMeetPayload = {
     fieldKey: string;
     label: string;
     fieldType: string;
+    category?: "T" | "M" | "I" | "N" | "P";
     required?: boolean;
+    pdfFormFieldId?: string | null;
     config?: Record<string, any>;
   }[];
 };

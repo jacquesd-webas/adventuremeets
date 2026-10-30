@@ -3,6 +3,7 @@ import {
   IsUUID,
   IsString,
   IsBoolean,
+  IsIn,
   IsPositive,
   IsNumber,
   IsDateString,
@@ -30,10 +31,18 @@ export class MeetMetaDefinitionDto {
   @IsBoolean()
   required!: boolean;
 
+  @ApiProperty({ enum: ["T", "M", "I", "N", "P"] })
+  @IsIn(["T", "M", "I", "N", "P"])
+  category!: "T" | "M" | "I" | "N" | "P";
+
   @ApiProperty()
   @IsNumber()
   @IsPositive()
   position!: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsString()
+  pdfFormFieldId?: string | null;
 
   @ApiPropertyOptional()
   config?: Record<string, any>;
@@ -130,6 +139,10 @@ export class MeetDto {
   @IsNumber()
   statusId?: number;
 
+  @ApiProperty()
+  @IsBoolean()
+  checkinCompleted!: boolean;
+
   @ApiPropertyOptional()
   @IsBoolean()
   autoPlacement?: boolean;
@@ -141,6 +154,10 @@ export class MeetDto {
   @ApiPropertyOptional()
   @IsBoolean()
   allowGuests?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  namedGuests?: boolean;
 
   @ApiPropertyOptional()
   @IsBoolean()
@@ -209,6 +226,10 @@ export class MeetDto {
   @ApiPropertyOptional()
   @IsBoolean()
   hasIndemnity?: boolean;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  hasPdfIndemnityTemplate?: boolean;
 
   @ApiPropertyOptional()
   @IsString()

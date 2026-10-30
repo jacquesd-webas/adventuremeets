@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "./useApi";
 import { useNotistack } from "./useNotistack";
+import { attendeeMessageQueryKeys } from "./attendeeMessageQueryKeys";
 
 export function useWithdrawMeetApplication(meetId: string, attendeeId) {
   const api = useApi();
@@ -14,6 +15,9 @@ export function useWithdrawMeetApplication(meetId: string, attendeeId) {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["attendee-status", attendeeId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: attendeeMessageQueryKeys.attendee(meetId, attendeeId),
       });
     },
     onError: (err) => {

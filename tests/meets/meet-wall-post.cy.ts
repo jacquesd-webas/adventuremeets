@@ -8,7 +8,7 @@ describe("Meet wall posting", () => {
     const meetName = `Meet Wall ${unique}`;
     const description = "Short description for meet wall posting test.";
     const organizerComment = `Great walk ${unique}`;
-    const startAtMs = Date.now() + 70_000;
+    const startAtMs = Date.now() + 70_000 + 3600_000; // 1 hour in the future, plus 70 seconds to allow for test setup
     const attendeeStatusUrls: string[] = [];
     const wallPhotoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240"><rect width="240" height="240" fill="#d7f4e3"/><circle cx="70" cy="80" r="28" fill="#ffb84d"/><path d="M0 200 L70 120 L118 170 L168 95 L240 200 Z" fill="#3b7a57"/><rect x="24" y="24" width="92" height="24" rx="12" fill="#184d47"/><text x="36" y="41" font-size="14" fill="#ffffff">Wall ${unique}</text></svg>`;
     let shareLink = "";
@@ -95,6 +95,27 @@ describe("Meet wall posting", () => {
           "Meet did not appear in Past with Closed status",
         ).to.eq(true);
       });
+    };
+
+    const moveMeetStartToNow = () => {
+      cy.visit("/plan");
+      cy.contains("button", "Upcoming").click();
+      openMeetRowMenu();
+      cy.contains('[role="menuitem"]', "Edit").click();
+      cy.contains("Time and Location").click();
+      cy.get('[data-testid="start-time-input"]').should("be.visible");
+
+      cy.then(() => {
+        const now = new Date();
+        const pad = (value: number) => String(value).padStart(2, "0");
+        const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        cy.get('[data-testid="start-time-input"]').clear().type(localNow);
+      });
+
+      cy.intercept("PATCH", "**/api/v1/meets/*").as("updateMeetStart");
+      cy.contains("button", "Save & Continue").click();
+      cy.wait("@updateMeetStart").its("response.statusCode").should("eq", 200);
+      cy.get('button[aria-label="Close meet editor"]').click();
     };
 
     const buildAttendeeStatusUrl = (
@@ -184,6 +205,7 @@ describe("Meet wall posting", () => {
     cy.then(() => {
       expect(attendeeStatusUrls).to.have.length(3);
     });
+    moveMeetStartToNow();
     waitForClosedMeetInPast();
 
     openMeetDetails();
@@ -279,15 +301,15 @@ describe("Meet wall posting", () => {
     waitForClosedMeetInPast();
     openMeetDetails();
     cy.get('[role="dialog"] .MuiDialogContent-root').scrollTo("bottom");
-    cy.contains(`Attendee one comment ${unique}`).scrollIntoView().should(
-      "be.visible",
-    );
-    cy.contains(`Attendee two rating comment ${unique}`).scrollIntoView().should(
-      "be.visible",
-    );
-    cy.contains(`Attendee three photo post ${unique}`).scrollIntoView().should(
-      "be.visible",
-    );
+    cy.contains(`Attendee one comment ${unique}`)
+      .scrollIntoView()
+      .should("be.visible");
+    cy.contains(`Attendee two rating comment ${unique}`)
+      .scrollIntoView()
+      .should("be.visible");
+    cy.contains(`Attendee three photo post ${unique}`)
+      .scrollIntoView()
+      .should("be.visible");
     cy.get('[role="dialog"] img[alt="Meet wall post"]').should(
       "have.length.at.least",
       1,

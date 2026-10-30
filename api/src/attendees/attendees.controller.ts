@@ -5,12 +5,15 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  InternalServerErrorException,
   NotFoundException,
   Param,
   Patch,
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
   UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
@@ -24,13 +27,16 @@ import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import { meetOrganizerSender } from "../email/email.helpers";
 import { EmailTemplateName } from "../email/email.types";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { UsersService } from "../users/users.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import { OrganizationsService } from "../organizations/organizations.service";
 import { OptionalJwtAuthGuard } from "../auth/guards/optional-jwt-auth.guard";
 import { ConfirmIndemnityDto } from "./dto/confirm-indemnity.dto";
+import { IndemnityTemplateService } from "../meets/indemnity-template.service";
+import { indemnityReplyToken } from "../meets/indemnity-reply-token";
 
 @ApiTags("Attendees")
 @Controller("meets/:meetId/attendees")
@@ -42,6 +48,7 @@ export class AttendeesController {
     private readonly usersService: UsersService,
     private readonly auditLogService: AuditLogService,
     private readonly organizationsService: OrganizationsService,
+    private readonly indemnityTemplates: IndemnityTemplateService,
   ) {}
 
   private async sendIndemnityConfirmationEmail(
@@ -50,6 +57,8 @@ export class AttendeesController {
       name: string;
       shareCode?: string;
       organizationId?: string;
+      startTime?: string;
+      organizerName?: string;
     },
     attendee: { id: string; email: string; name?: string },
     logoUrl?: string,
@@ -66,6 +75,7 @@ export class AttendeesController {
       meet.id,
       attendee.id,
       attendee.email,
+      meet.startTime,
     );
     const confirmationUrl = `${frontendUrl}/meets/${meet.shareCode || meet.id}/${attendee.id}/confirm-indemnity?token=${encodeURIComponent(token)}`;
     const confirmationEmail = renderEmailTemplate("indemnity-confirmation", {
@@ -74,18 +84,116 @@ export class AttendeesController {
       confirmationUrl,
       logoUrl: resolvedLogoUrl,
     });
+    const sender = meetOrganizerSender(meet.organizerName);
     const messageId = await this.emailService.saveMessage({
       to: attendee.email,
       ...confirmationEmail,
+      from: sender.from,
       attendeeId: attendee.id,
       meetId: meet.id,
     });
     await this.emailService.sendEmail({
       to: attendee.email,
       ...confirmationEmail,
+      ...sender,
       attendeeId: attendee.id,
       meetId: meet.id,
       templateName: "indemnity-confirmation",
+      messageReferences: messageId
+        ? [{ messageId, recipient: attendee.email }]
+        : [],
+    });
+  }
+
+  private async sendPrefilledIndemnityEmail(
+    meet: {
+      id: string;
+      name: string;
+      organizerEmail?: string;
+      organizerName?: string;
+    },
+    attendee: { id: string; email: string; name?: string },
+    pdf: { filename: string; content: Buffer },
+    logoUrl?: string,
+  ) {
+    const email = renderEmailTemplate("indemnity-pdf", {
+      meetName: meet.name,
+      attendeeName: attendee.name,
+      organizerEmail: meet.organizerEmail,
+      logoUrl,
+    });
+    const sender = meetOrganizerSender(meet.organizerName);
+    const messageId = await this.emailService.saveMessage({
+      to: attendee.email,
+      ...email,
+      from: sender.from,
+      attendeeId: attendee.id,
+      meetId: meet.id,
+    });
+    await this.emailService.sendEmail({
+      to: attendee.email,
+      ...email,
+      ...sender,
+      attendeeId: attendee.id,
+      meetId: meet.id,
+      replyTo: `meet+${meet.id}+${attendee.id}+${indemnityReplyToken(meet.id, attendee.id)}@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
+      attachments: [
+        {
+          filename: pdf.filename,
+          content: pdf.content,
+          contentType: "application/pdf",
+        },
+      ],
+      templateName: "indemnity-pdf",
+      messageReferences: messageId
+        ? [{ messageId, recipient: attendee.email }]
+        : [],
+    });
+  }
+
+  private async sendIndemnityRequestEmail(
+    meet: {
+      id: string;
+      name: string;
+      shareCode?: string;
+      organizationId?: string;
+      startTime?: string;
+      organizerName?: string;
+    },
+    attendee: { id: string; email: string; name?: string },
+    logoUrl?: string,
+  ) {
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const token = this.meetsService.createIndemnityConfirmationToken(
+      meet.id,
+      attendee.id,
+      attendee.email,
+      meet.startTime,
+    );
+    const acceptanceUrl = `${frontendUrl}/meets/${meet.shareCode || meet.id}/${attendee.id}/confirm-indemnity?token=${encodeURIComponent(token)}&request=1`;
+    const email = renderEmailTemplate("indemnity-request", {
+      meetName: meet.name,
+      attendeeName: attendee.name,
+      acceptanceUrl,
+      logoUrl,
+    });
+    const sender = meetOrganizerSender(meet.organizerName);
+    const messageId = await this.emailService.saveMessage({
+      to: attendee.email,
+      ...email,
+      from: sender.from,
+      attendeeId: attendee.id,
+      meetId: meet.id,
+    });
+    await this.emailService.sendEmail({
+      to: attendee.email,
+      ...email,
+      ...sender,
+      attendeeId: attendee.id,
+      meetId: meet.id,
+      templateName: "indemnity-request",
       messageReferences: messageId
         ? [{ messageId, recipient: attendee.email }]
         : [],
@@ -102,7 +210,30 @@ export class AttendeesController {
 
     const meet = await this.meetsService.findOne(meetId);
     this.assertCanAccessMeetAttendees(user, meet);
-    return await this.meetsService.listAttendees(meetId, filter);
+    return await this.meetsService.listAttendees(meetId, filter, true);
+  }
+
+  @Get(":attendeeId/signed-indemnity")
+  async signedIndemnity(
+    @Param("meetId") meetId: string,
+    @Param("attendeeId") attendeeId: string,
+    @User() user: UserProfile | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    if (!user) throw new UnauthorizedException();
+    const meet = await this.meetsService.findOne(meetId);
+    if (!meet) throw new NotFoundException("Meet not found");
+    this.assertCanAccessMeetAttendees(user, meet);
+    const pdf = await this.indemnityTemplates.getSignedAttendeePdf(
+      meetId,
+      attendeeId,
+    );
+    if (!pdf) throw new NotFoundException("Signed indemnity PDF not found");
+    response.setHeader("Content-Type", "application/pdf");
+    response.setHeader("Content-Disposition", "inline");
+    response.setHeader("Cache-Control", "private, no-store");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    return new StreamableFile(pdf);
   }
 
   @Public()
@@ -137,6 +268,12 @@ export class AttendeesController {
       throw new NotFoundException("Meet not found");
     }
 
+    if (meet.hasPdfIndemnityTemplate && !dto.email?.trim()) {
+      throw new BadRequestException(
+        "An email address is required to receive the consent PDF",
+      );
+    }
+
     let { attendee } = await this.meetsService.addAttendee(
       meetId,
       user ? { ...dto, userId: user.id } : dto,
@@ -156,10 +293,28 @@ export class AttendeesController {
       attendee = result.attendee;
     }
 
-    if (dto.email) {
+    const recipientEmail = attendee.email || dto.email;
+    if (recipientEmail) {
       const logoUrl = meet.organizationId
         ? await this.organizationsService.findLogoUrlById(meet.organizationId)
         : undefined;
+      if (meet.hasPdfIndemnityTemplate) {
+        const filledPdf = await this.indemnityTemplates.createAttendeePdf(
+          meet,
+          attendee,
+        );
+        if (!filledPdf) {
+          throw new InternalServerErrorException(
+            "Could not generate the indemnity form",
+          );
+        }
+        await this.sendPrefilledIndemnityEmail(
+          meet,
+          { id: attendee.id, email: recipientEmail, name: dto.name },
+          filledPdf,
+          logoUrl,
+        );
+      }
       const frontendUrl = (
         process.env.FRONTEND_URL || "http://localhost:5173"
       ).replace(/\/+$/, "");
@@ -181,14 +336,12 @@ export class AttendeesController {
               ? meet.rejectMessage
               : undefined;
 
-      const emailTemplate: EmailTemplateName =
-        status === "confirmed"
-          ? "meet-confirm"
-          : status === "waitlisted"
-            ? "meet-waitlist"
-            : status === "rejected"
-              ? "meet-reject"
-              : "meet-signup";
+      let emailTemplate: EmailTemplateName = "meet-signup";
+      if (!meet.hasPdfIndemnityTemplate) {
+        if (status === "confirmed") emailTemplate = "meet-confirm";
+        else if (status === "waitlisted") emailTemplate = "meet-waitlist";
+        else if (status === "rejected") emailTemplate = "meet-reject";
+      }
 
       // Prepare the email content (meet-signup uses a different overload)
       const { subject, text, html } =
@@ -220,24 +373,31 @@ export class AttendeesController {
               logoUrl,
               isRsvpMode: meet.autoPlacement,
             });
+      const sender =
+        emailTemplate === "meet-signup"
+          ? null
+          : meetOrganizerSender(meet.organizerName);
 
       const messageId = await this.emailService.saveMessage({
-        to: dto.email,
+        to: recipientEmail,
         subject,
         text,
         html,
+        ...(sender ? { from: sender.from } : {}),
         attendeeId: attendee.id,
         meetId,
       });
       await this.emailService.sendEmail({
-        to: dto.email,
+        to: recipientEmail,
         subject,
         text,
         html,
+        ...(sender ?? {}),
         attendeeId: attendee.id,
         meetId,
+        templateName: emailTemplate,
         messageReferences: messageId
-          ? [{ messageId, recipient: dto.email }]
+          ? [{ messageId, recipient: recipientEmail }]
           : [],
       });
 
@@ -248,14 +408,17 @@ export class AttendeesController {
       ) {
         await this.sendIndemnityConfirmationEmail(
           meet,
-          { id: attendee.id, email: dto.email, name: attendeeName },
+          { id: attendee.id, email: recipientEmail, name: attendeeName },
           logoUrl,
         );
       }
 
       // A plain signup acknowledgement is not an organizer response.
       // Only auto-confirmed signups should be marked as responded/notified here.
-      if (attendee.status === "confirmed" || attendee.status === "waitlisted") {
+      if (
+        emailTemplate !== "meet-signup" &&
+        (attendee.status === "confirmed" || attendee.status === "waitlisted")
+      ) {
         await this.meetsService.updateAttendeesNotified(meetId, [attendee.id]);
       }
     }
@@ -307,10 +470,8 @@ export class AttendeesController {
 
     const meet = await this.meetsService.findOne(meetId);
     this.assertCanAccessMeetAttendees(user, meet);
-    if (!meet.needIndemnityConfirmationEmail) {
-      throw new BadRequestException(
-        "This meet does not require email confirmation of indemnity",
-      );
+    if (!meet.hasIndemnity && !meet.hasPdfIndemnityTemplate) {
+      throw new BadRequestException("This meet does not require indemnity");
     }
     const { attendee } = await this.meetsService.findAttendeeForEdit(
       meet.id,
@@ -322,28 +483,48 @@ export class AttendeesController {
     if (!attendee.email) {
       throw new BadRequestException("Attendee does not have an email address");
     }
-    const hasPendingAcceptance =
-      await this.meetsService.hasPendingIndemnityAcceptance(
-        meet.id,
-        attendeeId,
+    const logoUrl = meet.organizationId
+      ? await this.organizationsService.findLogoUrlById(meet.organizationId)
+      : undefined;
+    let auditAction: string;
+    if (meet.hasPdfIndemnityTemplate) {
+      const filledPdf = await this.indemnityTemplates.createAttendeePdf(
+        meet,
+        attendee,
       );
-    if (!hasPendingAcceptance) {
-      throw new BadRequestException(
-        "Attendee has not submitted indemnity acceptance for confirmation",
+      if (!filledPdf) {
+        throw new InternalServerErrorException(
+          "Could not generate the indemnity form",
+        );
+      }
+      await this.sendPrefilledIndemnityEmail(
+        meet,
+        attendee,
+        filledPdf,
+        logoUrl,
       );
+      auditAction = "resent indemnity PDF for";
+    } else {
+      const hasPendingAcceptance =
+        meet.needIndemnityConfirmationEmail &&
+        (await this.meetsService.hasPendingIndemnityAcceptance(
+          meet.id,
+          attendeeId,
+        ));
+      if (hasPendingAcceptance) {
+        await this.sendIndemnityConfirmationEmail(meet, attendee, logoUrl);
+        auditAction = "resent indemnity confirmation for";
+      } else {
+        await this.sendIndemnityRequestEmail(meet, attendee, logoUrl);
+        auditAction = "resent indemnity request for";
+      }
     }
-
-    await this.sendIndemnityConfirmationEmail(meet, {
-      id: attendee.id,
-      email: attendee.email,
-      name: attendee.name,
-    });
     await this.auditLogService.addRecord({
       orgId: meet.organizationId ?? "",
       userId: user.id,
       attendeeId,
       meetId: meet.id,
-      action: "resent indemnity confirmation for",
+      action: auditAction,
       target: `meet ${meet.name || "meet"}`,
     });
     return { sent: true };
@@ -382,12 +563,20 @@ export class AttendeesController {
       attendeeId,
       dto,
     );
+    let auditAction = "updated attendee for";
+    if (dto.status === "confirmed") {
+      auditAction = "accepted application for";
+    } else if (dto.status === "rejected") {
+      auditAction = "rejected application for";
+    } else if (dto.status) {
+      auditAction = `set attendee status to ${dto.status} for`;
+    }
     await this.auditLogService.addRecord({
       orgId: meet.organizationId ?? "",
       userId: user.id,
       attendeeId,
       meetId: meet.id,
-      action: "updated attendee for",
+      action: auditAction,
       target: `meet ${meet.name || "meet"}`,
     });
 

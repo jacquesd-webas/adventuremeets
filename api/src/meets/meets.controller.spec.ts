@@ -59,6 +59,7 @@ describe("MeetsController", () => {
     clone: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
+    findPreviousAnswers: jest.fn(),
     update: jest.fn(),
     listImages: jest.fn(),
     addImage: jest.fn(),
@@ -67,6 +68,7 @@ describe("MeetsController", () => {
     updateImage: jest.fn(),
     removeImage: jest.fn(),
     updateStatus: jest.fn(),
+    completeCheckin: jest.fn(),
     remove: jest.fn(),
     resetConfirmedAttendeesToInvited: jest.fn(),
     listAttendees: jest.fn(),
@@ -94,6 +96,7 @@ describe("MeetsController", () => {
 
   const auditLogService = {
     addRecord: jest.fn(),
+    findAttendeeMeetRecords: jest.fn(),
   } as unknown as AuditLogService;
 
   const db = {
@@ -195,12 +198,17 @@ describe("MeetsController", () => {
     ],
     ["findOne", () => controller.findOne("meet-1")],
     [
+      "findMyPreviousAnswers",
+      () => controller.findMyPreviousAnswers("meet-1", false),
+    ],
+    [
       "create",
       () => controller.create({ name: "Meet", organizationId: "org-1" } as any),
     ],
     ["clone", () => controller.clone("meet-1", { name: "Clone" } as any)],
     ["update", () => controller.update("meet-1", { name: "Updated" } as any)],
     ["updateStatus", () => controller.updateStatus("meet-1", { statusId: 2 })],
+    ["completeCheckin", () => controller.completeCheckin("meet-1")],
     [
       "addImage",
       () =>
@@ -260,6 +268,44 @@ describe("MeetsController", () => {
 
     await expect(
       controller.updateStatus("meet-1", { statusId: 2 }, undefined, user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it.each([false, true])(
+    "returns only the signed-in user's previous answers for isMinor=%s",
+    async (isMinor) => {
+      (meetsService.findPreviousAnswers as jest.Mock).mockResolvedValue({
+        dietary: "Vegan",
+      });
+
+      await expect(
+        controller.findMyPreviousAnswers("meet-1", isMinor, memberUser),
+      ).resolves.toEqual({ metaValues: { dietary: "Vegan" } });
+      expect(meetsService.findPreviousAnswers).toHaveBeenCalledWith(
+        memberUser.id,
+        "meet-1",
+        isMinor,
+      );
+    },
+  );
+
+  it("lets the organiser finish check-in and rejects other members", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.completeCheckin as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      checkin_completed: true,
+    });
+    setRoles({ organizer: true });
+
+    await expect(controller.completeCheckin("meet-1", user)).resolves.toEqual({
+      id: "meet-1",
+      checkin_completed: true,
+    });
+    expect(meetsService.completeCheckin).toHaveBeenCalledWith("meet-1");
+
+    setRoles({});
+    await expect(
+      controller.completeCheckin("meet-1", memberUser),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
@@ -614,6 +660,15 @@ describe("MeetsController", () => {
 
     expect(emailService.sendEmail).toHaveBeenCalledTimes(2);
     expect(emailService.saveMessage).toHaveBeenCalledTimes(2);
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
+      }),
+    );
+    expect(emailService.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "organiser@example.com" }),
+    );
     expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
       "meet-1",
       ["attendee-1", "attendee-2"],
@@ -781,6 +836,8 @@ describe("MeetsController", () => {
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "member@example.com",
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
         attendeeId: "attendee-1",
         meetId: "meet-1",
       }),
@@ -788,6 +845,7 @@ describe("MeetsController", () => {
     expect(emailService.saveMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "member@example.com",
+        from: "organiser@example.com",
         attendeeId: "attendee-1",
         meetId: "meet-1",
       }),
@@ -872,8 +930,34 @@ describe("MeetsController", () => {
     });
   });
 
-  it("creates a final report that maps confirmed attendees to no-show", async () => {
+  it("audits an attendee withdrawing an application", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.updateAttendee as jest.Mock).mockResolvedValue({
+      attendee: { id: "attendee-1", status: "cancelled" },
+    });
+
+    await controller.withdrawAttendee("share-123", "attendee-1");
+
+    expect(meetsService.updateAttendee).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+      { status: "cancelled" },
+    );
+    expect(auditLogService.addRecord).toHaveBeenCalledWith({
+      orgId: "org-1",
+      userId: null,
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "withdrew from",
+      target: "meet Sunrise Hike",
+    });
+  });
+
+  it("creates a final report that maps confirmed attendees to no-show", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue({
+      ...meet,
+      checkinCompleted: true,
+    });
     (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
       "organizer@example.com",
     );
@@ -944,7 +1028,7 @@ describe("MeetsController", () => {
     });
   });
 
-  it("creates an interim report without remapping confirmed attendees", async () => {
+  it("keeps confirmed attendees confirmed until check-in is completed", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (meetsService.getOrganizerEmail as jest.Mock).mockResolvedValue(
       "organizer@example.com",
@@ -969,7 +1053,7 @@ describe("MeetsController", () => {
     await controller.createReport("meet-1", user, {
       sendEmail: true,
       downloadReport: false,
-      isFinalReport: false,
+      isFinalReport: true,
     });
 
     expect(workbookState.rows).toEqual([
@@ -1196,7 +1280,12 @@ describe("MeetsController", () => {
         attendeeId: "attendee-1",
         meetId: "meet-1",
         replyTo: "meet+meet-1@example.com",
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
       }),
+    );
+    expect(emailService.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "organiser@example.com" }),
     );
     expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
       "meet-1",
@@ -1248,7 +1337,10 @@ describe("MeetsController", () => {
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: ["alex@example.com", "jamie@example.com"],
+        sendAsGroup: true,
         replyTo: "meet+meet-1@example.com",
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
       }),
     );
     expect(emailService.saveMessage).toHaveBeenCalledWith(
@@ -1583,6 +1675,52 @@ describe("MeetsController", () => {
     });
   });
 
+  it("lists attendee audit entries alongside messages for the meet organiser", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.listAttendeeMessages as jest.Mock).mockResolvedValue([
+      { id: "message-1", timestamp: "2026-10-20T10:00:00Z" },
+    ]);
+    (auditLogService.findAttendeeMeetRecords as jest.Mock).mockResolvedValue([
+      {
+        id: "audit-1",
+        timestamp: "2026-10-20T09:00:00Z",
+        description: "Applied",
+      },
+    ]);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.listAttendeeMessages("meet-1", "attendee-1", user),
+    ).resolves.toEqual({
+      messages: [{ id: "message-1", timestamp: "2026-10-20T10:00:00Z" }],
+      auditLogs: [
+        {
+          id: "audit-1",
+          timestamp: "2026-10-20T09:00:00Z",
+          description: "Applied",
+        },
+      ],
+    });
+    expect(auditLogService.findAttendeeMeetRecords).toHaveBeenCalledWith(
+      "org-1",
+      "meet-1",
+      "attendee-1",
+    );
+  });
+
+  it("prevents another organiser from viewing attendee activity", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.listAttendeeMessages("meet-1", "attendee-1", {
+        ...user,
+        id: "other-organizer",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(auditLogService.findAttendeeMeetRecords).not.toHaveBeenCalled();
+  });
+
   it("resends a failed attendee email and writes an audit log", async () => {
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (meetsService.listAttendeeMessages as jest.Mock).mockResolvedValue([
@@ -1636,5 +1774,42 @@ describe("MeetsController", () => {
       action: "resent failed email to",
       target: "meet Sunrise Hike",
     });
+  });
+
+  it("preserves the organiser sender when resending a failed organiser email", async () => {
+    process.env.MAIL_DOMAIN = "example.com";
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.listAttendeeMessages as jest.Mock).mockResolvedValue([
+      {
+        id: "message-1",
+        to: "alex@example.com",
+        from: "organiser@example.com",
+        content: "Subject: Update\\n\\nSee you there",
+        direction: "sent",
+        emailStatus: "failed",
+      },
+    ]);
+    (emailService.parseMessageContent as jest.Mock).mockReturnValue({
+      subject: "Update",
+      body: "See you there",
+    });
+    setRoles({ organizer: true });
+
+    await controller.resendFailedAttendeeEmail(
+      "meet-1",
+      "attendee-1",
+      "message-1",
+      user,
+    );
+
+    expect(emailService.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "organiser@example.com" }),
+    );
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
+      }),
+    );
   });
 });

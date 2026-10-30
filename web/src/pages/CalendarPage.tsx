@@ -16,14 +16,19 @@ import {
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useFetchMeets } from "../hooks/useFetchMeets";
 import { useCurrentOrganization } from "../context/organizationContext";
+import { useAuth } from "../context/authContext";
 import Meet from "../types/MeetModel";
 import { MeetInfoModal } from "../components/meet/MeetInfoModal";
 import { Heading } from "../components/Heading";
 import { MeetStatus } from "../components/meet/MeetStatus";
 import { CalendarStatusFilter } from "../components/meet/CalendarStatusFilter";
 import MeetStatusEnum from "../types/MeetStatusEnum";
+import MeetActionsEnum from "../types/MeetActionsEnum";
+import { defaultPendingAction } from "../helpers/defaultPendingAction";
+import { navigateToMeetCheckin } from "../helpers/meetNavigation";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const pad2 = (v: number) => `${v}`.padStart(2, "0");
@@ -201,7 +206,8 @@ const buildWeekLayout = (week: Date[], meets: Meet[]): WeekLayout => {
   candidates.forEach((candidate) => {
     let lane = 0;
     while (true) {
-      const occupancy = laneOccupancy[lane] ?? Array.from({ length: 7 }, () => false);
+      const occupancy =
+        laneOccupancy[lane] ?? Array.from({ length: 7 }, () => false);
       const overlaps = occupancy
         .slice(candidate.startDayIndex, candidate.endDayIndex + 1)
         .some(Boolean);
@@ -251,6 +257,9 @@ export default function CalendarPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { currentOrganizationId } = useCurrentOrganization();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [selectedMeet, setSelectedMeet] = useState<Meet | null>(null);
   const [mobileView, setMobileView] = useState<MobileCalView>("agenda");
@@ -436,6 +445,24 @@ export default function CalendarPage() {
     setDayDrawerOpen(true);
   };
 
+  const openMeet = (meet: Meet) => {
+    if (
+      defaultPendingAction(
+        meet.statusId,
+        meet.organizerId === user?.id,
+        meet,
+      ) === MeetActionsEnum.Checkin
+    ) {
+      navigateToMeetCheckin({
+        meetId: meet.id,
+        navigate,
+        returnTo: `${location.pathname}${location.search}`,
+      });
+      return;
+    }
+    setSelectedMeet(meet);
+  };
+
   const renderOccurrenceCard = (
     occurrence: MobileOccurrence,
     options?: { showRange?: boolean; closeDrawerOnClick?: boolean },
@@ -445,7 +472,7 @@ export default function CalendarPage() {
       variant="outlined"
       sx={{ p: 1.25, borderRadius: 1.5, cursor: "pointer" }}
       onClick={() => {
-        setSelectedMeet(occurrence.meet);
+        openMeet(occurrence.meet);
         if (options?.closeDrawerOnClick) setDayDrawerOpen(false);
       }}
     >
@@ -876,7 +903,9 @@ export default function CalendarPage() {
                           {!isLoading
                             ? layout.segments.map((segment) => {
                                 const span =
-                                  segment.endDayIndex - segment.startDayIndex + 1;
+                                  segment.endDayIndex -
+                                  segment.startDayIndex +
+                                  1;
                                 const row = segment.lane;
                                 const barTop = `calc(var(--day-padding) + var(--header-height) + var(--item-row-gap) + (${row} * (var(--item-row-height) + var(--item-row-gap))))`;
                                 const gridGap = theme.spacing(0.75);
@@ -885,7 +914,8 @@ export default function CalendarPage() {
                                 const isSingleDay = span === 1;
                                 const truncateAt = isSingleDay ? 16 : 30;
                                 const isTruncated =
-                                  segment.meet.name.length > (isSingleDay ? 26 : 42);
+                                  segment.meet.name.length >
+                                  (isSingleDay ? 26 : 42);
                                 const label = isTruncated
                                   ? `${segment.meet.name.slice(0, truncateAt)}...`
                                   : segment.meet.name;
@@ -900,8 +930,9 @@ export default function CalendarPage() {
                                       height: "var(--item-row-height)",
                                       px: 0.75,
                                       borderRadius: 1,
-                                      backgroundColor:
-                                        getStatusColor(segment.meet.statusId),
+                                      backgroundColor: getStatusColor(
+                                        segment.meet.statusId,
+                                      ),
                                       color:
                                         theme.palette.mode === "dark"
                                           ? "#222222"
@@ -914,9 +945,7 @@ export default function CalendarPage() {
                                       cursor: "pointer",
                                       zIndex: 2,
                                     }}
-                                    onClick={() =>
-                                      setSelectedMeet(segment.meet)
-                                    }
+                                    onClick={() => openMeet(segment.meet)}
                                   >
                                     <Typography
                                       variant="caption"

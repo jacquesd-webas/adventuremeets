@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import ListPage from "../ListPage";
+import MeetStatusEnum from "../../types/MeetStatusEnum";
 
 const mockSetMobileHeaderAction = vi.fn();
 const mockSetListPageView = vi.fn();
@@ -11,7 +12,8 @@ const mockMeet = {
   id: "meet-1",
   name: "Sunrise Hike",
   organizerId: "organizer-1",
-  statusId: 3,
+  statusId: MeetStatusEnum.Open,
+  checkinCompleted: false,
   startTime: "2026-06-01T08:00:00.000Z",
   location: "Trailhead",
   shareCode: "share-123",
@@ -112,6 +114,43 @@ vi.mock("../../components/meet/MeetActionsDialogs", () => ({
 describe("ListPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockMeet.statusId = MeetStatusEnum.Open;
+    mockMeet.checkinCompleted = false;
+  });
+
+  it("opens check-in when the organiser selects a closed meet", async () => {
+    mockMeet.statusId = MeetStatusEnum.Closed;
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <ListPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Select meet" }));
+
+    expect(screen.getByTestId("meet-actions-dialogs-props")).toHaveTextContent(
+      '"pendingAction": "checkin"',
+    );
+  });
+
+  it("opens the wall when the organiser selects a closed meet with completed check-in", async () => {
+    mockMeet.statusId = MeetStatusEnum.Closed;
+    mockMeet.checkinCompleted = true;
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <ListPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Select meet" }));
+
+    expect(screen.getByTestId("meet-actions-dialogs-props")).toHaveTextContent(
+      '"pendingAction": "details"',
+    );
   });
 
   it("passes isOrganizer to the actions dialogs for the selected organizer-owned meet", async () => {

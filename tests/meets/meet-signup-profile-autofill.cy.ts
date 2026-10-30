@@ -1,7 +1,7 @@
 export {};
 
 describe("Meet signup profile autofill", () => {
-  it("fills attendee details on a second meet signup and saved answers on a third meet after remembering them", () => {
+  it("fills previous answers on a second meet and saved profile answers on a third meet", () => {
     const unique = Date.now();
     const organizerEmail = `organizer.autofill.${unique}@example.com`;
     const organizerPassword = "Str0ng!Passw0rd2026";
@@ -109,9 +109,18 @@ describe("Meet signup profile autofill", () => {
     cy.contains("button", "Create account").click();
 
     cy.get('[data-testid="close-attendee-status"]').click();
+    cy.intercept(
+      "GET",
+      /\/meets\/[^/]+\/my-previous-answers\?isMinor=false$/,
+      (request) => {
+        delete request.headers["if-none-match"];
+        delete request.headers["if-modified-since"];
+      },
+    ).as("previousAnswers");
     cy.get("@secondShareLink").then((secondShareLink) => {
       cy.visit(secondShareLink as unknown as string);
     });
+    cy.wait("@previousAnswers");
 
     cy.get('input[placeholder="Your name"]').should(
       "have.value",
@@ -128,15 +137,16 @@ describe("Meet signup profile autofill", () => {
     cy.contains("Favourite trail snack")
       .closest(".MuiStack-root")
       .find('input[type="text"]')
-      .should("have.value", "");
+      .should("have.value", snackAnswer);
+    cy.contains("Favourite trail snack")
+      .closest(".MuiStack-root")
+      .find('[aria-label^="From prev meet:"]')
+      .scrollIntoView()
+      .should("be.visible");
     cy.contains("label", "Bringing a headlamp?")
       .find('input[type="checkbox"]')
       .should("not.be.checked");
 
-    cy.contains("Favourite trail snack")
-      .closest(".MuiStack-root")
-      .find('input[type="text"]')
-      .type(snackAnswer);
     cy.contains("label", "Bringing a headlamp?")
       .find('input[type="checkbox"]')
       .check({ force: true });
@@ -168,8 +178,13 @@ describe("Meet signup profile autofill", () => {
       .closest(".MuiStack-root")
       .find('input[type="text"]')
       .should("have.value", snackAnswer);
+    cy.contains("Favourite trail snack")
+      .closest(".MuiStack-root")
+      .find('[aria-label^="From profile:"]')
+      .scrollIntoView()
+      .should("be.visible");
     cy.contains("label", "Bringing a headlamp?")
       .find('input[type="checkbox"]')
-      .should("be.checked");
+      .should("not.be.checked");
   });
 });

@@ -380,6 +380,9 @@ describe("MessageModal", () => {
         name: "Send as a group message",
       }),
     );
+    expect(
+      screen.getByText(/later bounces cannot be tracked per attendee/i),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByText("Send"));
 
     await waitFor(() => {
@@ -572,7 +575,9 @@ describe("MessageModal", () => {
     fireEvent.mouseOver(
       screen.getAllByRole("button", { name: "What is this?" })[0],
     );
-    fireEvent.click(screen.getAllByRole("button", { name: "What is this?" })[0]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "What is this?" })[0],
+    );
 
     expect(
       screen.getByText(/group messages send one email to all the selected/i),
@@ -581,12 +586,12 @@ describe("MessageModal", () => {
       screen.queryByText(/manual messages do not mark attendees as notified/i),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "What is this?" })[1]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "What is this?" })[1],
+    );
 
     expect(
-      screen.getByText(
-        /manual messages do not mark attendees as notified/i,
-      ),
+      screen.getByText(/manual messages do not mark attendees as notified/i),
     ).toBeInTheDocument();
   });
 });

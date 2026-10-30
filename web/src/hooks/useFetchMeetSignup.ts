@@ -65,6 +65,7 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     autoPlacement: apiMeet.autoPlacement ?? null,
     autoPromoteWaitlist: apiMeet.autoPromoteWaitlist ?? null,
     allowGuests: apiMeet.allowGuests ?? null,
+    namedGuests: apiMeet.namedGuests ?? false,
     allowSelfCheckin:
       apiMeet.allowSelfCheckin ?? apiMeet.allow_self_checkin ?? null,
     checkinPin: apiMeet.checkinPin ?? apiMeet.checkin_pin ?? null,
@@ -98,6 +99,10 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
     confirmMessage: apiMeet.confirmMessage ?? null,
     rejectMessage: apiMeet.rejectMessage ?? null,
     hasIndemnity: apiMeet.hasIndemnity ?? apiMeet.requiresIndemnity ?? null,
+    hasPdfIndemnityTemplate:
+      apiMeet.hasPdfIndemnityTemplate ??
+      apiMeet.has_pdf_indemnity_template ??
+      null,
     indemnity: apiMeet.indemnity ?? apiMeet.indemnityText ?? null,
     allowMinorIndemnity: apiMeet.allowMinorIndemnity ?? null,
     needIndemnityConfirmationEmail:
@@ -133,6 +138,8 @@ function mapMeet(apiMeet: Record<string, any>): Meet {
       fieldKey: definition.fieldKey ?? definition.field_key ?? "",
       label: definition.label,
       fieldType: definition.fieldType ?? definition.field_type ?? "text",
+      category:
+        definition.category === "F" ? "N" : (definition.category ?? "N"),
       required:
         definition.required === undefined
           ? undefined

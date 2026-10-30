@@ -120,11 +120,16 @@ export function ReportsModal({
     if (!meetId || isGenerating || (!sendEmail && !downloadReport)) return;
     setIsGenerating(true);
     try {
+      if (shouldCompleteMeet) {
+        await updateStatusAsync({
+          meetId,
+          statusId: MeetStatusEnum.Completed,
+        });
+      }
       const blob = await generateReportAsync({
         meetId,
         sendEmail,
         downloadReport,
-        isFinalReport: shouldCompleteMeet,
       });
       if (downloadReport && blob) {
         const url = window.URL.createObjectURL(blob);
@@ -134,12 +139,6 @@ export function ReportsModal({
         link.click();
         window.URL.revokeObjectURL(url);
       }
-      if (shouldCompleteMeet) {
-        await updateStatusAsync({
-          meetId,
-          statusId: MeetStatusEnum.Completed,
-        });
-      }
       onClose();
     } finally {
       setIsGenerating(false);
@@ -148,10 +147,13 @@ export function ReportsModal({
 
   const renderStatus = (status: string) => {
     if (
-      status === AttendeeStatusEnum.Confirmed ||
-      status === AttendeeStatusEnum.NoShow
+      status === AttendeeStatusEnum.NoShow ||
+      (meet?.checkinCompleted && status === AttendeeStatusEnum.Confirmed)
     ) {
       return <Chip label="No show" color="error" size="small" />;
+    }
+    if (status === AttendeeStatusEnum.Confirmed) {
+      return <Chip label="Confirmed" color="success" size="small" />;
     }
     if (
       status === AttendeeStatusEnum.CheckedIn ||

@@ -75,4 +75,23 @@ describe("AttendeeItem", () => {
       screen.queryByRole("img", { name: "Unread messages" }),
     ).not.toBeInTheDocument();
   });
+
+  it("shows a guest count badge beside an attendee bringing guests", () => {
+    render(
+      <AttendeeItem
+        attendee={{
+          id: "a1",
+          status: AttendeeStatusEnum.Confirmed,
+          guests: 2,
+        }}
+        label="Alex"
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("+2")).toBeInTheDocument();
+    expect(
+      screen.getByText("+2").closest(".MuiChip-colorInfo"),
+    ).toBeInTheDocument();
+  });
 });

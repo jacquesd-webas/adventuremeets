@@ -182,6 +182,20 @@ export function AttendeeItem({
         primary={
           <Stack direction="row" spacing={1} alignItems="center">
             <Box component="span">{label}</Box>
+            {(attendee.guests ?? 0) > 0 ? (
+              <Chip
+                label={`+${attendee.guests}`}
+                color="info"
+                variant="outlined"
+                size="small"
+                sx={{
+                  height: 16,
+                  fontSize: 9,
+                  px: 0.5,
+                  "& .MuiChip-label": { px: 0.5, lineHeight: 1 },
+                }}
+              />
+            ) : null}
             {isInvited ? (
               <Chip
                 label="Invited"

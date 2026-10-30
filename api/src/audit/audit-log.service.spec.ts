@@ -17,6 +17,40 @@ const buildBuilder = () => {
 };
 
 describe("AuditLogService", () => {
+  it("lists only audit entries for the selected attendee and meet", async () => {
+    const builder = buildBuilder();
+    builder.orderBy.mockReturnValueOnce(builder).mockResolvedValueOnce([
+      {
+        id: "audit-1",
+        created_at: "2026-10-20T09:00:00Z",
+        description: "Taylor accepted application for meet XYZ",
+      },
+    ]);
+    const service = new AuditLogService({
+      getClient: () => () => builder,
+    } as unknown as DatabaseService);
+
+    await expect(
+      service.findAttendeeMeetRecords("org-1", "meet-1", "attendee-1"),
+    ).resolves.toEqual([
+      {
+        id: "audit-1",
+        timestamp: "2026-10-20T09:00:00Z",
+        description: "Taylor accepted application for meet XYZ",
+      },
+    ]);
+    expect(builder.where).toHaveBeenCalledWith({
+      org_id: "org-1",
+      meet_id: "meet-1",
+      attendee_id: "attendee-1",
+    });
+    expect(builder.select).toHaveBeenCalledWith(
+      "id",
+      "created_at",
+      "description",
+    );
+  });
+
   it("adds an audit log record", async () => {
     const auditLogBuilder = buildBuilder();
     auditLogBuilder.insert.mockResolvedValue([
@@ -212,11 +246,59 @@ describe("AuditLogService", () => {
     });
   });
 
+  it("names the acting organiser when a record also refers to an attendee", async () => {
+    const auditLogBuilder = buildBuilder();
+    const usersBuilder = buildBuilder();
+    auditLogBuilder.insert.mockResolvedValue([
+      {
+        id: "log-1",
+        created_at: "2026-05-27T10:00:00.000Z",
+        org_id: "org-1",
+        user_id: "organizer-1",
+        attendee_id: "attendee-1",
+        meet_id: "meet-1",
+        description: "Taylor Leader accepted application for meet XYZ",
+      },
+    ]);
+    usersBuilder.first.mockResolvedValue({
+      first_name: "Taylor",
+      last_name: "Leader",
+    });
+    const client: any = (table: string) => {
+      if (table === "audit_log") return auditLogBuilder;
+      if (table === "users") return usersBuilder;
+      return buildBuilder();
+    };
+    const service = new AuditLogService({
+      getClient: () => client,
+    } as unknown as DatabaseService);
+
+    await service.addRecord({
+      orgId: "org-1",
+      userId: "organizer-1",
+      attendeeId: "attendee-1",
+      meetId: "meet-1",
+      action: "accepted application for",
+      target: "meet XYZ",
+    });
+
+    expect(auditLogBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: "organizer-1",
+        attendee_id: "attendee-1",
+        description: "Taylor Leader accepted application for meet XYZ",
+      }),
+      ["*"],
+    );
+  });
+
   it("logs a warning and returns null when addRecord input is invalid", async () => {
     const service = new AuditLogService({
       getClient: () => jest.fn(),
     } as unknown as DatabaseService);
-    const warn = jest.spyOn((service as any).logger, "warn").mockImplementation();
+    const warn = jest
+      .spyOn((service as any).logger, "warn")
+      .mockImplementation();
 
     await expect(
       service.addRecord({
@@ -242,7 +324,9 @@ describe("AuditLogService", () => {
     const service = new AuditLogService({
       getClient: () => client,
     } as unknown as DatabaseService);
-    const warn = jest.spyOn((service as any).logger, "warn").mockImplementation();
+    const warn = jest
+      .spyOn((service as any).logger, "warn")
+      .mockImplementation();
 
     await expect(
       service.addRecord({

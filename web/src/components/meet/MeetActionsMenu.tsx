@@ -76,6 +76,11 @@ const shouldShow = (
       );
     case "close":
       return statusId === MeetStatusEnum.Open;
+    case "complete":
+      return (
+        statusId === MeetStatusEnum.Closed &&
+        isSameMeetDayOrLater({ startTime: startTime ?? undefined })
+      );
     case "edit":
       return (
         statusId === MeetStatusEnum.Draft ||
@@ -369,6 +374,22 @@ export function MeetActionsMenu({
                 <FactCheckOutlinedIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText>Close meet</ListItemText>
+            </MenuItem>
+          )}
+          {shouldShow(
+            MeetActionsEnum.Complete,
+            statusId,
+            isUpcoming,
+            startTime,
+          ) && (
+            <MenuItem
+              onClick={(event) => handleAction(event, MeetActionsEnum.Complete)}
+              disabled={!canManageMeet}
+            >
+              <ListItemIcon>
+                <FactCheckOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Complete meet</ListItemText>
             </MenuItem>
           )}
           {shouldShow(

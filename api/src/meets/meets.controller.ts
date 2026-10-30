@@ -14,8 +14,10 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  DefaultValuePipe,
   Logger,
   ForbiddenException,
+  ParseBoolPipe,
 } from "@nestjs/common";
 import {
   ApiBody,
@@ -41,6 +43,7 @@ import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import { meetOrganizerSender } from "../email/email.helpers";
 import { DatabaseService } from "../database/database.service";
 import { OrganizationsService } from "../organizations/organizations.service";
 import { AuditLogService } from "../audit/audit-log.service";
@@ -235,6 +238,22 @@ export class MeetsController {
       }
     }
     return meet;
+  }
+
+  @Get(":id([0-9a-fA-F-]{36})/my-previous-answers")
+  async findMyPreviousAnswers(
+    @Param("id") id: string,
+    @Query("isMinor", new DefaultValuePipe(false), ParseBoolPipe)
+    isMinor: boolean,
+    @User() user?: UserProfile,
+  ): Promise<{ metaValues: Record<string, string> }> {
+    if (!user) throw new UnauthorizedException();
+    const metaValues = await this.meetsService.findPreviousAnswers(
+      user.id,
+      id,
+      isMinor,
+    );
+    return { metaValues };
   }
 
   @Public()
@@ -503,6 +522,23 @@ export class MeetsController {
     return updated;
   }
 
+  @Patch(":id/checkin-complete")
+  async completeCheckin(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+    this.assertCanModifyExistingMeet(user, meet, "update");
+    const updated = await this.meetsService.completeCheckin(id);
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      target: `meet ${meet.name || "meet"}`,
+      userId: user.id,
+      action: "completed check-in for",
+    });
+    return updated;
+  }
+
   private async getAttendeesToReconfirm(meet: MeetDto) {
     const { attendees } = await this.meetsService.listAttendees(meet.id);
     return attendees.filter(
@@ -521,6 +557,7 @@ export class MeetsController {
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
     const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
+    const sender = meetOrganizerSender(meet.organizerName);
     const notifiedIds: string[] = [];
 
     await Promise.all(
@@ -554,6 +591,7 @@ export class MeetsController {
           subject,
           text,
           html,
+          from: sender.from,
           meetId: meet.id,
           attendeeId: attendee.id,
         });
@@ -562,6 +600,7 @@ export class MeetsController {
           subject,
           text,
           html,
+          ...sender,
           meetId: meet.id,
           attendeeId: attendee.id,
           messageReferences: messageId
@@ -587,6 +626,7 @@ export class MeetsController {
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
     const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
+    const sender = meetOrganizerSender(meet.organizerName);
     const notifiedIds: string[] = [];
     await Promise.all(
       attendees.map(async (attendee: any) => {
@@ -631,6 +671,7 @@ export class MeetsController {
           subject,
           text,
           html,
+          from: sender.from,
           meetId: meet.id,
           attendeeId: attendee.id,
         });
@@ -639,6 +680,7 @@ export class MeetsController {
           subject,
           text,
           html,
+          ...sender,
           meetId: meet.id,
           attendeeId: attendee.id,
           messageReferences: messageId
@@ -852,6 +894,7 @@ export class MeetsController {
     const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
     const organizerName = meet.organizerName || "the organiser";
     const organizerEmail = meet.organizerEmail || "";
+    const { from, fromName } = meetOrganizerSender(meet.organizerName);
     const includeStatusUrl =
       body.sendAsGroup === true ? false : body.includeStatusUrl !== false;
     const meetReplyTo = `meet+${meet.id}@${process.env.MAIL_DOMAIN}`;
@@ -893,6 +936,7 @@ export class MeetsController {
           subject: body.subject,
           text: textWithoutStatus,
           html: "",
+          from,
           meetId: meet.id,
           attendeeId,
         });
@@ -921,9 +965,12 @@ export class MeetsController {
 
       await this.emailService.sendEmail({
         to: Array.from(recipients.values()),
+        sendAsGroup: true,
         subject: body.subject,
         text,
         html,
+        from,
+        fromName,
         replyTo: meetReplyTo,
         messageReferences,
       });
@@ -953,6 +1000,8 @@ export class MeetsController {
             subject: body.subject,
             text,
             html,
+            from,
+            fromName,
             meetId: meet.id,
             attendeeId,
             replyTo: meetReplyTo,
@@ -989,17 +1038,25 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(id);
     if (!meet) throw new NotFoundException("Meet not found");
 
-    if (!this.authService.hasRole(user, meet.organizationId!, "organizer")) {
+    if (
+      !this.authService.hasRole(user, meet.organizationId!, "organizer") ||
+      (!this.authService.hasRole(user, meet.organizationId!, "admin") &&
+        user.id !== meet.organizerId)
+    ) {
       throw new ForbiddenException(
         "You do not have permission to view attendee messages for this meet",
       );
     }
 
-    const messages = await this.meetsService.listAttendeeMessages(
-      id,
-      attendeeId,
-    );
-    return { messages };
+    const [messages, auditLogs] = await Promise.all([
+      this.meetsService.listAttendeeMessages(meet.id, attendeeId),
+      this.auditLogService.findAttendeeMeetRecords(
+        meet.organizationId!,
+        meet.id,
+        attendeeId,
+      ),
+    ]);
+    return { messages, auditLogs };
   }
 
   @Patch(":id/messages/:messageId/read")
@@ -1062,10 +1119,16 @@ export class MeetsController {
     const { subject, body } = this.emailService.parseMessageContent(
       failedMessage.content,
     );
+    const organizerSender = meetOrganizerSender(meet.organizerName);
+    const sender =
+      failedMessage.from?.toLowerCase() === organizerSender.from.toLowerCase()
+        ? organizerSender
+        : null;
     const newMessageId = await this.emailService.saveMessage({
       to: recipient,
       subject,
       text: body,
+      ...(sender ? { from: sender.from } : {}),
       attendeeId,
       meetId: id,
     });
@@ -1073,6 +1136,7 @@ export class MeetsController {
       to: recipient,
       subject,
       text: body,
+      ...(sender ?? {}),
       attendeeId,
       meetId: id,
       messageReferences: newMessageId
@@ -1287,6 +1351,7 @@ export class MeetsController {
     body?: {
       sendEmail?: boolean;
       downloadReport?: boolean;
+      // Accepted for older clients; report status follows the persisted meet flag.
       isFinalReport?: boolean;
     },
     @Res({ passthrough: true }) res?: any,
@@ -1294,7 +1359,6 @@ export class MeetsController {
     if (!user) throw new UnauthorizedException();
     const sendEmail = body?.sendEmail ?? true;
     const downloadReport = body?.downloadReport ?? false;
-    const isFinalReport = body?.isFinalReport ?? true;
     if (!sendEmail && !downloadReport) {
       throw new BadRequestException("Select at least one delivery method");
     }
@@ -1389,7 +1453,7 @@ export class MeetsController {
         email: attendee.email ?? "",
         phone: attendee.phone ?? "",
         status:
-          isFinalReport && attendee.status === "confirmed"
+          meet.checkinCompleted && attendee.status === "confirmed"
             ? "no-show"
             : (attendee.status ?? ""),
         guests: attendee.guests ?? "",

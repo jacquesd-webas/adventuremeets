@@ -143,7 +143,11 @@ export const LimitsStep = ({
             disabled={disabled}
             inputProps={{ "aria-label": "Allow attendees to bring guests" }}
             onChange={(e) =>
-              setState((prev) => ({ ...prev, allowGuests: e.target.checked }))
+              setState((prev) => ({
+                ...prev,
+                allowGuests: e.target.checked,
+                namedGuests: e.target.checked ? prev.namedGuests : false,
+              }))
             }
           />
           <Typography>Allow attendees to bring guests</Typography>
@@ -156,27 +160,47 @@ export const LimitsStep = ({
           </Typography>
         ) : null}
         {state.allowGuests && (
-          <LabeledField label="Guests per attendee">
-            <TextField
-              type="number"
-              placeholder="How many guests per attendee?"
-              value={state.maxGuests}
-              onChange={(e) =>
-                setState((prev) => ({
-                  ...prev,
-                  maxGuests:
-                    e.target.value === "" ? "" : Number(e.target.value),
-                }))
-              }
-              helperText={
-                isHelpEnabled
-                  ? "Set the maximum extra guests each attendee may add to their application."
-                  : undefined
-              }
-              fullWidth
-              disabled={disabled}
-            />
-          </LabeledField>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            alignItems={{ sm: "center" }}
+          >
+            <LabeledField label="Guests per attendee" sx={{ flex: 1 }}>
+              <TextField
+                type="number"
+                placeholder="How many guests per attendee?"
+                value={state.maxGuests}
+                onChange={(e) =>
+                  setState((prev) => ({
+                    ...prev,
+                    maxGuests:
+                      e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+                helperText={
+                  isHelpEnabled
+                    ? "Set the maximum extra guests each attendee may add to their application."
+                    : undefined
+                }
+                fullWidth
+                disabled={disabled}
+              />
+            </LabeledField>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Switch
+                checked={state.namedGuests}
+                disabled={disabled}
+                inputProps={{ "aria-label": "Must be named guests" }}
+                onChange={(e) =>
+                  setState((prev) => ({
+                    ...prev,
+                    namedGuests: e.target.checked,
+                  }))
+                }
+              />
+              <Typography>Must be named guests</Typography>
+            </Stack>
+          </Stack>
         )}
         <Stack direction="row" spacing={1.5} alignItems="center">
           <Switch

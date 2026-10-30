@@ -57,6 +57,7 @@ describe("createMeetDefaults", () => {
       expect.objectContaining({
         fieldKey: "experience",
         label: "Experience level",
+        category: "N",
         required: true,
         type: "text",
       }),

@@ -1,6 +1,6 @@
 import { NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
-import { MinioService } from "../storage/minio.service";
+import { ObjectStorageService } from "../storage/object-storage.service";
 import { UsersService } from "./users.service";
 
 const buildBuilder = () => {
@@ -49,8 +49,8 @@ describe("UsersService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new UsersService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new UsersService(db, objectStorage);
     const saveUserMetaValuesSpy = jest
       .spyOn(service, "saveUserMetaValues")
       .mockResolvedValue([
@@ -87,8 +87,8 @@ describe("UsersService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new UsersService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new UsersService(db, objectStorage);
 
     await expect(
       service.copyUserMetaValuesFromAttendee("user-1", "meet-1", "attendee-1"),
@@ -112,8 +112,8 @@ describe("UsersService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new UsersService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new UsersService(db, objectStorage);
 
     await expect(
       service.copyUserMetaValuesFromAttendee("user-1", "meet-1", "attendee-1"),
@@ -140,8 +140,8 @@ describe("UsersService", () => {
     };
 
     const db = { getClient: () => client } as unknown as DatabaseService;
-    const minio = {} as MinioService;
-    const service = new UsersService(db, minio);
+    const objectStorage = {} as ObjectStorageService;
+    const service = new UsersService(db, objectStorage);
 
     await expect(
       service.copyUserMetaValuesFromAttendee("user-1", "meet-1", "attendee-1"),

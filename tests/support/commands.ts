@@ -24,6 +24,7 @@ type CreateMinimalMeetOptions = {
   questions?: CreateMinimalMeetQuestion[];
   requiredStandardFields?: string[];
   allowGuests?: boolean;
+  namedGuests?: boolean;
   maxGuests?: number;
   allowSelfCheckin?: boolean;
   allowWalkins?: boolean;
@@ -181,9 +182,7 @@ Cypress.Commands.add(
         .type(String(options.waitlistSize));
     }
     if (options.autoApprove) {
-      cy.get(
-        'input[aria-label="Automatically approve applications"]',
-      ).check({
+      cy.get('input[aria-label="Automatically approve applications"]').check({
         force: true,
       });
     }
@@ -195,6 +194,11 @@ Cypress.Commands.add(
       cy.get('input[placeholder="How many guests per attendee?"]')
         .clear()
         .type(String(options.maxGuests ?? 1));
+      if (options.namedGuests) {
+        cy.get('input[aria-label="Must be named guests"]').check({
+          force: true,
+        });
+      }
     }
     if (options.allowWalkins) {
       cy.get('input[aria-label="Allow walk-ins"]').check({ force: true });

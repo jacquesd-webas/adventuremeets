@@ -1,1 +1,1 @@
-export { ObjectStorageService as MinioService } from "./object-storage.service";
+export { ObjectStorageService as ObjectStorageService } from "./object-storage.service";

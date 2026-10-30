@@ -29,6 +29,7 @@ describe("Meet signup with Bob including minor and guest", () => {
       meetName,
       description,
       allowGuests: true,
+      namedGuests: true,
       maxGuests: 1,
     }).as("shareLink");
 
@@ -59,11 +60,51 @@ describe("Meet signup with Bob including minor and guest", () => {
         .type(hostAttendee.guestName);
       cy.contains("button", "Submit application").click();
       cy.contains("Application submitted").should("be.visible");
+      cy.contains(/You may optionally send your guests an invite link/).should(
+        "be.visible",
+      );
 
       cy.wait("@createAttendee").then((interception) => {
+        expect(interception.request.body.guests).to.equal(1);
+        expect(interception.request.body.guestsList).to.deep.equal([
+          { name: hostAttendee.guestName, isMinor: false },
+        ]);
+        expect(interception.response?.body?.attendee?.guestsList).to.deep.equal(
+          [{ name: hostAttendee.guestName, isMinor: false }],
+        );
         const attendeeId = interception.response?.body?.attendee?.id;
         expect(attendeeId).to.be.a("string");
-        cy.wrap(`${shareLink}?guestOf=${attendeeId}`).as("guestLink");
+        const guestLink = new URL(String(shareLink));
+        guestLink.searchParams.set("guestOf", attendeeId);
+        guestLink.searchParams.set("name", hostAttendee.guestName);
+        cy.wrap(guestLink.toString()).as("expectedGuestLink");
+      });
+
+      cy.get("@expectedGuestLink").then((expectedGuestLink) => {
+        cy.contains(hostAttendee.guestName).parent().as("guestInviteRow");
+        cy.get("@guestInviteRow")
+          .contains("a", "Send invite")
+          .invoke("attr", "href")
+          .then((href) => {
+            expect(href).to.be.a("string");
+            const mailto = new URL(href);
+            expect(mailto.protocol).to.equal("mailto:");
+            expect(mailto.searchParams.get("subject")).to.equal("Meet invite");
+            expect(mailto.searchParams.get("body")).to.include(
+              String(expectedGuestLink),
+            );
+          });
+
+        cy.window().then((win) => {
+          cy.stub(win.navigator.clipboard, "writeText").as("copyGuestLink");
+        });
+        cy.get("@guestInviteRow").contains("button", "Copy link").click();
+        cy.get("@copyGuestLink")
+          .should("have.been.calledWithExactly", String(expectedGuestLink))
+          .then((stub: any) => {
+            cy.wrap(stub.firstCall.args[0]).as("guestLink");
+          });
+        cy.contains("Guest invite link copied").should("be.visible");
       });
 
       cy.visit(shareLink as unknown as string);
@@ -89,6 +130,10 @@ describe("Meet signup with Bob including minor and guest", () => {
 
     cy.get("@guestLink").then((guestLink) => {
       cy.visit(guestLink as unknown as string);
+      cy.get('input[placeholder="Your name"]').should(
+        "have.value",
+        hostAttendee.guestName,
+      );
       cy.get('input[placeholder="Your name"]')
         .clear()
         .type(hostAttendee.guestName);

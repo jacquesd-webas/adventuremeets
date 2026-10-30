@@ -9,7 +9,7 @@
 If you need to reach the organiser directly, you may reply to {{organizerEmail}}.
 {{/ifGroupedMessage}}
 {{#ifDirectMessage}}
-If you need to reply, contact {{organizerName}} at {{organizerEmail}}.
+If you need to reply, contact {{organizerName}} at {{organizerEmail}} or just reply to this email..
 {{/ifDirectMessage}}
 {{/ifOrganizerEmail}}
 

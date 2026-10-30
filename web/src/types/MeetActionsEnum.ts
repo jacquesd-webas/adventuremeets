@@ -6,6 +6,7 @@ export enum MeetActionsEnum {
   CopyLink = "copy-link",
   Open = "open",
   Close = "close",
+  Complete = "complete",
   Cancel = "cancel",
   Postpone = "postpone",
   Delete = "delete",

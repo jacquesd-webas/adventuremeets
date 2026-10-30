@@ -1,0 +1,8 @@
+Hi {{attendeeName}},
+
+The indemnity for {{meetName}} has not yet been accepted. Please review the indemnity and accept it using this link:
+
+{{acceptanceUrl}}
+
+Best regards,
+{{fromName}}
