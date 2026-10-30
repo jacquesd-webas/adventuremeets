@@ -79,7 +79,6 @@ services:
       GARAGE_DEFAULT_BUCKET: meet-images
     ports:
       - "127.0.0.1:3900:3900"
-      - "127.0.0.1:3902:3902"
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
       - garage_meta:/var/lib/garage/meta
@@ -100,7 +99,6 @@ services:
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-adventuremeets}@${DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME:-adventuremeets}
       S3_ENDPOINT: http://garage:3900
-      S3_PUBLIC_URL: http://localhost:3902
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:

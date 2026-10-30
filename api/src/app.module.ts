@@ -1,19 +1,20 @@
-import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
-import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
-import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { HealthModule } from './health/health.module';
-import { DatabaseModule } from './database/database.module';
-import { MeetsModule } from './meets/meets.module';
-import { ReportsModule } from './reports/reports.module';
-import { WallModule } from './wall/wall.module';
-import { AttendeesModule } from './attendees/attendees.module';
-import { OrganizationsModule } from './organizations/organizations.module';
-import { EmailModule } from './email/email.module';
-import { TypesModule } from './types/types.module';
-import { AuditLogModule } from './audit/audit-log.module';
-import { NotificationsModule } from './notifications/notifications.module';
+import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { AuthModule } from "./auth/auth.module";
+import { UsersModule } from "./users/users.module";
+import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
+import { HealthModule } from "./health/health.module";
+import { DatabaseModule } from "./database/database.module";
+import { MeetsModule } from "./meets/meets.module";
+import { ReportsModule } from "./reports/reports.module";
+import { WallModule } from "./wall/wall.module";
+import { AttendeesModule } from "./attendees/attendees.module";
+import { OrganizationsModule } from "./organizations/organizations.module";
+import { EmailModule } from "./email/email.module";
+import { TypesModule } from "./types/types.module";
+import { AuditLogModule } from "./audit/audit-log.module";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { StorageModule } from "./storage/storage.module";
 
 @Module({
   imports: [
@@ -30,13 +31,14 @@ import { NotificationsModule } from './notifications/notifications.module';
     TypesModule,
     AuditLogModule,
     NotificationsModule,
+    StorageModule,
   ],
   controllers: [],
   providers: [
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
-    }
+    },
   ],
 })
 export class AppModule {}

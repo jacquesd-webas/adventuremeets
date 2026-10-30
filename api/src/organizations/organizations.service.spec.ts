@@ -779,7 +779,8 @@ describe("OrganizationsService", () => {
     expect(result).toEqual(
       expect.objectContaining({
         id: "org-1",
-        logoUrl: "https://cdn.example.com/logos/new.webp",
+        logoUrl:
+          "http://localhost:8000/api/v1/storage/images?key=logos%2Forg-1%2Fnew.webp",
       }),
     );
   });

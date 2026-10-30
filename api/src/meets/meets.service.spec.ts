@@ -286,6 +286,7 @@ describe("MeetsService", () => {
       id: "image-1",
       meet_id: "meet-1",
       url: "https://cdn.example.com/meet.jpg",
+      object_key: "meets/meet-1/meet.jpg",
       is_primary: true,
       aspect: "W",
     };
@@ -312,7 +313,9 @@ describe("MeetsService", () => {
     const service = new MeetsService(db, objectStorage);
 
     const result = await service.findOne("meet-1");
-    expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
+    expect(result.imageUrl).toBe(
+      "http://localhost:8000/api/v1/storage/images?key=meets%2Fmeet-1%2Fmeet.jpg",
+    );
     expect(result.confirmedCount).toBe(4);
     expect(result.rejectedCount).toBe(2);
     expect(result.hasPdfIndemnityTemplate).toBe(true);
@@ -320,7 +323,7 @@ describe("MeetsService", () => {
       expect.objectContaining({
         id: "image-1",
         meetId: "meet-1",
-        url: "https://cdn.example.com/meet.jpg",
+        url: "http://localhost:8000/api/v1/storage/images?key=meets%2Fmeet-1%2Fmeet.jpg",
         isPrimary: true,
         aspect: "W",
       }),
@@ -429,6 +432,7 @@ describe("MeetsService", () => {
         first_name: "Alice",
         last_name: "Walker",
         avatar_url: "https://cdn.example.com/alice.jpg",
+        avatar_object_key: "avatars/user-1/alice.jpg",
       },
     ]);
 
@@ -465,7 +469,8 @@ describe("MeetsService", () => {
       {
         id: "attendee-2",
         name: "Alice Walker",
-        avatarUrl: "https://cdn.example.com/alice.jpg",
+        avatarUrl:
+          "http://localhost:8000/api/v1/storage/images?key=avatars%2Fuser-1%2Falice.jpg",
       },
     ]);
   });
@@ -498,6 +503,7 @@ describe("MeetsService", () => {
         first_name: null,
         last_name: null,
         avatar_url: "https://cdn.example.com/alice.jpg",
+        avatar_object_key: "avatars/user-1/alice.jpg",
       },
     ]);
 
@@ -532,7 +538,8 @@ describe("MeetsService", () => {
       {
         id: "attendee-1",
         name: "Alice Walker",
-        avatarUrl: "https://cdn.example.com/alice.jpg",
+        avatarUrl:
+          "http://localhost:8000/api/v1/storage/images?key=avatars%2Fuser-1%2Falice.jpg",
       },
     ]);
   });

@@ -22,7 +22,10 @@ import { UpdateMeetAttendeeDto } from "../attendees/dto/update-meet-attendee.dto
 import { CreateMeetImageDto } from "./dto/create-meet-image.dto";
 import { UpdateMeetImageDto } from "./dto/update-meet-image.dto";
 import { CreateWallItemDto } from "../wall/dto/create-wall-item.dto";
-import { ObjectStorageService } from "../storage/object-storage.service";
+import {
+  ObjectStorageService,
+  imageUrlFor,
+} from "../storage/object-storage.service";
 import { detectMeetImageAspect } from "./image-aspect";
 import { v4 as uuid } from "uuid";
 import { MEET_STATUS } from "./constants/meet-status.enum";
@@ -225,7 +228,7 @@ export class MeetsService {
         this.db
           .getClient()
           .raw(
-            "(select url from meet_images where meet_id = m.id and is_primary = true order by created_at desc, id desc limit 1) as primary_image_url",
+            "(select object_key from meet_images where meet_id = m.id and is_primary = true order by created_at desc, id desc limit 1) as primary_image_object_key",
           ),
         this.db
           .getClient()
@@ -491,6 +494,7 @@ export class MeetsService {
     const meetWithImage = {
       ...meet,
       image_url: images[0]?.url ?? meet.image_url ?? undefined,
+      primary_image_object_key: images[0]?.object_key ?? undefined,
     };
     const attendingAttendees =
       userId && this.isGoingAttendeeStatus(meet.my_attendee_status)
@@ -2662,6 +2666,7 @@ export class MeetsService {
         "u.first_name",
         "u.last_name",
         "u.avatar_url",
+        "u.avatar_object_key",
       );
 
     return attendees.map((attendee: any) => ({
@@ -2670,7 +2675,7 @@ export class MeetsService {
         attendee.name?.trim() ||
         [attendee.first_name, attendee.last_name].filter(Boolean).join(" ") ||
         "Attendee",
-      avatarUrl: attendee.avatar_url ?? undefined,
+      avatarUrl: imageUrlFor(attendee.avatar_object_key),
     }));
   }
 
@@ -2773,7 +2778,7 @@ export class MeetsService {
       organizerLastName: meet.organizer_last_name || undefined,
       organizerEmail: meet.organizer_email ?? undefined,
       organizerPhone: meet.organizer_phone ?? undefined,
-      imageUrl: meet.primary_image_url ?? meet.image_url ?? undefined,
+      imageUrl: imageUrlFor(meet.primary_image_object_key),
       images: resolvedImages.map((image) => this.toMeetImageDto(image)),
       attendeeCount: Number(meet.attendee_count ?? 0),
       confirmedCount: Number(meet.confirmed_count ?? 0),
@@ -2805,7 +2810,7 @@ export class MeetsService {
     return {
       id: image.id,
       meetId: image.meet_id,
-      url: image.url,
+      url: imageUrlFor(image.object_key) ?? "",
       isPrimary: Boolean(image.is_primary),
       aspect: image.aspect ?? "O",
       objectKey: image.object_key ?? undefined,
@@ -2853,7 +2858,7 @@ export class MeetsService {
       authorName: this.getWallItemAuthorName(wallItem),
       comment: wallItem.comment ?? undefined,
       stars: wallItem.stars != null ? Number(wallItem.stars) : undefined,
-      url: wallItem.url ?? undefined,
+      url: imageUrlFor(wallItem.object_key),
       aspect: wallItem.aspect ?? undefined,
       objectKey: wallItem.object_key ?? undefined,
       contentType: wallItem.content_type ?? undefined,

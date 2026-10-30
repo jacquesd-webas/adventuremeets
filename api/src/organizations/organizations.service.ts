@@ -14,7 +14,10 @@ import { CreateInviteLinkDto } from "./dto/create-invite-link.dto";
 import { InviteLinkDto } from "./dto/invite-link.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
-import { ObjectStorageService } from "../storage/object-storage.service";
+import {
+  ObjectStorageService,
+  imageUrlFor,
+} from "../storage/object-storage.service";
 import sharp = require("sharp");
 import { v4 as uuid } from "uuid";
 
@@ -223,6 +226,9 @@ export class OrganizationsService {
       .orderBy("o.name", "asc");
     return rows.map((row) => ({
       ...row,
+      logo_url: imageUrlFor(
+        (row as { logo_object_key?: string }).logo_object_key,
+      ),
       user_count: Number(row.user_count || 0),
       template_count: Number(row.template_count || 0),
     }));
@@ -244,14 +250,14 @@ export class OrganizationsService {
     const row = await this.database
       .getClient()("organizations")
       .where({ id })
-      .select("logo_url")
+      .select("logo_url", "logo_object_key")
       .first();
 
     if (!row) {
       throw new NotFoundException("Organization not found");
     }
 
-    return row.logo_url ?? undefined;
+    return imageUrlFor(row.logo_object_key);
   }
 
   async findMembers(orgId: string) {
@@ -896,7 +902,7 @@ export class OrganizationsService {
     const client = this.database.getClient();
     const organization = await client("organizations")
       .where({ id: orgId })
-      .select("id", "name", "logo_url")
+      .select("id", "name", "logo_url", "logo_object_key")
       .first();
     if (!organization) {
       throw new NotFoundException("Organization not found");
@@ -952,7 +958,7 @@ export class OrganizationsService {
           organizationName: organization.name || "your organization",
           registerUrl,
           expiresAt,
-          logoUrl: organization.logo_url ?? undefined,
+          logoUrl: imageUrlFor(organization.logo_object_key),
         });
         try {
           await this.emailService.sendEmail({
@@ -1233,7 +1239,7 @@ export class OrganizationsService {
       canViewAllMeets: row.can_view_all_meets ?? undefined,
       theme: row.theme ?? undefined,
       isPrivate: row.is_private ?? undefined,
-      logoUrl: row.logo_url ?? undefined,
+      logoUrl: imageUrlFor(row.logo_object_key),
       customField1Name: row.custom_field1_name ?? undefined,
       customField2Name: row.custom_field2_name ?? undefined,
       customField1HelperText: row.custom_field1_helper_text ?? undefined,

@@ -93,7 +93,8 @@ If you run a **modified version** as a network-accessible service, the AGPL lice
 
 3. Start services:
 
-   Use `make up` to start Postgres and the local S3-compatible storage service.
+   Use `make up` to start Postgres, Garage, and MailHog. This also creates the
+   private attendee bucket.
 
 4. Apply datbase migrations:
 
@@ -118,6 +119,12 @@ If you run a **modified version** as a network-accessible service, the AGPL lice
    cd web && pnpm start:dev
    ```
 
+   Local uploads use Garage's S3 API at `http://localhost:3900`. Images and
+   private attendee items are served through the API. The example development credentials
+   are for a localhost-only Garage container. Existing MinIO data is kept in its
+   separate volume; run `docker compose --profile minio up -d minio` if you need
+   to access old local objects.
+
    Generally the worker doesn't need to be sarted for meaningful work (and often it's in the way):
 
    ```bash
@@ -132,7 +139,7 @@ If you run a **modified version** as a network-accessible service, the AGPL lice
 
 ### Garage object storage
 
-The API uses the S3 API, so Garage needs no provider-specific application code. Create the bucket and attach the application access key to it with read, write, and owner permissions before deploying.
+The API uses the S3 API, so Garage needs no provider-specific application code. Create private `meet-images` and `attendee-items` buckets, and attach the application access key to both with read, write, and owner permissions before deploying. Images are served by the public API image endpoint; Garage website access is not needed.
 
 Set these production environment values:
 
@@ -141,15 +148,13 @@ S3_ENDPOINT=https://s3.garage.example.com
 S3_REGION=garage
 S3_FORCE_PATH_STYLE=true
 S3_BUCKET=meet-images
+S3_ATTENDEE_ITEMS_BUCKET=attendee-items
 S3_ACCESS_KEY_ID=your-garage-access-key-id
 S3_SECRET_ACCESS_KEY=your-garage-secret-access-key
-# Public URL prefix for the bucket, including the bucket name when applicable.
-S3_PUBLIC_URL=https://meet-images.web.example.com
 ```
 
-`S3_PUBLIC_URL` is stored with uploaded images and must remain publicly reachable. It can use Garage's web endpoint or your reverse proxy; it does not have to match the authenticated S3 API endpoint.
 `S3_ENDPOINT` must be the root of the authenticated S3 API, with no bucket or path appended.
-For Garage's web endpoint, enable public website access for the bucket with `garage bucket website --allow meet-images` and set `S3_PUBLIC_URL` to the resulting bucket hostname.
+Set `API_BASEURL` to the public API URL; the API uses it to build image URLs for the web app and emails. Disable any previously enabled Garage website access to `meet-images` after deploying the API proxy.
 
 ### Testing
 

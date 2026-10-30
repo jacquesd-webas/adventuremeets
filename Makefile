@@ -15,10 +15,6 @@ garage-init:
 		$(COMPOSE) exec -T garage /garage bucket create attendee-items; \
 	fi
 	@$(COMPOSE) exec -T garage /garage bucket allow --read --write --owner attendee-items --key $(GARAGE_DEFAULT_ACCESS_KEY)
-	@$(COMPOSE) exec -T garage /garage bucket website --allow meet-images
-	@if ! $(COMPOSE) exec -T garage /garage bucket info localhost >/dev/null 2>&1; then \
-		$(COMPOSE) exec -T garage /garage bucket alias meet-images localhost; \
-	fi
 
 migrate:
 	$(COMPOSE) run --build --rm db_migrate

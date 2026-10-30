@@ -1,4 +1,4 @@
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Client } from "minio";
 import { ObjectStorageService } from "./object-storage.service";
 
@@ -7,13 +7,15 @@ jest.mock("minio", () => ({ Client: jest.fn() }));
 const client = {
   putObject: jest.fn(),
   removeObject: jest.fn(),
+  statObject: jest.fn(),
+  getObject: jest.fn(),
 };
 const configKeys = [
   "S3_ENDPOINT",
   "S3_ACCESS_KEY_ID",
   "S3_SECRET_ACCESS_KEY",
   "S3_BUCKET",
-  "S3_PUBLIC_URL",
+  "API_BASEURL",
   "S3_REGION",
   "S3_FORCE_PATH_STYLE",
   "MINIO_ENDPOINT",
@@ -33,7 +35,7 @@ describe("ObjectStorageService", () => {
     process.env.S3_ACCESS_KEY_ID = "access-key";
     process.env.S3_SECRET_ACCESS_KEY = "secret-key";
     process.env.S3_BUCKET = "meet-images";
-    process.env.S3_PUBLIC_URL = "https://meet-images.web.example.com";
+    process.env.API_BASEURL = "https://api.example.com/api/v1";
     process.env.S3_REGION = "garage";
     process.env.S3_FORCE_PATH_STYLE = "true";
   });
@@ -46,7 +48,7 @@ describe("ObjectStorageService", () => {
     });
   });
 
-  it("uploads through the S3 API and returns the configured public object URL", async () => {
+  it("uploads through the S3 API and returns the API image URL", async () => {
     client.putObject.mockResolvedValue(undefined);
     const service = new ObjectStorageService();
 
@@ -58,7 +60,7 @@ describe("ObjectStorageService", () => {
       ),
     ).resolves.toEqual({
       objectKey: "meets/meet-1/image.jpg",
-      url: "https://meet-images.web.example.com/meets/meet-1/image.jpg",
+      url: "https://api.example.com/api/v1/storage/images?key=meets%2Fmeet-1%2Fimage.jpg",
     });
 
     expect(Client).toHaveBeenCalledWith({
@@ -104,6 +106,48 @@ describe("ObjectStorageService", () => {
         "image/jpeg",
       ),
     ).rejects.toEqual(expect.any(BadRequestException));
+  });
+
+  it("streams an image from the configured image bucket", async () => {
+    const stream = { pipe: jest.fn() };
+    client.statObject.mockResolvedValue({
+      size: 5,
+      metaData: { "content-type": "image/webp" },
+    });
+    client.getObject.mockResolvedValue(stream);
+
+    await expect(
+      new ObjectStorageService().getImage("logos/org-1/logo.webp"),
+    ).resolves.toEqual({ stream, contentType: "image/webp", size: 5 });
+    expect(client.statObject).toHaveBeenCalledWith(
+      "meet-images",
+      "logos/org-1/logo.webp",
+    );
+    expect(client.getObject).toHaveBeenCalledWith(
+      "meet-images",
+      "logos/org-1/logo.webp",
+    );
+  });
+
+  it("rejects non-image objects and keys outside image paths", async () => {
+    const service = new ObjectStorageService();
+    client.statObject.mockResolvedValue({
+      metaData: { "content-type": "application/pdf" },
+    });
+    await expect(
+      service.getImage("meets/meet-1/indemnity/form.pdf"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.getImage("attendee-items/private.pdf"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(client.getObject).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the image object no longer exists", async () => {
+    client.statObject.mockRejectedValue({ code: "NoSuchKey" });
+    await expect(
+      new ObjectStorageService().getImage("wall/meet-1/photo.jpg"),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("requires S3 credentials instead of falling back to MinIO variables", () => {

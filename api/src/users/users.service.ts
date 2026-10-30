@@ -5,7 +5,10 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { UpdateUserIceInfoDto } from "./dto/update-user-ice-info.dto";
 import { v4 as uuid } from "uuid";
 import * as bcrypt from "bcryptjs";
-import { ObjectStorageService } from "../storage/object-storage.service";
+import {
+  ObjectStorageService,
+  imageUrlFor,
+} from "../storage/object-storage.service";
 import sharp = require("sharp");
 
 export type PendingInviteSummary = {
@@ -615,7 +618,7 @@ export class UsersService {
       lastName: row.last_name,
       email: row.email,
       phone: row.phone,
-      avatarUrl: row.avatar_url,
+      avatarUrl: imageUrlFor(row.avatar_object_key),
       lastLogin: row.last_login,
       emailVerified: row.email_verified_at ? true : false,
       emailVerifiedAt: row.email_verified_at,

@@ -4,20 +4,13 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const apiBase = String(env.VITE_API_BASEURL || env.API_BASEURL || "")
-    .replace(/\/+$/, "");
+  const apiBase = String(env.VITE_API_BASEURL || env.API_BASEURL || "").replace(
+    /\/+$/,
+    "",
+  );
   const apiOrigin = apiBase.endsWith("/api/v1")
     ? apiBase.slice(0, -"/api/v1".length)
     : apiBase;
-  const s3PublicUrl = String(
-    env.VITE_S3_PUBLIC_URL || env.S3_PUBLIC_URL || "",
-  ).replace(/\/+$/, "");
-  const s3Target =
-    env.S3_ENDPOINT ||
-    (s3PublicUrl
-      ? new URL(s3PublicUrl).origin
-      : "http://localhost:9000");
-
   const proxyTarget = apiOrigin || "http://localhost:8080";
 
   return {
@@ -107,10 +100,6 @@ export default defineConfig(({ mode }) => {
         },
         "/share": {
           target: proxyTarget,
-          changeOrigin: true,
-        },
-        "/meet-images": {
-          target: s3Target,
           changeOrigin: true,
         },
       },

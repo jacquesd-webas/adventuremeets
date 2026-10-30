@@ -1,24 +1,28 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { Client } from "minio";
 import { createS3Client } from "./s3-client";
+
+export function imageUrlFor(objectKey?: string | null): string | undefined {
+  if (!objectKey) return undefined;
+  const apiBaseUrl = (process.env.API_BASEURL || "http://localhost:8000")
+    .replace(/\/+$/, "")
+    .replace(/\/api\/v1$/, "");
+  return `${apiBaseUrl}/api/v1/storage/images?key=${encodeURIComponent(objectKey)}`;
+}
 
 @Injectable()
 export class ObjectStorageService {
   private readonly client: Client;
   private readonly bucket: string;
-  private readonly publicUrl: string;
 
   constructor() {
     const bucket = process.env.S3_BUCKET || "meet-images";
-    const publicUrl = process.env.S3_PUBLIC_URL;
-
-    if (!publicUrl) {
-      throw new Error("S3-compatible object storage is not configured");
-    }
-
     this.client = createS3Client();
     this.bucket = bucket;
-    this.publicUrl = publicUrl.replace(/\/+$/, "");
   }
 
   async upload(objectKey: string, buffer: Buffer, contentType: string) {
@@ -32,7 +36,7 @@ export class ObjectStorageService {
           "Content-Type": contentType || "application/octet-stream",
         },
       );
-      return { objectKey, url: this.getPublicUrl(objectKey) };
+      return { objectKey, url: imageUrlFor(objectKey)! };
     } catch (error: any) {
       throw new BadRequestException(
         error?.message || "Failed to upload object",
@@ -50,7 +54,31 @@ export class ObjectStorageService {
     }
   }
 
-  private getPublicUrl(objectKey: string) {
-    return `${this.publicUrl}/${objectKey.replace(/^\/+/, "")}`;
+  async getImage(objectKey: string) {
+    if (
+      !/^(meets|wall|logos|avatars)\/[^?&#]+$/.test(objectKey) ||
+      objectKey.split("/").includes("..")
+    ) {
+      throw new NotFoundException("Image not found");
+    }
+
+    try {
+      const stat = await this.client.statObject(this.bucket, objectKey);
+      const contentType = stat.metaData?.["content-type"];
+      if (!contentType?.startsWith("image/")) {
+        throw new NotFoundException("Image not found");
+      }
+      const stream = await this.client.getObject(this.bucket, objectKey);
+      return { stream, contentType, size: stat.size };
+    } catch (error: any) {
+      if (
+        error instanceof NotFoundException ||
+        error?.code === "NoSuchKey" ||
+        error?.code === "NotFound"
+      ) {
+        throw new NotFoundException("Image not found");
+      }
+      throw error;
+    }
   }
 }

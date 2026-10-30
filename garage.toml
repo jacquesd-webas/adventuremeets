@@ -10,8 +10,3 @@ s3_region = "garage"
 api_bind_addr = "[::]:3900"
 root_domain = ".s3.localhost"
 public_endpoint = "http://localhost:3900"
-
-[s3_web]
-bind_addr = "[::]:3902"
-root_domain = ".web.localhost"
-index = "index.html"
