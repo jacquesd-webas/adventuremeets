@@ -43,6 +43,7 @@ import { AuthService } from "../auth/auth.service";
 import { UserProfile } from "../users/dto/user-profile.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import { meetOrganizerSender } from "../email/email.helpers";
 import { DatabaseService } from "../database/database.service";
 import { OrganizationsService } from "../organizations/organizations.service";
 import { AuditLogService } from "../audit/audit-log.service";
@@ -556,6 +557,7 @@ export class MeetsController {
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
     const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
+    const sender = meetOrganizerSender(meet.organizerName);
     const notifiedIds: string[] = [];
 
     await Promise.all(
@@ -589,6 +591,7 @@ export class MeetsController {
           subject,
           text,
           html,
+          from: sender.from,
           meetId: meet.id,
           attendeeId: attendee.id,
         });
@@ -597,6 +600,7 @@ export class MeetsController {
           subject,
           text,
           html,
+          ...sender,
           meetId: meet.id,
           attendeeId: attendee.id,
           messageReferences: messageId
@@ -622,6 +626,7 @@ export class MeetsController {
       process.env.FRONTEND_URL || "http://localhost:5173"
     ).replace(/\/+$/, "");
     const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
+    const sender = meetOrganizerSender(meet.organizerName);
     const notifiedIds: string[] = [];
     await Promise.all(
       attendees.map(async (attendee: any) => {
@@ -666,6 +671,7 @@ export class MeetsController {
           subject,
           text,
           html,
+          from: sender.from,
           meetId: meet.id,
           attendeeId: attendee.id,
         });
@@ -674,6 +680,7 @@ export class MeetsController {
           subject,
           text,
           html,
+          ...sender,
           meetId: meet.id,
           attendeeId: attendee.id,
           messageReferences: messageId
@@ -887,9 +894,7 @@ export class MeetsController {
     const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
     const organizerName = meet.organizerName || "the organiser";
     const organizerEmail = meet.organizerEmail || "";
-    const fromName = meet.organizerName
-      ? `${meet.organizerName?.trim()} (AdventureMeets)`
-      : "AdventureMeets";
+    const { from, fromName } = meetOrganizerSender(meet.organizerName);
     const includeStatusUrl =
       body.sendAsGroup === true ? false : body.includeStatusUrl !== false;
     const meetReplyTo = `meet+${meet.id}@${process.env.MAIL_DOMAIN}`;
@@ -931,6 +936,7 @@ export class MeetsController {
           subject: body.subject,
           text: textWithoutStatus,
           html: "",
+          from,
           meetId: meet.id,
           attendeeId,
         });
@@ -963,6 +969,7 @@ export class MeetsController {
         subject: body.subject,
         text,
         html,
+        from,
         fromName,
         replyTo: meetReplyTo,
         messageReferences,
@@ -993,6 +1000,7 @@ export class MeetsController {
             subject: body.subject,
             text,
             html,
+            from,
             fromName,
             meetId: meet.id,
             attendeeId,
@@ -1111,10 +1119,16 @@ export class MeetsController {
     const { subject, body } = this.emailService.parseMessageContent(
       failedMessage.content,
     );
+    const organizerSender = meetOrganizerSender(meet.organizerName);
+    const sender =
+      failedMessage.from?.toLowerCase() === organizerSender.from.toLowerCase()
+        ? organizerSender
+        : null;
     const newMessageId = await this.emailService.saveMessage({
       to: recipient,
       subject,
       text: body,
+      ...(sender ? { from: sender.from } : {}),
       attendeeId,
       meetId: id,
     });
@@ -1122,6 +1136,7 @@ export class MeetsController {
       to: recipient,
       subject,
       text: body,
+      ...(sender ?? {}),
       attendeeId,
       meetId: id,
       messageReferences: newMessageId

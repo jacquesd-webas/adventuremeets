@@ -1528,8 +1528,15 @@ export class MeetsService {
     meetId: string,
     attendeeId: string,
     email: string,
+    meetStartTime: string | undefined,
   ) {
-    const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+    const expiresAt =
+      Math.floor(Date.parse(meetStartTime ?? "") / 1000) + 24 * 60 * 60;
+    if (!Number.isFinite(expiresAt)) {
+      throw new BadRequestException(
+        "Meet start time is required for indemnity confirmation",
+      );
+    }
     const signature = this.signIndemnityConfirmation(
       meetId,
       attendeeId,

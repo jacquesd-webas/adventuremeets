@@ -463,6 +463,8 @@ describe("AttendeesController", () => {
       expect.objectContaining({
         to: dto.email,
         subject: "subject:meet-confirm",
+        from: `organiser@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
+        fromName: "Taylor (Aventuremeets)",
         attendeeId: "attendee-1",
         meetId: "meet-1",
       }),
@@ -471,6 +473,7 @@ describe("AttendeesController", () => {
       expect.objectContaining({
         to: dto.email,
         subject: "subject:meet-confirm",
+        from: `organiser@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
       }),
     );
     expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
@@ -518,6 +521,12 @@ describe("AttendeesController", () => {
       }),
     );
     expect(meetsService.updateAttendeesNotified).not.toHaveBeenCalled();
+    expect(
+      (emailService.sendEmail as jest.Mock).mock.calls[0][0],
+    ).not.toHaveProperty("from");
+    expect(
+      (emailService.saveMessage as jest.Mock).mock.calls[0][0],
+    ).not.toHaveProperty("from");
   });
 
   it("sends the filled indemnity PDF before the signup email", async () => {
@@ -563,6 +572,8 @@ describe("AttendeesController", () => {
       expect.objectContaining({
         to: "riley@example.com",
         templateName: "indemnity-pdf",
+        from: `organiser@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
+        fromName: "Taylor (Aventuremeets)",
         replyTo: `meet+meet-1+attendee-2+${indemnityReplyToken("meet-1", "attendee-2")}@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
         attachments: [
           {
@@ -580,6 +591,7 @@ describe("AttendeesController", () => {
       }),
     );
     expect(sends[1].attachments).toBeUndefined();
+    expect(sends[1]).not.toHaveProperty("from");
     expect(renderEmailTemplate).toHaveBeenNthCalledWith(
       1,
       "indemnity-pdf",
@@ -755,6 +767,12 @@ describe("AttendeesController", () => {
       { headers: {}, ip: "127.0.0.1" } as unknown as Request,
     );
 
+    expect(meetsService.createIndemnityConfirmationToken).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-4",
+      "confirm@example.com",
+      meet.startTime,
+    );
     expect(renderEmailTemplate).toHaveBeenCalledWith(
       "indemnity-confirmation",
       expect.objectContaining({
@@ -768,6 +786,8 @@ describe("AttendeesController", () => {
         to: "confirm@example.com",
         attendeeId: "attendee-4",
         templateName: "indemnity-confirmation",
+        from: `organiser@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
+        fromName: "Taylor (Aventuremeets)",
       }),
     );
   });
@@ -804,6 +824,8 @@ describe("AttendeesController", () => {
       expect.objectContaining({
         to: "confirm@example.com",
         templateName: "indemnity-confirmation",
+        from: `organiser@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
+        fromName: "Taylor (Aventuremeets)",
       }),
     );
     expect(auditLogService.addRecord).toHaveBeenCalledWith(
@@ -842,6 +864,14 @@ describe("AttendeesController", () => {
         controller.resendIndemnityConfirmation("meet-1", "attendee-4", user),
       ).resolves.toEqual({ sent: true });
 
+      expect(
+        meetsService.createIndemnityConfirmationToken,
+      ).toHaveBeenCalledWith(
+        "meet-1",
+        "attendee-4",
+        "confirm@example.com",
+        meet.startTime,
+      );
       if (needIndemnityConfirmationEmail) {
         expect(meetsService.hasPendingIndemnityAcceptance).toHaveBeenCalledWith(
           "meet-1",
@@ -864,6 +894,8 @@ describe("AttendeesController", () => {
         expect.objectContaining({
           to: "confirm@example.com",
           templateName: "indemnity-request",
+          from: `organiser@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
+          fromName: "Taylor (Aventuremeets)",
         }),
       );
     },

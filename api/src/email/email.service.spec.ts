@@ -140,6 +140,7 @@ describe("EmailService.saveMessage", () => {
       to: ["alex@example.com", "jamie@example.com"],
       subject: "Group message",
       text: "Hello everyone",
+      from: "organiser@example.com",
       meetId: "meet-1",
       attendeeId: "attendee-1",
     });
@@ -147,6 +148,7 @@ describe("EmailService.saveMessage", () => {
     expect(messagesInsert.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "alex@example.com, jamie@example.com",
+        from: "organiser@example.com",
       }),
     );
   });
@@ -154,6 +156,9 @@ describe("EmailService.saveMessage", () => {
 
 describe("EmailService.sendEmail", () => {
   it("sends one visible-recipient message for a group without individual tracking", async () => {
+    const defaultFrom =
+      process.env.MAIL_DEFAULT_FROM ||
+      `noreply@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`;
     const outboundEmailsQuery = {
       insert: jest.fn().mockReturnThis(),
       returning: jest.fn().mockResolvedValue([
@@ -195,9 +200,9 @@ describe("EmailService.sendEmail", () => {
       expect.objectContaining({
         to: ["alex@example.com", "jamie@example.com"],
         html: "<p>Hello everyone</p>",
-        from: expect.any(String),
+        from: defaultFrom,
         envelope: {
-          from: expect.not.stringContaining("bounce+"),
+          from: defaultFrom,
           to: ["alex@example.com", "jamie@example.com"],
         },
       }),
@@ -210,6 +215,29 @@ describe("EmailService.sendEmail", () => {
       expect.objectContaining({
         status: "sent",
         transport_message_id: "smtp-group-1",
+      }),
+    );
+
+    sendMail.mockClear();
+    await service.sendEmail({
+      to: ["alex@example.com", "jamie@example.com"],
+      subject: "Organiser message",
+      text: "Hello everyone",
+      sendAsGroup: true,
+      meetId: "meet-1",
+      from: "organiser@example.com",
+      fromName: "Taylor (Aventuremeets)",
+    });
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: {
+          name: "Taylor (Aventuremeets)",
+          address: "organiser@example.com",
+        },
+        envelope: {
+          from: "organiser@example.com",
+          to: ["alex@example.com", "jamie@example.com"],
+        },
       }),
     );
   });
@@ -337,7 +365,8 @@ describe("EmailService.sendEmail", () => {
         text: "Body",
         html: "<html><body><p>Body</p></body></html>",
         meetId: "meet-1",
-        fromName: "Taylor (AdventureMeets)",
+        from: `organiser@${expectedMailDomain}`,
+        fromName: "Taylor (Aventuremeets)",
       }),
     ).resolves.toBeUndefined();
 
@@ -347,9 +376,8 @@ describe("EmailService.sendEmail", () => {
         subject: "Subject",
         text: "Body",
         from: {
-          name: "Taylor (AdventureMeets)",
-          address:
-            process.env.MAIL_DEFAULT_FROM || `noreply@${expectedMailDomain}`,
+          name: "Taylor (Aventuremeets)",
+          address: `organiser@${expectedMailDomain}`,
         },
       }),
     );

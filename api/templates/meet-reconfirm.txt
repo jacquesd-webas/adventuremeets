@@ -7,7 +7,7 @@ Please confirm or update your attendance here:
 {{/ifStatusUrl}}
 {{#ifOrganizerEmail}}
 
-Questions? Contact {{organizerName}} at {{organizerEmail}}.
+Questions? Contact {{organizerName}} at {{organizerEmail}} or just reply to this email.
 {{/ifOrganizerEmail}}
 
 Best regards,

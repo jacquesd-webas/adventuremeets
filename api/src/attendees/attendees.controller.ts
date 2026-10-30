@@ -27,6 +27,7 @@ import { UserProfile } from "../users/dto/user-profile.dto";
 import { AuthService } from "../auth/auth.service";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
+import { meetOrganizerSender } from "../email/email.helpers";
 import { EmailTemplateName } from "../email/email.types";
 import type { Request, Response } from "express";
 import { UsersService } from "../users/users.service";
@@ -56,6 +57,8 @@ export class AttendeesController {
       name: string;
       shareCode?: string;
       organizationId?: string;
+      startTime?: string;
+      organizerName?: string;
     },
     attendee: { id: string; email: string; name?: string },
     logoUrl?: string,
@@ -72,6 +75,7 @@ export class AttendeesController {
       meet.id,
       attendee.id,
       attendee.email,
+      meet.startTime,
     );
     const confirmationUrl = `${frontendUrl}/meets/${meet.shareCode || meet.id}/${attendee.id}/confirm-indemnity?token=${encodeURIComponent(token)}`;
     const confirmationEmail = renderEmailTemplate("indemnity-confirmation", {
@@ -80,15 +84,18 @@ export class AttendeesController {
       confirmationUrl,
       logoUrl: resolvedLogoUrl,
     });
+    const sender = meetOrganizerSender(meet.organizerName);
     const messageId = await this.emailService.saveMessage({
       to: attendee.email,
       ...confirmationEmail,
+      from: sender.from,
       attendeeId: attendee.id,
       meetId: meet.id,
     });
     await this.emailService.sendEmail({
       to: attendee.email,
       ...confirmationEmail,
+      ...sender,
       attendeeId: attendee.id,
       meetId: meet.id,
       templateName: "indemnity-confirmation",
@@ -99,7 +106,12 @@ export class AttendeesController {
   }
 
   private async sendPrefilledIndemnityEmail(
-    meet: { id: string; name: string; organizerEmail?: string },
+    meet: {
+      id: string;
+      name: string;
+      organizerEmail?: string;
+      organizerName?: string;
+    },
     attendee: { id: string; email: string; name?: string },
     pdf: { filename: string; content: Buffer },
     logoUrl?: string,
@@ -110,15 +122,18 @@ export class AttendeesController {
       organizerEmail: meet.organizerEmail,
       logoUrl,
     });
+    const sender = meetOrganizerSender(meet.organizerName);
     const messageId = await this.emailService.saveMessage({
       to: attendee.email,
       ...email,
+      from: sender.from,
       attendeeId: attendee.id,
       meetId: meet.id,
     });
     await this.emailService.sendEmail({
       to: attendee.email,
       ...email,
+      ...sender,
       attendeeId: attendee.id,
       meetId: meet.id,
       replyTo: `meet+${meet.id}+${attendee.id}+${indemnityReplyToken(meet.id, attendee.id)}@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
@@ -142,6 +157,8 @@ export class AttendeesController {
       name: string;
       shareCode?: string;
       organizationId?: string;
+      startTime?: string;
+      organizerName?: string;
     },
     attendee: { id: string; email: string; name?: string },
     logoUrl?: string,
@@ -153,6 +170,7 @@ export class AttendeesController {
       meet.id,
       attendee.id,
       attendee.email,
+      meet.startTime,
     );
     const acceptanceUrl = `${frontendUrl}/meets/${meet.shareCode || meet.id}/${attendee.id}/confirm-indemnity?token=${encodeURIComponent(token)}&request=1`;
     const email = renderEmailTemplate("indemnity-request", {
@@ -161,15 +179,18 @@ export class AttendeesController {
       acceptanceUrl,
       logoUrl,
     });
+    const sender = meetOrganizerSender(meet.organizerName);
     const messageId = await this.emailService.saveMessage({
       to: attendee.email,
       ...email,
+      from: sender.from,
       attendeeId: attendee.id,
       meetId: meet.id,
     });
     await this.emailService.sendEmail({
       to: attendee.email,
       ...email,
+      ...sender,
       attendeeId: attendee.id,
       meetId: meet.id,
       templateName: "indemnity-request",
@@ -352,12 +373,17 @@ export class AttendeesController {
               logoUrl,
               isRsvpMode: meet.autoPlacement,
             });
+      const sender =
+        emailTemplate === "meet-signup"
+          ? null
+          : meetOrganizerSender(meet.organizerName);
 
       const messageId = await this.emailService.saveMessage({
         to: recipientEmail,
         subject,
         text,
         html,
+        ...(sender ? { from: sender.from } : {}),
         attendeeId: attendee.id,
         meetId,
       });
@@ -366,6 +392,7 @@ export class AttendeesController {
         subject,
         text,
         html,
+        ...(sender ?? {}),
         attendeeId: attendee.id,
         meetId,
         templateName: emailTemplate,

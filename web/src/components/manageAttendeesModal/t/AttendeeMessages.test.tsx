@@ -73,6 +73,21 @@ describe("AttendeeMessages", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("omits the meet wall target from audit entries", () => {
+    render(
+      <AttendeeAuditEntry
+        log={{
+          id: "wall-post",
+          timestamp: "2026-10-20T10:00:00Z",
+          description: "Taylor posted photo\u00a0to meet wall for Sunrise Hike",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Taylor posted photo")).toBeInTheDocument();
+    expect(screen.queryByText(/meet wall for/)).not.toBeInTheDocument();
+  });
+
   it("resends failed emails without expanding the message", () => {
     render(
       <AttendeeMessages

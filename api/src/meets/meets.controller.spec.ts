@@ -660,6 +660,15 @@ describe("MeetsController", () => {
 
     expect(emailService.sendEmail).toHaveBeenCalledTimes(2);
     expect(emailService.saveMessage).toHaveBeenCalledTimes(2);
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
+      }),
+    );
+    expect(emailService.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "organiser@example.com" }),
+    );
     expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
       "meet-1",
       ["attendee-1", "attendee-2"],
@@ -827,6 +836,8 @@ describe("MeetsController", () => {
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "member@example.com",
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
         attendeeId: "attendee-1",
         meetId: "meet-1",
       }),
@@ -834,6 +845,7 @@ describe("MeetsController", () => {
     expect(emailService.saveMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "member@example.com",
+        from: "organiser@example.com",
         attendeeId: "attendee-1",
         meetId: "meet-1",
       }),
@@ -1268,8 +1280,12 @@ describe("MeetsController", () => {
         attendeeId: "attendee-1",
         meetId: "meet-1",
         replyTo: "meet+meet-1@example.com",
-        fromName: "Taylor (AdventureMeets)",
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
       }),
+    );
+    expect(emailService.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "organiser@example.com" }),
     );
     expect(meetsService.updateAttendeesNotified).toHaveBeenCalledWith(
       "meet-1",
@@ -1323,7 +1339,8 @@ describe("MeetsController", () => {
         to: ["alex@example.com", "jamie@example.com"],
         sendAsGroup: true,
         replyTo: "meet+meet-1@example.com",
-        fromName: "Taylor (AdventureMeets)",
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
       }),
     );
     expect(emailService.saveMessage).toHaveBeenCalledWith(
@@ -1757,5 +1774,42 @@ describe("MeetsController", () => {
       action: "resent failed email to",
       target: "meet Sunrise Hike",
     });
+  });
+
+  it("preserves the organiser sender when resending a failed organiser email", async () => {
+    process.env.MAIL_DOMAIN = "example.com";
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.listAttendeeMessages as jest.Mock).mockResolvedValue([
+      {
+        id: "message-1",
+        to: "alex@example.com",
+        from: "organiser@example.com",
+        content: "Subject: Update\\n\\nSee you there",
+        direction: "sent",
+        emailStatus: "failed",
+      },
+    ]);
+    (emailService.parseMessageContent as jest.Mock).mockReturnValue({
+      subject: "Update",
+      body: "See you there",
+    });
+    setRoles({ organizer: true });
+
+    await controller.resendFailedAttendeeEmail(
+      "meet-1",
+      "attendee-1",
+      "message-1",
+      user,
+    );
+
+    expect(emailService.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "organiser@example.com" }),
+    );
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "organiser@example.com",
+        fromName: "Taylor (Aventuremeets)",
+      }),
+    );
   });
 });

@@ -3,7 +3,7 @@ import type { AttendeeAuditLog } from "../../hooks/useFetchAttendeeMessages";
 
 export function AttendeeAuditEntry({ log }: { log: AttendeeAuditLog }) {
   const description = log.description.replace(
-    /\s+(?:for|from) meet\s+.+$/i,
+    /\s+(?:(?:for|from) meet|to meet wall for)\s+.+$/i,
     "",
   );
 

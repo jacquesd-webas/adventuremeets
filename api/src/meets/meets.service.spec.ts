@@ -1127,6 +1127,30 @@ describe("MeetsService", () => {
     expect(result.attendee.indemnityAccepted).toBe(false);
   });
 
+  it("expires indemnity confirmation links one day after the meet starts", () => {
+    const service = new MeetsService({} as DatabaseService, {} as MinioService);
+    const startTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const token = service.createIndemnityConfirmationToken(
+      "meet-1",
+      "attendee-1",
+      "walker@example.com",
+      startTime,
+    );
+
+    expect(Number(token.split(".")[0])).toBe(
+      Math.floor(Date.parse(startTime) / 1000) + 24 * 60 * 60,
+    );
+    expect(() =>
+      service.createIndemnityConfirmationToken(
+        "meet-1",
+        "attendee-1",
+        "walker@example.com",
+        undefined,
+      ),
+    ).toThrow(BadRequestException);
+  });
+
   it("confirms indemnity without changing attendee status", async () => {
     const meetBuilder = buildBuilder();
     meetBuilder.first.mockResolvedValue({
@@ -1170,6 +1194,7 @@ describe("MeetsService", () => {
       "meet-1",
       "attendee-1",
       "walker@example.com",
+      new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     );
 
     await expect(
@@ -1226,6 +1251,7 @@ describe("MeetsService", () => {
       "meet-1",
       "attendee-1",
       "walker@example.com",
+      new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     );
 
     await expect(

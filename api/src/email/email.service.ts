@@ -72,7 +72,7 @@ export class EmailService {
     const body =
       `Subject: ${parsed.subject}\n\n` +
       (parsed.pertinentBody || parsed.body || content);
-    const sender = meetId ? this.defaultFrom : from || this.defaultFrom;
+    const sender = from || this.defaultFrom;
     const recipients = Array.isArray(to) ? to.join(", ") : to;
 
     const contentId = await this.resolveMessageContentId(body);
@@ -340,7 +340,7 @@ export class EmailService {
         email.tracking_token,
       ]),
     );
-    const resolvedFrom = meetId ? this.defaultFrom : from || this.defaultFrom;
+    const resolvedFrom = from || this.defaultFrom;
     const messageFrom = fromName?.trim()
       ? { name: fromName.trim(), address: resolvedFrom }
       : resolvedFrom;

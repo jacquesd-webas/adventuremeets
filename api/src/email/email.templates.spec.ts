@@ -95,11 +95,12 @@ describe("renderEmailTemplate", () => {
       "pre-filled indemnity form for River & Ridge is attached",
     );
     expect(result.text).toContain(
-      "Please email the signed form to leader@example.com.",
+      "Please email the signed form to leader@example.com or just reply to this email with the attachment.",
     );
     expect(result.html).toContain("Alex &lt;Walker&gt;");
     expect(result.html).toContain("River &amp; Ridge");
     expect(result.html).toContain('href="mailto:leader@example.com"');
+    expect(result.html).toContain("or just reply to this email with the attachment.");
   });
 
   it("renders the default meet confirmation message with formatted start time", () => {
@@ -163,7 +164,7 @@ describe("renderEmailTemplate", () => {
     );
     expect(result.html).not.toContain("View your application");
     expect(result.text).toContain(
-      "If you need to reply, contact Robin &amp; Co at robin@example.com.",
+      "If you need to reply, contact Robin &amp; Co at robin@example.com or just reply to this email.",
     );
     expect(result.html).toMatch(
       /If you need to reply, contact\s+Robin &amp; Co at/,

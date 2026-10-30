@@ -1,5 +1,17 @@
 import { ALWAYS_ESCAPE } from "./email.types";
 
+export function meetOrganizerSender(name?: string) {
+  const organizerName = name?.trim();
+  const mailDomain =
+    process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com";
+  return {
+    from: `organiser@${mailDomain}`,
+    fromName: organizerName
+      ? `${organizerName} (Aventuremeets)`
+      : "Aventuremeets",
+  };
+}
+
 export function parseDateTime(value?: string) {
   if (!value) return null;
   const parsed = new Date(value);
