@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Client } from "minio";
+import { createS3Client } from "./s3-client";
 
 @Injectable()
 export class AttendeeItemsStorageService {
@@ -9,19 +10,7 @@ export class AttendeeItemsStorageService {
   private bucketReady = false;
 
   constructor() {
-    const endPoint = process.env.S3_ENDPOINT;
-    const accessKey = process.env.S3_ACCESS_KEY_ID;
-    const secretKey = process.env.S3_SECRET_ACCESS_KEY;
-    if (!endPoint || !accessKey || !secretKey) {
-      throw new Error("S3 is not configured");
-    }
-    this.client = new Client({
-      endPoint,
-      port: Number(process.env.S3_PORT || 9000),
-      useSSL: process.env.S3_USE_SSL === "true",
-      accessKey,
-      secretKey,
-    });
+    this.client = createS3Client();
   }
 
   async upload(objectKey: string, buffer: Buffer): Promise<void> {

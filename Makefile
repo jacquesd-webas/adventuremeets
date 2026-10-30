@@ -4,10 +4,21 @@
 COMPOSE ?= docker-compose
 DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)
 
-.PHONY: db-up db-wait migrate stack-up stack-down clean env graphify graphify-update
+.PHONY: db-up db-wait migrate stack-up stack-down clean env graphify graphify-update garage-init
 
 up:
-	$(COMPOSE) up -d db minio mailhog
+	$(COMPOSE) up -d --wait db garage mailhog
+	$(MAKE) garage-init
+
+garage-init:
+	@if ! $(COMPOSE) exec -T garage /garage bucket info attendee-items >/dev/null 2>&1; then \
+		$(COMPOSE) exec -T garage /garage bucket create attendee-items; \
+	fi
+	@$(COMPOSE) exec -T garage /garage bucket allow --read --write --owner attendee-items --key $(GARAGE_DEFAULT_ACCESS_KEY)
+	@$(COMPOSE) exec -T garage /garage bucket website --allow meet-images
+	@if ! $(COMPOSE) exec -T garage /garage bucket info localhost >/dev/null 2>&1; then \
+		$(COMPOSE) exec -T garage /garage bucket alias meet-images localhost; \
+	fi
 
 migrate:
 	$(COMPOSE) run --build --rm db_migrate

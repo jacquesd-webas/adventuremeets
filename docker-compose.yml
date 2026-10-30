@@ -54,6 +54,7 @@ services:
         condition: service_healthy
 
   minio:
+    profiles: ["minio"]
     image: quay.io/minio/minio:latest
     env_file:
       - ./env/base.env
@@ -68,6 +69,27 @@ services:
     volumes:
       - minio_data:/data
 
+  garage:
+    image: dxflrs/garage:v2.5.0
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    env_file:
+      - ./env/base.env
+      - ./env/development.env
+    environment:
+      GARAGE_DEFAULT_BUCKET: meet-images
+    ports:
+      - "127.0.0.1:3900:3900"
+      - "127.0.0.1:3902:3902"
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
   api:
     build:
       context: .
@@ -77,17 +99,15 @@ services:
       - ./env/development.env
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-adventuremeets}@${DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME:-adventuremeets}
-      S3_ENDPOINT: http://minio:9000
-      S3_PUBLIC_URL: http://localhost:${S3_PORT:-9000}/meet-images
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_ENDPOINT: http://garage:3900
+      S3_PUBLIC_URL: http://localhost:3902
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
-      minio:
-        condition: service_started
+      garage:
+        condition: service_healthy
     command: [ "node", "dist/main.js" ]
     
   web:
@@ -122,3 +142,5 @@ services:
 volumes:
   db_data:
   minio_data:
+  garage_meta:
+  garage_data:
