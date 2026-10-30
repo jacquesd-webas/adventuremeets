@@ -36,13 +36,15 @@ export function AttendeeList({
     return attendees.reduce(
       (acc, attendee) => {
         const status = attendee.status || AttendeeStatusEnum.Pending;
-        if (status === AttendeeStatusEnum.Confirmed) acc.accepted += 1;
+        const count = 1 + (attendee.guests ?? 0);
         if (
-          status === AttendeeStatusEnum.Rejected ||
-          status === AttendeeStatusEnum.Cancelled
+          status === AttendeeStatusEnum.Confirmed ||
+          status === AttendeeStatusEnum.CheckedIn ||
+          status === AttendeeStatusEnum.Attended
         )
-          acc.rejected += 1;
-        if (status === AttendeeStatusEnum.Waitlisted) acc.waitlisted += 1;
+          acc.accepted += count;
+        if (status === AttendeeStatusEnum.Rejected) acc.rejected += count;
+        if (status === AttendeeStatusEnum.Waitlisted) acc.waitlisted += count;
         return acc;
       },
       { accepted: 0, rejected: 0, waitlisted: 0 },

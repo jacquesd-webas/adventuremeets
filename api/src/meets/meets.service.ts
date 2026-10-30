@@ -1241,6 +1241,21 @@ export class MeetsService {
           dto.guests,
           dto.guestsList,
         );
+        if (dto.guestOf) {
+          await trx("meets").where({ id: meetId }).forUpdate().first("id");
+          const [host] = await trx("meet_attendees")
+            .where({ id: dto.guestOf, meet_id: meetId })
+            .update(
+              {
+                guests: trx.raw("greatest(coalesce(guests, 0) - 1, 0)"),
+                updated_at: new Date().toISOString(),
+              },
+              ["id"],
+            );
+          if (!host) {
+            throw new BadRequestException("Guest invite attendee not found");
+          }
+        }
 
         const guardianName =
           dto.GuardianName ?? (dto as any).guardianName ?? null;
@@ -1292,6 +1307,7 @@ export class MeetsService {
             "user_id",
             "guests",
             "guests_list",
+            "guest_of",
           );
           const normalizedName = (dto.name || "").trim().toLowerCase();
           let invited = candidates.length === 1 ? candidates[0] : undefined;
@@ -1313,6 +1329,11 @@ export class MeetsService {
             }
           }
           if (invited) {
+            if (invited.id === dto.guestOf) {
+              throw new BadRequestException(
+                "An attendee cannot invite themselves",
+              );
+            }
             const [row] = await trx("meet_attendees")
               .where({ meet_id: meetId, id: invited.id })
               .update(
@@ -1328,6 +1349,7 @@ export class MeetsService {
                     dto.guests === undefined
                       ? invited.guests_list
                       : JSON.stringify(guestsList),
+                  guest_of: dto.guestOf ?? invited.guest_of ?? null,
                   is_minor: dto.isMinor ?? invited.is_minor ?? false,
                   guardian_name: guardianName,
                   indemnity_accepted: indemnityAccepted,

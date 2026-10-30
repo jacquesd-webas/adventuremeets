@@ -958,6 +958,117 @@ describe("MeetsService", () => {
     );
   });
 
+  it("reduces the inviting attendee's guest count when a guest signs up", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({ auto_placement: false });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.update.mockResolvedValue([{ id: "host-1" }]);
+    attendeeBuilder.first.mockResolvedValue({ max: 0 });
+    attendeeBuilder.insert.mockResolvedValue([
+      { id: "guest-1", guest_of: "host-1" },
+    ]);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn((sql: string) => sql);
+    client.transaction = jest.fn(async (callback: any) => callback(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    await service.addAttendee("meet-1", {
+      name: "Guest",
+      guestOf: "host-1",
+    });
+
+    expect(attendeeBuilder.where).toHaveBeenCalledWith({
+      id: "host-1",
+      meet_id: "meet-1",
+    });
+    expect(attendeeBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guests: "greatest(coalesce(guests, 0) - 1, 0)",
+      }),
+      ["id"],
+    );
+    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ guest_of: "host-1" }),
+      ["*"],
+    );
+    expect(meetBuilder.forUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+      attendeeBuilder.update.mock.invocationCallOrder[0],
+    );
+    expect(attendeeBuilder.update.mock.invocationCallOrder[0]).toBeLessThan(
+      attendeeBuilder.insert.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("reduces the host's guest count when a guest accepts an invitation", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({ auto_placement: false });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.select.mockResolvedValue([
+      { id: "invited-1", email: "guest@example.com" },
+    ]);
+    attendeeBuilder.update
+      .mockResolvedValueOnce([{ id: "host-1" }])
+      .mockResolvedValueOnce([{ id: "invited-1", status: "confirmed" }]);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn((sql: string) => sql);
+    client.transaction = jest.fn(async (callback: any) => callback(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    await service.addAttendee("meet-1", {
+      name: "Guest",
+      email: "guest@example.com",
+      guestOf: "host-1",
+    });
+
+    expect(attendeeBuilder.update).toHaveBeenCalledTimes(2);
+    expect(attendeeBuilder.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ guest_of: "host-1", status: "confirmed" }),
+      ["*"],
+    );
+    expect(attendeeBuilder.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a guest invite from an attendee in another meet", async () => {
+    const meetBuilder = buildBuilder();
+    meetBuilder.first.mockResolvedValue({ auto_placement: false });
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.update.mockResolvedValue([]);
+    const client: any = (table: string) => {
+      if (table === "meets") return meetBuilder;
+      if (table === "meet_attendees") return attendeeBuilder;
+      return buildBuilder();
+    };
+    client.raw = jest.fn((sql: string) => sql);
+    client.transaction = jest.fn(async (callback: any) => callback(client));
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    await expect(
+      service.addAttendee("meet-1", { name: "Guest", guestOf: "host-2" }),
+    ).rejects.toThrow(BadRequestException);
+    expect(attendeeBuilder.where).toHaveBeenCalledWith({
+      id: "host-2",
+      meet_id: "meet-1",
+    });
+    expect(attendeeBuilder.insert).not.toHaveBeenCalled();
+  });
+
   it("keeps indemnity unaccepted until anonymous email confirmation", async () => {
     const meetBuilder = buildBuilder();
     meetBuilder.first.mockResolvedValue({
