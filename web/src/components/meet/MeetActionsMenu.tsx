@@ -24,7 +24,10 @@ import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import BlockOutlinedIcon from "@mui/icons-material/BlockOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
+import IosShareOutlinedIcon from "@mui/icons-material/IosShareOutlined";
 import MeetActionsEnum from "../../types/MeetActionsEnum";
+import Meet from "../../types/MeetModel";
+import { MeetShare } from "./MeetShare";
 import MeetStatusEnum from "../../types/MeetStatusEnum";
 import { useLocation, useNavigate } from "react-router-dom";
 import { isSameMeetDayOrLater } from "../../helpers/defaultPendingAction";
@@ -34,6 +37,7 @@ import {
 } from "../../helpers/meetNavigation";
 
 type MeetActionsMenuProps = {
+  meet?: Meet;
   meetId: string;
   statusId?: number;
   isUpcoming: boolean;
@@ -129,6 +133,7 @@ const shouldShow = (
 };
 
 export function MeetActionsMenu({
+  meet,
   meetId,
   statusId,
   isUpcoming,
@@ -145,6 +150,7 @@ export function MeetActionsMenu({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const open = Boolean(anchorEl);
   const nav = useNavigate();
   const location = useLocation();
@@ -187,6 +193,22 @@ export function MeetActionsMenu({
     await navigator.clipboard.writeText(shareUrl);
     handleClose();
   };
+
+  const handleShare = (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    runAfterMenuClose(() => setShareOpen(true));
+    if (!isMobile) handleClose();
+  };
+
+  const shareItem =
+    meet?.shareCode && statusId !== MeetStatusEnum.Draft ? (
+      <MenuItem onClick={handleShare}>
+        <ListItemIcon>
+          <IosShareOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText>Share...</ListItemText>
+      </MenuItem>
+    ) : null;
 
   const handleNavigateToSignup = (
     event: MouseEvent<HTMLElement>,
@@ -304,6 +326,7 @@ export function MeetActionsMenu({
               <ListItemText>Preview</ListItemText>
             </MenuItem>
           )}
+          {shareItem}
           {shouldShow(
             MeetActionsEnum.CopyLink,
             statusId,
@@ -431,14 +454,14 @@ export function MeetActionsMenu({
             startTime,
           ) &&
             reportingEnabled && (
-            <MenuItem
-              onClick={(event) => handleAction(event, MeetActionsEnum.Report)}
-            >
-              <ListItemIcon>
-                <AssessmentOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>Reports</ListItemText>
-            </MenuItem>
+              <MenuItem
+                onClick={(event) => handleAction(event, MeetActionsEnum.Report)}
+              >
+                <ListItemIcon>
+                  <AssessmentOutlinedIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Reports</ListItemText>
+              </MenuItem>
             )}
           {shouldShow(
             MeetActionsEnum.Delete,
@@ -490,6 +513,7 @@ export function MeetActionsMenu({
               <ListItemText>Copy link</ListItemText>
             </MenuItem>
           )}
+          {shareItem}
         </>
       ) : (
         <>
@@ -521,6 +545,7 @@ export function MeetActionsMenu({
               <ListItemText>Apply to meet</ListItemText>
             </MenuItem>
           )}
+          {shareItem}
         </>
       )}
     </>
@@ -570,6 +595,14 @@ export function MeetActionsMenu({
           </Box>
         </Drawer>
       )}
+      {meet && shareOpen ? (
+        <MeetShare
+          open
+          onClose={() => setShareOpen(false)}
+          meet={meet}
+          canManageMeet={canManageMeet}
+        />
+      ) : null}
     </>
   );
 }

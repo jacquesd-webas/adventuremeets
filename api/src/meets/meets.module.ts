@@ -13,6 +13,8 @@ import { AuditLogModule } from "../audit/audit-log.module";
 import { AttendeeItemsStorageService } from "../storage/attendee-items-storage.service";
 import { IndemnityTemplateController } from "./indemnity-template.controller";
 import { IndemnityTemplateService } from "./indemnity-template.service";
+import { MeetWhatsappController } from "./meet-whatsapp.controller";
+import { MeetWhatsappService } from "./meet-whatsapp.service";
 
 @Module({
   imports: [
@@ -28,12 +30,14 @@ import { IndemnityTemplateService } from "./indemnity-template.service";
     IncomingMailController,
     MeetShareController,
     IndemnityTemplateController,
+    MeetWhatsappController,
   ],
   providers: [
     MeetsService,
     ObjectStorageService,
     AttendeeItemsStorageService,
     IndemnityTemplateService,
+    MeetWhatsappService,
   ],
   exports: [MeetsService, IndemnityTemplateService],
 })

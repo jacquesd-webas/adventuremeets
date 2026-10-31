@@ -156,6 +156,24 @@ S3_SECRET_ACCESS_KEY=your-garage-secret-access-key
 `S3_ENDPOINT` must be the root of the authenticated S3 API, with no bucket or path appended.
 Set `API_BASEURL` to the public API URL; the API uses it to build image URLs for the web app and emails. Disable any previously enabled Garage website access to `meet-images` after deploying the API proxy.
 
+### Organisation WhatsApp connection
+
+Apply database migrations before starting the WhatsApp service. Run
+`docker compose up -d whatsapp` locally, then open Organisation → WhatsApp as
+an organisation admin and scan the QR code from the organisation phone's
+Linked devices screen. The connection status and short-lived QR code live in
+`organization_config`; the linked browser session lives in the
+`whatsapp_sessions` volume. Back up and restrict access to that volume because
+it grants access to the linked WhatsApp account. Run only one WhatsApp service
+replica against a given session volume. Pairing works independently of the
+meet scheduler worker. Meet organisers and organisation admins can choose an
+existing chat or group from the linked phone in Share → WhatsApp, edit the
+message, and send the meet's primary image as an optional captioned image.
+The API talks to the WhatsApp service on the private Docker network using
+`WHATSAPP_SERVICE_URL` and `WORKER_API_KEY`; only the API should expose this
+operation to users. When running the API on the host, it uses the WhatsApp
+container's loopback port at `http://127.0.0.1:3010` by default.
+
 ### Testing
 
 - **API (`api/`)**

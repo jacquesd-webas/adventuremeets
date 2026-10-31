@@ -252,6 +252,7 @@ export function MeetCard({
         <MeetStatus statusId={meet.statusId} fallbackLabel={statusLabel} />
         <Box sx={{ ml: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <MeetActionsMenu
+            meet={meet}
             meetId={meet.id}
             canAccessManageMenu={canAccessManageMenu}
             canViewMeet={canViewMeet}

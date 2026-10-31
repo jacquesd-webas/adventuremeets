@@ -6,6 +6,8 @@ import { AuthModule } from "../auth/auth.module";
 import { EmailModule } from "../email/email.module";
 import { AuditLogModule } from "../audit/audit-log.module";
 import { ObjectStorageService } from "../storage/object-storage.service";
+import { OrganizationWhatsappController } from "./organization-whatsapp.controller";
+import { OrganizationWhatsappService } from "./organization-whatsapp.service";
 
 @Module({
   imports: [
@@ -14,8 +16,12 @@ import { ObjectStorageService } from "../storage/object-storage.service";
     EmailModule,
     AuditLogModule,
   ],
-  controllers: [OrganizationsController],
-  providers: [OrganizationsService, ObjectStorageService],
+  controllers: [OrganizationsController, OrganizationWhatsappController],
+  providers: [
+    OrganizationsService,
+    ObjectStorageService,
+    OrganizationWhatsappService,
+  ],
   exports: [OrganizationsService],
 })
 export class OrganizationsModule {}

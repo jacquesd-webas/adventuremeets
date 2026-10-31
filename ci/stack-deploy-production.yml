@@ -17,6 +17,8 @@ services:
     image: fringecoding/adventuremeets_api:${VERSION:-latest}
     env_file:
       - ./.env
+    environment:
+      WHATSAPP_SERVICE_URL: http://whatsapp:3010
     ports:
       - "8005:8080"
     networks:
@@ -32,6 +34,23 @@ services:
       - adventuremeets
     deploy:
       replicas: 1
+
+  whatsapp:
+    image: fringecoding/adventuremeets_worker:${VERSION:-latest}
+    env_file:
+      - ./.env
+    environment:
+      WHATSAPP_SESSION_DIR: /var/lib/adventuremeets/whatsapp
+    command: ["node", "/app/worker/dist/whatsapp/main.js"]
+    volumes:
+      - whatsapp_sessions:/var/lib/adventuremeets/whatsapp
+    networks:
+      - adventuremeets
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == webapps4
 
   mail:
     image: fringecoding/adventuremeets_mail:${VERSION:-latest}
@@ -49,3 +68,6 @@ services:
 
 networks:
   adventuremeets:
+
+volumes:
+  whatsapp_sessions:

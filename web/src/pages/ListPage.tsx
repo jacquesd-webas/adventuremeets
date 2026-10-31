@@ -162,6 +162,7 @@ function ListPage() {
                 onClick={(event) => event.stopPropagation()}
               >
                 <MeetActionsMenu
+                  meet={params.row}
                   meetId={params.row.id}
                   statusId={params.row.statusId}
                   canAccessManageMenu={canAccessManageMenu}
@@ -432,6 +433,7 @@ function ListPage() {
                       <Typography fontWeight={600}>{meet.name}</Typography>
                       <Box onClick={(event) => event.stopPropagation()}>
                         <MeetActionsMenu
+                          meet={meet}
                           meetId={meet.id}
                           statusId={meet.statusId}
                           canAccessManageMenu={canAccessManageMenu}

@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { MeetActionsMenu } from "../MeetActionsMenu";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
+import { SnackbarProvider } from "notistack";
 
 describe("MeetActionsMenu", () => {
   const setMatchMedia = (matches: boolean) => {
@@ -58,6 +59,10 @@ describe("MeetActionsMenu", () => {
   beforeEach(() => {
     setMatchMedia(false);
     vi.useRealTimers();
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: undefined,
+    });
   });
 
   it("shows Delete for draft meets when user can manage the meet", () => {
@@ -183,6 +188,86 @@ describe("MeetActionsMenu", () => {
         `${window.location.origin}/share/share-123`,
       );
     });
+  });
+
+  it("opens Share from a published meet menu", async () => {
+    const user = userEvent.setup();
+    render(
+      <SnackbarProvider>
+        <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <MeetActionsMenu
+            meet={{
+              id: "meet-1",
+              name: "Mountain walk",
+              organizerId: "organizer-1",
+              shareCode: "share-123",
+            }}
+            meetId="meet-1"
+            statusId={MeetStatusEnum.Published}
+            isUpcoming
+            canViewMeet
+            canManageMeet
+            previewLinkCode="share-123"
+            setSelectedMeetId={vi.fn()}
+            setPendingAction={vi.fn()}
+          />
+        </MemoryRouter>
+      </SnackbarProvider>,
+    );
+
+    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByText("Share..."));
+    expect(
+      screen.getByRole("dialog", { name: "Share Mountain walk" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("WhatsApp")).toBeInTheDocument();
+  });
+
+  it("opens the share cards from the mobile Share action", async () => {
+    setMatchMedia(true);
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: share,
+    });
+    render(
+      <SnackbarProvider>
+        <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <MeetActionsMenu
+            meet={{
+              id: "meet-1",
+              name: "Mountain walk",
+              organizerId: "organizer-1",
+              shareCode: "share-123",
+              location: "Table Mountain",
+            }}
+            meetId="meet-1"
+            statusId={MeetStatusEnum.Published}
+            isUpcoming
+            canViewMeet
+            canManageMeet
+            setSelectedMeetId={vi.fn()}
+            setPendingAction={vi.fn()}
+          />
+        </MemoryRouter>
+      </SnackbarProvider>,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button"));
+    expect(screen.queryByText("More sharing options")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Share..."));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "QR Code" }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "More..." })).toBeInTheDocument();
+    expect(share).not.toHaveBeenCalled();
   });
 
   it("shows Reports for closed meets on the same day when advanced reporting is enabled", () => {

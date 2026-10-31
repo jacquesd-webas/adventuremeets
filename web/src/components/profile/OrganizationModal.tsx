@@ -23,6 +23,7 @@ import { OrganizationFields } from "./OrganizationFields";
 import { OrganizationInvites } from "./OrganizationInvites";
 import { OrganizationPrivacy } from "./OrganizationPrivacy";
 import { OrganizationStats } from "./OrganizationStats";
+import { OrganizationWhatsApp } from "./OrganizationWhatsApp";
 
 type OrganizationModalProps = {
   open: boolean;
@@ -43,6 +44,7 @@ type OrganizationSection =
   | "features"
   | "privacy"
   | "invites"
+  | "whatsapp"
   | "create";
 
 export function OrganizationContent({
@@ -61,6 +63,7 @@ export function OrganizationContent({
     ...(isAdmin ? [{ key: "invites", label: "Invites" }] : []),
     ...(isAdmin ? [{ key: "fields", label: "Fields" }] : []),
     ...(isAdmin ? [{ key: "defaults", label: "Defaults" }] : []),
+    ...(isAdmin ? [{ key: "whatsapp", label: "WhatsApp" }] : []),
     { key: "stats", label: "Stats" },
     { key: "features", label: "Features" },
     { key: "create", label: "Create" },
@@ -80,6 +83,7 @@ export function OrganizationContent({
         {isAdmin ? <OrganizationInvites /> : null}
         {isAdmin ? <OrganizationFields /> : null}
         {isAdmin ? <OrganizationDefaults /> : null}
+        {isAdmin ? <OrganizationWhatsApp /> : null}
         <OrganizationStats />
         <OrganizationFeatures />
         <OrganizationCreate onGoToProfile={onOpenProfile} />
@@ -111,6 +115,7 @@ export function OrganizationContent({
         ) : null}
         {section === "fields" ? <OrganizationFields /> : null}
         {section === "defaults" ? <OrganizationDefaults /> : null}
+        {section === "whatsapp" ? <OrganizationWhatsApp /> : null}
         {section === "stats" ? <OrganizationStats /> : null}
         {section === "features" ? <OrganizationFeatures /> : null}
         {section === "privacy" ? <OrganizationPrivacy /> : null}

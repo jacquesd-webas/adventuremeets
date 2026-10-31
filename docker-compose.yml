@@ -99,6 +99,7 @@ services:
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-adventuremeets}@${DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME:-adventuremeets}
       S3_ENDPOINT: http://garage:3900
+      WHATSAPP_SERVICE_URL: http://whatsapp:3010
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -137,8 +138,30 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  whatsapp:
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    env_file:
+      - ./env/base.env
+      - ./env/development.env
+    environment:
+      DB_HOST: db
+      DB_PORT: ${DB_PORT:-5432}
+      WHATSAPP_SESSION_DIR: /var/lib/adventuremeets/whatsapp
+    command: ["node", "/app/worker/dist/whatsapp/main.js"]
+    ports:
+      - "127.0.0.1:3010:3010"
+    volumes:
+      - whatsapp_sessions:/var/lib/adventuremeets/whatsapp
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   db_data:
   minio_data:
   garage_meta:
   garage_data:
+  whatsapp_sessions:

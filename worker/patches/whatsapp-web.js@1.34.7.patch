@@ -1,0 +1,48 @@
+diff --git a/src/Client.js b/src/Client.js
+index 800109ebf7720d5f0f29091518a8a25f7fd8e381..a365f0eb65a59165e0881f938547a0f52e3a0410 100644
+--- a/src/Client.js
++++ b/src/Client.js
+@@ -403,11 +403,13 @@ class Client extends EventEmitter {
+                 .Socket.on('change:state', (_AppState, state) => {
+                     window.onAuthAppStateChangedEvent(state);
+                 });
+-            window
+-                .require('WAWebSocketModel')
+-                .Socket.on('change:hasSynced', () => {
+-                    window.onAppStateHasSyncedEvent();
+-                });
++            const socket = window.require('WAWebSocketModel').Socket;
++            socket.on('change:hasSynced', (_AppState, hasSynced) => {
++                if (hasSynced) window.onAppStateHasSyncedEvent();
++            });
++            if (socket.hasSynced && socket.state === 'CONNECTED') {
++                window.onAppStateHasSyncedEvent();
++            }
+             const Cmd = window.require('WAWebCmd').Cmd;
+             Cmd.on('offline_progress_update_from_bridge', () => {
+                 window.onOfflineProgressUpdateEvent(
+diff --git a/src/util/Injected/Utils.js b/src/util/Injected/Utils.js
+index 540078a9d07b3df07ccd51b030556a72af4cf650..2bb15096201ed33c36c149f0d58d09a60d87c518 100644
+--- a/src/util/Injected/Utils.js
++++ b/src/util/Injected/Utils.js
+@@ -483,6 +483,11 @@ exports.LoadUtils = () => {
+             ...extraOptions,
+         };
+ 
++        // MediaData's private field can overwrite Msg's id during initialization.
++        if (message.__x_id) {
++            delete message.__x_id;
++        }
++
+         // Bot's won't reply if canonicalUrl is set (linking)
+         if (botOptions) {
+             delete message.canonicalUrl;
+@@ -582,7 +587,7 @@ exports.LoadUtils = () => {
+ 
+         return window
+             .require('WAWebCollections')
+-            .Msg.get(newMsgKey._serialized);
++            .Msg.get(newMsgKey._serialized ?? newMsgKey.$1);
+     };
+ 
+     window.WWebJS.editMessage = async (msg, content, options = {}) => {
