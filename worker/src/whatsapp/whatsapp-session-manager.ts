@@ -10,6 +10,17 @@ export type WhatsappChat = {
   isGroup: boolean;
 };
 
+function safeGroupError(error: unknown, title: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .split(title)
+    .join("[meet title]")
+    .replace(/https?:\/\/\S+/gi, "[url]")
+    .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, "[email]")
+    .replace(/\+?\d[\d\s().-]{6,}\d/g, "[number]")
+    .slice(0, 500);
+}
+
 export function createWhatsappDb(): Knex {
   return knex({
     client: "pg",
@@ -344,5 +355,146 @@ export class WhatsappSessionManager {
         )
       : await client.sendMessage(chatId, message, { waitUntilMsgSent: true });
     if (!sent) throw new Error("WhatsApp did not confirm the message was sent");
+  }
+
+  async getGroupInviteLink(
+    organizationId: string,
+    chatId: string,
+  ): Promise<{ url: string }> {
+    const page = this.getReadyClient(organizationId).pupPage;
+    if (!page) throw new Error("WhatsApp browser is not available");
+    const code = await page.evaluate(async (groupId) => {
+      type InviteModule = {
+        requireBundle?: () => Promise<unknown>;
+        fetchMexGroupInviteCode?: (
+          id: string,
+        ) => Promise<{ code?: string } | string>;
+      };
+      const browserWindow = window as typeof window & {
+        require: (name: string) => InviteModule | undefined;
+      };
+      if (
+        typeof browserWindow.require("WAWebMexFetchGroupInviteCodeJob")
+          ?.fetchMexGroupInviteCode !== "function"
+      ) {
+        await browserWindow
+          .require("WAWebGroupInviteLinkDrawerLoadable")
+          ?.requireBundle?.();
+      }
+      const fetchCode = browserWindow.require(
+        "WAWebMexFetchGroupInviteCodeJob",
+      )?.fetchMexGroupInviteCode;
+      if (typeof fetchCode !== "function")
+        throw new Error("WhatsApp group invite module is unavailable");
+      const result = await fetchCode(groupId);
+      return typeof result === "string" ? result : result?.code;
+    }, chatId);
+    if (typeof code !== "string" || !/^[a-zA-Z0-9_-]+$/.test(code)) {
+      throw new Error("WhatsApp did not return a group invite link");
+    }
+    return { url: `https://chat.whatsapp.com/${code}` };
+  }
+
+  async createMeetGroup(
+    organizationId: string,
+    title: string,
+    organizerPhone: string | null,
+  ): Promise<{ chatId: string; organizerAdded: boolean }> {
+    const startedAt = Date.now();
+    let stage = "connection";
+    console.info("WhatsApp group creation started", {
+      organizationId,
+      organizerPhonePresent: Boolean(organizerPhone),
+    });
+    try {
+      const client = this.getReadyClient(organizationId);
+      const organizationPhone = client.info?.wid?.user?.replace(/\D/g, "");
+      if (!organizationPhone)
+        throw new Error("Organisation WhatsApp number is unavailable");
+
+      const phone = organizerPhone?.replace(/\D/g, "") || null;
+      const participants: string[] = [];
+      if (phone && phone !== organizationPhone) {
+        stage = "organizer lookup";
+        const contact = await client.getNumberId(phone);
+        if (!contact?._serialized) {
+          throw new Error(
+            "Organiser phone number is not registered on WhatsApp. Use an international number.",
+          );
+        }
+        participants.push(contact._serialized);
+      }
+
+      stage = "group module";
+      const page = client.pupPage;
+      if (!page) throw new Error("WhatsApp browser is not available");
+      const groupModuleReady = await page.evaluate(async () => {
+        type GroupModule = {
+          createGroup?: unknown;
+          requireBundle?: () => Promise<unknown>;
+        };
+        const browserWindow = window as typeof window & {
+          require: (name: string) => GroupModule | undefined;
+        };
+        if (
+          typeof browserWindow.require("WAWebGroupCreateJob")?.createGroup !==
+          "function"
+        ) {
+          const loader = browserWindow.require("WAWebNewGroupFlowLoadable");
+          if (typeof loader?.requireBundle !== "function") return false;
+          await loader.requireBundle();
+        }
+        return (
+          typeof browserWindow.require("WAWebGroupCreateJob")?.createGroup ===
+          "function"
+        );
+      });
+      if (!groupModuleReady) {
+        throw new Error(
+          "WhatsApp group creation module is unavailable after loading",
+        );
+      }
+      console.info("WhatsApp group creation module ready", { organizationId });
+
+      stage = "createGroup";
+      console.info("WhatsApp group creation requested", {
+        organizationId,
+        organizerNeedsAdding: participants.length > 0,
+      });
+      const result = await client.createGroup(title, participants);
+      if (typeof result === "string" || !result.gid?._serialized) {
+        throw new Error(
+          typeof result === "string"
+            ? result
+            : "WhatsApp did not create the group",
+        );
+      }
+      stage = "participant result";
+      const organizerStatus =
+        participants.length > 0
+          ? (result.participants?.[participants[0]] ??
+            Object.values(result.participants ?? {}).find(
+              (participant) => !participant.isGroupCreator,
+            ))
+          : undefined;
+      const organizerAdded =
+        phone === organizationPhone || organizerStatus?.statusCode === 200;
+      console.info("WhatsApp group creation succeeded", {
+        organizationId,
+        durationMs: Date.now() - startedAt,
+        organizerAdded,
+        organizerStatusCode: organizerStatus?.statusCode ?? null,
+      });
+      return { chatId: result.gid._serialized, organizerAdded };
+    } catch (error) {
+      const message = safeGroupError(error, title);
+      console.error("WhatsApp group creation failed", {
+        organizationId,
+        stage,
+        durationMs: Date.now() - startedAt,
+        error: message,
+      });
+      throw new Error(message);
+    }
   }
 }

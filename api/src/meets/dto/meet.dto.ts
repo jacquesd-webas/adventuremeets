@@ -143,6 +143,10 @@ export class MeetDto {
   @IsBoolean()
   checkinCompleted!: boolean;
 
+  @ApiProperty()
+  @IsBoolean()
+  hasWhatsappGroup!: boolean;
+
   @ApiPropertyOptional()
   @IsBoolean()
   autoPlacement?: boolean;

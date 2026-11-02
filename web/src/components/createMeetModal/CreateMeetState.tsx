@@ -71,6 +71,8 @@ export type CreateMeetState = {
   imageCount: number;
   statusId: number | null;
   attendeeReconfirm: boolean;
+  createWhatsappGroup: boolean;
+  whatsappGroupCreated: boolean;
 };
 
 export const initialState: CreateMeetState = {
@@ -121,6 +123,8 @@ export const initialState: CreateMeetState = {
   imageCount: 0,
   statusId: null,
   attendeeReconfirm: true,
+  createWhatsappGroup: false,
+  whatsappGroupCreated: false,
 };
 
 export type StepProps = {
@@ -151,6 +155,9 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     name: meet.name ?? "",
     description: meet.description ?? "",
     organizerId: meet.organizerId ?? "",
+    organizationId: meet.organizationId ?? "",
+    createWhatsappGroup: Boolean(meet.hasWhatsappGroup),
+    whatsappGroupCreated: Boolean(meet.hasWhatsappGroup),
     location: meet.location ?? "",
     locationLat: toNumberOrEmpty(meet.locationLat),
     locationLong: toNumberOrEmpty(meet.locationLong),

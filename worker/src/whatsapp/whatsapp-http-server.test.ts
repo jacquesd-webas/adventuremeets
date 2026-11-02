@@ -38,6 +38,12 @@ describe("WhatsApp internal HTTP server", () => {
           { id: "group@g.us", name: "Group", isGroup: true },
         ]),
       sendMeetMessage: vi.fn().mockResolvedValue(undefined),
+      createMeetGroup: vi
+        .fn()
+        .mockResolvedValue({ chatId: "new-group@g.us", organizerAdded: true }),
+      getGroupInviteLink: vi
+        .fn()
+        .mockResolvedValue({ url: "https://chat.whatsapp.com/InviteCode123" }),
     } as unknown as WhatsappSessionManager;
     const server = createWhatsappHttpServer(sessions, "secret");
 
@@ -74,5 +80,45 @@ describe("WhatsApp internal HTTP server", () => {
       "Hello",
       undefined,
     );
+
+    expect(
+      (
+        await request(server, "POST", "/groups", "secret", {
+          organizationId: "org-1",
+          title: "Mountain walk",
+          organizerPhone: "+27123456789",
+        })
+      ).body,
+    ).toEqual({ chatId: "new-group@g.us", organizerAdded: true });
+    expect(sessions.createMeetGroup).toHaveBeenCalledWith(
+      "org-1",
+      "Mountain walk",
+      "+27123456789",
+    );
+
+    expect(
+      (
+        await request(
+          server,
+          "GET",
+          "/groups/invite?organizationId=org-1&chatId=new-group%40g.us",
+          "secret",
+        )
+      ).body,
+    ).toEqual({ url: "https://chat.whatsapp.com/InviteCode123" });
+    expect(sessions.getGroupInviteLink).toHaveBeenCalledWith(
+      "org-1",
+      "new-group@g.us",
+    );
+    expect(
+      (
+        await request(
+          server,
+          "GET",
+          "/groups/invite?organizationId=org-1&chatId=person%40c.us",
+          "secret",
+        )
+      ).status,
+    ).toBe(400);
   });
 });

@@ -5,6 +5,7 @@ import {
   Checkbox,
   FormControlLabel,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -15,8 +16,11 @@ import { HelpBanner } from "./HelpBanner";
 import { getMeetDateLabel, getMeetTimeLabel } from "../../helpers/meetTime";
 import { openMeetPosterPrintWindow } from "./openMeetPosterPrintWindow";
 import Meet from "../../types/MeetModel";
+import { useMeetWhatsappConnection } from "../../hooks/useMeetWhatsapp";
+import { MeetWhatsappInviteLink } from "./MeetWhatsappInviteLink";
 
 type FinishStepProps = StepProps & {
+  meetId?: string | null;
   shareCode?: string | null;
   checkinPin?: string | null;
   isEditing?: boolean;
@@ -27,6 +31,7 @@ export function FinishStep({
   state,
   setState,
   errors = [],
+  meetId,
   shareCode,
   checkinPin,
   disabled = false,
@@ -37,6 +42,9 @@ export function FinishStep({
   onDismissHelpBanner,
 }: FinishStepProps) {
   const [copied, setCopied] = useState(false);
+  const { data: whatsappConnection, isLoading: isLoadingWhatsapp } =
+    useMeetWhatsappConnection(meetId);
+  const whatsappConnected = whatsappConnection?.connected === true;
 
   const showPostponedWarning =
     isEditing && state.statusId === MeetStatusEnum.Postponed;
@@ -207,6 +215,38 @@ export function FinishStep({
             </Stack>
           </>
         )}
+        <Typography variant="h6">WhatsApp Group</Typography>
+        <Box>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={state.createWhatsappGroup}
+                onChange={(_event, checked) =>
+                  setState((prev) => ({
+                    ...prev,
+                    createWhatsappGroup: checked,
+                  }))
+                }
+                disabled={
+                  disabled || state.whatsappGroupCreated || !whatsappConnected
+                }
+              />
+            }
+            label="Create a WhatsApp group for this meet"
+          />
+          <Typography variant="body2" color="text.secondary">
+            {state.whatsappGroupCreated
+              ? "The WhatsApp group has been created."
+              : whatsappConnected
+                ? "The organisation number will create the group. The organiser will be added if they use a different number."
+                : isLoadingWhatsapp
+                  ? "Checking the organisation WhatsApp connection..."
+                  : "Connect the organisation WhatsApp number to enable this option."}
+          </Typography>
+          {state.whatsappGroupCreated && meetId ? (
+            <MeetWhatsappInviteLink meetId={meetId} />
+          ) : null}
+        </Box>
         {showPostponedWarning ? (
           <>
             <Alert severity="warning">

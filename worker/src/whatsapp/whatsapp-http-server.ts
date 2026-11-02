@@ -44,6 +44,23 @@ export function createWhatsappHttpServer(
         return;
       }
 
+      if (request.method === "GET" && url.pathname === "/groups/invite") {
+        const organizationId = url.searchParams.get("organizationId");
+        const chatId = url.searchParams.get("chatId");
+        if (!organizationId || !chatId?.endsWith("@g.us")) {
+          respond(response, 400, {
+            error: "Organization and group are required",
+          });
+          return;
+        }
+        respond(
+          response,
+          200,
+          await sessions.getGroupInviteLink(organizationId, chatId),
+        );
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/send") {
         const body = await readJson(request);
         if (!body || typeof body !== "object")
@@ -73,6 +90,34 @@ export function createWhatsappHttpServer(
           image as { mimeType: string; base64: string } | undefined,
         );
         respond(response, 200, { sent: true });
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/groups") {
+        const body = await readJson(request);
+        if (!body || typeof body !== "object")
+          throw new Error("Invalid request");
+        const { organizationId, title, organizerPhone } = body as Record<
+          string,
+          unknown
+        >;
+        if (
+          typeof organizationId !== "string" ||
+          !organizationId ||
+          typeof title !== "string" ||
+          !title.trim() ||
+          title.length > 100 ||
+          (organizerPhone !== null && typeof organizerPhone !== "string")
+        )
+          throw new Error("Invalid group request");
+        respond(
+          response,
+          200,
+          await sessions.createMeetGroup(
+            organizationId,
+            title.trim(),
+            organizerPhone,
+          ),
+        );
         return;
       }
       respond(response, 404, { error: "Not found" });

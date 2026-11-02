@@ -56,6 +56,8 @@ import { writeCreateMeetPreviewRestore } from "./createMeetPreviewRestore";
 import { buildMeetQuestionFieldKey } from "../../helpers/meetQuestionFieldKey";
 import { useNavigate } from "react-router-dom";
 import { buildCreateMeetStateFromOrganizationDefaults } from "./createMeetDefaults";
+import { useCreateMeetWhatsappGroup } from "../../hooks/useMeetWhatsapp";
+import { useSnackbar } from "notistack";
 
 type CreateMeetModalProps = {
   open: boolean;
@@ -105,6 +107,8 @@ export function CreateMeetModal({
   const orgDefaultsAppliedKeyRef = useRef<string | null>(null);
   const { save: saveMeet } = useSaveMeet(meetIdProp ?? null);
   const { updateStatusAsync, isLoading: isPublishing } = useUpdateMeetStatus();
+  const createWhatsappGroup = useCreateMeetWhatsappGroup();
+  const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const nav = useNavigate();
   const { currentOrganizationId } = useCurrentOrganization();
@@ -617,6 +621,16 @@ export function CreateMeetModal({
             : undefined,
       });
 
+      if (state.createWhatsappGroup && !state.whatsappGroupCreated) {
+        const group = await createWhatsappGroup.mutateAsync(meetId);
+        if (!group.organizerAdded) {
+          enqueueSnackbar(
+            "WhatsApp created the group but could not add the organiser. Invite them from WhatsApp.",
+            { variant: "warning" },
+          );
+        }
+      }
+
       // Clear everything
       onCreated?.();
       setState(initialState);
@@ -644,6 +658,15 @@ export function CreateMeetModal({
           statusId: MeetStatusEnum.Published,
           reconfirmAttendees: state.attendeeReconfirm,
         });
+      }
+      if (meetId && state.createWhatsappGroup && !state.whatsappGroupCreated) {
+        const group = await createWhatsappGroup.mutateAsync(meetId);
+        if (!group.organizerAdded) {
+          enqueueSnackbar(
+            "WhatsApp created the group but could not add the organiser. Invite them from WhatsApp.",
+            { variant: "warning" },
+          );
+        }
       }
       setBaselineState(state);
       onCreated?.();
@@ -888,6 +911,7 @@ export function CreateMeetModal({
       case 8:
         return (
           <FinishStep
+            meetId={meetId}
             state={state}
             setState={(fn) => setState(fn)}
             errors={finalErrors}

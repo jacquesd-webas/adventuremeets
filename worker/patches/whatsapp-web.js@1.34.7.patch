@@ -1,5 +1,5 @@
 diff --git a/src/Client.js b/src/Client.js
-index 800109ebf7720d5f0f29091518a8a25f7fd8e381..a365f0eb65a59165e0881f938547a0f52e3a0410 100644
+index 800109ebf7720d5f0f29091518a8a25f7fd8e381..35dde9d56a70fea87a753ad99b1d2c2b6435b13d 100644
 --- a/src/Client.js
 +++ b/src/Client.js
 @@ -403,11 +403,13 @@ class Client extends EventEmitter {
@@ -21,6 +21,21 @@ index 800109ebf7720d5f0f29091518a8a25f7fd8e381..a365f0eb65a59165e0881f938547a0f5
              const Cmd = window.require('WAWebCmd').Cmd;
              Cmd.on('offline_progress_update_from_bridge', () => {
                  window.onOfflineProgressUpdateEvent(
+@@ -2372,8 +2374,11 @@ class Client extends EventEmitter {
+                             },
+                             participantWids,
+                         );
+-                } catch (ignoredError) {
+-                    return 'CreateGroupError: An unknown error occupied while creating a group';
++                } catch (createError) {
++                    const name = createError?.name || 'Error';
++                    const code = createError?.code || createError?.status;
++                    const message = createError?.message || String(createError);
++                    return `CreateGroupError [${name}${code ? ` ${code}` : ''}]: ${message}`;
+                 }
+-
++
+                 for (const participant of createGroupResult.participants) {
 diff --git a/src/util/Injected/Utils.js b/src/util/Injected/Utils.js
 index 540078a9d07b3df07ccd51b030556a72af4cf650..2bb15096201ed33c36c149f0d58d09a60d87c518 100644
 --- a/src/util/Injected/Utils.js

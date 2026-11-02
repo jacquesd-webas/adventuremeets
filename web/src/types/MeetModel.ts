@@ -25,6 +25,7 @@ export type Meet = {
   status?: string;
   statusId?: number;
   checkinCompleted?: boolean;
+  hasWhatsappGroup?: boolean;
   organizerName?: string;
   organizerFirstName?: string;
   organizerLastName?: string;

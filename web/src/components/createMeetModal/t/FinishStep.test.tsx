@@ -4,6 +4,19 @@ import { initialState } from "../CreateMeetState";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
 import { openMeetPosterPrintWindow } from "../openMeetPosterPrintWindow";
 
+vi.mock("../../../hooks/useMeetWhatsapp", () => ({
+  useMeetWhatsappConnection: () => ({
+    data: { connected: true },
+    isLoading: false,
+  }),
+  useMeetWhatsappInviteLink: () => ({
+    data: { url: "https://chat.whatsapp.com/InviteCode123" },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+
 vi.mock("../openMeetPosterPrintWindow", () => ({
   openMeetPosterPrintWindow: vi.fn(),
 }));
@@ -53,6 +66,45 @@ describe("FinishStep", () => {
     ).toMatchObject({
       attendeeReconfirm: false,
     });
+  });
+
+  it("offers a WhatsApp group switch when the organisation is connected", () => {
+    const setState = vi.fn();
+    render(
+      <FinishStep
+        state={initialState}
+        setState={setState}
+        errors={[]}
+        meetId="meet-1"
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Create a WhatsApp group for this meet",
+      }),
+    );
+    expect(setState.mock.calls[0][0](initialState)).toMatchObject({
+      createWhatsappGroup: true,
+    });
+  });
+
+  it("shows an existing WhatsApp group invite link on step 9", () => {
+    render(
+      <FinishStep
+        state={{ ...initialState, whatsappGroupCreated: true }}
+        setState={vi.fn()}
+        errors={[]}
+        meetId="meet-1"
+      />,
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Group invite link" }),
+    ).toHaveValue("https://chat.whatsapp.com/InviteCode123");
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Create a WhatsApp group for this meet",
+      }),
+    ).toBeDisabled();
   });
 
   it("does not show the postponed warning for non-edit flow", () => {
@@ -107,9 +159,7 @@ describe("FinishStep", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /sign-up poster/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /sign-up poster/i }));
 
     expect(openMeetPosterPrintWindow).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -138,9 +188,7 @@ describe("FinishStep", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /check-in poster/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /check-in poster/i }));
 
     expect(openMeetPosterPrintWindow).toHaveBeenCalledWith(
       expect.objectContaining({

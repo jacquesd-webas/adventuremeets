@@ -9,6 +9,10 @@ import { EDITING_MEET_RESTORE_KEY } from "../createMeetPreviewRestore";
 
 const mockSave = vi.fn(async () => ({}));
 const mockUpdateStatusAsync = vi.fn(async () => ({}));
+const mockCreateWhatsappGroup = vi.fn(async () => ({
+  chatId: "group@g.us",
+  organizerAdded: true,
+}));
 const navigate = vi.fn();
 
 const meetFixture = {
@@ -104,6 +108,10 @@ vi.mock("../../../hooks/useApi", () => ({
   useApi: () => ({ baseUrl: "http://localhost:3000" }),
 }));
 
+vi.mock("notistack", () => ({
+  useSnackbar: () => ({ enqueueSnackbar: vi.fn() }),
+}));
+
 vi.mock("../../../hooks/useSaveMeet", () => ({
   useSaveMeet: () => ({ save: mockSave }),
 }));
@@ -112,6 +120,20 @@ vi.mock("../../../hooks/useUpdateMeetStatus", () => ({
   useUpdateMeetStatus: () => ({
     updateStatusAsync: mockUpdateStatusAsync,
     isLoading: false,
+  }),
+}));
+
+vi.mock("../../../hooks/useMeetWhatsapp", () => ({
+  useCreateMeetWhatsappGroup: () => ({ mutateAsync: mockCreateWhatsappGroup }),
+  useMeetWhatsappConnection: () => ({
+    data: { connected: true },
+    isLoading: false,
+  }),
+  useMeetWhatsappInviteLink: () => ({
+    data: { url: "https://chat.whatsapp.com/InviteCode123" },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
   }),
 }));
 
@@ -174,6 +196,7 @@ describe("CreateMeetModal edit mode", () => {
   beforeEach(() => {
     mockSave.mockClear();
     mockUpdateStatusAsync.mockClear();
+    mockCreateWhatsappGroup.mockClear();
     navigate.mockClear();
     currentMeetFixture = meetFixture;
     mockedOrganization = {
@@ -516,6 +539,33 @@ describe("CreateMeetModal edit mode", () => {
       statusId: MeetStatusEnum.Published,
       reconfirmAttendees: true,
     });
+  });
+
+  it("creates the selected WhatsApp group after publishing", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = { ...meetFixture, statusId: MeetStatusEnum.Postponed };
+    renderCreateMeetModal();
+
+    await user.click(screen.getByText("Finish"));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Create a WhatsApp group for this meet",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: /publish/i }));
+
+    await waitFor(() =>
+      expect(mockCreateWhatsappGroup).toHaveBeenCalledWith("meet-1"),
+    );
+    expect(mockUpdateStatusAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meetId: "meet-1",
+        statusId: MeetStatusEnum.Published,
+      }),
+    );
+    expect(mockUpdateStatusAsync.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCreateWhatsappGroup.mock.invocationCallOrder[0],
+    );
   });
 
   it("stores editor state and navigates in the same tab when previewing", async () => {

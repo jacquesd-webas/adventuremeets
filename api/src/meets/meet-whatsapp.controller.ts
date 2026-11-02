@@ -41,6 +41,16 @@ export class MeetWhatsappController {
     return this.whatsapp.listChats(await this.authorizedMeet(id, user));
   }
 
+  @Get("connection")
+  async connection(@Param("id") id: string, @User() user?: UserProfile) {
+    return this.whatsapp.connectionStatus(await this.authorizedMeet(id, user));
+  }
+
+  @Get("group/invite")
+  async groupInvite(@Param("id") id: string, @User() user?: UserProfile) {
+    return this.whatsapp.groupInviteLink(await this.authorizedMeet(id, user));
+  }
+
   @Post("send")
   async send(
     @Param("id") id: string,
@@ -48,5 +58,10 @@ export class MeetWhatsappController {
     @User() user?: UserProfile,
   ) {
     return this.whatsapp.send(await this.authorizedMeet(id, user), body);
+  }
+
+  @Post("group")
+  async createGroup(@Param("id") id: string, @User() user?: UserProfile) {
+    return this.whatsapp.createGroup(await this.authorizedMeet(id, user));
   }
 }
