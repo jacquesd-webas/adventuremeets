@@ -43,12 +43,12 @@ function createTemplate(options: {
     options.questions.forEach((question) => {
       const buttonLabel =
         question.type === "text"
-          ? "Textfield"
+          ? "Field"
           : question.type === "select"
             ? "Select"
             : question.type === "switch"
               ? "Switch"
-              : "Checkbox";
+              : "Check";
       cy.contains("button", buttonLabel).click();
     });
 
@@ -265,8 +265,9 @@ describe("Create meet with template", () => {
       .should("have.value", rejectResponse);
     cy.get('[data-testid="waitlist-response-field"]')
       .find("textarea")
-      .filter(":visible")
       .first()
+      .scrollIntoView()
+      .should("be.visible")
       .should("have.value", waitlistResponse);
     cy.contains("button", "Save & Continue").click();
 

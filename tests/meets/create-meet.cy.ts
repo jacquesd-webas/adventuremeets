@@ -72,10 +72,10 @@ describe("Create meet flow", () => {
     });
     cy.contains("button", "Save & Continue").click();
 
-    cy.contains("button", "Textfield").click();
+    cy.contains("button", "Field").click();
     cy.contains("button", "Select").click();
     cy.contains("button", "Switch").click();
-    cy.contains("button", "Checkbox").click();
+    cy.contains("button", "Check").click();
 
     cy.get('input[placeholder="What should the user see?"]')
       .eq(0)
@@ -127,12 +127,13 @@ describe("Create meet flow", () => {
       );
     cy.get('[data-testid="waitlist-response-field"]')
       .find("textarea")
-      .filter(":visible")
       .first()
-      .clear({ scrollBehavior: false })
+      .scrollIntoView()
+      .should("be.visible")
+      .clear()
       .type(
         "You are currently on the waitlist. We will notify you if a spot opens.",
-        { delay: 0, scrollBehavior: false },
+        { delay: 0 },
       );
     cy.contains("button", "Save & Continue").click();
 
@@ -254,8 +255,9 @@ describe("Create meet flow", () => {
       );
     cy.get('[data-testid="waitlist-response-field"]')
       .find("textarea")
-      .filter(":visible")
       .first()
+      .scrollIntoView()
+      .should("be.visible")
       .should(
         "have.value",
         "You are currently on the waitlist. We will notify you if a spot opens.",
