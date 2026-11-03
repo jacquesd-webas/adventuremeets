@@ -100,7 +100,9 @@ describe("renderEmailTemplate", () => {
     expect(result.html).toContain("Alex &lt;Walker&gt;");
     expect(result.html).toContain("River &amp; Ridge");
     expect(result.html).toContain('href="mailto:leader@example.com"');
-    expect(result.html).toContain("or just reply to this email with the attachment.");
+    expect(result.html).toContain(
+      "or just reply to this email with the attachment.",
+    );
   });
 
   it("renders the default meet confirmation message with formatted start time", () => {
@@ -155,20 +157,75 @@ describe("renderEmailTemplate", () => {
     });
 
     expect(result.subject).toBe("Message about Night Trail");
-    expect(result.text).toContain(
-      "Please bring &lt;headlamp&gt;\nReply if needed.",
-    );
+    expect(result.text).toContain("Please bring <headlamp>\nReply if needed.");
     expect(result.text).not.toContain("View your application status:");
     expect(result.html).toContain(
       "Please bring &lt;headlamp&gt;<br/>Reply if needed.",
     );
     expect(result.html).not.toContain("View your application");
     expect(result.text).toContain(
-      "If you need to reply, contact Robin &amp; Co at robin@example.com or just reply to this email.",
+      "If you need to reply, contact Robin & Co at robin@example.com or just reply to this email.",
     );
     expect(result.html).toMatch(
       /If you need to reply, contact\s+Robin &amp; Co at/,
     );
+  });
+
+  it("expands attendee and meet variables in custom status emails", () => {
+    const result = renderEmailTemplate("meet-confirm", {
+      meetName: "Hike & Climb",
+      attendeeName: "Alex <Walker>",
+      organizerName: "Robin <Leader>",
+      startTime: "2026-11-03T06:00:00.000Z",
+      endTime: "2026-11-04T10:30:00.000Z",
+      timeZone: "Africa/Johannesburg",
+      location: "Table & Ridge",
+      messageBody:
+        "Hi {{name}}. {{meet}} runs from {{start_date}} at {{start_time}} to {{end_date}} at {{end_time}}. Meet at {{location}}. Organiser: {{organiser}}. {{unknown}}",
+    });
+
+    expect(result.text).toContain(
+      "Hi Alex <Walker>. Hike & Climb runs from Tuesday, 3 November at 08:00 to Wednesday, 4 November at 12:30. Meet at Table & Ridge. Organiser: Robin <Leader>. {{unknown}}",
+    );
+    expect(result.html).toContain(
+      "Hi Alex &lt;Walker&gt;. Hike &amp; Climb runs from Tuesday, 3 November at 08:00 to Wednesday, 4 November at 12:30. Meet at Table &amp; Ridge. Organiser: Robin &lt;Leader&gt;. {{unknown}}",
+    );
+  });
+
+  it("expands variables in waitlist and organiser messages", () => {
+    const vars = {
+      meetName: "Hike",
+      attendeeName: "Alex",
+      startTime: "2026-11-03T06:00:00.000Z",
+      endTime: "2026-11-03T08:00:00.000Z",
+      timeZone: "Africa/Johannesburg",
+      location: "Table Mountain",
+      messageBody:
+        "{{name}}, meet at {{location}} on {{start_date}} at {{start_time}}.",
+    };
+
+    for (const template of ["meet-waitlist", "meet-message"] as const) {
+      const result = renderEmailTemplate(template, vars);
+      expect(result.text).toContain(
+        "Alex, meet at Table Mountain on Tuesday, 3 November at 08:00.",
+      );
+      expect(result.html).toContain(
+        "Alex, meet at Table Mountain on Tuesday, 3 November at 08:00.",
+      );
+    }
+  });
+
+  it("does not interpret placeholders inside attendee data", () => {
+    const result = renderEmailTemplate("meet-message", {
+      meetName: "Hike",
+      attendeeName: "{{location}}",
+      location: "Table Mountain",
+      messageBody: "Hello {{name}}",
+    });
+
+    expect(result.text).toContain("Hello {{location}}");
+    expect(result.html).toContain("Hello {{location}}");
+    expect(result.text).not.toContain("Hello Table Mountain");
   });
 
   it("renders grouped meet messages with the organiser-direct reply wording", () => {

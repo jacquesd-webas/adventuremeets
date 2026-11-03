@@ -5,6 +5,7 @@ import { LabeledField } from "./LabeledField";
 import { StepProps } from "./CreateMeetState";
 import { SelectTemplate } from "./SelectTemplate";
 import { HelpBanner } from "./HelpBanner";
+import { EmailTemplateVariablesHelp } from "../EmailTemplateVariablesHelp";
 
 export const ResponsesStep = ({
   state,
@@ -80,6 +81,7 @@ export const ResponsesStep = ({
             disabled={disabled}
           />
         </LabeledField>
+        <EmailTemplateVariablesHelp />
         <LabeledField label="Reject response">
           <TextField
             data-testid="reject-response-field"

@@ -24,6 +24,7 @@ import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import Meet from "../../types/MeetModel";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { EmailTemplateVariablesHelp } from "../EmailTemplateVariablesHelp";
 
 type MessageModalProps = {
   open: boolean;
@@ -640,6 +641,7 @@ export function MessageModal({
               }}
               disabled={autoResponse}
             />
+            <EmailTemplateVariablesHelp />
             <Stack direction="column" spacing={1}>
               {!attendeeIds && (
                 <>

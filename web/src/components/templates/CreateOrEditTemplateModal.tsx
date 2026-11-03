@@ -30,6 +30,7 @@ import {
   formatSelectQuestionOptions,
   parseSelectQuestionOptions,
 } from "../createMeetModal/selectQuestionOptions";
+import { EmailTemplateVariablesHelp } from "../EmailTemplateVariablesHelp";
 
 type CreateOrEditTemplateModalProps = {
   open: boolean;
@@ -501,6 +502,7 @@ export function CreateOrEditTemplateModal({
                     multiline
                     minRows={4}
                   />
+                  <EmailTemplateVariablesHelp />
                   <TextField
                     label="Reject response"
                     placeholder="Message sent to rejected attendees"

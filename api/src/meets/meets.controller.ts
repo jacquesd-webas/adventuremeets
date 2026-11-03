@@ -918,6 +918,10 @@ export class MeetsController {
         const { text } = renderEmailTemplate("meet-message", {
           meetName: meet.name,
           attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
           statusUrl,
           includeStatusUrl,
           organizerName,
@@ -953,6 +957,10 @@ export class MeetsController {
       const { text, html } = renderEmailTemplate("meet-message", {
         meetName: meet.name,
         attendeeName: "everyone",
+        startTime: meet.startTime,
+        endTime: meet.endTime,
+        timeZone: meet.timeZone,
+        location: meet.location,
         statusUrl: "",
         includeStatusUrl: false,
         isGroupedMessage: true,
@@ -987,6 +995,10 @@ export class MeetsController {
           const { text, html } = renderEmailTemplate("meet-message", {
             meetName: meet.name,
             attendeeName,
+            startTime: meet.startTime,
+            endTime: meet.endTime,
+            timeZone: meet.timeZone,
+            location: meet.location,
             statusUrl,
             includeStatusUrl,
             organizerName,

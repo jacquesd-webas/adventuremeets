@@ -77,6 +77,10 @@ export type MeetStatusTemplateVars = {
 export type MeetMessageTemplateVars = {
   meetName: string;
   attendeeName?: string;
+  startTime?: string;
+  endTime?: string;
+  timeZone?: string;
+  location?: string;
   statusUrl?: string;
   includeStatusUrl?: boolean;
   isGroupedMessage?: boolean;
@@ -144,12 +148,22 @@ export const baseVarsMap = {
 
 export const ALWAYS_ESCAPE = [
   "attendeeName",
+  "name",
+  "meet",
   "meetName",
   "organizerName",
+  "organiser",
   "organizationName",
   "locationLine",
   "timeLine",
   "startTime",
   "startDate",
+  "start_date",
+  "end_date",
+  "start",
+  "end",
+  "start_time",
+  "end_time",
+  "location",
   "messageBody",
 ] as const;
