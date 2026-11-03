@@ -342,7 +342,8 @@ export function CreateMeetModal({
     const hasResponse =
       Boolean(state.approvedResponse?.trim()) ||
       Boolean(state.rejectResponse?.trim()) ||
-      Boolean(state.waitlistResponse?.trim());
+      Boolean(state.waitlistResponse?.trim()) ||
+      Boolean(state.invitationWording?.trim());
     const hasImage = state.imageCount > 0;
     const isPublished =
       (state.statusId ?? null) !== null && state.statusId !== 1;
@@ -381,6 +382,7 @@ export function CreateMeetModal({
     state.approvedResponse,
     state.rejectResponse,
     state.waitlistResponse,
+    state.invitationWording,
     state.statusId,
     state.imageCount,
     state.imagePreview,
@@ -474,7 +476,8 @@ export function CreateMeetModal({
             fieldType: question.type,
             category:
               question.category ?? (question.pdfFormFieldId ? "P" : "N"),
-            required: Boolean(question.required),
+            required:
+              question.type !== "static-text" && Boolean(question.required),
             pdfFormFieldId: question.pdfFormFieldId ?? null,
             config:
               question.type === "select"
@@ -486,7 +489,9 @@ export function CreateMeetModal({
                       : {}),
                   }
                 : {
-                    includeInReports: Boolean(question.includeInReports),
+                    includeInReports:
+                      question.type !== "static-text" &&
+                      Boolean(question.includeInReports),
                     ...(question.pdfFormFieldId
                       ? { source: "indemnity-pdf" }
                       : {}),
@@ -528,6 +533,7 @@ export function CreateMeetModal({
           confirmMessage: draft.approvedResponse || undefined,
           rejectMessage: draft.rejectResponse || undefined,
           waitlistMessage: draft.waitlistResponse || undefined,
+          invitationWording: draft.invitationWording.trim() || null,
         };
       default:
         return {};
@@ -1095,6 +1101,8 @@ export function CreateMeetModal({
                   flex: 1,
                   minHeight: 0,
                   overflowY: "auto",
+                  position: "relative",
+                  zIndex: 0,
                   pr: fullScreen ? 0 : 1,
                   pb: fullScreen ? 2 : 0,
                 }}

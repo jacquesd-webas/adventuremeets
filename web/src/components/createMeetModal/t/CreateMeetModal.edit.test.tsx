@@ -108,6 +108,10 @@ vi.mock("../../../hooks/useSaveMeet", () => ({
   useSaveMeet: () => ({ save: mockSave }),
 }));
 
+vi.mock("../ImageStep", () => ({
+  ImageStep: () => <div>Image step</div>,
+}));
+
 vi.mock("../../../hooks/useUpdateMeetStatus", () => ({
   useUpdateMeetStatus: () => ({
     updateStatusAsync: mockUpdateStatusAsync,
@@ -266,6 +270,39 @@ describe("CreateMeetModal edit mode", () => {
     });
 
     expect(state.questions[0].category).toBe("N");
+  });
+
+  it("edits and clears invitation wording on the Responses step", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      invitationWording: "Please join our camp.",
+    };
+    renderCreateMeetModal();
+
+    await user.click(screen.getByText("Responses"));
+    const wording = screen
+      .getByTestId("invitation-wording-field")
+      .querySelector("textarea");
+    expect(wording).toHaveValue("Please join our camp.");
+
+    await user.clear(wording!);
+    await user.type(wording!, "Join us on Saturday.");
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({ invitationWording: "Join us on Saturday." }),
+      "meet-1",
+    );
+
+    await user.click(screen.getByText("Responses"));
+    await user.clear(
+      screen.getByTestId("invitation-wording-field").querySelector("textarea")!,
+    );
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({ invitationWording: null }),
+      "meet-1",
+    );
   });
 
   it("automatically enables self check-in when walk-ins are enabled", async () => {

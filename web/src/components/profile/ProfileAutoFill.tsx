@@ -92,6 +92,7 @@ export function ProfileAutoFill() {
     const byKey = new Map(userMetaValues.map((item) => [item.key, item.value]));
     const initialValues: Record<string, any> = {};
     metaDefinitions.forEach((definition) => {
+      if (definition.fieldType === "static-text") return;
       const raw = byKey.get(definition.fieldKey) ?? null;
       initialValues[definition.fieldKey] = parseMetaValue(
         definition.fieldType,
@@ -105,29 +106,33 @@ export function ProfileAutoFill() {
   const handleSaveAutoFill = async () => {
     if (!user || !currentOrganizationId) return;
     const fieldKeys = new Set<string>([
-      ...metaDefinitions.map((definition) => definition.fieldKey),
+      ...metaDefinitions
+        .filter((definition) => definition.fieldType !== "static-text")
+        .map((definition) => definition.fieldKey),
       ...userMetaValues.map((item) => item.key),
     ]);
     const definitionByKey = new Map(
       metaDefinitions.map((definition) => [definition.fieldKey, definition]),
     );
-    const values = Array.from(fieldKeys).map((key) => {
-      const raw = autoFillValues[key];
-      const fieldType = definitionByKey.get(key)?.fieldType;
-      let value: string | null;
-      if (raw === "" || raw === undefined || raw === null) {
-        value = null;
-      } else if (
-        typeof raw === "boolean" ||
-        fieldType === "checkbox" ||
-        fieldType === "switch"
-      ) {
-        value = raw ? "true" : "false";
-      } else {
-        value = String(raw);
-      }
-      return { key, value };
-    });
+    const values = Array.from(fieldKeys)
+      .filter((key) => definitionByKey.get(key)?.fieldType !== "static-text")
+      .map((key) => {
+        const raw = autoFillValues[key];
+        const fieldType = definitionByKey.get(key)?.fieldType;
+        let value: string | null;
+        if (raw === "" || raw === undefined || raw === null) {
+          value = null;
+        } else if (
+          typeof raw === "boolean" ||
+          fieldType === "checkbox" ||
+          fieldType === "switch"
+        ) {
+          value = raw ? "true" : "false";
+        } else {
+          value = String(raw);
+        }
+        return { key, value };
+      });
     await updateMetaValuesAsync({
       userId: user.id,
       organizationId: currentOrganizationId,
@@ -158,6 +163,7 @@ export function ProfileAutoFill() {
       ) : metaDefinitions.length ? (
         <Stack spacing={2} sx={{ width: "100%" }}>
           {metaDefinitions.map((item) => {
+            if (item.fieldType === "static-text") return null;
             const key = item.fieldKey;
             const value = autoFillValues[key];
             if (item.fieldType === "checkbox" || item.fieldType === "switch") {

@@ -7,6 +7,7 @@ import { useFetchOrganizationTemplates } from "../../hooks/useFetchOrganizationT
 import { useFetchOrganizationTemplate } from "../../hooks/useFetchOrganizationTemplate";
 import { QuestionField } from "./CreateMeetState";
 import { Template, TemplateMetaDefinition } from "../../types/TemplateModel";
+import { formatSelectQuestionOptions } from "./selectQuestionOptions";
 
 type SelectTemplateProps = {
   organizationId?: string;
@@ -123,9 +124,13 @@ const mapDefinitionsToQuestions = (
   definitions: TemplateMetaDefinition[],
 ): QuestionField[] =>
   definitions.map((definition) => {
-    const fieldType = ["text", "select", "switch", "checkbox"].includes(
-      definition.fieldType,
-    )
+    const fieldType = [
+      "text",
+      "select",
+      "switch",
+      "checkbox",
+      "static-text",
+    ].includes(definition.fieldType)
       ? (definition.fieldType as QuestionField["type"])
       : "text";
     const fallbackId =
@@ -146,7 +151,7 @@ const mapDefinitionsToQuestions = (
           : undefined,
       optionsInput:
         fieldType === "select"
-          ? ((definition.config?.options as string[]) || []).join(", ")
+          ? formatSelectQuestionOptions(definition.config?.options as string[])
           : "",
       fieldKey: definition.fieldKey,
     };

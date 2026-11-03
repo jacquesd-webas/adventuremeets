@@ -845,7 +845,8 @@ export class MeetsService {
     );
 
     return (meet.metaDefinitions || []).some((definition) => {
-      if (!definition.required) return false;
+      if (!definition.required || definition.fieldType === "static-text")
+        return false;
 
       const value = metaValuesByKey.get(definition.fieldKey);
       if (
@@ -2585,6 +2586,10 @@ export class MeetsService {
       confirm_message: dto.confirmMessage,
       reject_message: dto.rejectMessage,
       waitlist_message: dto.waitlistMessage,
+      invitation_wording:
+        dto.invitationWording === undefined
+          ? undefined
+          : dto.invitationWording?.trim() || null,
       has_indemnity: dto.hasIndemnity,
       indemnity: dto.indemnity,
       allow_minor_indemnity: dto.allowMinorIndemnity,
@@ -2754,6 +2759,7 @@ export class MeetsService {
       confirmMessage: meet.confirm_message ?? undefined,
       rejectMessage: meet.reject_message ?? meet.rejectMessage ?? undefined,
       waitlistMessage: meet.waitlist_message ?? undefined,
+      invitationWording: meet.invitation_wording ?? undefined,
       hasIndemnity: meet.has_indemnity ?? undefined,
       hasPdfIndemnityTemplate: Boolean(meet.indemnity_pdfs_id),
       indemnity: meet.indemnity ?? undefined,
@@ -2950,11 +2956,16 @@ export class MeetsService {
         field_key: definition.fieldKey || `field_${index + 1}`,
         label: definition.label,
         field_type: definition.fieldType,
-        required: Boolean(definition.required),
+        required:
+          definition.fieldType !== "static-text" &&
+          Boolean(definition.required),
         category: definition.category,
         pdf_form_field_id: definition.pdfFormFieldId,
         position: index,
-        config: definition.config ?? {},
+        config:
+          definition.fieldType === "static-text"
+            ? { ...(definition.config ?? {}), includeInReports: false }
+            : (definition.config ?? {}),
       }))
       .filter((definition) => definition.label);
     const updatedAtValue = trx.fn?.now

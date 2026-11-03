@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   FormControl,
   FormControlLabel,
   FormHelperText,
@@ -382,6 +383,19 @@ export function MeetSignupFormFields({
             const value = metaValues[key];
             const source = metaValueSources[key];
 
+            if (field.fieldType === "static-text") {
+              return (
+                <Box
+                  key={field.id}
+                  sx={{ bgcolor: "grey.100", borderRadius: 1, p: 1.5 }}
+                >
+                  <Typography variant="body1" sx={{ whiteSpace: "pre-line" }}>
+                    {field.label}
+                  </Typography>
+                </Box>
+              );
+            }
+
             if (
               field.fieldType === "checkbox" ||
               field.fieldType === "switch"
@@ -399,17 +413,31 @@ export function MeetSignupFormFields({
                   >
                     <FormControlLabel
                       control={
-                        <Switch
-                          checked={Boolean(value)}
-                          onChange={(e) => setMetaValue(key, e.target.checked)}
-                        />
+                        field.fieldType === "checkbox" ? (
+                          <Checkbox
+                            checked={Boolean(value)}
+                            onChange={(e) =>
+                              setMetaValue(key, e.target.checked)
+                            }
+                          />
+                        ) : (
+                          <Switch
+                            checked={Boolean(value)}
+                            onChange={(e) =>
+                              setMetaValue(key, e.target.checked)
+                            }
+                          />
+                        )
                       }
                       label={`${field.label}${field.required ? " *" : ""}`}
+                      sx={{ m: 0, minWidth: 0 }}
                     />
                     {source && <MeetSignupAnswerSourceBadge source={source} />}
                   </Stack>
                   {errors[`meta:${key}`] && (
-                    <FormHelperText>{errors[`meta:${key}`]}</FormHelperText>
+                    <FormHelperText sx={{ ml: 0 }}>
+                      {errors[`meta:${key}`]}
+                    </FormHelperText>
                   )}
                 </FormControl>
               );

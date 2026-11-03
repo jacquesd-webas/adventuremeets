@@ -244,6 +244,7 @@ describe("MeetsService", () => {
       maxGuests: 2,
       currencyId: 1,
       costCents: 1234,
+      invitationWording: "Please join our camp.",
     });
 
     const insertArg = meetsInsert.insert.mock.calls[0][0];
@@ -265,10 +266,37 @@ describe("MeetsService", () => {
     expect(insertArg.max_guests).toBe(2);
     expect(insertArg.currency_id).toBe(1);
     expect(insertArg.cost_cents).toBe(123400);
+    expect(insertArg.invitation_wording).toBe("Please join our camp.");
     expect(typeof insertArg.share_code).toBe("string");
     expect(insertArg.share_code.length).toBeGreaterThan(0);
 
     expect(created.name).toBe("Test meet");
+  });
+
+  it("clears stored invitation wording when the editor leaves it blank", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue({
+      id: "meet-1",
+      invitation_wording: "Old wording",
+    });
+    meetsBuilder.update.mockResolvedValue([
+      { id: "meet-1", invitation_wording: null },
+    ]);
+    const client: any = () => meetsBuilder;
+    client.transaction = jest.fn(
+      async (callback: (trx: typeof client) => unknown) => callback(client),
+    );
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    await service.update("meet-1", { invitationWording: null });
+
+    expect(meetsBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ invitation_wording: null }),
+      ["*"],
+    );
   });
 
   it("returns primary image URL when fetching a meet", async () => {
@@ -281,6 +309,7 @@ describe("MeetsService", () => {
       indemnity_pdfs_id: "pdf-1",
       confirmed_count: 4,
       rejected_count: 2,
+      invitation_wording: "Please join our camp.",
     };
     const imageRow = {
       id: "image-1",
@@ -315,6 +344,7 @@ describe("MeetsService", () => {
     expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
     expect(result.confirmedCount).toBe(4);
     expect(result.rejectedCount).toBe(2);
+    expect(result.invitationWording).toBe("Please join our camp.");
     expect(result.hasPdfIndemnityTemplate).toBe(true);
     expect(result.images).toEqual([
       expect.objectContaining({
@@ -1748,6 +1778,13 @@ describe("MeetsService", () => {
           required: false,
           config: { options: ["Slow", "Fast"] },
         },
+        {
+          fieldKey: "instructions",
+          label: "Bring a hat and water.",
+          fieldType: "static-text",
+          required: true,
+          config: { includeInReports: true },
+        },
       ],
     } as any);
 
@@ -1780,6 +1817,14 @@ describe("MeetsService", () => {
         category: "N",
         position: 1,
         config: { options: ["Slow", "Fast"] },
+      }),
+      expect.objectContaining({
+        meet_id: "meet-1",
+        field_key: "instructions",
+        field_type: "static-text",
+        required: false,
+        position: 2,
+        config: { includeInReports: false },
       }),
     ]);
   });

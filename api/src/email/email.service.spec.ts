@@ -177,8 +177,14 @@ describe("EmailService.sendEmail", () => {
       where: jest.fn().mockReturnThis(),
       update: jest.fn().mockResolvedValue(2),
     };
+    const meetOrganizationQuery = {
+      leftJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue({ name: "Mountain Scouts" }),
+    };
     const service = createEmailService({
-      getClient: () => () => outboundEmailsQuery,
+      getClient: () => (table: string) =>
+        table === "meets as m" ? meetOrganizationQuery : outboundEmailsQuery,
     } as any);
     const sendMail = jest.fn().mockResolvedValue({
       accepted: ["alex@example.com", "jamie@example.com"],
@@ -200,7 +206,10 @@ describe("EmailService.sendEmail", () => {
       expect.objectContaining({
         to: ["alex@example.com", "jamie@example.com"],
         html: "<p>Hello everyone</p>",
-        from: defaultFrom,
+        from: {
+          name: "Mountain Scouts (Adventuremeets)",
+          address: defaultFrom,
+        },
         envelope: {
           from: defaultFrom,
           to: ["alex@example.com", "jamie@example.com"],
@@ -211,6 +220,7 @@ describe("EmailService.sendEmail", () => {
       "outbound-1",
       "outbound-2",
     ]);
+    expect(meetOrganizationQuery.where).toHaveBeenCalledWith("m.id", "meet-1");
     expect(outboundEmailsQuery.update).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "sent",
@@ -237,6 +247,55 @@ describe("EmailService.sendEmail", () => {
         envelope: {
           from: "organiser@example.com",
           to: ["alex@example.com", "jamie@example.com"],
+        },
+      }),
+    );
+  });
+
+  it("uses the organisation name for default-sender organisation mail", async () => {
+    const outboundEmailsQuery = {
+      insert: jest.fn().mockReturnThis(),
+      returning: jest
+        .fn()
+        .mockResolvedValue([
+          {
+            id: "outbound-1",
+            recipient_email: "alex@example.com",
+            tracking_token: "a".repeat(48),
+          },
+        ]),
+      whereIn: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(1),
+    };
+    const organizationQuery = {
+      where: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue({ name: "Cape Town Scouts" }),
+    };
+    const service = createEmailService({
+      getClient: () => (table: string) =>
+        table === "organizations" ? organizationQuery : outboundEmailsQuery,
+    } as any);
+    const sendMail = jest
+      .fn()
+      .mockResolvedValue({ accepted: ["alex@example.com"] });
+    (service as any).transporter = { sendMail };
+
+    await service.sendEmail({
+      to: "alex@example.com",
+      subject: "Organisation invite",
+      text: "Join us",
+      organizationId: "org-1",
+    });
+
+    expect(organizationQuery.where).toHaveBeenCalledWith({ id: "org-1" });
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: {
+          name: "Cape Town Scouts (Adventuremeets)",
+          address:
+            process.env.MAIL_DEFAULT_FROM ||
+            `noreply@${process.env.MAIL_DOMAIN || "adventuremeets.apps.fringecoding.com"}`,
         },
       }),
     );

@@ -207,6 +207,7 @@ export function MessageModal({
   const defaultMessageOptions = useMemo(
     () => ({
       meetName: meet?.name,
+      invitationWording: meet?.invitationWording,
       confirmMessage: meet?.confirmMessage,
       waitlistMessage: meet?.waitlistMessage,
       rejectMessage: meet?.rejectMessage,
@@ -214,6 +215,7 @@ export function MessageModal({
     }),
     [
       meet?.name,
+      meet?.invitationWording,
       meet?.confirmMessage,
       meet?.waitlistMessage,
       meet?.rejectMessage,

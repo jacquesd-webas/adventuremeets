@@ -26,6 +26,9 @@ export const ResponsesStep = ({
     meetName: state.name,
     isRsvpMode: state.autoApprove,
   });
+  const invitationDefault = useDefaultMessage(AttendeeStatusEnum.Invited, {
+    meetName: state.name,
+  });
 
   return (
     <Box sx={{ position: "relative" }}>
@@ -118,6 +121,28 @@ export const ResponsesStep = ({
             disabled={disabled}
           />
         </LabeledField>
+        <LabeledField label="Invitation wording">
+          <TextField
+            data-testid="invitation-wording-field"
+            placeholder={invitationDefault.content}
+            value={state.invitationWording}
+            onChange={(e) =>
+              setState((prev) => ({
+                ...prev,
+                invitationWording: e.target.value,
+              }))
+            }
+            helperText={
+              isHelpEnabled
+                ? "This message is used when inviting someone to the meet. Leave it blank to use the default."
+                : undefined
+            }
+            fullWidth
+            multiline
+            minRows={3}
+            disabled={disabled}
+          />
+        </LabeledField>
         {isHelpEnabled ? (
           <Typography variant="body2" color="text.secondary">
             You can leave these blank and rely on defaults, but custom messages
@@ -143,10 +168,10 @@ export const ResponsesStep = ({
             <HelpBanner
               message={
                 <>
-                  These are the messages attendees receive after you or the
-                  system decides their outcome. You can customize them to give
-                  attendees more information about the meet, or keep then short
-                  or even blank to use the defaults.
+                  These are the messages attendees receive when invited or after
+                  their attendance is decided. You can customize them to give
+                  attendees more information about the meet, or leave them blank
+                  to use the defaults.
                   <br />
                   <br />
                   If your organisation has templates for default responses you

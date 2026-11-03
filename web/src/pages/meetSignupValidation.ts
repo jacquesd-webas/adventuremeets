@@ -57,7 +57,7 @@ export function getMeetSignupErrors(
     }
   }
   for (const field of meet.metaDefinitions || []) {
-    if (!field.required) continue;
+    if (!field.required || field.fieldType === "static-text") continue;
     const value = state.metaValues[field.fieldKey];
     const missing =
       field.fieldType === "checkbox" || field.fieldType === "switch"

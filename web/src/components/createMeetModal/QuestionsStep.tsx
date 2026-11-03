@@ -20,6 +20,10 @@ import { HelpBanner } from "./HelpBanner";
 import { useFetchOrganization } from "../../hooks/useFetchOrganization";
 import { mergeImportedQuestions } from "./mergeImportedQuestions";
 import { QuestionCategoryBadge } from "./QuestionCategoryBadge";
+import {
+  formatSelectQuestionOptions,
+  parseSelectQuestionOptions,
+} from "./selectQuestionOptions";
 
 export const QuestionsStep = ({
   state,
@@ -88,49 +92,70 @@ export const QuestionsStep = ({
   return (
     <Box sx={{ position: "relative" }}>
       <Stack spacing={2}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1.25}
-          alignItems={{ xs: "stretch", sm: "center" }}
+        <Box
+          sx={{
+            position: "sticky",
+            top: 0,
+            zIndex: 2,
+            bgcolor: "background.paper",
+            py: 1,
+          }}
         >
-          <Box sx={{ flexShrink: 0, width: { xs: "100%", sm: "auto" } }}>
-            <SelectTemplate
-              organizationId={state.organizationId || undefined}
-              disabled={disabled}
-              onApply={(questions) =>
-                setState((prev) => ({
-                  ...prev,
-                  questions: mergeImportedQuestions(prev.questions, questions),
-                }))
-              }
-            />
-          </Box>
           <Box
             sx={{
               display: "grid",
-              gap: 1,
-              flex: 1,
               gridTemplateColumns: {
-                xs: "repeat(2, minmax(0, 1fr))",
-                sm: "repeat(4, minmax(0, 1fr))",
+                xs: "repeat(6, minmax(0, 1fr))",
+                sm: "150px repeat(5, minmax(0, 1fr))",
               },
+              gap: 1,
+              alignItems: "center",
+              width: "100%",
             }}
           >
+            <Box
+              sx={{
+                gridColumn: { xs: "1 / -1", sm: "auto" },
+                "& .MuiFormControl-root": { width: "100%", minWidth: 0 },
+              }}
+            >
+              <SelectTemplate
+                organizationId={state.organizationId || undefined}
+                disabled={disabled}
+                onApply={(questions) =>
+                  setState((prev) => ({
+                    ...prev,
+                    questions: mergeImportedQuestions(
+                      prev.questions,
+                      questions,
+                    ),
+                  }))
+                }
+              />
+            </Box>
             <Button
               variant="outlined"
               onClick={() => addField("text")}
               disabled={disabled}
               size={isMobile ? "small" : "medium"}
-              sx={{ width: "100%" }}
+              sx={{
+                width: "100%",
+                px: isMobile ? "7px" : "13px",
+                gridColumn: { xs: "span 2", sm: "auto" },
+              }}
             >
-              Textfield
+              Field
             </Button>
             <Button
               variant="outlined"
               onClick={() => addField("select")}
               disabled={disabled}
               size={isMobile ? "small" : "medium"}
-              sx={{ width: "100%" }}
+              sx={{
+                width: "100%",
+                px: isMobile ? "7px" : "13px",
+                gridColumn: { xs: "span 2", sm: "auto" },
+              }}
             >
               Select
             </Button>
@@ -139,7 +164,11 @@ export const QuestionsStep = ({
               onClick={() => addField("switch")}
               disabled={disabled}
               size={isMobile ? "small" : "medium"}
-              sx={{ width: "100%" }}
+              sx={{
+                width: "100%",
+                px: isMobile ? "7px" : "13px",
+                gridColumn: { xs: "span 2", sm: "auto" },
+              }}
             >
               Switch
             </Button>
@@ -148,12 +177,29 @@ export const QuestionsStep = ({
               onClick={() => addField("checkbox")}
               disabled={disabled}
               size={isMobile ? "small" : "medium"}
-              sx={{ width: "100%" }}
+              sx={{
+                width: "100%",
+                px: isMobile ? "7px" : "13px",
+                gridColumn: { xs: "span 3", sm: "auto" },
+              }}
             >
-              Checkbox
+              Check
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => addField("static-text")}
+              disabled={disabled}
+              size={isMobile ? "small" : "medium"}
+              sx={{
+                width: "100%",
+                px: isMobile ? "7px" : "13px",
+                gridColumn: { xs: "span 3", sm: "auto" },
+              }}
+            >
+              Text
             </Button>
           </Box>
-        </Stack>
+        </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
           <i>
             The form will already have <strong>Name</strong>. Use the switches
@@ -239,8 +285,9 @@ export const QuestionsStep = ({
         </Paper>
         {isHelpEnabled ? (
           <Typography variant="body2" color="text.secondary">
-            Use text for open answers, select for one choice from a list, switch
-            for a yes or no answer, and checkbox for a simple confirmation.
+            Use Field for open answers, Select for one choice from a list,
+            Switch for a yes or no answer, Check for a simple confirmation, and
+            Text for information that needs no answer.
           </Typography>
         ) : null}
         <Stack spacing={2}>
@@ -253,8 +300,13 @@ export const QuestionsStep = ({
                 mb={1}
               >
                 <Typography variant="subtitle1" fontWeight={700}>
-                  {field.type.charAt(0).toUpperCase() + field.type.slice(1)}{" "}
-                  field
+                  {field.type === "static-text"
+                    ? "Text"
+                    : field.type === "text"
+                      ? "Field"
+                      : field.type === "checkbox"
+                        ? "Check"
+                        : `${field.type.charAt(0).toUpperCase() + field.type.slice(1)} field`}
                 </Typography>
                 <Stack direction="row" spacing={0.5}>
                   <IconButton
@@ -286,9 +338,11 @@ export const QuestionsStep = ({
               </Stack>
               <Stack spacing={1.5}>
                 <TextField
-                  label="Label"
+                  label={field.type === "static-text" ? "Text" : "Label"}
                   placeholder="What should the user see?"
                   value={field.label}
+                  multiline={field.type === "static-text"}
+                  minRows={field.type === "static-text" ? 3 : undefined}
                   helperText={
                     isHelpEnabled
                       ? "This is the exact question or prompt your attendee will read."
@@ -302,23 +356,21 @@ export const QuestionsStep = ({
                 />
                 {field.type === "select" && (
                   <TextField
-                    label="Options (comma separated)"
+                    label="Options (comma or semicolon separated)"
                     placeholder="e.g. Beginner, Intermediate, Advanced"
                     value={
-                      field.optionsInput ?? (field.options?.join(", ") || "")
+                      field.optionsInput ??
+                      formatSelectQuestionOptions(field.options)
                     }
                     helperText={
                       isHelpEnabled
-                        ? "Separate each option with a comma. Attendees will choose one of these values."
+                        ? "Separate options with semicolons if an option contains a comma; otherwise use commas. Attendees will choose one value."
                         : undefined
                     }
                     onChange={(e) =>
                       updateField(field.id, {
                         optionsInput: e.target.value,
-                        options: e.target.value
-                          .split(",")
-                          .map((o) => o.trim())
-                          .filter(Boolean),
+                        options: parseSelectQuestionOptions(e.target.value),
                       })
                     }
                     fullWidth
@@ -334,40 +386,42 @@ export const QuestionsStep = ({
                     gap: 1,
                   }}
                 >
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={1}
-                    alignItems={{ xs: "flex-start", sm: "center" }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={Boolean(field.required)}
-                          disabled={disabled}
-                          onChange={(e) =>
-                            updateField(field.id, {
-                              required: e.target.checked,
-                            })
-                          }
-                        />
-                      }
-                      label="Required"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={Boolean(field.includeInReports)}
-                          disabled={disabled}
-                          onChange={(e) =>
-                            updateField(field.id, {
-                              includeInReports: e.target.checked,
-                            })
-                          }
-                        />
-                      }
-                      label="Include in reports"
-                    />
-                  </Stack>
+                  {field.type !== "static-text" && (
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1}
+                      alignItems={{ xs: "flex-start", sm: "center" }}
+                    >
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={Boolean(field.required)}
+                            disabled={disabled}
+                            onChange={(e) =>
+                              updateField(field.id, {
+                                required: e.target.checked,
+                              })
+                            }
+                          />
+                        }
+                        label="Required"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={Boolean(field.includeInReports)}
+                            disabled={disabled}
+                            onChange={(e) =>
+                              updateField(field.id, {
+                                includeInReports: e.target.checked,
+                              })
+                            }
+                          />
+                        }
+                        label="Include in reports"
+                      />
+                    </Stack>
+                  )}
                   <QuestionCategoryBadge
                     category={field.category}
                     pdfFormFieldId={field.pdfFormFieldId}
@@ -376,7 +430,7 @@ export const QuestionsStep = ({
                     onChange={(category) => updateField(field.id, { category })}
                   />
                 </Box>
-                {isHelpEnabled ? (
+                {isHelpEnabled && field.type !== "static-text" ? (
                   <Typography variant="body2" color="text.secondary">
                     Required means the attendee must answer before submitting.
                     Include in reports means organisers can use this answer in
@@ -393,7 +447,7 @@ export const QuestionsStep = ({
           sx={{
             position: "absolute",
             inset: 0,
-            zIndex: 1,
+            zIndex: 3,
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",

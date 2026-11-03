@@ -960,6 +960,7 @@ export class OrganizationsService {
             subject: emailTemplate.subject,
             text: emailTemplate.text,
             html: emailTemplate.html,
+            organizationId: orgId,
           });
         } catch (err: any) {
           await client("invite_links").where({ id: row.id }).del();
@@ -1239,13 +1240,11 @@ export class OrganizationsService {
       customField1HelperText: row.custom_field1_helper_text ?? undefined,
       customField2HelperText: row.custom_field2_helper_text ?? undefined,
       defaultTemplateId: row.default_template_id ?? undefined,
-      defaultRequireIndemnity:
-        row.default_require_indemnity ?? undefined,
+      defaultRequireIndemnity: row.default_require_indemnity ?? undefined,
       defaultAutoApproveAttendees:
         row.default_auto_approve_attendees ?? undefined,
       defaultAllowGuests: row.default_allow_guests ?? undefined,
-      defaultAllowSelfCheckin:
-        row.default_allow_self_checkin ?? undefined,
+      defaultAllowSelfCheckin: row.default_allow_self_checkin ?? undefined,
       defaultAllowWalkins: row.default_allow_walkins ?? undefined,
       meetCountLast90Days:
         typeof row.meet_count_last_90_days === "number"

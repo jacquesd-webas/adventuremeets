@@ -6,6 +6,7 @@ type DefaultMessageOptions = {
   confirmMessage?: string;
   waitlistMessage?: string;
   rejectMessage?: string;
+  invitationWording?: string;
   isRsvpMode?: boolean;
 };
 
@@ -54,7 +55,9 @@ export function useDefaultMessage(
         subject: options?.meetName
           ? `Invitation: ${options.meetName}`
           : "Meet invitation",
-        content: createMessageContent(status, options?.isRsvpMode),
+        content:
+          options?.invitationWording?.trim() ||
+          createMessageContent(status, options?.isRsvpMode),
       };
     }
     if (status === AttendeeStatusEnum.Waitlisted) {
@@ -83,6 +86,7 @@ export function useDefaultMessage(
     status,
     options?.confirmMessage,
     options?.isRsvpMode,
+    options?.invitationWording,
     options?.meetName,
     options?.rejectMessage,
     options?.waitlistMessage,

@@ -9,14 +9,17 @@ type AttendeeResponsesProps = {
 };
 
 export function AttendeeResponses({ responses }: AttendeeResponsesProps) {
+  const answers = responses?.filter(
+    (response) => response.fieldType !== "static-text",
+  );
   return (
     <Box>
       <Typography variant="subtitle2" color="text.secondary" gutterBottom>
         Responses
       </Typography>
-      {responses?.length ? (
+      {answers?.length ? (
         <Stack spacing={1}>
-          {responses.map((response) => (
+          {answers.map((response) => (
             <Box key={response.definitionId || response.label}>
               <Typography variant="caption" color="text.secondary">
                 {response.label}
