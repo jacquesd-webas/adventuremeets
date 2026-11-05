@@ -546,7 +546,7 @@ export function CreateMeetModal({
   // Save method for each step
   const handleSaveStep = async (step: number) => {
     const payload = buildPayloadForStep(state, meetId ? step : 0);
-    if (Object.keys(payload).length === 0) {
+    if (Object.keys(payload).length === 0 && !(meetId && step === 8)) {
       return false;
     }
     const result = await saveMeet(payload, meetId);
@@ -897,6 +897,7 @@ export function CreateMeetModal({
       case 8:
         return (
           <FinishStep
+            meetId={meetId}
             state={state}
             setState={(fn) => setState(fn)}
             organizationName={posterOrganization?.name}

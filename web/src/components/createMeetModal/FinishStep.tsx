@@ -15,8 +15,10 @@ import { HelpBanner } from "./HelpBanner";
 import { getMeetDateLabel, getMeetTimeLabel } from "../../helpers/meetTime";
 import { openMeetPosterPrintWindow } from "./openMeetPosterPrintWindow";
 import Meet from "../../types/MeetModel";
+import { AdminCheckinShareLink } from "./AdminCheckinShareLink";
 
 type FinishStepProps = StepProps & {
+  meetId?: string | null;
   organizationName?: string;
   organizationLogoUrl?: string;
   shareCode?: string | null;
@@ -28,6 +30,7 @@ type FinishStepProps = StepProps & {
 export function FinishStep({
   state,
   setState,
+  meetId,
   organizationName,
   organizationLogoUrl,
   errors = [],
@@ -213,6 +216,12 @@ export function FinishStep({
                 {copied ? "Copied" : "Copy link"}
               </Button>
             </Stack>
+            {isEditing &&
+            meetId &&
+            shareCode &&
+            state.statusId !== MeetStatusEnum.Draft ? (
+              <AdminCheckinShareLink meetId={meetId} shareCode={shareCode} />
+            ) : null}
           </>
         )}
         {showPostponedWarning ? (

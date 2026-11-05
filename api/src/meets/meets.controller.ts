@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Headers,
+  Header,
   Res,
   UnauthorizedException,
   UploadedFile,
@@ -49,6 +50,7 @@ import { OrganizationsService } from "../organizations/organizations.service";
 import { AuditLogService } from "../audit/audit-log.service";
 import * as ExcelJS from "exceljs";
 import { MEET_STATUS } from "./constants/meet-status.enum";
+import { AdminCheckinDto } from "./dto/admin-checkin.dto";
 import { parseAttendeeWorkbook } from "./attendee-upload-workbook";
 
 @ApiTags("Meets")
@@ -262,6 +264,54 @@ export class MeetsController {
     const meet = await this.meetsService.findOne(code);
     if (!meet) throw new NotFoundException("Meet not found");
     return meet;
+  }
+
+  @Header("Cache-Control", "no-store")
+  @Get(":id/admin-share-code")
+  async adminShareCode(@Param("id") id: string, @User() user?: UserProfile) {
+    if (!user) throw new UnauthorizedException();
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+    this.assertCanModifyExistingMeet(user, meet, "update");
+    return {
+      adminShareCode: await this.meetsService.getAdminShareCode(meet.id),
+    };
+  }
+
+  @Public()
+  @Header("Cache-Control", "no-store")
+  @Get(":id/admin-checkin")
+  async adminCheckinList(
+    @Param("id") id: string,
+    @Query("adminShareCode") code: string,
+  ) {
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+    const { attendees } = await this.meetsService.listAdminCheckinAttendees(
+      meet.id,
+      code || "",
+    );
+    return { meetName: meet.name, attendees };
+  }
+
+  @Public()
+  @Post(":id/admin-checkin")
+  async adminCheckin(@Param("id") id: string, @Body() dto: AdminCheckinDto) {
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+    const attendee = await this.meetsService.adminCheckinAttendee(
+      meet.id,
+      dto.attendeeId,
+      dto.adminShareCode,
+    );
+    await this.logMeetAuditAction({
+      orgId: meet.organizationId,
+      meetId: meet.id,
+      attendeeId: attendee.id,
+      target: `meet ${meet.name || "meet"}`,
+      action: "checked in attendee using admin link for",
+    });
+    return attendee;
   }
 
   @Public()

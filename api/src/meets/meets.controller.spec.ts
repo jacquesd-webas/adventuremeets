@@ -80,6 +80,9 @@ describe("MeetsController", () => {
     getAttendeeContactById: jest.fn(),
     getOrganizerEmail: jest.fn(),
     getReportData: jest.fn(),
+    getAdminShareCode: jest.fn(),
+    listAdminCheckinAttendees: jest.fn(),
+    adminCheckinAttendee: jest.fn(),
   } as unknown as MeetsService;
 
   const emailService = {
@@ -179,6 +182,50 @@ describe("MeetsController", () => {
       customField1Name: undefined,
       customField2Name: undefined,
     });
+  });
+
+  it("only reveals the helper code to the meet organiser", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getAdminShareCode as jest.Mock).mockResolvedValue(
+      "a".repeat(48),
+    );
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.adminShareCode("meet-1", memberUser),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(controller.adminShareCode("meet-1", user)).resolves.toEqual({
+      adminShareCode: "a".repeat(48),
+    });
+  });
+
+  it("uses the helper code to list and check in an attendee", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.listAdminCheckinAttendees as jest.Mock).mockResolvedValue({
+      attendees: [{ id: "attendee-1", name: "Alex", status: "confirmed" }],
+    });
+    (meetsService.adminCheckinAttendee as jest.Mock).mockResolvedValue({
+      id: "attendee-1",
+      status: "checked-in",
+    });
+
+    await expect(
+      controller.adminCheckinList("share-123", "a".repeat(48)),
+    ).resolves.toMatchObject({
+      meetName: "Sunrise Hike",
+      attendees: [{ name: "Alex" }],
+    });
+    await expect(
+      controller.adminCheckin("share-123", {
+        attendeeId: "attendee-1",
+        adminShareCode: "a".repeat(48),
+      }),
+    ).resolves.toMatchObject({ status: "checked-in" });
+    expect(meetsService.adminCheckinAttendee).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+      "a".repeat(48),
+    );
   });
 
   it.each([

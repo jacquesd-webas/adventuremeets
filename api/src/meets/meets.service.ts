@@ -514,7 +514,16 @@ export class MeetsService {
     const shareCode = this.generateShareCode(12);
     const created = await this.db.getClient().transaction(async (trx) => {
       const [meet] = await trx("meets").insert(
-        this.toDbRecord({ ...dto, currencyId, statusId, shareCode }, null, now),
+        {
+          ...this.toDbRecord(
+            { ...dto, currencyId, statusId, shareCode },
+            null,
+            now,
+          ),
+          ...(statusId === MEET_STATUS.Published
+            ? { admin_share_code: randomBytes(24).toString("hex") }
+            : {}),
+        },
         ["*"],
       );
       if (dto.metaDefinitions) {
@@ -578,6 +587,7 @@ export class MeetsService {
         name: dto?.name?.trim() || sourceMeet.name,
         organizer_id: dto?.organizerId || sourceMeet.organizer_id,
         share_code: shareCode,
+        admin_share_code: null,
         checkin_pin: sourceMeet.checkin_pin ? this.generateCheckinPin() : null,
         status_id: MEET_STATUS.Draft,
         checkin_completed: false,
@@ -658,6 +668,11 @@ export class MeetsService {
         .update(
           {
             ...this.toDbRecord({ ...dto, currencyId }, existingMeet),
+            ...(!existingMeet.admin_share_code &&
+            (existingMeet.status_id !== MEET_STATUS.Draft ||
+              dto.statusId === MEET_STATUS.Published)
+              ? { admin_share_code: randomBytes(24).toString("hex") }
+              : {}),
             ...(dto.statusId === MEET_STATUS.Completed
               ? { checkin_completed: true }
               : {}),
@@ -685,6 +700,13 @@ export class MeetsService {
     if (statusId === MEET_STATUS.Completed) {
       updates.checkin_completed = true;
     }
+    if (statusId === MEET_STATUS.Published) {
+      updates.admin_share_code = this.db
+        .getClient()
+        .raw("coalesce(admin_share_code, ?)", [
+          randomBytes(24).toString("hex"),
+        ]);
+    }
     const updatedRows = (await this.db
       .getClient()("meets")
       .where({ id })
@@ -709,6 +731,55 @@ export class MeetsService {
       throw new BadRequestException("Only closed meets can complete check-in");
     }
     return updated;
+  }
+
+  async getAdminShareCode(meetId: string): Promise<string | null> {
+    const meet = await this.db
+      .getClient()("meets")
+      .where({ id: meetId })
+      .first("admin_share_code");
+    if (!meet) throw new NotFoundException("Meet not found");
+    return meet.admin_share_code ?? null;
+  }
+
+  private async assertAdminShareCode(meetId: string, code: string) {
+    if (typeof code !== "string" || !/^[a-f0-9]{48}$/.test(code)) {
+      throw new ForbiddenException("Invalid check-in link");
+    }
+    const storedCode = await this.getAdminShareCode(meetId);
+    if (
+      !storedCode ||
+      !timingSafeEqual(Buffer.from(storedCode), Buffer.from(code))
+    ) {
+      throw new ForbiddenException("Invalid check-in link");
+    }
+  }
+
+  async listAdminCheckinAttendees(meetId: string, code: string) {
+    await this.assertAdminShareCode(meetId, code);
+    const attendees = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId })
+      .whereIn("status", ["confirmed", "checked-in", "attended"])
+      .orderBy("name", "asc")
+      .select("id", "name", "status");
+    return { attendees };
+  }
+
+  async adminCheckinAttendee(meetId: string, attendeeId: string, code: string) {
+    await this.assertAdminShareCode(meetId, code);
+    const [attendee] = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, id: attendeeId, status: "confirmed" })
+      .update({ status: "checked-in", updated_at: new Date().toISOString() }, [
+        "id",
+        "name",
+        "status",
+      ]);
+    if (!attendee) {
+      throw new BadRequestException("Attendee is not eligible for check-in");
+    }
+    return attendee;
   }
 
   async resetConfirmedAttendeesToInvited(

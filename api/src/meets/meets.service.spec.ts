@@ -47,6 +47,52 @@ const buildBuilder = () => {
 };
 
 describe("MeetsService", () => {
+  it("creates an admin share code when publishing without replacing an existing one", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.update.mockResolvedValue([{ id: "meet-1" }]);
+    const raw = jest.fn((sql, bindings) => ({ sql, bindings }));
+    const db = {
+      getClient: () => Object.assign(() => meetsBuilder, { raw }),
+    } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as MinioService);
+
+    await service.updateStatus("meet-1", 2);
+
+    const updates = meetsBuilder.update.mock.calls[0][0];
+    expect(updates.admin_share_code.sql).toBe("coalesce(admin_share_code, ?)");
+    expect(updates.admin_share_code.bindings[0]).toMatch(/^[a-f0-9]{48}$/);
+  });
+
+  it("only allows a valid admin code to check in confirmed attendees", async () => {
+    const code = "a".repeat(48);
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue({ admin_share_code: code });
+    const attendeesBuilder = buildBuilder();
+    attendeesBuilder.update.mockResolvedValue([
+      { id: "attendee-1", name: "Alex", status: "checked-in" },
+    ]);
+    const client = (table: string) =>
+      table === "meets" ? meetsBuilder : attendeesBuilder;
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    await expect(
+      service.adminCheckinAttendee("meet-1", "attendee-1", "b".repeat(48)),
+    ).rejects.toThrow("Invalid check-in link");
+    expect(attendeesBuilder.update).not.toHaveBeenCalled();
+
+    await expect(
+      service.adminCheckinAttendee("meet-1", "attendee-1", code),
+    ).resolves.toMatchObject({ status: "checked-in" });
+    expect(attendeesBuilder.where).toHaveBeenCalledWith({
+      meet_id: "meet-1",
+      id: "attendee-1",
+      status: "confirmed",
+    });
+  });
+
   it("uses the latest matching answers from this user's adult signups in the same organization", async () => {
     const meetBuilder = buildBuilder();
     meetBuilder.first.mockResolvedValue({ organization_id: "org-1" });
