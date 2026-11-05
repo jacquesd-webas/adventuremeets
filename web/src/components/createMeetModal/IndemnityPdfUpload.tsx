@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, Box, Button, Stack, Typography } from "@mui/material";
 import { CreateMeetState } from "./CreateMeetState";
 import { useIndemnityTemplate } from "../../hooks/useIndemnityTemplate";
+import { formatSelectQuestionOptions } from "./selectQuestionOptions";
 
 type Props = {
   meetId?: string | null;
@@ -45,7 +46,7 @@ export function IndemnityPdfUpload({ meetId, disabled, setState }: Props) {
             required: question.required,
             includeInReports: false,
             options: question.config.options,
-            optionsInput: question.config.options?.join(", ") || "",
+            optionsInput: formatSelectQuestionOptions(question.config.options),
           })),
         ],
       }));

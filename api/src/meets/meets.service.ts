@@ -199,7 +199,7 @@ export class MeetsService {
         this.db
           .getClient()
           .raw(
-            `sum(case when status = 'rejected' then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
+            `sum(case when status in ('rejected', 'cancelled') then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
           ),
       )
       .select(
@@ -396,7 +396,7 @@ export class MeetsService {
         this.db
           .getClient()
           .raw(
-            `sum(case when status = 'rejected' then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
+            `sum(case when status in ('rejected', 'cancelled') then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
           ),
       )
       .select(
@@ -518,7 +518,16 @@ export class MeetsService {
     const shareCode = this.generateShareCode(12);
     const created = await this.db.getClient().transaction(async (trx) => {
       const [meet] = await trx("meets").insert(
-        this.toDbRecord({ ...dto, currencyId, statusId, shareCode }, null, now),
+        {
+          ...this.toDbRecord(
+            { ...dto, currencyId, statusId, shareCode },
+            null,
+            now,
+          ),
+          ...(statusId === MEET_STATUS.Published
+            ? { admin_share_code: randomBytes(24).toString("hex") }
+            : {}),
+        },
         ["*"],
       );
       if (dto.metaDefinitions) {
@@ -582,6 +591,7 @@ export class MeetsService {
         name: dto?.name?.trim() || sourceMeet.name,
         organizer_id: dto?.organizerId || sourceMeet.organizer_id,
         share_code: shareCode,
+        admin_share_code: null,
         checkin_pin: sourceMeet.checkin_pin ? this.generateCheckinPin() : null,
         status_id: MEET_STATUS.Draft,
         checkin_completed: false,
@@ -663,6 +673,11 @@ export class MeetsService {
         .update(
           {
             ...this.toDbRecord({ ...dto, currencyId }, existingMeet),
+            ...(!existingMeet.admin_share_code &&
+            (existingMeet.status_id !== MEET_STATUS.Draft ||
+              dto.statusId === MEET_STATUS.Published)
+              ? { admin_share_code: randomBytes(24).toString("hex") }
+              : {}),
             ...(dto.statusId === MEET_STATUS.Completed
               ? { checkin_completed: true }
               : {}),
@@ -690,6 +705,13 @@ export class MeetsService {
     if (statusId === MEET_STATUS.Completed) {
       updates.checkin_completed = true;
     }
+    if (statusId === MEET_STATUS.Published) {
+      updates.admin_share_code = this.db
+        .getClient()
+        .raw("coalesce(admin_share_code, ?)", [
+          randomBytes(24).toString("hex"),
+        ]);
+    }
     const updatedRows = (await this.db
       .getClient()("meets")
       .where({ id })
@@ -714,6 +736,55 @@ export class MeetsService {
       throw new BadRequestException("Only closed meets can complete check-in");
     }
     return updated;
+  }
+
+  async getAdminShareCode(meetId: string): Promise<string | null> {
+    const meet = await this.db
+      .getClient()("meets")
+      .where({ id: meetId })
+      .first("admin_share_code");
+    if (!meet) throw new NotFoundException("Meet not found");
+    return meet.admin_share_code ?? null;
+  }
+
+  private async assertAdminShareCode(meetId: string, code: string) {
+    if (typeof code !== "string" || !/^[a-f0-9]{48}$/.test(code)) {
+      throw new ForbiddenException("Invalid check-in link");
+    }
+    const storedCode = await this.getAdminShareCode(meetId);
+    if (
+      !storedCode ||
+      !timingSafeEqual(Buffer.from(storedCode), Buffer.from(code))
+    ) {
+      throw new ForbiddenException("Invalid check-in link");
+    }
+  }
+
+  async listAdminCheckinAttendees(meetId: string, code: string) {
+    await this.assertAdminShareCode(meetId, code);
+    const attendees = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId })
+      .whereIn("status", ["confirmed", "checked-in", "attended"])
+      .orderBy("name", "asc")
+      .select("id", "name", "status");
+    return { attendees };
+  }
+
+  async adminCheckinAttendee(meetId: string, attendeeId: string, code: string) {
+    await this.assertAdminShareCode(meetId, code);
+    const [attendee] = await this.db
+      .getClient()("meet_attendees")
+      .where({ meet_id: meetId, id: attendeeId, status: "confirmed" })
+      .update({ status: "checked-in", updated_at: new Date().toISOString() }, [
+        "id",
+        "name",
+        "status",
+      ]);
+    if (!attendee) {
+      throw new BadRequestException("Attendee is not eligible for check-in");
+    }
+    return attendee;
   }
 
   async resetConfirmedAttendeesToInvited(
@@ -850,7 +921,8 @@ export class MeetsService {
     );
 
     return (meet.metaDefinitions || []).some((definition) => {
-      if (!definition.required) return false;
+      if (!definition.required || definition.fieldType === "static-text")
+        return false;
 
       const value = metaValuesByKey.get(definition.fieldKey);
       if (
@@ -864,11 +936,12 @@ export class MeetsService {
     });
   }
 
-  async getAttendeeContactById(attendeeId: string) {
-    const attendee = await this.db
+  async getAttendeeContactById(attendeeId: string, meetId?: string) {
+    const query = this.db
       .getClient()("meet_attendees")
-      .where({ id: attendeeId })
-      .first("email", "phone", "name");
+      .where({ id: attendeeId });
+    if (meetId) query.andWhere({ meet_id: meetId });
+    const attendee = await query.first("email", "phone", "name");
     if (!attendee) {
       throw new NotFoundException("Attendee not found");
     }
@@ -2590,6 +2663,10 @@ export class MeetsService {
       confirm_message: dto.confirmMessage,
       reject_message: dto.rejectMessage,
       waitlist_message: dto.waitlistMessage,
+      invitation_wording:
+        dto.invitationWording === undefined
+          ? undefined
+          : dto.invitationWording?.trim() || null,
       has_indemnity: dto.hasIndemnity,
       indemnity: dto.indemnity,
       allow_minor_indemnity: dto.allowMinorIndemnity,
@@ -2761,6 +2838,7 @@ export class MeetsService {
       confirmMessage: meet.confirm_message ?? undefined,
       rejectMessage: meet.reject_message ?? meet.rejectMessage ?? undefined,
       waitlistMessage: meet.waitlist_message ?? undefined,
+      invitationWording: meet.invitation_wording ?? undefined,
       hasIndemnity: meet.has_indemnity ?? undefined,
       hasPdfIndemnityTemplate: Boolean(meet.indemnity_pdfs_id),
       indemnity: meet.indemnity ?? undefined,
@@ -2957,11 +3035,16 @@ export class MeetsService {
         field_key: definition.fieldKey || `field_${index + 1}`,
         label: definition.label,
         field_type: definition.fieldType,
-        required: Boolean(definition.required),
+        required:
+          definition.fieldType !== "static-text" &&
+          Boolean(definition.required),
         category: definition.category,
         pdf_form_field_id: definition.pdfFormFieldId,
         position: index,
-        config: definition.config ?? {},
+        config:
+          definition.fieldType === "static-text"
+            ? { ...(definition.config ?? {}), includeInReports: false }
+            : (definition.config ?? {}),
       }))
       .filter((definition) => definition.label);
     const updatedAtValue = trx.fn?.now

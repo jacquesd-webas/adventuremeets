@@ -966,6 +966,7 @@ export class OrganizationsService {
             subject: emailTemplate.subject,
             text: emailTemplate.text,
             html: emailTemplate.html,
+            organizationId: orgId,
           });
         } catch (err: any) {
           await client("invite_links").where({ id: row.id }).del();

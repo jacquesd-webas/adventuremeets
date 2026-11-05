@@ -258,8 +258,18 @@ describe("MeetSignupSheet", () => {
       screen.getByRole("checkbox", { name: /bringing extra water/i }),
     ).not.toBeChecked();
     expect(
+      screen
+        .getByRole("checkbox", { name: /bringing extra water/i })
+        .closest(".MuiSwitch-root"),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("checkbox", { name: /accept terms/i }),
     ).not.toBeChecked();
+    expect(
+      screen
+        .getByRole("checkbox", { name: /accept terms/i })
+        .closest(".MuiCheckbox-root"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("From profile")).toHaveLength(1);
     await user.hover(screen.getByText("From profile"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
@@ -561,6 +571,85 @@ describe("MeetSignupSheet", () => {
     ).not.toBeInTheDocument();
     await user.click(submit);
     await waitFor(() => expect(addAttendeeAsync).toHaveBeenCalled());
+  });
+
+  it("shows display-only text without requiring or submitting an answer", async () => {
+    const user = userEvent.setup();
+    mockedMeet.metaDefinitions = [
+      {
+        id: "notice",
+        fieldKey: "notice",
+        label: "Bring a hat and water.",
+        fieldType: "static-text",
+        required: true,
+      },
+    ];
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText("Bring a hat and water."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Bring a hat and water." }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Submit application" }),
+    );
+    await waitFor(() => expect(addAttendeeAsync).toHaveBeenCalled());
+    expect(addAttendeeAsync.mock.calls[0][0].metaValues).toEqual([]);
+  });
+
+  it("requires a checked checkbox question and submits its answer", async () => {
+    const user = userEvent.setup();
+    mockedMeet.metaDefinitions = [
+      {
+        id: "terms",
+        fieldKey: "terms",
+        label: "I agree to the rules",
+        fieldType: "checkbox",
+        required: true,
+      },
+    ];
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meets/share-123"]}>
+          <Routes>
+            <Route path="/meets/:code" element={<MeetSignupSheet />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const checkbox = await screen.findByRole("checkbox", {
+      name: /I agree to the rules/i,
+    });
+    expect(checkbox.closest(".MuiCheckbox-root")).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "Submit application" });
+    await user.click(submit);
+    expect(
+      screen.getByText("I agree to the rules is required"),
+    ).toBeInTheDocument();
+
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
+    await user.click(submit);
+    await waitFor(() => expect(addAttendeeAsync).toHaveBeenCalled());
+    expect(addAttendeeAsync.mock.calls[0][0].metaValues).toContainEqual({
+      definitionId: "terms",
+      value: "true",
+    });
   });
 
   it("disables submit while the signup is being saved", async () => {

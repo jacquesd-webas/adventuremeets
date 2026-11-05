@@ -479,7 +479,7 @@ describe("detectPdfQuestions", () => {
         { meta_definition_id: "field-1", value: "None" },
       ]),
       meet_attendee_attachments: makeQuery(undefined),
-      organizations: makeQuery({ name: "MCSA Cape Town" }),
+      organizations: makeQuery({ name: "Summit Explorers" }),
     };
     const client = Object.assign(
       (table: keyof typeof queries) => queries[table],
@@ -502,7 +502,9 @@ describe("detectPdfQuestions", () => {
     expect(filled.getTextField("Child full name").getText()).toBe(
       "Child Example",
     );
-    expect(filled.getTextField("Scout group").getText()).toBe("MCSA Cape Town");
+    expect(filled.getTextField("Scout group").getText()).toBe(
+      "Summit Explorers",
+    );
     expect(filled.getTextField("Allergies").getText()).toBe("None");
     expect(storage.upload).toHaveBeenCalledWith(
       expect.stringContaining("meets/meet-1/attendees/attendee-1/indemnity/"),

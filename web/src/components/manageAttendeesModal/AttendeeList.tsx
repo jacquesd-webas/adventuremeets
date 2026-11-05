@@ -43,7 +43,11 @@ export function AttendeeList({
           status === AttendeeStatusEnum.Attended
         )
           acc.accepted += count;
-        if (status === AttendeeStatusEnum.Rejected) acc.rejected += count;
+        if (
+          status === AttendeeStatusEnum.Rejected ||
+          status === AttendeeStatusEnum.Cancelled
+        )
+          acc.rejected += count;
         if (status === AttendeeStatusEnum.Waitlisted) acc.waitlisted += count;
         return acc;
       },

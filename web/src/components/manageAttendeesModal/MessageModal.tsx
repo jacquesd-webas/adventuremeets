@@ -24,6 +24,9 @@ import { useNotifyAttendee } from "../../hooks/useNotifyAttendee";
 import { useDefaultMessage } from "../../hooks/useDefaultMessage";
 import Meet from "../../types/MeetModel";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
+import { EmailTemplateVariablesHelp } from "../EmailTemplateVariablesHelp";
+import { MessagePreviewDialog } from "./MessagePreviewDialog";
+import { useMessagePreview } from "./useMessagePreview";
 
 type MessageModalProps = {
   open: boolean;
@@ -44,8 +47,11 @@ type MessageModalProps = {
 };
 
 function isConfirmedAttendeeStatus(status?: string) {
+  return status === AttendeeStatusEnum.Confirmed;
+}
+
+function isCheckedInAttendeeStatus(status?: string) {
   return (
-    status === AttendeeStatusEnum.Confirmed ||
     status === AttendeeStatusEnum.CheckedIn ||
     status === AttendeeStatusEnum.Attended
   );
@@ -55,24 +61,29 @@ function getBulkAutoMessageGroups({
   attendees,
   includeInvited,
   includeConfirmed,
+  includeCheckedIn,
   includeWaitlisted,
   includeRejected,
   invitedDefault,
   confirmedDefault,
+  checkedInDefault,
   waitlistedDefault,
   rejectedDefault,
 }: {
   attendees?: MessageModalProps["attendees"];
   includeInvited: boolean;
   includeConfirmed: boolean;
+  includeCheckedIn: boolean;
   includeWaitlisted: boolean;
   includeRejected: boolean;
   invitedDefault: { subject: string; content: string };
   confirmedDefault: { subject: string; content: string };
+  checkedInDefault: { subject: string; content: string };
   waitlistedDefault: { subject: string; content: string };
   rejectedDefault: { subject: string; content: string };
 }) {
   const groups: {
+    label: string;
     attendeeIds: string[];
     subject: string;
     text: string;
@@ -90,6 +101,7 @@ function getBulkAutoMessageGroups({
       invitedDefault.content.trim()
     ) {
       groups.push({
+        label: "Invited attendees",
         attendeeIds,
         subject: invitedDefault.subject,
         text: invitedDefault.content,
@@ -109,9 +121,30 @@ function getBulkAutoMessageGroups({
       confirmedDefault.content.trim()
     ) {
       groups.push({
+        label: "Confirmed attendees",
         attendeeIds,
         subject: confirmedDefault.subject,
         text: confirmedDefault.content,
+      });
+    }
+  }
+
+  if (includeCheckedIn) {
+    const attendeeIds =
+      attendees
+        ?.filter((attendee) => isCheckedInAttendeeStatus(attendee.status))
+        .map((attendee) => attendee.id) ?? [];
+
+    if (
+      attendeeIds.length &&
+      checkedInDefault.subject.trim() &&
+      checkedInDefault.content.trim()
+    ) {
+      groups.push({
+        label: "Checked-in attendees",
+        attendeeIds,
+        subject: checkedInDefault.subject,
+        text: checkedInDefault.content,
       });
     }
   }
@@ -130,6 +163,7 @@ function getBulkAutoMessageGroups({
       waitlistedDefault.content.trim()
     ) {
       groups.push({
+        label: "Waitlisted attendees",
         attendeeIds,
         subject: waitlistedDefault.subject,
         text: waitlistedDefault.content,
@@ -149,6 +183,7 @@ function getBulkAutoMessageGroups({
       rejectedDefault.content.trim()
     ) {
       groups.push({
+        label: "Rejected attendees",
         attendeeIds,
         subject: rejectedDefault.subject,
         text: rejectedDefault.content,
@@ -173,6 +208,7 @@ export function MessageModal({
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const { enqueueSnackbar } = useSnackbar();
   const { notifyAttendeeAsync, isLoading } = useNotifyAttendee();
+  const previewMutation = useMessagePreview();
   const fallbackSubject = useMemo(
     () => defaultSubject || meet?.name || "",
     [defaultSubject, meet?.name],
@@ -188,9 +224,12 @@ export function MessageModal({
   const [showGroupHelp, setShowGroupHelp] = useState(false);
   const [showNotifiedHelp, setShowNotifiedHelp] = useState(false);
   const [includeConfirmed, setIncludeConfirmed] = useState(true);
+  const [includeCheckedIn, setIncludeCheckedIn] = useState(false);
   const [includeInvited, setIncludeInvited] = useState(false);
   const [includeWaitlisted, setIncludeWaitlisted] = useState(false);
   const [includeRejected, setIncludeRejected] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLabels, setPreviewLabels] = useState<string[]>([]);
   const [sendProgress, setSendProgress] = useState<{
     completed: number;
     total: number;
@@ -207,6 +246,7 @@ export function MessageModal({
   const defaultMessageOptions = useMemo(
     () => ({
       meetName: meet?.name,
+      invitationWording: meet?.invitationWording,
       confirmMessage: meet?.confirmMessage,
       waitlistMessage: meet?.waitlistMessage,
       rejectMessage: meet?.rejectMessage,
@@ -214,6 +254,7 @@ export function MessageModal({
     }),
     [
       meet?.name,
+      meet?.invitationWording,
       meet?.confirmMessage,
       meet?.waitlistMessage,
       meet?.rejectMessage,
@@ -230,6 +271,10 @@ export function MessageModal({
   );
   const confirmedDefault = useDefaultMessage(
     AttendeeStatusEnum.Confirmed,
+    defaultMessageOptions,
+  );
+  const checkedInDefault = useDefaultMessage(
+    AttendeeStatusEnum.CheckedIn,
     defaultMessageOptions,
   );
   const waitlistedDefault = useDefaultMessage(
@@ -251,6 +296,8 @@ export function MessageModal({
         selectedDefaults.push({ label: "Invited", ...invitedDefault });
       if (includeConfirmed)
         selectedDefaults.push({ label: "Confirmed", ...confirmedDefault });
+      if (includeCheckedIn)
+        selectedDefaults.push({ label: "Checked-in", ...checkedInDefault });
       if (includeWaitlisted)
         selectedDefaults.push({ label: "Waitlisted", ...waitlistedDefault });
       if (includeRejected)
@@ -280,11 +327,13 @@ export function MessageModal({
       attendeeIds,
       includeInvited,
       includeConfirmed,
+      includeCheckedIn,
       includeRejected,
       includeWaitlisted,
       singleAttendeeDefault,
       invitedDefault,
       confirmedDefault,
+      checkedInDefault,
       waitlistedDefault,
       rejectedDefault,
     ]);
@@ -293,6 +342,15 @@ export function MessageModal({
       Boolean(
         attendees?.some(
           (attendee) => attendee.status === AttendeeStatusEnum.Invited,
+        ),
+      ),
+    [attendees],
+  );
+  const hasCheckedInAttendees = useMemo(
+    () =>
+      Boolean(
+        attendees?.some((attendee) =>
+          isCheckedInAttendeeStatus(attendee.status),
         ),
       ),
     [attendees],
@@ -306,6 +364,7 @@ export function MessageModal({
       const status = att.status as AttendeeStatusEnum;
       if (includeInvited && status === AttendeeStatusEnum.Invited) return true;
       if (includeConfirmed && isConfirmedAttendeeStatus(status)) return true;
+      if (includeCheckedIn && isCheckedInAttendeeStatus(status)) return true;
       if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
         return true;
       if (includeRejected && status === AttendeeStatusEnum.Rejected)
@@ -317,6 +376,7 @@ export function MessageModal({
     attendeeIds,
     includeInvited,
     includeConfirmed,
+    includeCheckedIn,
     includeWaitlisted,
     includeRejected,
   ]);
@@ -325,6 +385,7 @@ export function MessageModal({
   );
   const selectedBulkGroupCount = [
     includeConfirmed,
+    includeCheckedIn,
     includeWaitlisted,
     includeRejected,
     includeInvited,
@@ -345,6 +406,7 @@ export function MessageModal({
     defaultAutoContent,
     includeInvited,
     includeConfirmed,
+    includeCheckedIn,
     includeWaitlisted,
     includeRejected,
     selectedAttendees,
@@ -384,10 +446,91 @@ export function MessageModal({
     setShowGroupHelp(false);
     setShowNotifiedHelp(false);
     setIncludeConfirmed(true);
+    setIncludeCheckedIn(false);
     setIncludeInvited(false);
     setIncludeWaitlisted(false);
     setIncludeRejected(false);
     setSendProgress(null);
+  };
+
+  const handlePreview = () => {
+    if (!meet?.id) {
+      setError("A meet is required to preview the message");
+      return;
+    }
+
+    const resolvedSubject = subject.trim() || meet.name?.trim() || "";
+    const recipientIds = attendeeIds?.length
+      ? attendeeIds
+      : selectedAttendees.map((attendee) => attendee.id);
+    if (!recipientIds.length) {
+      setError("Select at least one recipient group to preview");
+      return;
+    }
+
+    let targets: Array<{
+      label: string;
+      attendeeIds: string[];
+      subject: string;
+      text: string;
+    }>;
+
+    if (autoResponse && !attendeeIds?.length) {
+      targets = getBulkAutoMessageGroups({
+        attendees,
+        includeInvited,
+        includeConfirmed,
+        includeCheckedIn,
+        includeWaitlisted,
+        includeRejected,
+        invitedDefault,
+        confirmedDefault,
+        checkedInDefault,
+        waitlistedDefault,
+        rejectedDefault,
+      }).map((group) => ({
+        label: group.label,
+        attendeeIds: sendAsGroup ? group.attendeeIds : [group.attendeeIds[0]],
+        subject: group.subject,
+        text: group.text,
+      }));
+    } else {
+      targets = [
+        {
+          label: autoResponse ? "Attendee" : "Message",
+          attendeeIds: sendAsGroup ? recipientIds : [recipientIds[0]],
+          subject: resolvedSubject,
+          text: body,
+        },
+      ];
+    }
+
+    if (
+      !targets.length ||
+      targets.some((target) => !target.subject.trim() || !target.text.trim())
+    ) {
+      setError("Subject and message are required for the preview");
+      return;
+    }
+
+    setError(null);
+    setPreviewLabels(targets.map((target) => target.label));
+    setPreviewOpen(true);
+    previewMutation.mutate({
+      meetId: meet.id,
+      messages: targets.map(({ attendeeIds, subject, text }) => ({
+        attendeeIds,
+        subject,
+        text,
+        includeStatusUrl,
+        sendAsGroup,
+      })),
+    });
+  };
+
+  const handlePreviewClose = () => {
+    setPreviewOpen(false);
+    previewMutation.reset();
   };
 
   const handleSend = async () => {
@@ -413,6 +556,8 @@ export function MessageModal({
                 return true;
               if (includeConfirmed && isConfirmedAttendeeStatus(status))
                 return true;
+              if (includeCheckedIn && isCheckedInAttendeeStatus(status))
+                return true;
               if (includeWaitlisted && status === AttendeeStatusEnum.Waitlisted)
                 return true;
               if (includeRejected && status === AttendeeStatusEnum.Rejected)
@@ -428,6 +573,7 @@ export function MessageModal({
       (!attendeeIds || attendeeIds.length === 0) &&
       !includeInvited &&
       !includeConfirmed &&
+      !includeCheckedIn &&
       !includeWaitlisted &&
       !includeRejected
     ) {
@@ -450,10 +596,12 @@ export function MessageModal({
           attendees,
           includeInvited,
           includeConfirmed,
+          includeCheckedIn,
           includeWaitlisted,
           includeRejected,
           invitedDefault,
           confirmedDefault,
+          checkedInDefault,
           waitlistedDefault,
           rejectedDefault,
         });
@@ -555,267 +703,325 @@ export function MessageModal({
     : 0;
 
   return (
-    <Dialog
-      open={open}
-      onClose={isSending ? () => undefined : onClose}
-      fullWidth
-      maxWidth="sm"
-      fullScreen={fullScreen}
-    >
-      <DialogTitle>
-        {isSending ? "Sending messages" : "Send message"}
-      </DialogTitle>
-      <DialogContent>
-        {isSending ? (
-          <Stack spacing={2} sx={{ mt: 2, mb: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Sent {sendProgress.completed} of {sendProgress.total} messages
-            </Typography>
-            <LinearProgress
-              variant="determinate"
-              value={progressPercent}
-              sx={{ height: 10, borderRadius: 999 }}
-            />
-          </Stack>
-        ) : (
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            {error && (
-              <span style={{ color: "#d32f2f", fontSize: 14, fontWeight: 600 }}>
-                {error}
-              </span>
-            )}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+    <>
+      <Dialog
+        open={open}
+        onClose={isSending ? () => undefined : onClose}
+        fullWidth
+        maxWidth="sm"
+        fullScreen={fullScreen}
+      >
+        <DialogTitle>
+          {isSending ? "Sending messages" : "Send message"}
+        </DialogTitle>
+        <DialogContent>
+          {isSending ? (
+            <Stack spacing={2} sx={{ mt: 2, mb: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Sent {sendProgress.completed} of {sendProgress.total} messages
+              </Typography>
+              <LinearProgress
+                variant="determinate"
+                value={progressPercent}
+                sx={{ height: 10, borderRadius: 999 }}
+              />
+            </Stack>
+          ) : (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              {error && (
+                <span
+                  style={{ color: "#d32f2f", fontSize: 14, fontWeight: 600 }}
+                >
+                  {error}
+                </span>
+              )}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <TextField
+                  label="Subject"
+                  fullWidth
+                  size="small"
+                  value={subject}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSubject(value);
+                    if (!autoResponse) {
+                      setManualSubject(value);
+                    }
+                  }}
+                  disabled={autoResponse}
+                />
+                <FormControlLabel
+                  label={<Typography variant="body2">Auto</Typography>}
+                  control={
+                    <Switch
+                      checked={autoResponse}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAutoResponse(checked);
+                        setMarkAsNotified(checked);
+                        if (checked) {
+                          setManualSubject(subject);
+                          setManualBody(body);
+                          setSubject(defaultAutoSubject);
+                          setBody(defaultAutoContent);
+                        } else {
+                          setSubject(manualSubject);
+                          setBody(manualBody);
+                        }
+                      }}
+                    />
+                  }
+                  sx={{ m: 0, whiteSpace: "nowrap" }}
+                />
+              </Box>
               <TextField
-                label="Subject"
+                label="Message"
                 fullWidth
-                size="small"
-                value={subject}
+                multiline
+                minRows={4}
+                value={body}
                 onChange={(e) => {
                   const value = e.target.value;
-                  setSubject(value);
+                  setBody(value);
                   if (!autoResponse) {
-                    setManualSubject(value);
+                    setManualBody(value);
                   }
                 }}
                 disabled={autoResponse}
               />
-              <FormControlLabel
-                label={<Typography variant="body2">Auto</Typography>}
-                control={
-                  <Switch
-                    checked={autoResponse}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setAutoResponse(checked);
-                      setMarkAsNotified(checked);
-                      if (checked) {
-                        setManualSubject(subject);
-                        setManualBody(body);
-                        setSubject(defaultAutoSubject);
-                        setBody(defaultAutoContent);
-                      } else {
-                        setSubject(manualSubject);
-                        setBody(manualBody);
-                      }
-                    }}
-                  />
-                }
-                sx={{ m: 0, whiteSpace: "nowrap" }}
-              />
-            </Box>
-            <TextField
-              label="Message"
-              fullWidth
-              multiline
-              minRows={4}
-              value={body}
-              onChange={(e) => {
-                const value = e.target.value;
-                setBody(value);
-                if (!autoResponse) {
-                  setManualBody(value);
-                }
-              }}
-              disabled={autoResponse}
-            />
-            <Stack direction="column" spacing={1}>
-              {!attendeeIds && (
-                <>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Who should we send the message to?
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      columnGap: 2,
-                      rowGap: 0.5,
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={includeConfirmed}
-                          onChange={(e) =>
-                            setIncludeConfirmed(e.target.checked)
-                          }
-                        />
-                      }
-                      label="Confirmed"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={includeWaitlisted}
-                          onChange={(e) =>
-                            setIncludeWaitlisted(e.target.checked)
-                          }
-                        />
-                      }
-                      label="Waitlisted"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={includeRejected}
-                          onChange={(e) => setIncludeRejected(e.target.checked)}
-                        />
-                      }
-                      label="Rejected"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={includeInvited}
-                          onChange={(e) => setIncludeInvited(e.target.checked)}
-                          disabled={!hasInvitedAttendees}
-                        />
-                      }
-                      label="Invited"
-                    />
-                  </Box>
-                  <Box
-                    ref={markAsNotifiedRef}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={sendAsGroup}
-                          onChange={(e) => setSendAsGroup(e.target.checked)}
-                          disabled={disableGroupSend}
-                        />
-                      }
-                      label="Send as a group message"
-                      sx={{ mr: 0 }}
-                    />
-                    <ButtonBase
-                      aria-label="What is this?"
-                      onClick={() => setShowGroupHelp((current) => !current)}
+              <EmailTemplateVariablesHelp />
+              <Stack direction="column" spacing={1}>
+                {!attendeeIds && (
+                  <>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Who should we send the message to?
+                    </Typography>
+                    <Box
+                      data-testid="message-recipient-grid"
                       sx={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 0.5,
-                        color: "info.main",
-                        typography: "body2",
+                        display: "grid",
+                        gridTemplateColumns: {
+                          xs: "repeat(2, minmax(0, 1fr))",
+                          sm: "repeat(3, minmax(0, 1fr))",
+                        },
+                        columnGap: { xs: 0.5, sm: 1 },
+                        rowGap: 0.5,
+                        "& .MuiFormControlLabel-root": {
+                          m: 0,
+                          minWidth: 0,
+                          flexDirection: "row",
+                        },
+                        "& .MuiFormControlLabel-label": {
+                          fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                          whiteSpace: "nowrap",
+                        },
                       }}
                     >
-                      <HelpOutlineIcon fontSize="small" />
-                      <span>What is this?</span>
-                    </ButtonBase>
-                  </Box>
-                  {showGroupHelp ? (
-                    <Alert severity="info">
-                      Group messages send one email to all the selected
-                      attendees to start a group email thread. All attendees
-                      will see each-other's email addresses and no meet link
-                      will be added. When sent to multiple attendees, later
-                      delivery bounces cannot be tracked per attendee.
-                    </Alert>
-                  ) : sendAsGroup ? (
-                    <Alert severity="warning">
-                      <strong>Note:</strong> E-mail addresses will be shared
-                      with the group. Later bounces cannot be tracked per
-                      attendee.
-                    </Alert>
-                  ) : null}
-                </>
-              )}
-              {hasUnnotified && !autoResponse && (
-                <>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={autoResponse || markAsNotified}
-                          onChange={(e) => setMarkAsNotified(e.target.checked)}
-                          disabled={autoResponse}
-                        />
-                      }
-                      label="Mark attendee(s) as notified"
-                      sx={{ mr: 0 }}
-                    />
-                    <ButtonBase
-                      aria-label="What is this?"
-                      onClick={() => setShowNotifiedHelp((current) => !current)}
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={includeConfirmed}
+                            onChange={(e) =>
+                              setIncludeConfirmed(e.target.checked)
+                            }
+                          />
+                        }
+                        label="Confirmed"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={includeCheckedIn}
+                            onChange={(e) =>
+                              setIncludeCheckedIn(e.target.checked)
+                            }
+                            disabled={!hasCheckedInAttendees}
+                          />
+                        }
+                        label="Checked-in"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={includeWaitlisted}
+                            onChange={(e) =>
+                              setIncludeWaitlisted(e.target.checked)
+                            }
+                          />
+                        }
+                        label="Waitlisted"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={includeRejected}
+                            onChange={(e) =>
+                              setIncludeRejected(e.target.checked)
+                            }
+                          />
+                        }
+                        label="Rejected"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={includeInvited}
+                            onChange={(e) =>
+                              setIncludeInvited(e.target.checked)
+                            }
+                            disabled={!hasInvitedAttendees}
+                          />
+                        }
+                        label="Invited"
+                      />
+                      <FormControlLabel
+                        control={<Switch disabled />}
+                        label="Custom"
+                      />
+                    </Box>
+                    <Box
+                      ref={markAsNotifiedRef}
                       sx={{
-                        display: "inline-flex",
+                        display: "flex",
                         alignItems: "center",
-                        gap: 0.5,
-                        color: "info.main",
-                        typography: "body2",
+                        gap: 1,
+                        flexWrap: "wrap",
                       }}
                     >
-                      <HelpOutlineIcon fontSize="small" />
-                      <span>What is this?</span>
-                    </ButtonBase>
-                  </Box>
-                  {showNotifiedHelp && (
-                    <Alert severity="info">
-                      Manual messages do not mark attendees as notified of their
-                      status. Use the Auto switch to send one of your meet
-                      status responses, or mark them as notified below if this
-                      message serves as an update of their status.
-                    </Alert>
-                  )}
-                </>
-              )}
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={sendAsGroup}
+                            onChange={(e) => setSendAsGroup(e.target.checked)}
+                            disabled={disableGroupSend}
+                          />
+                        }
+                        label="Send as a group message"
+                        sx={{ mr: 0 }}
+                      />
+                      <ButtonBase
+                        aria-label="What is this?"
+                        onClick={() => setShowGroupHelp((current) => !current)}
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          color: "info.main",
+                          typography: "body2",
+                        }}
+                      >
+                        <HelpOutlineIcon fontSize="small" />
+                        <span>What is this?</span>
+                      </ButtonBase>
+                    </Box>
+                    {showGroupHelp ? (
+                      <Alert severity="info">
+                        Group messages send one email to all the selected
+                        attendees to start a group email thread. All attendees
+                        will see each-other's email addresses and no meet link
+                        will be added. When sent to multiple attendees, later
+                        delivery bounces cannot be tracked per attendee.
+                      </Alert>
+                    ) : sendAsGroup ? (
+                      <Alert severity="warning">
+                        <strong>Note:</strong> E-mail addresses will be shared
+                        with the group. Later bounces cannot be tracked per
+                        attendee.
+                      </Alert>
+                    ) : null}
+                  </>
+                )}
+                {hasUnnotified && !autoResponse && (
+                  <>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={autoResponse || markAsNotified}
+                            onChange={(e) =>
+                              setMarkAsNotified(e.target.checked)
+                            }
+                            disabled={autoResponse}
+                          />
+                        }
+                        label="Mark attendee(s) as notified"
+                        sx={{ mr: 0 }}
+                      />
+                      <ButtonBase
+                        aria-label="What is this?"
+                        onClick={() =>
+                          setShowNotifiedHelp((current) => !current)
+                        }
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          color: "info.main",
+                          typography: "body2",
+                        }}
+                      >
+                        <HelpOutlineIcon fontSize="small" />
+                        <span>What is this?</span>
+                      </ButtonBase>
+                    </Box>
+                    {showNotifiedHelp && (
+                      <Alert severity="info">
+                        Manual messages do not mark attendees as notified of
+                        their status. Use the Auto switch to send one of your
+                        meet status responses, or mark them as notified below if
+                        this message serves as an update of their status.
+                      </Alert>
+                    )}
+                  </>
+                )}
+              </Stack>
             </Stack>
-          </Stack>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={isSending}>
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSend}
-          disabled={
-            isSending ||
-            isLoading ||
-            (!attendeeIds &&
-              !includeInvited &&
-              !includeConfirmed &&
-              !includeWaitlisted &&
-              !includeRejected)
-          }
-        >
-          {isSending || isLoading ? "Sending..." : "Send"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handlePreview}
+            disabled={isSending || isLoading || previewMutation.isPending}
+          >
+            Preview
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button onClick={onClose} disabled={isSending}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSend}
+            disabled={
+              isSending ||
+              isLoading ||
+              (!attendeeIds &&
+                !includeInvited &&
+                !includeConfirmed &&
+                !includeCheckedIn &&
+                !includeWaitlisted &&
+                !includeRejected)
+            }
+          >
+            {isSending || isLoading ? "Sending..." : "Send"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <MessagePreviewDialog
+        open={previewOpen}
+        onClose={handlePreviewClose}
+        labels={previewLabels}
+        preview={previewMutation.data}
+        loading={previewMutation.isPending}
+        error={previewMutation.error?.message}
+      />
+    </>
   );
 }

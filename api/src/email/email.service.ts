@@ -304,6 +304,16 @@ export class EmailService {
       meetId,
       templateName,
     } = options;
+    const resolvedFrom = from || this.defaultFrom;
+    const displayName =
+      fromName?.trim() ||
+      (resolvedFrom.toLowerCase() ===
+      `organiser@${this.mailDomain}`.toLowerCase()
+        ? undefined
+        : await this.getOrganizationSenderName(organizationId, meetId));
+    const messageFrom = displayName
+      ? { name: displayName, address: resolvedFrom }
+      : resolvedFrom;
     const expectedRecipients = [...new Set(this.normalizeRecipientList(to))];
     const outboundEmails = await this.db
       .getClient()("outbound_emails")
@@ -340,10 +350,6 @@ export class EmailService {
         email.tracking_token,
       ]),
     );
-    const resolvedFrom = from || this.defaultFrom;
-    const messageFrom = fromName?.trim()
-      ? { name: fromName.trim(), address: resolvedFrom }
-      : resolvedFrom;
     const resolvedReplyTo = meetId
       ? replyTo || `meet+${meetId}@${this.mailDomain}`
       : replyTo;
@@ -457,6 +463,27 @@ export class EmailService {
     if (failures.length > 0) {
       throw failures[0];
     }
+  }
+
+  private async getOrganizationSenderName(
+    organizationId?: string,
+    meetId?: string,
+  ): Promise<string | undefined> {
+    let organization: { name?: string } | undefined;
+    if (organizationId) {
+      organization = await this.db
+        .getClient()("organizations")
+        .where({ id: organizationId })
+        .first("name");
+    } else if (meetId) {
+      organization = await this.db
+        .getClient()("meets as m")
+        .leftJoin("organizations as o", "o.id", "m.organization_id")
+        .where("m.id", meetId)
+        .first("o.name as name");
+    }
+    const name = organization?.name?.trim();
+    return name ? `${name} (Adventuremeets)` : undefined;
   }
 
   async recordOpened(trackingToken: string) {

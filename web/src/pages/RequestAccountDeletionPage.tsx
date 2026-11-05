@@ -55,8 +55,8 @@ function RequestAccountDeletionPage() {
           <Typography variant="body1" sx={{ mb: 2 }}>
             If you would like AdventureMeets to delete your account and
             associated personal data, please send a deletion request to{" "}
-            <Link href="mailto:support@fringecoding.com">
-              support@fringecoding.com
+            <Link href="mailto:support@adventuremeets.com">
+              support@adventuremeets.com
             </Link>
             .
           </Typography>

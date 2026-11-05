@@ -115,9 +115,7 @@ describe("Meet check-in", () => {
       "finishCheckin",
     );
     cy.contains("button", "Finish Check-In").click();
-    cy.wait("@finishCheckin")
-      .its("response.statusCode")
-      .should("eq", 200);
+    cy.wait("@finishCheckin").its("response.statusCode").should("eq", 200);
     cy.contains("Meets").should("be.visible");
 
     cy.contains(meetName).scrollIntoView().click();
@@ -137,7 +135,7 @@ describe("Meet check-in", () => {
     cy.wait(30000);
 
     openMeetRowMenu();
-    cy.contains("Generate Report").click();
+    cy.contains('[role="menuitem"]', /^Reports$/).click();
 
     cy.contains("td", confirmedAttendees[0].name)
       .parent("tr")

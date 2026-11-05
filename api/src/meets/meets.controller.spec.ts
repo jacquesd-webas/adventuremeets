@@ -80,6 +80,9 @@ describe("MeetsController", () => {
     getAttendeeContactById: jest.fn(),
     getOrganizerEmail: jest.fn(),
     getReportData: jest.fn(),
+    getAdminShareCode: jest.fn(),
+    listAdminCheckinAttendees: jest.fn(),
+    adminCheckinAttendee: jest.fn(),
   } as unknown as MeetsService;
 
   const emailService = {
@@ -179,6 +182,50 @@ describe("MeetsController", () => {
       customField1Name: undefined,
       customField2Name: undefined,
     });
+  });
+
+  it("only reveals the helper code to the meet organiser", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getAdminShareCode as jest.Mock).mockResolvedValue(
+      "a".repeat(48),
+    );
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.adminShareCode("meet-1", memberUser),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(controller.adminShareCode("meet-1", user)).resolves.toEqual({
+      adminShareCode: "a".repeat(48),
+    });
+  });
+
+  it("uses the helper code to list and check in an attendee", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.listAdminCheckinAttendees as jest.Mock).mockResolvedValue({
+      attendees: [{ id: "attendee-1", name: "Alex", status: "confirmed" }],
+    });
+    (meetsService.adminCheckinAttendee as jest.Mock).mockResolvedValue({
+      id: "attendee-1",
+      status: "checked-in",
+    });
+
+    await expect(
+      controller.adminCheckinList("share-123", "a".repeat(48)),
+    ).resolves.toMatchObject({
+      meetName: "Sunrise Hike",
+      attendees: [{ name: "Alex" }],
+    });
+    await expect(
+      controller.adminCheckin("share-123", {
+        attendeeId: "attendee-1",
+        adminShareCode: "a".repeat(48),
+      }),
+    ).resolves.toMatchObject({ status: "checked-in" });
+    expect(meetsService.adminCheckinAttendee).toHaveBeenCalledWith(
+      "meet-1",
+      "attendee-1",
+      "a".repeat(48),
+    );
   });
 
   it.each([
@@ -1240,6 +1287,92 @@ describe("MeetsController", () => {
         downloadReport: false,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("previews the rendered email for an attendee without sending it", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getAttendeeContactById as jest.Mock).mockResolvedValue({
+      name: "Alex",
+      email: "alex@example.com",
+    });
+    setRoles({ organizer: true });
+    const body = {
+      messages: [
+        {
+          attendeeIds: ["attendee-1"],
+          subject: "Bring a shell",
+          text: "Hi {{name}}, bring a shell to {{meet}}.",
+        },
+      ],
+    };
+
+    await expect(
+      controller.previewMessageAttendees("meet-1", body, memberUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const result = await controller.previewMessageAttendees(
+      "meet-1",
+      body,
+      user,
+    );
+    expect(result.previews[0]).toMatchObject({
+      from: "Taylor (Aventuremeets) <organiser@example.com>",
+      to: "alex@example.com",
+      subject: "Bring a shell",
+      attendeeName: "Alex",
+    });
+    expect(result.previews[0].html).toContain(
+      "Hi Alex, bring a shell to Sunrise Hike.",
+    );
+    expect(result.previews[0].html).toContain(
+      "http://localhost:5173/meets/share-123/attendee-1",
+    );
+    expect(result.previews[0].html).toContain("View meet");
+    expect(result.previews[0].html).toContain(
+      "https://cdn.example.com/logos/org-1.webp",
+    );
+    expect(meetsService.getAttendeeContactById).toHaveBeenCalledWith(
+      "attendee-1",
+      "meet-1",
+    );
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
+    expect(emailService.saveMessage).not.toHaveBeenCalled();
+  });
+
+  it("omits personal links in a group message preview", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getAttendeeContactById as jest.Mock).mockImplementation(
+      async (attendeeId: string) => ({
+        name: attendeeId === "attendee-1" ? "Alex" : "Jamie",
+        email:
+          attendeeId === "attendee-1"
+            ? "alex@example.com"
+            : "jamie@example.com",
+      }),
+    );
+    setRoles({ organizer: true });
+
+    const result = await controller.previewMessageAttendees(
+      "meet-1",
+      {
+        messages: [
+          {
+            attendeeIds: ["attendee-1", "attendee-2"],
+            subject: "Group note",
+            text: "Shared note",
+            sendAsGroup: true,
+          },
+        ],
+      },
+      user,
+    );
+
+    expect(result.previews[0].attendeeName).toBe("everyone");
+    expect(result.previews[0].to).toBe("alex@example.com, jamie@example.com");
+    expect(result.previews[0].html).not.toContain("View meet");
+    expect(result.previews[0].html).not.toContain(
+      "/meets/share-123/attendee-1",
+    );
   });
 
   it("sets respondedAt for attendees when an organizer manually sends a message", async () => {

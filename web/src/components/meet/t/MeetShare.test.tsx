@@ -8,6 +8,11 @@ const error = vi.fn();
 vi.mock("../../../hooks/useNotistack", () => ({
   useNotistack: () => ({ success, error }),
 }));
+vi.mock("../../../hooks/useFetchOrganization", () => ({
+  useFetchOrganization: () => ({
+    data: { name: "Summit Explorers", logoUrl: "https://example.com/logo.png" },
+  }),
+}));
 vi.mock("../../createMeetModal/openMeetPosterPrintWindow", () => ({
   openMeetPosterPrintWindow: vi.fn(),
 }));
@@ -17,6 +22,7 @@ vi.mock("../MeetWhatsappComposer", () => ({
 
 const meet = {
   id: "meet-1",
+  organizationId: "org-1",
   name: "Mountain walk",
   organizerId: "organizer-1",
   shareCode: "share-123",
@@ -114,7 +120,12 @@ describe("MeetShare", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Poster" }));
     expect(openMeetPosterPrintWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Mountain walk", qrUrl: url }),
+      expect.objectContaining({
+        title: "Mountain walk",
+        qrUrl: url,
+        organizationName: "Summit Explorers",
+        organizationLogoUrl: "https://example.com/logo.png",
+      }),
     );
   });
 

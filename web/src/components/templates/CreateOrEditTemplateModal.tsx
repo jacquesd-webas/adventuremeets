@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -25,6 +26,11 @@ import { useCreateTemplate } from "../../hooks/useCreateTemplate";
 import { useUpdateTemplate } from "../../hooks/useUpdateTemplate";
 import { useFetchOrganizationTemplate } from "../../hooks/useFetchOrganizationTemplate";
 import { TemplateMetaDefinition } from "../../types/TemplateModel";
+import {
+  formatSelectQuestionOptions,
+  parseSelectQuestionOptions,
+} from "../createMeetModal/selectQuestionOptions";
+import { EmailTemplateVariablesHelp } from "../EmailTemplateVariablesHelp";
 
 type CreateOrEditTemplateModalProps = {
   open: boolean;
@@ -35,7 +41,7 @@ type CreateOrEditTemplateModalProps = {
 
 type TemplateQuestionField = {
   id: string;
-  type: "text" | "select" | "switch" | "checkbox";
+  type: "text" | "select" | "switch" | "checkbox" | "static-text";
   label: string;
   required?: boolean;
   includeInReports?: boolean;
@@ -76,7 +82,7 @@ export function CreateOrEditTemplateModal({
       setRejectResponse(existingTemplate.rejectResponse || "");
       setWaitlistResponse(existingTemplate.waitlistResponse || "");
       setQuestions(
-        mapDefinitionsToQuestions(existingTemplate.metaDefinitions || [])
+        mapDefinitionsToQuestions(existingTemplate.metaDefinitions || []),
       );
       setSection("basic");
     } else if (templateId && !existingTemplate) {
@@ -128,7 +134,7 @@ export function CreateOrEditTemplateModal({
 
   const updateField = (id: string, updates: Partial<TemplateQuestionField>) => {
     setQuestions((prev) =>
-      prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
+      prev.map((q) => (q.id === id ? { ...q, ...updates } : q)),
     );
   };
 
@@ -170,14 +176,18 @@ export function CreateOrEditTemplateModal({
           `field_${index + 1}`,
         label: question.label,
         fieldType: question.type,
-        required: Boolean(question.required),
+        required: question.type !== "static-text" && Boolean(question.required),
         config:
           question.type === "select"
             ? {
                 options: question.options ?? [],
                 includeInReports: Boolean(question.includeInReports),
               }
-            : { includeInReports: Boolean(question.includeInReports) },
+            : {
+                includeInReports:
+                  question.type !== "static-text" &&
+                  Boolean(question.includeInReports),
+              },
       })),
     };
     try {
@@ -199,7 +209,7 @@ export function CreateOrEditTemplateModal({
         err?.message ||
           (templateId
             ? "Failed to update template"
-            : "Failed to create template")
+            : "Failed to create template"),
       );
     }
   };
@@ -245,7 +255,7 @@ export function CreateOrEditTemplateModal({
                         | "basic"
                         | "questions"
                         | "responses"
-                        | "indemnity"
+                        | "indemnity",
                     )
                   }
                 >
@@ -291,36 +301,67 @@ export function CreateOrEditTemplateModal({
                     </i>
                   </Typography>
                   <Stack spacing={2}>
-                    <Stack direction="row" spacing={1} sx={{ width: "100%" }}>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: {
+                          xs: "repeat(6, minmax(0, 1fr))",
+                          sm: "repeat(5, minmax(0, 1fr))",
+                        },
+                        gap: 1,
+                      }}
+                    >
                       <Button
                         variant="outlined"
                         onClick={() => addField("text")}
-                        sx={{ flex: 1 }}
+                        sx={{
+                          px: "13px",
+                          gridColumn: { xs: "span 2", sm: "auto" },
+                        }}
                       >
-                        Textfield
+                        Field
                       </Button>
                       <Button
                         variant="outlined"
                         onClick={() => addField("select")}
-                        sx={{ flex: 1 }}
+                        sx={{
+                          px: "13px",
+                          gridColumn: { xs: "span 2", sm: "auto" },
+                        }}
                       >
                         Select
                       </Button>
                       <Button
                         variant="outlined"
                         onClick={() => addField("switch")}
-                        sx={{ flex: 1 }}
+                        sx={{
+                          px: "13px",
+                          gridColumn: { xs: "span 2", sm: "auto" },
+                        }}
                       >
                         Switch
                       </Button>
                       <Button
                         variant="outlined"
                         onClick={() => addField("checkbox")}
-                        sx={{ flex: 1 }}
+                        sx={{
+                          px: "13px",
+                          gridColumn: { xs: "span 3", sm: "auto" },
+                        }}
                       >
-                        Checkbox
+                        Check
                       </Button>
-                    </Stack>
+                      <Button
+                        variant="outlined"
+                        onClick={() => addField("static-text")}
+                        sx={{
+                          px: "13px",
+                          gridColumn: { xs: "span 3", sm: "auto" },
+                        }}
+                      >
+                        Text
+                      </Button>
+                    </Box>
                     <Stack spacing={2}>
                       {questions.map((field, index) => (
                         <Paper key={field.id} variant="outlined" sx={{ p: 2 }}>
@@ -331,9 +372,13 @@ export function CreateOrEditTemplateModal({
                             mb={1}
                           >
                             <Typography variant="subtitle1" fontWeight={700}>
-                              {field.type.charAt(0).toUpperCase() +
-                                field.type.slice(1)}{" "}
-                              field
+                              {field.type === "static-text"
+                                ? "Text"
+                                : field.type === "text"
+                                  ? "Field"
+                                  : field.type === "checkbox"
+                                    ? "Check"
+                                    : `${field.type.charAt(0).toUpperCase() + field.type.slice(1)} field`}
                             </Typography>
                             <Stack
                               direction="row"
@@ -364,9 +409,15 @@ export function CreateOrEditTemplateModal({
                           </Stack>
                           <Stack spacing={1.5}>
                             <TextField
-                              label="Label"
+                              label={
+                                field.type === "static-text" ? "Text" : "Label"
+                              }
                               placeholder="What should the user see?"
                               value={field.label}
+                              multiline={field.type === "static-text"}
+                              minRows={
+                                field.type === "static-text" ? 3 : undefined
+                              }
                               onChange={(e) =>
                                 updateField(field.id, {
                                   label: e.target.value,
@@ -376,56 +427,57 @@ export function CreateOrEditTemplateModal({
                             />
                             {field.type === "select" && (
                               <TextField
-                                label="Options (comma separated)"
+                                label="Options (comma or semicolon separated)"
                                 placeholder="e.g. Beginner, Intermediate, Advanced"
                                 value={
                                   field.optionsInput ??
-                                  (field.options?.join(", ") || "")
+                                  formatSelectQuestionOptions(field.options)
                                 }
                                 onChange={(e) =>
                                   updateField(field.id, {
                                     optionsInput: e.target.value,
-                                    options: e.target.value
-                                      .split(",")
-                                      .map((o) => o.trim())
-                                      .filter(Boolean),
+                                    options: parseSelectQuestionOptions(
+                                      e.target.value,
+                                    ),
                                   })
                                 }
                                 fullWidth
                               />
                             )}
-                            <Stack
-                              direction="row"
-                              spacing={2}
-                              alignItems="center"
-                            >
-                              <FormControlLabel
-                                control={
-                                  <Switch
-                                    checked={Boolean(field.required)}
-                                    onChange={(e) =>
-                                      updateField(field.id, {
-                                        required: e.target.checked,
-                                      })
-                                    }
-                                  />
-                                }
-                                label="Required"
-                              />
-                              <FormControlLabel
-                                control={
-                                  <Switch
-                                    checked={Boolean(field.includeInReports)}
-                                    onChange={(e) =>
-                                      updateField(field.id, {
-                                        includeInReports: e.target.checked,
-                                      })
-                                    }
-                                  />
-                                }
-                                label="Include in reports"
-                              />
-                            </Stack>
+                            {field.type !== "static-text" && (
+                              <Stack
+                                direction="row"
+                                spacing={2}
+                                alignItems="center"
+                              >
+                                <FormControlLabel
+                                  control={
+                                    <Switch
+                                      checked={Boolean(field.required)}
+                                      onChange={(e) =>
+                                        updateField(field.id, {
+                                          required: e.target.checked,
+                                        })
+                                      }
+                                    />
+                                  }
+                                  label="Required"
+                                />
+                                <FormControlLabel
+                                  control={
+                                    <Switch
+                                      checked={Boolean(field.includeInReports)}
+                                      onChange={(e) =>
+                                        updateField(field.id, {
+                                          includeInReports: e.target.checked,
+                                        })
+                                      }
+                                    />
+                                  }
+                                  label="Include in reports"
+                                />
+                              </Stack>
+                            )}
                           </Stack>
                         </Paper>
                       ))}
@@ -450,6 +502,7 @@ export function CreateOrEditTemplateModal({
                     multiline
                     minRows={4}
                   />
+                  <EmailTemplateVariablesHelp />
                   <TextField
                     label="Reject response"
                     placeholder="Message sent to rejected attendees"
@@ -509,12 +562,16 @@ export function CreateOrEditTemplateModal({
 }
 
 const mapDefinitionsToQuestions = (
-  definitions: TemplateMetaDefinition[]
+  definitions: TemplateMetaDefinition[],
 ): TemplateQuestionField[] =>
   definitions.map((definition) => {
-    const fieldType = ["text", "select", "switch", "checkbox"].includes(
-      definition.fieldType
-    )
+    const fieldType = [
+      "text",
+      "select",
+      "switch",
+      "checkbox",
+      "static-text",
+    ].includes(definition.fieldType)
       ? (definition.fieldType as TemplateQuestionField["type"])
       : "text";
     const fallbackId =
@@ -534,7 +591,7 @@ const mapDefinitionsToQuestions = (
           : undefined,
       optionsInput:
         fieldType === "select"
-          ? ((definition.config?.options as string[]) || []).join(", ")
+          ? formatSelectQuestionOptions(definition.config?.options as string[])
           : "",
       fieldKey: definition.fieldKey,
     };

@@ -36,6 +36,7 @@ export function ConfirmClosedStatusDialog({
 
   const { subject, content: messageContent } = useDefaultMessage(status, {
     meetName: meet.name,
+    invitationWording: meet.invitationWording,
     confirmMessage: meet.confirmMessage,
     waitlistMessage: meet.waitlistMessage,
     rejectMessage: meet.rejectMessage,

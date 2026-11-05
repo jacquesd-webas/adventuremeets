@@ -165,7 +165,7 @@ describe("fillIndemnityPdf", () => {
         startTime: "2026-10-20T06:00:00Z",
         timeZone: "Africa/Johannesburg",
         location: "Trailhead",
-        organizationName: "MCSA Cape Town",
+        organizationName: "Summit Explorers",
       },
       attendee: {
         name: "Child Example",
@@ -180,7 +180,7 @@ describe("fillIndemnityPdf", () => {
     expect(result.getTextField("Start Time").getText()).toBe("08:00");
     expect(result.getTextField("LocationVenue").getText()).toBe("Trailhead");
     expect(result.getTextField("Scout troop / group").getText()).toBe(
-      "MCSA Cape Town",
+      "Summit Explorers",
     );
     expect(result.getTextField("Child full name").getText()).toBe(
       "Child Example",

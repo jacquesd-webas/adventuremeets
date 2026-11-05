@@ -26,6 +26,7 @@ import {
   formatDateRange,
   formatDate,
   formatDateTime,
+  formatTime,
 } from "./email.helpers";
 
 const templateCache = new Map<string, string>();
@@ -109,10 +110,9 @@ const renderTemplate = (
       template = template.replace(regex, "");
     }
   });
-  Object.entries(vars).forEach(([key, value]) => {
-    template = template.split(`{{${key}}}`).join(value);
-  });
-  return template.replace(/\n{3,}/g, "\n\n").trim();
+  return renderInlineTemplate(template, vars)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 };
 
 function wrapHtml(content: string, logoUrl?: string) {
@@ -472,13 +472,13 @@ export function renderEmailTemplate(
     if (!meetVars?.meetName) {
       throw new Error("Missing meetName for meet-waitlist template");
     }
-    const varsMap = escapeAllHtml({
+    const varsMap = {
       ...baseVarsMap,
       ...getMeetTemplateContext(meetVars, {
         getDefaultMessageBody: () =>
           "You're on the waitlist for {{meetName}}. If a spot opens up, the organiser will notify you. When: {{timeLine}}. Where: {{locationLine}}.",
       }),
-    });
+    };
     const wording = getMeetResponseWording(meetVars.isRsvpMode);
     const flags = {
       ifStatusUrl: Boolean(varsMap.statusUrl),
@@ -495,8 +495,7 @@ export function renderEmailTemplate(
       "meet-waitlist",
       "html",
       {
-        ...varsMap,
-        ...escapeAllHtml(wording),
+        ...escapeAllHtml({ ...varsMap, ...wording }),
         messageBody: varsMap.messageBodyHtml,
       },
       flags,
@@ -513,13 +512,13 @@ export function renderEmailTemplate(
     }
     const includeStatusUrl = messageVars.includeStatusUrl !== false;
     const wording = getMeetResponseWording(messageVars.isRsvpMode);
-    const varsMap = escapeAllHtml({
+    const varsMap = {
       ...baseVarsMap,
       ...getMeetTemplateContext(messageVars, {
         includeStatusUrl,
       }),
       ...wording,
-    });
+    };
     const flags = {
       ifStatusUrl: includeStatusUrl && Boolean(varsMap.statusUrl),
       ifOrganizerEmail: Boolean(varsMap.organizerEmail),
@@ -531,7 +530,10 @@ export function renderEmailTemplate(
     const htmlBody = renderTemplate(
       "meet-message",
       "html",
-      { ...varsMap, messageBody: varsMap.messageBodyHtml },
+      {
+        ...escapeAllHtml(varsMap),
+        messageBody: varsMap.messageBodyHtml,
+      },
       flags,
     );
     return { subject, text, html: wrapHtml(htmlBody, messageVars.logoUrl) };
@@ -696,6 +698,9 @@ function getMeetTemplateContext(
   const timeLine = formatDateRange(vars.startTime, vars.endTime, vars.timeZone);
   const startTime = formatDateTime(vars.startTime, vars.timeZone);
   const startDate = formatDate(vars.startTime, vars.timeZone);
+  const endDate = formatDate(vars.endTime, vars.timeZone);
+  const startClock = formatTime(vars.startTime, vars.timeZone);
+  const endClock = formatTime(vars.endTime, vars.timeZone);
   const meetName = vars.meetName || "";
   const greetingName = vars.attendeeName || "there";
   const statusUrl =
@@ -708,6 +713,16 @@ function getMeetTemplateContext(
   const messageBody = renderInlineTemplate(messageBodyTemplate, {
     meetName,
     attendeeName: greetingName,
+    name: greetingName,
+    meet: meetName,
+    organiser: organizerName,
+    start_date: startDate,
+    end_date: endDate,
+    start: startDate,
+    end: endDate,
+    start_time: startClock,
+    end_time: endClock,
+    location: locationLine,
     statusUrl,
     organizerName,
     organizerEmail,
@@ -720,6 +735,16 @@ function getMeetTemplateContext(
   return {
     meetName,
     attendeeName: greetingName,
+    name: greetingName,
+    meet: meetName,
+    organiser: organizerName,
+    start_date: startDate,
+    end_date: endDate,
+    start: startDate,
+    end: endDate,
+    start_time: startClock,
+    end_time: endClock,
+    location: locationLine,
     statusUrl,
     organizerName,
     organizerEmail,
@@ -734,9 +759,9 @@ function getMeetTemplateContext(
 }
 
 function renderInlineTemplate(template: string, vars: Record<string, string>) {
-  let output = template;
-  Object.entries(vars).forEach(([key, value]) => {
-    output = output.split(`{{${key}}}`).join(value);
-  });
-  return output;
+  return template.replace(
+    /\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}/g,
+    (placeholder, key) =>
+      Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : placeholder,
+  );
 }

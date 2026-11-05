@@ -18,9 +18,12 @@ import { openMeetPosterPrintWindow } from "./openMeetPosterPrintWindow";
 import Meet from "../../types/MeetModel";
 import { useMeetWhatsappConnection } from "../../hooks/useMeetWhatsapp";
 import { MeetWhatsappInviteLink } from "./MeetWhatsappInviteLink";
+import { AdminCheckinShareLink } from "./AdminCheckinShareLink";
 
 type FinishStepProps = StepProps & {
   meetId?: string | null;
+  organizationName?: string;
+  organizationLogoUrl?: string;
   shareCode?: string | null;
   checkinPin?: string | null;
   isEditing?: boolean;
@@ -30,8 +33,10 @@ type FinishStepProps = StepProps & {
 export function FinishStep({
   state,
   setState,
-  errors = [],
   meetId,
+  organizationName,
+  organizationLogoUrl,
+  errors = [],
   shareCode,
   checkinPin,
   disabled = false,
@@ -110,23 +115,27 @@ export function FinishStep({
   };
 
   const handlePrintSignupPoster = () => {
-    if (!shareUrl) return;
+    if (!shareUrl || !organizationName) return;
     openMeetPosterPrintWindow({
       title: state.name || "Meet signup",
       subtitle: posterSubtitle,
       qrUrl: shareUrl,
       imageUrl: state.imagePreview || undefined,
+      organizationName,
+      organizationLogoUrl,
       footerLabel: "Meet signup",
     });
   };
 
   const handlePrintSelfCheckinPoster = () => {
-    if (!selfCheckinUrl) return;
+    if (!selfCheckinUrl || !organizationName) return;
     openMeetPosterPrintWindow({
       title: state.name || "Meet self check-in",
       subtitle: posterSubtitle,
       qrUrl: selfCheckinUrl,
       imageUrl: state.imagePreview || undefined,
+      organizationName,
+      organizationLogoUrl,
       footerLabel: "Self check-in",
     });
   };
@@ -192,7 +201,7 @@ export function FinishStep({
               <Button
                 variant="outlined"
                 onClick={handlePrintSignupPoster}
-                disabled={!shareUrl}
+                disabled={!shareUrl || !organizationName}
               >
                 Sign-up Poster
               </Button>
@@ -200,7 +209,7 @@ export function FinishStep({
                 <Button
                   variant="outlined"
                   onClick={handlePrintSelfCheckinPoster}
-                  disabled={!selfCheckinUrl}
+                  disabled={!selfCheckinUrl || !organizationName}
                 >
                   Check-in Poster
                 </Button>
@@ -213,6 +222,12 @@ export function FinishStep({
                 {copied ? "Copied" : "Copy link"}
               </Button>
             </Stack>
+            {isEditing &&
+            meetId &&
+            shareCode &&
+            state.statusId !== MeetStatusEnum.Draft ? (
+              <AdminCheckinShareLink meetId={meetId} shareCode={shareCode} />
+            ) : null}
           </>
         )}
         <Typography variant="h6">WhatsApp Group</Typography>

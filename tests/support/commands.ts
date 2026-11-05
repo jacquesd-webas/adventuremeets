@@ -134,12 +134,12 @@ Cypress.Commands.add(
       questions.forEach((question) => {
         const buttonLabel =
           question.type === "text"
-            ? "Textfield"
+            ? "Field"
             : question.type === "select"
               ? "Select"
               : question.type === "switch"
                 ? "Switch"
-                : "Checkbox";
+                : "Check";
         cy.contains("button", buttonLabel).click();
       });
 

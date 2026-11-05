@@ -56,6 +56,6 @@ it("counts attendees and their guests using the meet card status groups", () => 
   );
 
   expect(screen.getByText("6")).toBeInTheDocument();
-  expect(screen.getByText("3")).toBeInTheDocument();
+  expect(screen.getByText("8")).toBeInTheDocument();
   expect(screen.getByText("2")).toBeInTheDocument();
 });

@@ -37,6 +37,8 @@ import { CheckinSearch } from "../components/attendeeCheckin/CheckinSearch";
 import { LockedMeet } from "../components/createMeetModal/LockedMeet";
 import { getMeetCheckinReturnTo } from "../helpers/meetNavigation";
 import { useCompleteMeetCheckin } from "../hooks/useCompleteMeetCheckin";
+import { useEnableMeetCheckinFeature } from "../hooks/useEnableMeetCheckinFeature";
+import { useAdminShareCode } from "../hooks/useAdminShareCode";
 
 type MeetCheckinLocationState = {
   returnTo?: string;
@@ -72,11 +74,16 @@ function MeetCheckinPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
   const completeCheckin = useCompleteMeetCheckin();
+  const enableCheckinFeature = useEnableMeetCheckinFeature(id);
   const [checkingIn, setCheckingIn] = useState<Record<string, boolean>>({});
   const [optimisticStatusByAttendeeId, setOptimisticStatusByAttendeeId] =
     useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [isQrDialogOpen, setIsQrDialogOpen] = useState(false);
+  const [qrMode, setQrMode] = useState<"self" | "delegate" | "walkin">("self");
+  const [featureToEnable, setFeatureToEnable] = useState<
+    "walkins" | "self-checkin" | null
+  >(null);
   const [undoTarget, setUndoTarget] = useState<{
     id: string;
     name: string;
@@ -94,6 +101,11 @@ function MeetCheckinPage() {
     user?.id &&
     user.id !== meet.organizerId &&
     !(isAdminForMeet && isAdminUnlockEnabled),
+  );
+  const canEnableFeature = Boolean(user?.id && !isReadOnly);
+  const adminShareCodeQuery = useAdminShareCode(
+    id,
+    isQrDialogOpen && canEnableFeature,
   );
 
   const attendeeList = useMemo(
@@ -141,13 +153,38 @@ function MeetCheckinPage() {
   }, [attendeeList, searchTerm]);
 
   const selfCheckinUrl = useMemo(() => {
-    if (!meet?.shareCode || typeof window === "undefined") return "";
-    const params = new URLSearchParams();
-    if (meet?.checkinPin) {
-      params.set("pin", meet.checkinPin);
-    }
+    if (!meet?.shareCode || !meet.checkinPin || typeof window === "undefined")
+      return "";
+    const params = new URLSearchParams({ pin: meet.checkinPin });
     return `${window.location.origin}/meets/${meet.shareCode}/checkin?${params.toString()}`;
   }, [meet?.checkinPin, meet?.shareCode]);
+
+  const walkinSignupUrl = useMemo(() => {
+    if (!meet?.shareCode || !meet.checkinPin || typeof window === "undefined")
+      return "";
+    const params = new URLSearchParams({ pin: meet.checkinPin });
+    return `${window.location.origin}/meets/${meet.shareCode}?${params.toString()}`;
+  }, [meet?.checkinPin, meet?.shareCode]);
+
+  const delegateCheckinUrl = useMemo(() => {
+    if (!meet?.shareCode || !adminShareCodeQuery.data?.adminShareCode)
+      return "";
+    const params = new URLSearchParams({
+      adminShareCode: adminShareCodeQuery.data.adminShareCode,
+    });
+    return `${window.location.origin}/meets/${meet.shareCode}/checkin?${params.toString()}`;
+  }, [adminShareCodeQuery.data?.adminShareCode, meet?.shareCode]);
+
+  const qrDialogTitle = {
+    self: "Self check-in QR code",
+    delegate: "Delegate check-in QR code",
+    walkin: "Walk-in signup QR code",
+  }[qrMode];
+  const closeQrDialogLabel = {
+    self: "Close self check-in QR code",
+    delegate: "Close delegate check-in QR code",
+    walkin: "Close walk-in signup QR code",
+  }[qrMode];
 
   const handleCheckin = async (attendeeId: string) => {
     if (isReadOnly) return;
@@ -238,6 +275,16 @@ function MeetCheckinPage() {
     }
   };
 
+  const handleEnableFeature = async () => {
+    if (!featureToEnable || !canEnableFeature) return;
+    try {
+      await enableCheckinFeature.mutateAsync(featureToEnable);
+      setFeatureToEnable(null);
+    } catch {
+      // Keep the confirmation open so the organiser can retry.
+    }
+  };
+
   const cannotFinish =
     !isReadOnly &&
     !meet?.checkinCompleted &&
@@ -313,30 +360,64 @@ function MeetCheckinPage() {
               />
             </Box>
             {areWalkinsEnabled ? (
-              <Tooltip title="Walk-ins enabled">
-                <Box
-                  aria-label="Walk-ins enabled"
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "text.secondary",
-                  }}
-                >
-                  <DirectionsWalkIcon />
-                </Box>
+              <Tooltip describeChild title="Show walk-in QR code">
+                <span>
+                  <IconButton
+                    aria-label="Show walk-in QR code"
+                    disabled={!walkinSignupUrl}
+                    onClick={() => {
+                      setQrMode("walkin");
+                      setIsQrDialogOpen(true);
+                    }}
+                  >
+                    <DirectionsWalkIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
-            ) : null}
-            {isSelfCheckinEnabled ? (
-              <Tooltip title="Show self check-in QR code">
+            ) : (
+              <Tooltip describeChild title="Enable walk-ins">
+                <span>
+                  <IconButton
+                    aria-label="Enable walk-ins"
+                    disabled={!canEnableFeature}
+                    onClick={() => setFeatureToEnable("walkins")}
+                  >
+                    <DirectionsWalkIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+            <Tooltip
+              describeChild
+              title={
+                isSelfCheckinEnabled
+                  ? "Show self check-in QR code"
+                  : "Enable self check-in"
+              }
+            >
+              <span>
                 <IconButton
-                  aria-label="Show self check-in QR code"
-                  onClick={() => setIsQrDialogOpen(true)}
+                  aria-label={
+                    isSelfCheckinEnabled
+                      ? "Show self check-in QR code"
+                      : "Enable self check-in"
+                  }
+                  disabled={
+                    isSelfCheckinEnabled ? !selfCheckinUrl : !canEnableFeature
+                  }
+                  onClick={() => {
+                    if (isSelfCheckinEnabled) {
+                      setQrMode("self");
+                      setIsQrDialogOpen(true);
+                    } else {
+                      setFeatureToEnable("self-checkin");
+                    }
+                  }}
                 >
                   <QrCode2Icon />
                 </IconButton>
-              </Tooltip>
-            ) : null}
+              </span>
+            </Tooltip>
           </Stack>
         </Box>
         {isOffline || pendingCount > 0 || failedCount > 0 || isOfflineData ? (
@@ -425,6 +506,29 @@ function MeetCheckinPage() {
         </Button>
       </Box>
       <ConfirmActionDialog
+        open={featureToEnable !== null}
+        title={
+          featureToEnable === "walkins"
+            ? "Enable walk-ins?"
+            : "Enable self check-in?"
+        }
+        description={
+          featureToEnable === "walkins"
+            ? "This will allow walk-ins and self check-in for this meet."
+            : "This will allow attendees to check themselves in for this meet."
+        }
+        confirmLabel="Enable"
+        isSubmitting={enableCheckinFeature.isPending}
+        onClose={() => setFeatureToEnable(null)}
+        onConfirm={() => void handleEnableFeature()}
+      >
+        {enableCheckinFeature.isError ? (
+          <Alert severity="error">
+            Could not update the meet. Please try again.
+          </Alert>
+        ) : null}
+      </ConfirmActionDialog>
+      <ConfirmActionDialog
         open={Boolean(undoTarget)}
         title="Undo check-in?"
         description={undoTarget ? `Undo check-in for ${undoTarget.name}?` : ""}
@@ -446,9 +550,9 @@ function MeetCheckinPage() {
             gap: 1,
           }}
         >
-          Self check-in QR code
+          {qrDialogTitle}
           <IconButton
-            aria-label="Close self check-in QR code"
+            aria-label={closeQrDialogLabel}
             onClick={() => setIsQrDialogOpen(false)}
             edge="end"
           >
@@ -462,7 +566,58 @@ function MeetCheckinPage() {
             textAlign="center"
             sx={{ py: 1 }}
           >
-            {selfCheckinUrl ? (
+            {qrMode === "walkin" ? (
+              walkinSignupUrl ? (
+                <>
+                  <QRCodeSVG value={walkinSignupUrl} size={280} includeMargin />
+                  <Typography variant="body2" color="text.secondary">
+                    Scan to register and check in as a walk-in.
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ wordBreak: "break-all" }}
+                  >
+                    {walkinSignupUrl}
+                  </Typography>
+                </>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Walk-in signup link is not available for this meet yet.
+                </Typography>
+              )
+            ) : qrMode === "delegate" ? (
+              delegateCheckinUrl ? (
+                <>
+                  <QRCodeSVG
+                    value={delegateCheckinUrl}
+                    size={280}
+                    includeMargin
+                  />
+                  <Typography
+                    variant="body2"
+                    color="error.main"
+                    fontWeight={700}
+                  >
+                    Share this QR code only with helpers. It allows them to
+                    check in ANY attendees.
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ wordBreak: "break-all" }}
+                  >
+                    {delegateCheckinUrl}
+                  </Typography>
+                </>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  {adminShareCodeQuery.isLoading
+                    ? "Loading delegate link..."
+                    : "Delegate link is unavailable. Save this meet again to create one."}
+                </Typography>
+              )
+            ) : selfCheckinUrl ? (
               <>
                 <QRCodeSVG value={selfCheckinUrl} size={280} includeMargin />
                 <Typography variant="body2" color="text.secondary">
@@ -481,6 +636,16 @@ function MeetCheckinPage() {
                 Self check-in link is not available for this meet yet.
               </Typography>
             )}
+            {canEnableFeature && qrMode !== "walkin" ? (
+              <Button
+                variant="outlined"
+                onClick={() =>
+                  setQrMode(qrMode === "self" ? "delegate" : "self")
+                }
+              >
+                {qrMode === "self" ? "Delegate" : "Self check-in"}
+              </Button>
+            ) : null}
           </Stack>
         </DialogContent>
       </Dialog>

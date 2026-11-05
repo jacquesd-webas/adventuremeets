@@ -71,6 +71,7 @@ export type Meet = {
   waitlistMessage?: string;
   confirmMessage?: string;
   rejectMessage?: string;
+  invitationWording?: string;
   hasIndemnity?: boolean;
   hasPdfIndemnityTemplate?: boolean;
   indemnity?: string;

@@ -194,6 +194,7 @@ describe("OrganizationsService", () => {
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "alice@example.com",
+        organizationId: "org-1",
       }),
     );
     expect(result).toEqual(

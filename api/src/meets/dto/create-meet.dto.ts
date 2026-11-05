@@ -216,6 +216,11 @@ export class CreateMeetDto {
   @IsString()
   waitlistMessage?: string;
 
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  invitationWording?: string | null;
+
   @ApiPropertyOptional({ description: "Requires indemnity waiver" })
   @IsOptional()
   @IsBoolean()

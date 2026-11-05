@@ -23,6 +23,7 @@ import Meet from "../../types/MeetModel";
 import { getMeetDateLabel, getMeetTimeLabel } from "../../helpers/meetTime";
 import { openMeetPosterPrintWindow } from "../createMeetModal/openMeetPosterPrintWindow";
 import { useNotistack } from "../../hooks/useNotistack";
+import { useFetchOrganization } from "../../hooks/useFetchOrganization";
 import { MeetWhatsappComposer } from "./MeetWhatsappComposer";
 import { meetShareMessage } from "./meetShareMessage";
 import { MeetShareOption } from "./MeetShareOption";
@@ -43,6 +44,9 @@ export function MeetShare({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const notice = useNotistack();
+  const { data: organization } = useFetchOrganization(meet.organizationId, {
+    enabled: open,
+  });
   const [showQr, setShowQr] = useState(false);
   const [showWhatsappComposer, setShowWhatsappComposer] = useState(false);
   const shareUrl = `${window.location.origin}/share/${meet.shareCode}`;
@@ -67,6 +71,7 @@ export function MeetShare({
   };
 
   const handlePoster = () => {
+    if (!organization?.name) return;
     const dateLabel = getMeetDateLabel(meet);
     const timeLabel = getMeetTimeLabel(meet);
     openMeetPosterPrintWindow({
@@ -77,6 +82,8 @@ export function MeetShare({
           : `${dateLabel} • ${timeLabel}`,
       qrUrl: shareUrl,
       imageUrl: meet.imageUrl,
+      organizationName: organization.name,
+      organizationLogoUrl: organization.logoUrl,
       footerLabel: "Meet signup",
     });
   };
@@ -138,6 +145,7 @@ export function MeetShare({
           label="Poster"
           icon={<ArticleOutlinedIcon fontSize="large" />}
           onClick={handlePoster}
+          disabled={!organization?.name}
         />
         {canNativeShare ? (
           <MeetShareOption

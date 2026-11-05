@@ -47,6 +47,72 @@ const buildBuilder = () => {
 };
 
 describe("MeetsService", () => {
+  it("limits preview contact lookup to the selected meet", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      name: "Alex",
+      email: "alex@example.com",
+    });
+    const db = {
+      getClient: () => () => attendeeBuilder,
+    } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as ObjectStorageService);
+
+    await expect(
+      service.getAttendeeContactById("attendee-1", "meet-1"),
+    ).resolves.toMatchObject({ email: "alex@example.com" });
+    expect(attendeeBuilder.where).toHaveBeenCalledWith({ id: "attendee-1" });
+    expect(attendeeBuilder.andWhere).toHaveBeenCalledWith({
+      meet_id: "meet-1",
+    });
+  });
+
+  it("creates an admin share code when publishing without replacing an existing one", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.update.mockResolvedValue([{ id: "meet-1" }]);
+    const raw = jest.fn((sql, bindings) => ({ sql, bindings }));
+    const db = {
+      getClient: () => Object.assign(() => meetsBuilder, { raw }),
+    } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as ObjectStorageService);
+
+    await service.updateStatus("meet-1", 2);
+
+    const updates = meetsBuilder.update.mock.calls[0][0];
+    expect(updates.admin_share_code.sql).toBe("coalesce(admin_share_code, ?)");
+    expect(updates.admin_share_code.bindings[0]).toMatch(/^[a-f0-9]{48}$/);
+  });
+
+  it("only allows a valid admin code to check in confirmed attendees", async () => {
+    const code = "a".repeat(48);
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue({ admin_share_code: code });
+    const attendeesBuilder = buildBuilder();
+    attendeesBuilder.update.mockResolvedValue([
+      { id: "attendee-1", name: "Alex", status: "checked-in" },
+    ]);
+    const client = (table: string) =>
+      table === "meets" ? meetsBuilder : attendeesBuilder;
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await expect(
+      service.adminCheckinAttendee("meet-1", "attendee-1", "b".repeat(48)),
+    ).rejects.toThrow("Invalid check-in link");
+    expect(attendeesBuilder.update).not.toHaveBeenCalled();
+
+    await expect(
+      service.adminCheckinAttendee("meet-1", "attendee-1", code),
+    ).resolves.toMatchObject({ status: "checked-in" });
+    expect(attendeesBuilder.where).toHaveBeenCalledWith({
+      meet_id: "meet-1",
+      id: "attendee-1",
+      status: "confirmed",
+    });
+  });
+
   it("uses the latest matching answers from this user's adult signups in the same organization", async () => {
     const meetBuilder = buildBuilder();
     meetBuilder.first.mockResolvedValue({ organization_id: "org-1" });
@@ -244,6 +310,7 @@ describe("MeetsService", () => {
       maxGuests: 2,
       currencyId: 1,
       costCents: 1234,
+      invitationWording: "Please join our camp.",
     });
 
     const insertArg = meetsInsert.insert.mock.calls[0][0];
@@ -265,10 +332,37 @@ describe("MeetsService", () => {
     expect(insertArg.max_guests).toBe(2);
     expect(insertArg.currency_id).toBe(1);
     expect(insertArg.cost_cents).toBe(123400);
+    expect(insertArg.invitation_wording).toBe("Please join our camp.");
     expect(typeof insertArg.share_code).toBe("string");
     expect(insertArg.share_code.length).toBeGreaterThan(0);
 
     expect(created.name).toBe("Test meet");
+  });
+
+  it("clears stored invitation wording when the editor leaves it blank", async () => {
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue({
+      id: "meet-1",
+      invitation_wording: "Old wording",
+    });
+    meetsBuilder.update.mockResolvedValue([
+      { id: "meet-1", invitation_wording: null },
+    ]);
+    const client: any = () => meetsBuilder;
+    client.transaction = jest.fn(
+      async (callback: (trx: typeof client) => unknown) => callback(client),
+    );
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await service.update("meet-1", { invitationWording: null });
+
+    expect(meetsBuilder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ invitation_wording: null }),
+      ["*"],
+    );
   });
 
   it("returns primary image URL when fetching a meet", async () => {
@@ -281,6 +375,7 @@ describe("MeetsService", () => {
       indemnity_pdfs_id: "pdf-1",
       confirmed_count: 4,
       rejected_count: 2,
+      invitation_wording: "Please join our camp.",
     };
     const imageRow = {
       id: "image-1",
@@ -318,6 +413,10 @@ describe("MeetsService", () => {
     );
     expect(result.confirmedCount).toBe(4);
     expect(result.rejectedCount).toBe(2);
+    expect(client.raw).toHaveBeenCalledWith(
+      "sum(case when status in ('rejected', 'cancelled') then 1 + coalesce(guests, 0) else 0 end) as rejected_count",
+    );
+    expect(result.invitationWording).toBe("Please join our camp.");
     expect(result.hasPdfIndemnityTemplate).toBe(true);
     expect(result.images).toEqual([
       expect.objectContaining({
@@ -792,6 +891,10 @@ describe("MeetsService", () => {
     const service = new MeetsService(db, objectStorage);
 
     await service.findAll("all", 1, 20, ["org-1"], false, "user-1");
+
+    expect(client.raw).toHaveBeenCalledWith(
+      "sum(case when status in ('rejected', 'cancelled') then 1 + coalesce(guests, 0) else 0 end) as rejected_count",
+    );
 
     expect(organizationsBuilder.whereIn).toHaveBeenCalledWith("id", ["org-1"]);
     expect(meetsBuilder.where).toHaveBeenCalledWith("m.status_id", "!=", 1);
@@ -1758,6 +1861,13 @@ describe("MeetsService", () => {
           required: false,
           config: { options: ["Slow", "Fast"] },
         },
+        {
+          fieldKey: "instructions",
+          label: "Bring a hat and water.",
+          fieldType: "static-text",
+          required: true,
+          config: { includeInReports: true },
+        },
       ],
     } as any);
 
@@ -1790,6 +1900,14 @@ describe("MeetsService", () => {
         category: "N",
         position: 1,
         config: { options: ["Slow", "Fast"] },
+      }),
+      expect.objectContaining({
+        meet_id: "meet-1",
+        field_key: "instructions",
+        field_type: "static-text",
+        required: false,
+        position: 2,
+        config: { includeInReports: false },
       }),
     ]);
   });

@@ -59,10 +59,10 @@ describe("Create template", () => {
 
     cy.contains("Questions").click();
 
-    cy.contains("button", "Textfield").click();
+    cy.contains("button", "Field").click();
     cy.contains("button", "Select").click();
     cy.contains("button", "Switch").click();
-    cy.contains("button", "Checkbox").click();
+    cy.contains("button", "Check").click();
 
     cy.get('input[placeholder="What should the user see?"]')
       .eq(0)

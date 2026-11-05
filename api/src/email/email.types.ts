@@ -77,6 +77,10 @@ export type MeetStatusTemplateVars = {
 export type MeetMessageTemplateVars = {
   meetName: string;
   attendeeName?: string;
+  startTime?: string;
+  endTime?: string;
+  timeZone?: string;
+  location?: string;
   statusUrl?: string;
   includeStatusUrl?: boolean;
   isGroupedMessage?: boolean;
@@ -129,7 +133,7 @@ export type MeetTemplateContextOptions = {
 };
 
 export const BRAND_NAME = "AdventureMeets";
-export const SUPPORT_EMAIL = "support@fringecoding.com";
+export const SUPPORT_EMAIL = "support@adventuremeets.com";
 export const PRIMARY_COLOR = "#0f172a";
 export const SECONDARY_COLOR = "#475569";
 export const FROM_NAME = "AdventureMeets";
@@ -144,12 +148,22 @@ export const baseVarsMap = {
 
 export const ALWAYS_ESCAPE = [
   "attendeeName",
+  "name",
+  "meet",
   "meetName",
   "organizerName",
+  "organiser",
   "organizationName",
   "locationLine",
   "timeLine",
   "startTime",
   "startDate",
+  "start_date",
+  "end_date",
+  "start",
+  "end",
+  "start_time",
+  "end_time",
+  "location",
   "messageBody",
 ] as const;

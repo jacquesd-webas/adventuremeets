@@ -6,8 +6,8 @@ import DashboardPage from "./pages/DashboardPage";
 import MainLayout from "./layout/MainLayout";
 import CalendarPage from "./pages/CalendarPage";
 import MeetSignupSheet from "./pages/MeetSignupSheet";
-import MeetCheckinPage from "./pages/MeetCheckinPage";
-import MeetSelfCheckinPage from "./pages/MeetSelfCheckinPage";
+import MeetCheckinRoute from "./pages/MeetCheckinRoute";
+import MeetSelfCheckinRoute from "./pages/MeetSelfCheckinRoute";
 import AttendeeStatusPage from "./pages/AttendeeStatusPage";
 import ConfirmIndemnityPage from "./pages/ConfirmIndemnityPage";
 import MeetAttendeesPage from "./pages/MeetAttendeesPage";
@@ -65,8 +65,8 @@ function App() {
           />
         </Route>
       </Route>
-      <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
-      <Route path="/meets/:code/checkin" element={<MeetSelfCheckinPage />} />
+      <Route path="/meet/:id/checkin" element={<MeetCheckinRoute />} />
+      <Route path="/meets/:code/checkin" element={<MeetSelfCheckinRoute />} />
       <Route
         path="/meets/:code/:attendeeId/confirm-indemnity"
         element={<ConfirmIndemnityPage />}

@@ -272,6 +272,7 @@ function MeetSignupSheet() {
     const filledValues: Record<string, string | number | boolean> = {};
     const filledSources: Record<string, SignupAnswerSource> = {};
     (meet.metaDefinitions || []).forEach((field: any) => {
+      if (field.fieldType === "static-text") return;
       const key = field.fieldKey;
       const existingValue = metaValues[key];
       const wasPrefilled =
@@ -473,6 +474,7 @@ function MeetSignupSheet() {
       ]),
     );
     (meet.metaDefinitions || []).forEach((field: any) => {
+      if (field.fieldType === "static-text") return;
       const raw = valuesByKey.get(field.fieldKey);
       if (raw === undefined || raw === null) return;
       if (field.fieldType === "checkbox" || field.fieldType === "switch") {
@@ -773,6 +775,7 @@ function MeetSignupSheet() {
 
   const buildMetaPayload = () =>
     (meet?.metaDefinitions || [])
+      .filter((field) => field.fieldType !== "static-text")
       .map((field) => {
         const key = field.fieldKey;
         const value = metaValues[key];

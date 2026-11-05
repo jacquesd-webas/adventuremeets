@@ -9,6 +9,7 @@ type MeetShareOptionProps = {
   target?: string;
   rel?: string;
   selected?: boolean;
+  disabled?: boolean;
 };
 
 export function MeetShareOption({
@@ -19,6 +20,7 @@ export function MeetShareOption({
   target,
   rel,
   selected,
+  disabled,
 }: MeetShareOptionProps) {
   return (
     <Card
@@ -31,6 +33,7 @@ export function MeetShareOption({
         rel={rel}
         onClick={onClick}
         aria-pressed={selected}
+        disabled={disabled}
         sx={{
           minHeight: 108,
           px: 1,

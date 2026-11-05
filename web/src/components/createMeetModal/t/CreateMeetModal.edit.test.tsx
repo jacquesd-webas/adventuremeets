@@ -1,13 +1,14 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { CreateMeetModal } from "../CreateMeetModal";
 import { mapMeetToState, toIsoWithOffset } from "../CreateMeetState";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
 import { EDITING_MEET_RESTORE_KEY } from "../createMeetPreviewRestore";
 
-const mockSave = vi.fn(async () => ({}));
+const mockSave = vi.fn(async (_payload?: unknown, _meetId?: string) => ({}));
 const mockUpdateStatusAsync = vi.fn(async () => ({}));
 const mockCreateWhatsappGroup = vi.fn(async () => ({
   chatId: "group@g.us",
@@ -53,31 +54,37 @@ let mockedOrganization = {
 };
 
 function renderCreateMeetModal() {
+  const queryClient = new QueryClient();
   return render(
-    <MemoryRouter initialEntries={["/plan"]}>
-      <CreateMeetModal
-        open
-        onClose={vi.fn()}
-        onCreated={vi.fn()}
-        meetId="meet-1"
-        isOrganizer
-        canManageMeet
-      />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/plan"]}>
+        <CreateMeetModal
+          open
+          onClose={vi.fn()}
+          onCreated={vi.fn()}
+          meetId="meet-1"
+          isOrganizer
+          canManageMeet
+        />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
 function renderCreateMeetModalAsAdmin() {
+  const queryClient = new QueryClient();
   return render(
-    <MemoryRouter initialEntries={["/plan"]}>
-      <CreateMeetModal
-        open
-        onClose={vi.fn()}
-        onCreated={vi.fn()}
-        meetId="meet-1"
-        canManageMeet
-      />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/plan"]}>
+        <CreateMeetModal
+          open
+          onClose={vi.fn()}
+          onCreated={vi.fn()}
+          meetId="meet-1"
+          canManageMeet
+        />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -105,7 +112,10 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("../../../hooks/useApi", () => ({
-  useApi: () => ({ baseUrl: "http://localhost:3000" }),
+  useApi: () => ({
+    baseUrl: "http://localhost:3000",
+    get: vi.fn().mockResolvedValue({ adminShareCode: null }),
+  }),
 }));
 
 vi.mock("notistack", () => ({
@@ -114,6 +124,10 @@ vi.mock("notistack", () => ({
 
 vi.mock("../../../hooks/useSaveMeet", () => ({
   useSaveMeet: () => ({ save: mockSave }),
+}));
+
+vi.mock("../ImageStep", () => ({
+  ImageStep: () => <div>Image step</div>,
 }));
 
 vi.mock("../../../hooks/useUpdateMeetStatus", () => ({
@@ -289,6 +303,39 @@ describe("CreateMeetModal edit mode", () => {
     });
 
     expect(state.questions[0].category).toBe("N");
+  });
+
+  it("edits and clears invitation wording on the Responses step", async () => {
+    const user = userEvent.setup();
+    currentMeetFixture = {
+      ...meetFixture,
+      invitationWording: "Please join our camp.",
+    };
+    renderCreateMeetModal();
+
+    await user.click(screen.getByText("Responses"));
+    const wording = screen
+      .getByTestId("invitation-wording-field")
+      .querySelector("textarea");
+    expect(wording).toHaveValue("Please join our camp.");
+
+    await user.clear(wording!);
+    await user.type(wording!, "Join us on Saturday.");
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({ invitationWording: "Join us on Saturday." }),
+      "meet-1",
+    );
+
+    await user.click(screen.getByText("Responses"));
+    await user.clear(
+      screen.getByTestId("invitation-wording-field").querySelector("textarea")!,
+    );
+    await user.click(screen.getByRole("button", { name: "Save & Continue" }));
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({ invitationWording: null }),
+      "meet-1",
+    );
   });
 
   it("automatically enables self check-in when walk-ins are enabled", async () => {

@@ -20,6 +20,9 @@ vi.mock("../../../hooks/useMeetWhatsapp", () => ({
 vi.mock("../openMeetPosterPrintWindow", () => ({
   openMeetPosterPrintWindow: vi.fn(),
 }));
+vi.mock("../AdminCheckinShareLink", () => ({
+  AdminCheckinShareLink: () => <div>Helper check-in link</div>,
+}));
 
 describe("FinishStep", () => {
   afterEach(() => {
@@ -107,6 +110,28 @@ describe("FinishStep", () => {
     ).toBeDisabled();
   });
 
+  it("shows helper check-in and WhatsApp group links together for a published meet", () => {
+    render(
+      <FinishStep
+        state={{
+          ...initialState,
+          statusId: MeetStatusEnum.Published,
+          whatsappGroupCreated: true,
+        }}
+        setState={vi.fn()}
+        errors={[]}
+        meetId="meet-1"
+        shareCode="share-code-1"
+        isEditing
+      />,
+    );
+
+    expect(screen.getByText("Helper check-in link")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Group invite link" })).toHaveValue(
+      "https://chat.whatsapp.com/InviteCode123",
+    );
+  });
+
   it("does not show the postponed warning for non-edit flow", () => {
     render(
       <FinishStep
@@ -155,6 +180,8 @@ describe("FinishStep", () => {
         }}
         setState={vi.fn()}
         errors={[]}
+        organizationName="Summit Explorers"
+        organizationLogoUrl="https://example.com/logo.png"
         shareCode="share-code-1"
       />,
     );
@@ -166,6 +193,8 @@ describe("FinishStep", () => {
         title: "Poster Meet",
         qrUrl: `${window.location.origin}/meets/share-code-1`,
         imageUrl: "https://example.com/poster.jpg",
+        organizationName: "Summit Explorers",
+        organizationLogoUrl: "https://example.com/logo.png",
         footerLabel: "Meet signup",
       }),
     );
@@ -183,6 +212,8 @@ describe("FinishStep", () => {
         }}
         setState={vi.fn()}
         errors={[]}
+        organizationName="Summit Explorers"
+        organizationLogoUrl="https://example.com/logo.png"
         shareCode="share-code-1"
         checkinPin="PIN123"
       />,
@@ -193,8 +224,29 @@ describe("FinishStep", () => {
     expect(openMeetPosterPrintWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         qrUrl: `${window.location.origin}/meets/share-code-1/checkin?pin=PIN123`,
+        organizationName: "Summit Explorers",
+        organizationLogoUrl: "https://example.com/logo.png",
         footerLabel: "Self check-in",
       }),
     );
+  });
+
+  it("waits for the organisation name before enabling posters", () => {
+    render(
+      <FinishStep
+        state={{ ...initialState, allowSelfCheckin: true }}
+        setState={vi.fn()}
+        errors={[]}
+        shareCode="share-code-1"
+        checkinPin="PIN123"
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /sign-up poster/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /check-in poster/i }),
+    ).toBeDisabled();
   });
 });

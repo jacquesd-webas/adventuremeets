@@ -11,6 +11,11 @@ import AttendeeStatusEnum from "../../../types/AttendeeStatusEnum";
 
 const enqueueSnackbar = vi.fn();
 const notifyAttendeeAsync = vi.fn();
+const previewPost = vi.fn();
+
+vi.mock("../../../hooks/useApi", () => ({
+  useApi: () => ({ post: previewPost }),
+}));
 
 vi.mock("notistack", () => ({
   useSnackbar: () => ({ enqueueSnackbar }),
@@ -43,6 +48,136 @@ describe("MessageModal", () => {
     enqueueSnackbar.mockClear();
     notifyAttendeeAsync.mockClear();
     notifyAttendeeAsync.mockResolvedValue(undefined);
+    previewPost.mockReset();
+  });
+
+  it("renders a manual message preview without sending it", async () => {
+    previewPost.mockResolvedValue({
+      previews: [
+        {
+          from: "Taylor (Aventuremeets) <organiser@example.com>",
+          to: "alex@example.com",
+          subject: "Bring a shell",
+          attendeeName: "Alex",
+          html: "<html><body><a href='/meet'>View meet</a></body></html>",
+        },
+      ],
+    });
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendeeIds={["a1"]}
+          attendees={[
+            { id: "a1", name: "Alex", status: AttendeeStatusEnum.Confirmed },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Subject"), {
+      target: { value: "Bring a shell" },
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Please bring a shell." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    await waitFor(() => {
+      expect(previewPost).toHaveBeenCalledWith("/meets/m1/message/preview", {
+        messages: [
+          {
+            attendeeIds: ["a1"],
+            subject: "Bring a shell",
+            text: "Please bring a shell.",
+            includeStatusUrl: true,
+            sendAsGroup: false,
+          },
+        ],
+      });
+      expect(screen.getByTitle("Email preview 1")).toHaveAttribute(
+        "srcdoc",
+        "<html><body><a href='/meet'>View meet</a></body></html>",
+      );
+      expect(screen.getByText("From:")).toBeInTheDocument();
+      expect(screen.getByText("To:")).toBeInTheDocument();
+      expect(screen.getByText("Subject:")).toBeInTheDocument();
+      expect(
+        screen.getByText("Taylor (Aventuremeets) <organiser@example.com>"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("alex@example.com")).toBeInTheDocument();
+    });
+    expect(notifyAttendeeAsync).not.toHaveBeenCalled();
+  });
+
+  it("previews each selected automatic recipient group separately", async () => {
+    previewPost.mockResolvedValue({
+      previews: [
+        {
+          from: "Organizer <organiser@example.com>",
+          to: "alex@example.com",
+          subject: "Confirmed",
+          attendeeName: "Alex",
+          html: "<p>Confirmed</p>",
+        },
+        {
+          from: "Organizer <organiser@example.com>",
+          to: "jamie@example.com",
+          subject: "Waitlisted",
+          attendeeName: "Jamie",
+          html: "<p>Waitlisted</p>",
+        },
+      ],
+    });
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "a1", name: "Alex", status: AttendeeStatusEnum.Confirmed },
+            { id: "a2", name: "Jamie", status: AttendeeStatusEnum.Waitlisted },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Waitlisted" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    await waitFor(() => {
+      expect(previewPost).toHaveBeenCalledWith("/meets/m1/message/preview", {
+        messages: [
+          {
+            attendeeIds: ["a1"],
+            subject: "Auto subject",
+            text: "Auto body",
+            includeStatusUrl: true,
+            sendAsGroup: false,
+          },
+          {
+            attendeeIds: ["a2"],
+            subject: "Auto subject",
+            text: "Auto body",
+            includeStatusUrl: true,
+            sendAsGroup: false,
+          },
+        ],
+      });
+      expect(screen.getByText("Confirmed attendees")).toBeInTheDocument();
+      expect(screen.getByText("Waitlisted attendees")).toBeInTheDocument();
+      expect(screen.getByTitle("Email preview 2")).toHaveAttribute(
+        "srcdoc",
+        "<p>Waitlisted</p>",
+      );
+    });
+    expect(notifyAttendeeAsync).not.toHaveBeenCalled();
   });
 
   it("validates required fields", () => {
@@ -206,7 +341,7 @@ describe("MessageModal", () => {
     });
   });
 
-  it("includes checked-in and attended attendees in the confirmed group send", async () => {
+  it("sends to checked-in and attended attendees when checked-in is selected", async () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
@@ -230,6 +365,7 @@ describe("MessageModal", () => {
     fireEvent.change(screen.getByLabelText("Message"), {
       target: { value: "Body" },
     });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Checked-in" }));
     fireEvent.click(screen.getByText("Send"));
 
     await waitFor(() => {
@@ -260,10 +396,11 @@ describe("MessageModal", () => {
         includeStatusUrl: true,
         sendAsGroup: false,
       });
+      expect(notifyAttendeeAsync).toHaveBeenCalledTimes(3);
     });
   });
 
-  it("shows the four bulk recipient switches", () => {
+  it("shows the bulk recipient switches", () => {
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
@@ -285,6 +422,7 @@ describe("MessageModal", () => {
     expect(
       screen.getByRole("checkbox", { name: "Confirmed" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Checked-in" })).toBeDisabled();
     expect(
       screen.getByRole("checkbox", { name: "Waitlisted" }),
     ).toBeInTheDocument();
@@ -294,6 +432,10 @@ describe("MessageModal", () => {
     expect(
       screen.getByRole("checkbox", { name: "Invited" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Custom" })).toBeDisabled();
+    expect(
+      screen.getByTestId("message-recipient-grid").querySelectorAll("input"),
+    ).toHaveLength(6);
   });
 
   it("disables the invited switch when there are no invited attendees", () => {
@@ -312,6 +454,62 @@ describe("MessageModal", () => {
     );
 
     expect(screen.getByRole("checkbox", { name: "Invited" })).toBeDisabled();
+  });
+
+  it("enables checked-in only when a checked-in attendee exists", () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "checked-in-1", status: AttendeeStatusEnum.CheckedIn },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("checkbox", { name: "Checked-in" })).toBeEnabled();
+  });
+
+  it("sends the checked-in automatic message only to checked-in attendees", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageModal
+          open
+          onClose={vi.fn()}
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendees={[
+            { id: "confirmed-1", status: AttendeeStatusEnum.Confirmed },
+            { id: "checked-in-1", status: AttendeeStatusEnum.CheckedIn },
+          ]}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Confirmed" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Checked-in" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Auto" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Message")).toHaveValue("Auto body");
+    });
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(notifyAttendeeAsync).toHaveBeenCalledWith({
+        meetId: "m1",
+        subject: "Auto subject",
+        text: "Auto body",
+        attendeeIds: ["checked-in-1"],
+        markNotified: true,
+        includeStatusUrl: true,
+        sendAsGroup: false,
+      });
+      expect(notifyAttendeeAsync).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("can send to invited attendees from the bulk message modal", async () => {
@@ -375,6 +573,7 @@ describe("MessageModal", () => {
     fireEvent.change(screen.getByLabelText("Message"), {
       target: { value: "Body" },
     });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Checked-in" }));
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: "Send as a group message",

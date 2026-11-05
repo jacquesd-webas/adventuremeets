@@ -70,11 +70,13 @@ export function OrganizerMetaEditDialog({
   });
 
   const orderedFields = useMemo(() => {
-    return [...metaValues].sort((a, b) => {
-      const aPos = a.position ?? 0;
-      const bPos = b.position ?? 0;
-      return aPos - bPos;
-    });
+    return metaValues
+      .filter((field) => field.fieldType !== "static-text")
+      .sort((a, b) => {
+        const aPos = a.position ?? 0;
+        const bPos = b.position ?? 0;
+        return aPos - bPos;
+      });
   }, [metaValues]);
 
   useEffect(() => {

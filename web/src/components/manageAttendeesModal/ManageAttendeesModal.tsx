@@ -211,6 +211,7 @@ export function ManageAttendeesModal({
   });
   const invitedMessage = useDefaultMessage(AttendeeStatusEnum.Invited, {
     meetName: meet?.name,
+    invitationWording: meet?.invitationWording,
     confirmMessage: meet?.confirmMessage,
     waitlistMessage: meet?.waitlistMessage,
     rejectMessage: meet?.rejectMessage,

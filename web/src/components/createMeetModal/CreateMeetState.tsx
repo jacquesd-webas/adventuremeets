@@ -1,3 +1,5 @@
+import { formatSelectQuestionOptions } from "./selectQuestionOptions";
+
 export const steps = [
   "Basic Info",
   "Time and Location",
@@ -12,7 +14,7 @@ export const steps = [
 
 export type QuestionField = {
   id: string;
-  type: "text" | "select" | "switch" | "checkbox";
+  type: "text" | "select" | "switch" | "checkbox" | "static-text";
   category?: "T" | "M" | "I" | "N" | "P";
   label: string;
   required?: boolean;
@@ -58,6 +60,7 @@ export type CreateMeetState = {
   approvedResponse: string;
   rejectResponse: string;
   waitlistResponse: string;
+  invitationWording: string;
   indemnityAccepted: boolean;
   indemnityText: string;
   usePdfIndemnity: boolean;
@@ -110,6 +113,7 @@ export const initialState: CreateMeetState = {
   approvedResponse: "",
   rejectResponse: "",
   waitlistResponse: "",
+  invitationWording: "",
   indemnityAccepted: false,
   indemnityText: "",
   usePdfIndemnity: false,
@@ -188,6 +192,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
     approvedResponse: meet.confirmMessage ?? "",
     rejectResponse: meet.rejectMessage ?? "",
     waitlistResponse: meet.waitlistMessage ?? "",
+    invitationWording: meet.invitationWording ?? "",
     indemnityAccepted: meet.hasIndemnity ?? false,
     indemnityText: meet.indemnity ?? "",
     usePdfIndemnity: meet.hasPdfIndemnityTemplate ?? false,
@@ -217,7 +222,7 @@ export const mapMeetToState = (meet: Record<string, any>): CreateMeetState => {
             ? definition.config.options
             : [],
           optionsInput: Array.isArray(definition.config?.options)
-            ? definition.config.options.join(", ")
+            ? formatSelectQuestionOptions(definition.config.options)
             : "",
           fieldKey:
             definition.fieldKey ?? definition.field_key ?? definition.id,

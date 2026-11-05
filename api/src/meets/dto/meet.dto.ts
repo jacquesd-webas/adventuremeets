@@ -228,6 +228,10 @@ export class MeetDto {
   waitlistMessage?: string;
 
   @ApiPropertyOptional()
+  @IsString()
+  invitationWording?: string;
+
+  @ApiPropertyOptional()
   @IsBoolean()
   hasIndemnity?: boolean;
 

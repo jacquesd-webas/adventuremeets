@@ -1,5 +1,6 @@
 import { Template } from "../../types/TemplateModel";
 import { CreateMeetState, initialState } from "./CreateMeetState";
+import { formatSelectQuestionOptions } from "./selectQuestionOptions";
 
 export function mapTemplateDefinitionsToQuestions(template?: Template) {
   return (template?.metaDefinitions || []).map((definition, index) => ({
@@ -8,7 +9,7 @@ export function mapTemplateDefinitionsToQuestions(template?: Template) {
       (typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2)),
-    type: ["text", "select", "switch", "checkbox"].includes(
+    type: ["text", "select", "switch", "checkbox", "static-text"].includes(
       definition.fieldType,
     )
       ? (definition.fieldType as CreateMeetState["questions"][number]["type"])
@@ -23,7 +24,7 @@ export function mapTemplateDefinitionsToQuestions(template?: Template) {
         : undefined,
     optionsInput:
       definition.fieldType === "select"
-        ? ((definition.config?.options as string[]) || []).join(", ")
+        ? formatSelectQuestionOptions(definition.config?.options as string[])
         : "",
     fieldKey: definition.fieldKey || `field_${index + 1}`,
   }));

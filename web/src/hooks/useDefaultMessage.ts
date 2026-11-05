@@ -6,6 +6,7 @@ type DefaultMessageOptions = {
   confirmMessage?: string;
   waitlistMessage?: string;
   rejectMessage?: string;
+  invitationWording?: string;
   isRsvpMode?: boolean;
 };
 
@@ -18,6 +19,9 @@ const createMessageContent = (
   }
   if (status === AttendeeStatusEnum.Confirmed) {
     return "Your attendance has been confirmed for the meet. Looking forward to seeing you there!";
+  }
+  if (status === AttendeeStatusEnum.CheckedIn) {
+    return "You have been checked in for the meet.";
   }
   if (status === AttendeeStatusEnum.Waitlisted) {
     return "You have been waitlisted for the meet. If a spot opens up, the organiser will notify you.";
@@ -49,12 +53,22 @@ export function useDefaultMessage(
           createMessageContent(status, options?.isRsvpMode),
       };
     }
+    if (status === AttendeeStatusEnum.CheckedIn) {
+      return {
+        subject: options?.meetName
+          ? `Checked in: ${options.meetName}`
+          : "Meet check-in",
+        content: createMessageContent(status),
+      };
+    }
     if (status === AttendeeStatusEnum.Invited) {
       return {
         subject: options?.meetName
           ? `Invitation: ${options.meetName}`
           : "Meet invitation",
-        content: createMessageContent(status, options?.isRsvpMode),
+        content:
+          options?.invitationWording?.trim() ||
+          createMessageContent(status, options?.isRsvpMode),
       };
     }
     if (status === AttendeeStatusEnum.Waitlisted) {
@@ -83,6 +97,7 @@ export function useDefaultMessage(
     status,
     options?.confirmMessage,
     options?.isRsvpMode,
+    options?.invitationWording,
     options?.meetName,
     options?.rejectMessage,
     options?.waitlistMessage,
