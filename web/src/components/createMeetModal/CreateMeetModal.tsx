@@ -111,6 +111,9 @@ export function CreateMeetModal({
   const { data: currentOrganization } = useFetchOrganization(
     currentOrganizationId ?? undefined,
   );
+  const { data: posterOrganization } = useFetchOrganization(
+    state.organizationId || undefined,
+  );
   const defaultTemplateId = currentOrganization?.defaultTemplateId;
   const {
     data: defaultTemplate,
@@ -896,6 +899,8 @@ export function CreateMeetModal({
           <FinishStep
             state={state}
             setState={(fn) => setState(fn)}
+            organizationName={posterOrganization?.name}
+            organizationLogoUrl={posterOrganization?.logoUrl}
             errors={finalErrors}
             shareCode={shareCode}
             checkinPin={checkinPin}

@@ -6,8 +6,10 @@ type OpenMeetPosterPrintWindowArgs = {
   subtitle: string;
   qrUrl: string;
   imageUrl?: string;
+  organizationName: string;
+  organizationLogoUrl?: string;
   footerLabel: string;
-  posterMode?: "text-and-image" | "text-only";
+  posterMode?: "text-and-image" | "image-above" | "branded" | "text-only";
 };
 
 function escapeHtml(value: string) {
@@ -121,6 +123,8 @@ export async function openMeetPosterPrintWindow({
   subtitle,
   qrUrl,
   imageUrl,
+  organizationName,
+  organizationLogoUrl,
   footerLabel,
   posterMode = "text-and-image",
 }: OpenMeetPosterPrintWindowArgs) {
@@ -134,20 +138,22 @@ export async function openMeetPosterPrintWindow({
     <QRCodeSVG value={qrUrl} size={360} includeMargin bgColor="#ffffff" />,
   );
   const resolvedImageUrl = resolvePosterImageUrl(imageUrl);
+  const resolvedLogoUrl = resolvePosterImageUrl(organizationLogoUrl);
 
   const safeTitle = escapeHtml(title);
   const safeSubtitle = escapeHtml(subtitle);
+  const safeOrganizationName = escapeHtml(organizationName);
   const safeFooterLabel = escapeHtml(footerLabel);
   const safeQrUrl = escapeHtml(qrUrl);
   const safeImageUrl = resolvedImageUrl ? escapeHtml(resolvedImageUrl) : "";
+  const safeLogoUrl = resolvedLogoUrl ? escapeHtml(resolvedLogoUrl) : "";
   const hasImage = Boolean(safeImageUrl);
-  const canTogglePosterMode = hasImage;
-  const initialPosterMode =
-    canTogglePosterMode && posterMode === "text-only"
-      ? "text-only"
-      : hasImage
-        ? "text-and-image"
-        : "text-only";
+  const canUseBranded = hasImage && Boolean(safeLogoUrl);
+  const initialPosterMode = !hasImage
+    ? "text-only"
+    : posterMode === "branded" && !canUseBranded
+      ? "text-and-image"
+      : posterMode;
   const isSelfCheckinPoster = footerLabel.toLowerCase().includes("check-in");
   const safeScanTitle = escapeHtml(
     isSelfCheckinPoster
@@ -171,11 +177,66 @@ export async function openMeetPosterPrintWindow({
         </section>
         <section class="details">
           <div class="footer-copy">
-            <div class="footer-label">AdventureMeets</div>
+            <div class="footer-label">${safeOrganizationName}</div>
             <h2 class="scan-title">${safeScanTitle}</h2>
             <p class="scan-copy">
               Open the camera on your phone and scan the QR code to go straight to this meet page.
             </p>
+            <div class="link">${safeQrUrl}</div>
+          </div>
+          <div class="qr-shell">${qrMarkup}</div>
+        </section>
+      </article>
+    `
+    : "";
+  const imageAbovePosterMarkup = hasImage
+    ? `
+      <article
+        class="poster poster-variant poster-variant--above"
+        id="poster-variant-above"
+        style="${initialPosterMode === "image-above" ? "display:grid;" : "display:none;"}"
+      >
+        <section class="poster-above-image">
+          <img src="${safeImageUrl}" alt="${safeTitle}" />
+        </section>
+        <section class="poster-above-message">
+          <div class="eyebrow">${safeFooterLabel}</div>
+          <h1>${safeTitle}</h1>
+          <p class="subtitle">${safeSubtitle}</p>
+        </section>
+        <section class="details poster-above-details">
+          <div class="footer-copy">
+            <div class="footer-label">${safeOrganizationName}</div>
+            <h2 class="scan-title">${safeScanTitle}</h2>
+            <p class="scan-copy">Open the camera on your phone and scan the QR code to go straight to this meet page.</p>
+            <div class="link">${safeQrUrl}</div>
+          </div>
+          <div class="qr-shell">${qrMarkup}</div>
+        </section>
+      </article>
+    `
+    : "";
+  const brandedPosterMarkup = canUseBranded
+    ? `
+      <article
+        class="poster poster-variant poster-variant--branded"
+        id="poster-variant-branded"
+        style="${initialPosterMode === "branded" ? "display:grid;" : "display:none;"}"
+      >
+        <section class="hero branded-hero">
+          <img src="${safeImageUrl}" alt="${safeTitle}" />
+          <div class="branded-logo"><img src="${safeLogoUrl}" alt="${safeOrganizationName} logo" /></div>
+          <div class="branded-title-panel">
+            <div class="eyebrow">${safeFooterLabel}</div>
+            <h1>${safeTitle}</h1>
+            <p class="subtitle">${safeSubtitle}</p>
+          </div>
+        </section>
+        <section class="details">
+          <div class="footer-copy">
+            <div class="footer-label">${safeOrganizationName}</div>
+            <h2 class="scan-title">${safeScanTitle}</h2>
+            <p class="scan-copy">Open the camera on your phone and scan the QR code to go straight to this meet page.</p>
             <div class="link">${safeQrUrl}</div>
           </div>
           <div class="qr-shell">${qrMarkup}</div>
@@ -190,7 +251,7 @@ export async function openMeetPosterPrintWindow({
         style="${initialPosterMode === "text-only" ? "display:flex;" : "display:none;"}"
       >
         <section class="poster-no-image-content">
-          <div class="footer-label poster-no-image-label">AdventureMeets</div>
+          <div class="footer-label poster-no-image-label">${safeOrganizationName}</div>
           <div class="eyebrow eyebrow--plain">${safeFooterLabel}</div>
           <h1 class="poster-no-image-title">${safeTitle}</h1>
           <p class="poster-no-image-subtitle">${safeSubtitle}</p>
@@ -203,11 +264,7 @@ export async function openMeetPosterPrintWindow({
         </section>
       </article>
     `;
-  const posterMarkup = canTogglePosterMode
-    ? `${imagePosterMarkup}${textOnlyPosterMarkup}`
-    : hasImage
-      ? imagePosterMarkup
-      : textOnlyPosterMarkup;
+  const posterMarkup = `${imagePosterMarkup}${imageAbovePosterMarkup}${brandedPosterMarkup}${textOnlyPosterMarkup}`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -275,6 +332,10 @@ export async function openMeetPosterPrintWindow({
         color: #ffffff;
         border-color: #2563eb;
       }
+      .toolbar .chip[disabled] {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
       .toolbar .primary[disabled] {
         cursor: progress;
         opacity: 0.7;
@@ -300,7 +361,7 @@ export async function openMeetPosterPrintWindow({
         background: linear-gradient(135deg, #1d4ed8 0%, #0f172a 100%);
         min-height: var(--hero-height);
       }
-      .hero img {
+      .hero > img {
         width: 100%;
         height: 100%;
         object-fit: cover;
@@ -341,6 +402,7 @@ export async function openMeetPosterPrintWindow({
         font-size: 52px;
         line-height: 1.02;
         font-weight: 800;
+        overflow-wrap: anywhere;
       }
       .subtitle {
         margin-top: 16px;
@@ -409,6 +471,73 @@ export async function openMeetPosterPrintWindow({
         border-color: #bfdbfe;
         box-shadow: 0 18px 48px rgba(37, 99, 235, 0.12);
       }
+      .poster-variant--above {
+        grid-template-rows: 410px 300px auto;
+      }
+      .poster-above-image {
+        min-height: 0;
+        overflow: hidden;
+      }
+      .poster-above-image img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .poster-above-message {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 30px 42px;
+        background: #0f172a;
+        color: #ffffff;
+      }
+      .poster-above-message .subtitle {
+        margin-bottom: 0;
+      }
+      .poster-above-details {
+        grid-template-columns: 1fr 225px;
+      }
+      .branded-hero::after {
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.24), transparent 42%);
+      }
+      .branded-logo {
+        position: absolute;
+        top: 36px;
+        right: 36px;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        max-width: 200px;
+        max-height: 140px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 12px 36px rgba(15, 23, 42, 0.22);
+      }
+      .branded-logo img {
+        display: block;
+        width: auto;
+        height: auto;
+        max-width: 172px;
+        max-height: 112px;
+        object-fit: contain;
+      }
+      .branded-title-panel {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 2;
+        padding: 36px 40px;
+        background: rgba(15, 23, 42, 0.9);
+        color: #ffffff;
+      }
+      .branded-title-panel .subtitle {
+        margin-bottom: 0;
+      }
       .poster--no-image {
         min-height: 1123px;
         display: flex;
@@ -476,6 +605,26 @@ export async function openMeetPosterPrintWindow({
           border-radius: 0;
           box-shadow: none;
         }
+        .poster-variant--above {
+          height: 273mm;
+          grid-template-rows: 96mm 77mm 100mm;
+        }
+        .poster-above-image img {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .poster-above-message,
+        .branded-title-panel,
+        .branded-logo {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .poster-above-message h1 {
+          font-size: 42px;
+        }
+        .poster-above-details {
+          padding: 20px 28px;
+        }
         .hero {
           height: 182mm;
           min-height: 182mm;
@@ -483,7 +632,7 @@ export async function openMeetPosterPrintWindow({
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
-        .hero img {
+        .hero > img {
           width: 100%;
           height: 182mm;
           object-fit: cover;
@@ -512,21 +661,12 @@ export async function openMeetPosterPrintWindow({
       }
     </style>
   </head>
-  <body data-poster-mode="${initialPosterMode}" data-poster-toggle="${canTogglePosterMode ? "on" : "off"}">
+  <body data-poster-mode="${initialPosterMode}">
     <div class="toolbar">
-      ${
-        canTogglePosterMode
-          ? `
-      <button
-        class="chip"
-        id="poster-mode-toggle"
-        onclick="togglePosterMode()"
-      >
-        ${initialPosterMode === "text-and-image" ? "Text Only" : "Image and text"}
-      </button>
-      `
-          : ""
-      }
+      <button class="chip ${initialPosterMode === "text-and-image" ? "active" : ""}" data-poster-mode-option="text-and-image" aria-pressed="${initialPosterMode === "text-and-image"}" onclick="setPosterMode('text-and-image')" ${hasImage ? "" : "disabled"}>Split image</button>
+      <button class="chip ${initialPosterMode === "image-above" ? "active" : ""}" data-poster-mode-option="image-above" aria-pressed="${initialPosterMode === "image-above"}" onclick="setPosterMode('image-above')" ${hasImage ? "" : "disabled"}>Three tier</button>
+      <button class="chip ${initialPosterMode === "branded" ? "active" : ""}" data-poster-mode-option="branded" aria-pressed="${initialPosterMode === "branded"}" onclick="setPosterMode('branded')" ${canUseBranded ? "" : "disabled"}>Branded</button>
+      <button class="chip ${initialPosterMode === "text-only" ? "active" : ""}" data-poster-mode-option="text-only" aria-pressed="${initialPosterMode === "text-only"}" onclick="setPosterMode('text-only')">Text only</button>
       <button class="primary" id="print-button" onclick="printPoster()">Print</button>
       <button class="secondary" onclick="window.close()">Close</button>
     </div>
@@ -535,35 +675,25 @@ export async function openMeetPosterPrintWindow({
     </main>
     <script>
       function setPosterMode(mode) {
+        const poster = document.getElementById({
+          "text-and-image": "poster-variant-image",
+          "image-above": "poster-variant-above",
+          "branded": "poster-variant-branded",
+          "text-only": "poster-variant-text",
+        }[mode]);
+        if (!poster) return;
+
         document.body.setAttribute("data-poster-mode", mode);
-
-        const imagePoster = document.getElementById("poster-variant-image");
-        const textPoster = document.getElementById("poster-variant-text");
-
-        if (imagePoster) {
-          imagePoster.style.display =
-            mode === "text-and-image" ? "grid" : "none";
-        }
-
-        if (textPoster) {
-          textPoster.style.display = mode === "text-only" ? "flex" : "none";
-        }
-
-        const toggleButton = document.getElementById("poster-mode-toggle");
-
-        if (toggleButton) {
-          toggleButton.textContent =
-            mode === "text-and-image" ? "Text Only" : "Image and text";
-        }
-      }
-
-      function togglePosterMode() {
-        const currentMode =
-          document.body.getAttribute("data-poster-mode") || "text-and-image";
-
-        setPosterMode(
-          currentMode === "text-and-image" ? "text-only" : "text-and-image",
-        );
+        document.querySelectorAll(".poster-variant").forEach((variant) => {
+          variant.style.display = variant === poster
+            ? (mode === "text-only" ? "flex" : "grid")
+            : "none";
+        });
+        document.querySelectorAll("[data-poster-mode-option]").forEach((button) => {
+          const active = button.getAttribute("data-poster-mode-option") === mode;
+          button.classList.toggle("active", active);
+          button.setAttribute("aria-pressed", String(active));
+        });
       }
 
       async function waitForDocumentImages(doc = document) {

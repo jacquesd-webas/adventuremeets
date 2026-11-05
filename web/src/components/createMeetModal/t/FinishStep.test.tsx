@@ -103,19 +103,21 @@ describe("FinishStep", () => {
         }}
         setState={vi.fn()}
         errors={[]}
+        organizationName="Summit Explorers"
+        organizationLogoUrl="https://example.com/logo.png"
         shareCode="share-code-1"
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /sign-up poster/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /sign-up poster/i }));
 
     expect(openMeetPosterPrintWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Poster Meet",
         qrUrl: `${window.location.origin}/meets/share-code-1`,
         imageUrl: "https://example.com/poster.jpg",
+        organizationName: "Summit Explorers",
+        organizationLogoUrl: "https://example.com/logo.png",
         footerLabel: "Meet signup",
       }),
     );
@@ -133,20 +135,41 @@ describe("FinishStep", () => {
         }}
         setState={vi.fn()}
         errors={[]}
+        organizationName="Summit Explorers"
+        organizationLogoUrl="https://example.com/logo.png"
         shareCode="share-code-1"
         checkinPin="PIN123"
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /check-in poster/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /check-in poster/i }));
 
     expect(openMeetPosterPrintWindow).toHaveBeenCalledWith(
       expect.objectContaining({
         qrUrl: `${window.location.origin}/meets/share-code-1/checkin?pin=PIN123`,
+        organizationName: "Summit Explorers",
+        organizationLogoUrl: "https://example.com/logo.png",
         footerLabel: "Self check-in",
       }),
     );
+  });
+
+  it("waits for the organisation name before enabling posters", () => {
+    render(
+      <FinishStep
+        state={{ ...initialState, allowSelfCheckin: true }}
+        setState={vi.fn()}
+        errors={[]}
+        shareCode="share-code-1"
+        checkinPin="PIN123"
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /sign-up poster/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /check-in poster/i }),
+    ).toBeDisabled();
   });
 });
