@@ -1561,6 +1561,49 @@ describe("MeetsController", () => {
     ]);
   });
 
+  it.each([
+    ["Name", "Surname"],
+    ["First name", "Last name"],
+  ])(
+    "combines %s and %s when importing attendees",
+    async (givenHeader, familyHeader) => {
+      workbookState.uploadRows = [
+        [givenHeader, familyHeader, "Email"],
+        ["Alex", "Rider", "alex@example.com"],
+      ];
+      const metaDefinitionsBuilder = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        select: jest.fn().mockResolvedValue([]),
+      };
+      const client: any = (table: string) => {
+        if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+        throw new Error(`Unexpected table: ${table}`);
+      };
+      (db.getClient as jest.Mock).mockReturnValue(client);
+      (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+      (meetsService.addInvitedAttendees as jest.Mock).mockResolvedValue({
+        created: 1,
+        skipped: 0,
+      });
+      setRoles({ organizer: true });
+
+      await controller.uploadAttendees(
+        "meet-1",
+        { buffer: Buffer.from("xlsx") },
+        user,
+      );
+
+      expect(meetsService.addInvitedAttendees).toHaveBeenCalledWith("meet-1", [
+        expect.objectContaining({
+          name: "Alex Rider",
+          email: "alex@example.com",
+          rowNumber: 2,
+        }),
+      ]);
+    },
+  );
+
   it("uses invited by default and passes uploaded statuses through", async () => {
     workbookState.uploadRows = [
       ["Name", "Email", "Status"],

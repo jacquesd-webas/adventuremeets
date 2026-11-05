@@ -116,13 +116,15 @@ vi.mock("../attendeeUploadWorkbook", () => ({
   })),
   guessAttendeeColumnAssignments: vi.fn(() => ["name", "email", "phone"]),
   assignmentsMatchRequiredHeaders: vi.fn(() => true),
+  hasUnrecognizedAttendeeColumns: vi.fn(() => false),
   createMappedAttendeeWorkbook: vi.fn(),
   attendeeColumnLabels: {
     name: "Name",
     email: "Email",
     phone: "Phone",
+    status: "Status",
   },
-  attendeeColumnRoles: ["name", "email", "phone"],
+  attendeeColumnRoles: ["name", "email", "phone", "status"],
   requiredAttendeeColumnRoles: ["name", "email"],
 }));
 

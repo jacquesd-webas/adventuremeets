@@ -1338,7 +1338,8 @@ export class MeetsController {
       if (key) headerMap.set(key, index + 1);
     });
 
-    const nameCol = headerMap.get("name");
+    const nameCol = headerMap.get("name") ?? headerMap.get("firstname");
+    const surnameCol = headerMap.get("surname") ?? headerMap.get("lastname");
     const emailCol = headerMap.get("email");
     const phoneCol = headerMap.get("phone");
     const statusCol = headerMap.get("status");
@@ -1380,6 +1381,9 @@ export class MeetsController {
     headerMap.forEach((col, key) => {
       if (
         key === "name" ||
+        key === "firstname" ||
+        key === "surname" ||
+        key === "lastname" ||
         key === "email" ||
         key === "phone" ||
         key === "status"
@@ -1410,7 +1414,11 @@ export class MeetsController {
     worksheetRows.forEach((row, index) => {
       const rowNumber = index + 1;
       if (rowNumber === 1) return;
-      const name = getCellText(row, nameCol);
+      const firstName = getCellText(row, nameCol);
+      const surname = getCellText(row, surnameCol);
+      const name = firstName
+        ? [firstName, surname].filter(Boolean).join(" ")
+        : "";
       const email = getCellText(row, emailCol);
       const phone = getCellText(row, phoneCol);
       const status = getCellText(row, statusCol).toLowerCase();

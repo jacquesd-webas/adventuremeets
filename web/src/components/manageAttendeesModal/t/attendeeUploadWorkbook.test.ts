@@ -3,6 +3,7 @@ import {
   assignmentsMatchRequiredHeaders,
   createMappedAttendeeWorkbook,
   guessAttendeeColumnAssignments,
+  hasUnrecognizedAttendeeColumns,
   inspectAttendeeWorkbook,
 } from "../attendeeUploadWorkbook";
 
@@ -99,6 +100,63 @@ describe("attendeeUploadWorkbook", () => {
     ).toBe(false);
   });
 
+  it.each(["Surname", "Last name"])(
+    "appends %s to Name only when selected",
+    async (surnameHeader) => {
+      const input = createFile(
+        [
+          ["First name", surnameHeader, "Email"],
+          ["Alex", "Rider", "alex@example.com"],
+          ["Sam", "", "sam@example.com"],
+        ],
+        "xlsx",
+      );
+      const preview = await inspectAttendeeWorkbook(input);
+      const assignments = guessAttendeeColumnAssignments(preview.columns);
+
+      expect(assignments).toEqual(["name", "append_to_name", "email"]);
+
+      const mapped = await createMappedAttendeeWorkbook(
+        preview,
+        assignments,
+        input.name,
+      );
+      const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      expect(
+        XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }),
+      ).toEqual([
+        ["Name", `Appended ${surnameHeader}`, "Email"],
+        ["Alex Rider", "Rider", "alex@example.com"],
+        ["Sam", "", "sam@example.com"],
+      ]);
+    },
+  );
+
+  it("does not append a surname when Keep original heading is selected", async () => {
+    const input = createFile(
+      [
+        ["Name", "Surname", "Email"],
+        ["Alex", "Rider", "alex@example.com"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+    const mapped = await createMappedAttendeeWorkbook(
+      preview,
+      ["name", "other", "email"],
+      input.name,
+    );
+    const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    expect(
+      XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }),
+    ).toEqual([
+      ["Name", "Other Surname", "Email"],
+      ["Alex", "Rider", "alex@example.com"],
+    ]);
+  });
+
   it("writes selected columns with canonical headings", async () => {
     const input = createFile(
       [
@@ -123,6 +181,57 @@ describe("attendeeUploadWorkbook", () => {
       ["Alex", "+27123456789", "alex@example.com", "Vegan"],
     ]);
     expect(mapped.name).toBe("attendees-mapped.xlsx");
+  });
+
+  it("maps Status and a selected question to API upload headings", async () => {
+    const input = createFile(
+      [
+        ["Name", "Email", "Attendance", "Food preference"],
+        ["Alex", "alex@example.com", "Confirmed", "Vegan"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+    const questions = [{ id: "q-1", label: "Dietary needs", fieldKey: "diet" }];
+    const guessed = guessAttendeeColumnAssignments(preview.columns);
+    expect(guessed).toEqual(["name", "email", "other", "other"]);
+    expect(
+      hasUnrecognizedAttendeeColumns(preview.columns, guessed, questions),
+    ).toBe(true);
+
+    const mapped = await createMappedAttendeeWorkbook(
+      preview,
+      ["name", "email", "status", "question:1"],
+      input.name,
+    );
+    const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    expect(
+      XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }),
+    ).toEqual([
+      ["Name", "Email", "Status", "Q1"],
+      ["Alex", "alex@example.com", "Confirmed", "Vegan"],
+    ]);
+  });
+
+  it("recognizes existing question headings without requesting a mapping", async () => {
+    const input = createFile(
+      [
+        ["Name", "Email", "Dietary needs", "diet", "Q1"],
+        ["Alex", "alex@example.com", "Vegan", "Vegan", "Vegan"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+    const questions = [{ id: "q-1", label: "Dietary needs", fieldKey: "diet" }];
+
+    expect(
+      hasUnrecognizedAttendeeColumns(
+        preview.columns,
+        guessAttendeeColumnAssignments(preview.columns),
+        questions,
+      ),
+    ).toBe(false);
   });
 
   it("rejects a sheet without headings", async () => {
