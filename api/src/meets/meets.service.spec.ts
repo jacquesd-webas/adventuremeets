@@ -344,6 +344,9 @@ describe("MeetsService", () => {
     expect(result.imageUrl).toBe("https://cdn.example.com/meet.jpg");
     expect(result.confirmedCount).toBe(4);
     expect(result.rejectedCount).toBe(2);
+    expect(client.raw).toHaveBeenCalledWith(
+      "sum(case when status in ('rejected', 'cancelled') then 1 + coalesce(guests, 0) else 0 end) as rejected_count",
+    );
     expect(result.invitationWording).toBe("Please join our camp.");
     expect(result.hasPdfIndemnityTemplate).toBe(true);
     expect(result.images).toEqual([
@@ -815,6 +818,10 @@ describe("MeetsService", () => {
     const service = new MeetsService(db, minio);
 
     await service.findAll("all", 1, 20, ["org-1"], false, "user-1");
+
+    expect(client.raw).toHaveBeenCalledWith(
+      "sum(case when status in ('rejected', 'cancelled') then 1 + coalesce(guests, 0) else 0 end) as rejected_count",
+    );
 
     expect(organizationsBuilder.whereIn).toHaveBeenCalledWith("id", ["org-1"]);
     expect(meetsBuilder.where).toHaveBeenCalledWith("m.status_id", "!=", 1);

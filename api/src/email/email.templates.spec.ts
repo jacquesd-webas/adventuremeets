@@ -164,11 +164,9 @@ describe("renderEmailTemplate", () => {
     );
     expect(result.html).not.toContain("View your application");
     expect(result.text).toContain(
-      "If you need to reply, contact Robin & Co at robin@example.com or just reply to this email.",
+      "Questions? Contact Robin & Co at robin@example.com or just reply to this email.",
     );
-    expect(result.html).toMatch(
-      /If you need to reply, contact\s+Robin &amp; Co at/,
-    );
+    expect(result.html).toMatch(/Questions\? Contact\s+Robin &amp; Co at/);
   });
 
   it("expands attendee and meet variables in custom status emails", () => {
