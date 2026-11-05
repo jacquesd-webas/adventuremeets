@@ -335,6 +335,13 @@ describe("MeetsService", () => {
     expect(insertArg.invitation_wording).toBe("Please join our camp.");
     expect(typeof insertArg.share_code).toBe("string");
     expect(insertArg.share_code.length).toBeGreaterThan(0);
+    expect(attendeeInsert.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "confirmed",
+        signup_method: "M",
+      }),
+      ["*"],
+    );
 
     expect(created.name).toBe("Test meet");
   });
@@ -1029,6 +1036,7 @@ describe("MeetsService", () => {
         org1_value: "Club 42",
         org2_value: "North",
         status: "checked-in",
+        signup_method: "W",
       }),
       ["*"],
     );
@@ -1068,6 +1076,7 @@ describe("MeetsService", () => {
       expect.objectContaining({
         guests: 1,
         guests_list: JSON.stringify([{ name: "Alex", isMinor: false }]),
+        signup_method: "S",
       }),
       ["*"],
     );
@@ -1161,7 +1170,11 @@ describe("MeetsService", () => {
 
     expect(attendeeBuilder.update).toHaveBeenCalledTimes(2);
     expect(attendeeBuilder.update).toHaveBeenLastCalledWith(
-      expect.objectContaining({ guest_of: "host-1", status: "confirmed" }),
+      expect.objectContaining({
+        guest_of: "host-1",
+        status: "confirmed",
+        signup_method: "I",
+      }),
       ["*"],
     );
     expect(attendeeBuilder.insert).not.toHaveBeenCalled();
@@ -1619,9 +1632,16 @@ describe("MeetsService", () => {
           email: "EXISTING@example.com",
           phone: "+27330000000",
         },
+        {
+          rowNumber: 5,
+          name: "Manual Person",
+          email: "manual@example.com",
+          phone: "+27440000000",
+          status: "confirmed",
+        },
       ]),
     ).resolves.toEqual({
-      created: 1,
+      created: 2,
       skipped: 1,
       conflicts: [
         {
@@ -1641,15 +1661,27 @@ describe("MeetsService", () => {
       ],
     });
 
-    expect(attendeeBuilder.insert).toHaveBeenCalledTimes(1);
-    expect(attendeeBuilder.insert).toHaveBeenCalledWith(
+    expect(attendeeBuilder.insert).toHaveBeenCalledTimes(2);
+    expect(attendeeBuilder.insert).toHaveBeenNthCalledWith(
+      1,
       expect.objectContaining({
         meet_id: "meet-1",
         name: "New Person",
         email: "new@example.com",
         phone: "+27220000000",
         status: "invited",
+        signup_method: "I",
         sequence: 5,
+      }),
+      ["id"],
+    );
+    expect(attendeeBuilder.insert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        name: "Manual Person",
+        status: "confirmed",
+        signup_method: "M",
+        sequence: 6,
       }),
       ["id"],
     );
@@ -1664,6 +1696,7 @@ describe("MeetsService", () => {
         id: "attendee-existing-1",
         name: "Existing Person",
         status: "invited",
+        signup_method: "I",
       })
       .mockResolvedValueOnce({
         id: "attendee-existing-2",
@@ -1697,6 +1730,7 @@ describe("MeetsService", () => {
             name: "Updated Person",
             email: "updated@example.com",
             phone: "+27111111111",
+            status: "confirmed",
             metaValues: [{ definitionId: "meta-1", value: "Strong" }],
           },
         },
@@ -1707,6 +1741,7 @@ describe("MeetsService", () => {
             name: "Alex Child",
             email: "alex@example.com",
             phone: "+27222222222",
+            status: "checked-in",
             metaValues: [{ definitionId: "meta-2", value: "Vegetarian" }],
           },
         },
@@ -1723,6 +1758,7 @@ describe("MeetsService", () => {
       email: "updated@example.com",
       is_minor: false,
       guardian_name: null,
+      status: "confirmed",
       updated_at: expect.any(String),
     });
     expect(attendeeBuilder.insert).toHaveBeenCalledWith(
@@ -1731,7 +1767,8 @@ describe("MeetsService", () => {
         name: "Alex Child",
         email: "alex@example.com",
         phone: "+27222222222",
-        status: "invited",
+        status: "checked-in",
+        signup_method: "M",
         sequence: 8,
         is_minor: true,
         guardian_name: "Alex Adult",

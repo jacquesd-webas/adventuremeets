@@ -1561,6 +1561,71 @@ describe("MeetsController", () => {
     ]);
   });
 
+  it("uses invited by default and passes uploaded statuses through", async () => {
+    workbookState.uploadRows = [
+      ["Name", "Email", "Status"],
+      ["Alex", "alex@example.com", ""],
+      ["Jamie", "jamie@example.com", "Invited"],
+      ["Robin", "robin@example.com", "Confirmed"],
+    ];
+    const metaDefinitionsBuilder = {
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue([]),
+    };
+    const client: any = (table: string) => {
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    };
+    (db.getClient as jest.Mock).mockReturnValue(client);
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.addInvitedAttendees as jest.Mock).mockResolvedValue({
+      created: 3,
+      skipped: 0,
+    });
+    setRoles({ organizer: true });
+
+    await controller.uploadAttendees(
+      "meet-1",
+      { buffer: Buffer.from("xlsx") },
+      user,
+    );
+
+    expect(meetsService.addInvitedAttendees).toHaveBeenCalledWith("meet-1", [
+      expect.objectContaining({ name: "Alex", status: undefined }),
+      expect.objectContaining({ name: "Jamie", status: "invited" }),
+      expect.objectContaining({ name: "Robin", status: "confirmed" }),
+    ]);
+  });
+
+  it("rejects unsupported uploaded attendee statuses", async () => {
+    workbookState.uploadRows = [
+      ["Name", "Email", "Status"],
+      ["Alex", "alex@example.com", "Unknown"],
+    ];
+    const metaDefinitionsBuilder = {
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue([]),
+    };
+    const client: any = (table: string) => {
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    };
+    (db.getClient as jest.Mock).mockReturnValue(client);
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.uploadAttendees(
+        "meet-1",
+        { buffer: Buffer.from("xlsx") },
+        user,
+      ),
+    ).rejects.toThrow('Row 2: invalid attendee status "unknown".');
+    expect(meetsService.addInvitedAttendees).not.toHaveBeenCalled();
+  });
+
   it("requires name and email upload columns", async () => {
     workbookState.uploadRows = [
       ["Email", "Phone"],

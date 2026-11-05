@@ -1341,6 +1341,7 @@ export class MeetsController {
     const nameCol = headerMap.get("name");
     const emailCol = headerMap.get("email");
     const phoneCol = headerMap.get("phone");
+    const statusCol = headerMap.get("status");
     if (!nameCol || !emailCol) {
       throw new BadRequestException("Sheet must include columns: name, email");
     }
@@ -1377,7 +1378,13 @@ export class MeetsController {
     });
 
     headerMap.forEach((col, key) => {
-      if (key === "name" || key === "email" || key === "phone") return;
+      if (
+        key === "name" ||
+        key === "email" ||
+        key === "phone" ||
+        key === "status"
+      )
+        return;
       if (/^q\d+$/.test(key)) return;
       const definitionId = metaDefinitionByKey.get(key);
       if (!definitionId || assignedDefinitionIds.has(definitionId)) return;
@@ -1394,6 +1401,7 @@ export class MeetsController {
       name: string;
       email: string;
       phone: string;
+      status?: string;
       rowNumber: number;
       metaValues?: Array<{ definitionId: string; value: string }>;
     }> = [];
@@ -1405,11 +1413,28 @@ export class MeetsController {
       const name = getCellText(row, nameCol);
       const email = getCellText(row, emailCol);
       const phone = getCellText(row, phoneCol);
+      const status = getCellText(row, statusCol).toLowerCase();
       if (!name && !email && !phone) return;
       if (!name || !email) {
         errors.push(
           `Row ${rowNumber}: name and email are required for each attendee.`,
         );
+        return;
+      }
+      if (
+        status &&
+        ![
+          "invited",
+          "pending",
+          "confirmed",
+          "waitlisted",
+          "rejected",
+          "cancelled",
+          "checked-in",
+          "attended",
+        ].includes(status)
+      ) {
+        errors.push(`Row ${rowNumber}: invalid attendee status "${status}".`);
         return;
       }
       const metaValues: Array<{ definitionId: string; value: string }> = [];
@@ -1423,6 +1448,7 @@ export class MeetsController {
         name,
         email,
         phone,
+        status: status || undefined,
         rowNumber,
         metaValues: metaValues.length ? metaValues : undefined,
       });
@@ -1474,6 +1500,7 @@ export class MeetsController {
             name: resolution.attendee.name,
             email: resolution.attendee.email,
             phone: resolution.attendee.phone,
+            status: resolution.attendee.status,
             rowNumber: resolution.attendee.rowNumber,
             metaValues: resolution.attendee.metaValues,
           },

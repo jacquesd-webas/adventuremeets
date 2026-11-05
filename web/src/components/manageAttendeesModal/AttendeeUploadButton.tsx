@@ -31,6 +31,7 @@ export type AttendeeUploadConflict = {
     name: string;
     email: string;
     phone: string;
+    status?: string;
     rowNumber?: number;
     metaValues?: Array<{ definitionId: string; value: string }>;
   };
