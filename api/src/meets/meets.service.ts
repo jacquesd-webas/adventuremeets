@@ -936,7 +936,7 @@ export class MeetsService {
       .getClient()("meet_attendees")
       .where({ id: attendeeId });
     if (meetId) query.andWhere({ meet_id: meetId });
-    const attendee = await query.first("email", "phone", "name");
+    const attendee = await query.first("email", "phone", "name", "status");
     if (!attendee) {
       throw new NotFoundException("Attendee not found");
     }

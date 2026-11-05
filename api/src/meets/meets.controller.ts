@@ -916,6 +916,7 @@ export class MeetsController {
         const { html } = renderEmailTemplate("meet-message", {
           meetName: meet.name,
           attendeeName,
+          attendeeStatus: isGroupedMessage ? undefined : attendee.status,
           startTime: meet.startTime,
           endTime: meet.endTime,
           timeZone: meet.timeZone,
@@ -1050,6 +1051,7 @@ export class MeetsController {
         const { text } = renderEmailTemplate("meet-message", {
           meetName: meet.name,
           attendeeName,
+          attendeeStatus: attendee?.status,
           startTime: meet.startTime,
           endTime: meet.endTime,
           timeZone: meet.timeZone,
@@ -1129,6 +1131,7 @@ export class MeetsController {
           const { text, html } = renderEmailTemplate("meet-message", {
             meetName: meet.name,
             attendeeName,
+            attendeeStatus: attendee?.status,
             startTime: meet.startTime,
             endTime: meet.endTime,
             timeZone: meet.timeZone,

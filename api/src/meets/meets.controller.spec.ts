@@ -1375,6 +1375,33 @@ describe("MeetsController", () => {
     );
   });
 
+  it("previews an RSVP button for invited attendees", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getAttendeeContactById as jest.Mock).mockResolvedValue({
+      name: "Alex",
+      email: "alex@example.com",
+      status: "invited",
+    });
+    setRoles({ organizer: true });
+
+    const result = await controller.previewMessageAttendees(
+      "meet-1",
+      {
+        messages: [
+          {
+            attendeeIds: ["attendee-1"],
+            subject: "Please RSVP",
+            text: "Please respond.",
+          },
+        ],
+      },
+      user,
+    );
+
+    expect(result.previews[0].html).toContain("To RSVP use the button below:");
+    expect(result.previews[0].html).toContain(">RSVP</a");
+  });
+
   it("sets respondedAt for attendees when an organizer manually sends a message", async () => {
     process.env.MAIL_DOMAIN = "example.com";
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
@@ -1383,6 +1410,7 @@ describe("MeetsController", () => {
       async (attendeeId: string) => ({
         id: attendeeId,
         name: attendeeId === "attendee-1" ? "Alex" : "Jamie",
+        status: attendeeId === "attendee-1" ? "invited" : "confirmed",
         email:
           attendeeId === "attendee-1"
             ? "alex@example.com"
@@ -1410,11 +1438,18 @@ describe("MeetsController", () => {
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "alex@example.com",
+        html: expect.stringContaining(">RSVP</a"),
         attendeeId: "attendee-1",
         meetId: "meet-1",
         replyTo: "meet+meet-1@example.com",
         from: "organiser@example.com",
         fromName: "Taylor (Aventuremeets)",
+      }),
+    );
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "jamie@example.com",
+        html: expect.stringContaining(">View meet</a"),
       }),
     );
     expect(emailService.saveMessage).toHaveBeenCalledWith(

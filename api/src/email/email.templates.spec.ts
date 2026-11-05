@@ -169,6 +169,28 @@ describe("renderEmailTemplate", () => {
     expect(result.html).toMatch(/Questions\? Contact\s+Robin &amp; Co at/);
   });
 
+  it("asks invited attendees to RSVP in meet messages", () => {
+    const result = renderEmailTemplate("meet-message", {
+      meetName: "Night Trail",
+      attendeeName: "Alex",
+      attendeeStatus: "invited",
+      statusUrl: "https://app.example.com/meets/share-123/attendee-1",
+      messageBody: "Please respond.",
+    });
+
+    expect(result.html).toContain("To RSVP use the button below:");
+    expect(result.html).toContain(">RSVP</a");
+    expect(result.html).not.toContain(">View meet</a");
+
+    const confirmed = renderEmailTemplate("meet-message", {
+      meetName: "Night Trail",
+      attendeeStatus: "confirmed",
+      statusUrl: "https://app.example.com/meets/share-123/attendee-2",
+      messageBody: "Please respond.",
+    });
+    expect(confirmed.html).toContain(">View meet</a");
+  });
+
   it("expands attendee and meet variables in custom status emails", () => {
     const result = renderEmailTemplate("meet-confirm", {
       meetName: "Hike & Climb",

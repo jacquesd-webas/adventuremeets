@@ -77,6 +77,7 @@ export type MeetStatusTemplateVars = {
 export type MeetMessageTemplateVars = {
   meetName: string;
   attendeeName?: string;
+  attendeeStatus?: string;
   startTime?: string;
   endTime?: string;
   timeZone?: string;
