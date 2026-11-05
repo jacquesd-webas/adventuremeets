@@ -23,4 +23,15 @@ describe("useDefaultMessage", () => {
       "You have been invited to join this meet. Please open your meet link to confirm or update your attendance.",
     );
   });
+
+  it("provides a checked-in message", () => {
+    const { result } = renderHook(() =>
+      useDefaultMessage(AttendeeStatusEnum.CheckedIn, { meetName: "Camp" }),
+    );
+
+    expect(result.current).toEqual({
+      subject: "Checked in: Camp",
+      content: "You have been checked in for the meet.",
+    });
+  });
 });

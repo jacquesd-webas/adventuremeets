@@ -51,6 +51,7 @@ import { AuditLogService } from "../audit/audit-log.service";
 import * as ExcelJS from "exceljs";
 import { MEET_STATUS } from "./constants/meet-status.enum";
 import { AdminCheckinDto } from "./dto/admin-checkin.dto";
+import { PreviewMeetMessageDto } from "./dto/preview-meet-message.dto";
 import { parseAttendeeWorkbook } from "./attendee-upload-workbook";
 
 @ApiTags("Meets")
@@ -864,6 +865,85 @@ export class MeetsController {
     }
   }
 
+  @Post(":id/message/preview")
+  @Header("Cache-Control", "no-store")
+  @ApiOperation({ summary: "Preview attendee messages without sending them" })
+  async previewMessageAttendees(
+    @Param("id") id: string,
+    @Body() body: PreviewMeetMessageDto,
+    @User() user?: UserProfile,
+  ) {
+    if (!user) throw new UnauthorizedException();
+
+    const meet = await this.meetsService.findOne(id);
+    if (!meet) throw new NotFoundException("Meet not found");
+    this.assertCanModifyExistingMeet(user, meet, "update");
+
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:5173"
+    ).replace(/\/+$/, "");
+    const logoUrl = await this.getOrganizationLogoUrl(meet.organizationId);
+    const { from, fromName } = meetOrganizerSender(meet.organizerName);
+    const previews = await Promise.all(
+      body.messages.map(async (message) => {
+        const isGroupedMessage = message.sendAsGroup === true;
+        if (!isGroupedMessage && message.attendeeIds.length !== 1) {
+          throw new BadRequestException(
+            "Individual previews require one attendee ID",
+          );
+        }
+        const attendeeIds = [...new Set(message.attendeeIds)];
+        const attendees = await Promise.all(
+          attendeeIds.map((attendeeId) =>
+            this.meetsService.getAttendeeContactById(attendeeId, id),
+          ),
+        );
+        if (attendees.some((attendee) => !attendee.email)) {
+          throw new BadRequestException(
+            "One or more attendees do not have email addresses",
+          );
+        }
+        const recipientEmails = attendees.map((attendee) => attendee.email!);
+        const attendee = attendees[0];
+        const includeStatusUrl =
+          !isGroupedMessage && message.includeStatusUrl !== false;
+        const statusUrl = includeStatusUrl
+          ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeIds[0]}`
+          : "";
+        const attendeeName = isGroupedMessage
+          ? "everyone"
+          : attendee.name || attendee.email || attendee.phone || "there";
+        const { html } = renderEmailTemplate("meet-message", {
+          meetName: meet.name,
+          attendeeName,
+          startTime: meet.startTime,
+          endTime: meet.endTime,
+          timeZone: meet.timeZone,
+          location: meet.location,
+          statusUrl,
+          includeStatusUrl,
+          isGroupedMessage,
+          organizerName: meet.organizerName || "the organiser",
+          organizerEmail: meet.organizerEmail || "",
+          messageBody: message.text,
+          logoUrl,
+          isRsvpMode: meet.autoPlacement,
+        });
+        return {
+          from: `${fromName} <${from}>`,
+          to: isGroupedMessage
+            ? recipientEmails.join(", ")
+            : recipientEmails[0],
+          subject: message.subject,
+          attendeeName,
+          html,
+        };
+      }),
+    );
+
+    return { previews };
+  }
+
   @Post(":id/message")
   @ApiOperation({ summary: "Send a message to specific attendees" })
   @ApiBody({
@@ -918,7 +998,7 @@ export class MeetsController {
     await Promise.all(
       body.attendeeIds.map(async (attendeeId) => {
         const attendedContactInfo =
-          await this.meetsService.getAttendeeContactById(attendeeId);
+          await this.meetsService.getAttendeeContactById(attendeeId, id);
         if (attendedContactInfo?.email) {
           recipients.set(attendeeId, attendedContactInfo.email);
         }
@@ -956,8 +1036,10 @@ export class MeetsController {
     }> = [];
     await Promise.all(
       Array.from(recipients.keys()).map(async (attendeeId) => {
-        const attendee =
-          await this.meetsService.getAttendeeContactById(attendeeId);
+        const attendee = await this.meetsService.getAttendeeContactById(
+          attendeeId,
+          id,
+        );
         const statusUrl = includeStatusUrl
           ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
           : "";
@@ -1035,8 +1117,10 @@ export class MeetsController {
     } else {
       await Promise.all(
         Array.from(recipients.entries()).map(async ([attendeeId, email]) => {
-          const attendee =
-            await this.meetsService.getAttendeeContactById(attendeeId);
+          const attendee = await this.meetsService.getAttendeeContactById(
+            attendeeId,
+            id,
+          );
           const statusUrl = includeStatusUrl
             ? `${frontendUrl}/meets/${meet.shareCode}/${attendeeId}`
             : "";

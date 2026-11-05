@@ -20,6 +20,9 @@ const createMessageContent = (
   if (status === AttendeeStatusEnum.Confirmed) {
     return "Your attendance has been confirmed for the meet. Looking forward to seeing you there!";
   }
+  if (status === AttendeeStatusEnum.CheckedIn) {
+    return "You have been checked in for the meet.";
+  }
   if (status === AttendeeStatusEnum.Waitlisted) {
     return "You have been waitlisted for the meet. If a spot opens up, the organiser will notify you.";
   }
@@ -48,6 +51,14 @@ export function useDefaultMessage(
         content:
           options?.confirmMessage?.trim() ||
           createMessageContent(status, options?.isRsvpMode),
+      };
+    }
+    if (status === AttendeeStatusEnum.CheckedIn) {
+      return {
+        subject: options?.meetName
+          ? `Checked in: ${options.meetName}`
+          : "Meet check-in",
+        content: createMessageContent(status),
       };
     }
     if (status === AttendeeStatusEnum.Invited) {

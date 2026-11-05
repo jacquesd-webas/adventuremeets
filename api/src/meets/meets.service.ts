@@ -931,11 +931,12 @@ export class MeetsService {
     });
   }
 
-  async getAttendeeContactById(attendeeId: string) {
-    const attendee = await this.db
+  async getAttendeeContactById(attendeeId: string, meetId?: string) {
+    const query = this.db
       .getClient()("meet_attendees")
-      .where({ id: attendeeId })
-      .first("email", "phone", "name");
+      .where({ id: attendeeId });
+    if (meetId) query.andWhere({ meet_id: meetId });
+    const attendee = await query.first("email", "phone", "name");
     if (!attendee) {
       throw new NotFoundException("Attendee not found");
     }

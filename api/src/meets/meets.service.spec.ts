@@ -47,6 +47,26 @@ const buildBuilder = () => {
 };
 
 describe("MeetsService", () => {
+  it("limits preview contact lookup to the selected meet", async () => {
+    const attendeeBuilder = buildBuilder();
+    attendeeBuilder.first.mockResolvedValue({
+      name: "Alex",
+      email: "alex@example.com",
+    });
+    const db = {
+      getClient: () => () => attendeeBuilder,
+    } as unknown as DatabaseService;
+    const service = new MeetsService(db, {} as MinioService);
+
+    await expect(
+      service.getAttendeeContactById("attendee-1", "meet-1"),
+    ).resolves.toMatchObject({ email: "alex@example.com" });
+    expect(attendeeBuilder.where).toHaveBeenCalledWith({ id: "attendee-1" });
+    expect(attendeeBuilder.andWhere).toHaveBeenCalledWith({
+      meet_id: "meet-1",
+    });
+  });
+
   it("creates an admin share code when publishing without replacing an existing one", async () => {
     const meetsBuilder = buildBuilder();
     meetsBuilder.update.mockResolvedValue([{ id: "meet-1" }]);
