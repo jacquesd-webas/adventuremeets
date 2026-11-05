@@ -196,7 +196,7 @@ export class MeetsService {
         this.db
           .getClient()
           .raw(
-            `sum(case when status = 'rejected' then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
+            `sum(case when status in ('rejected', 'cancelled') then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
           ),
       )
       .select(
@@ -393,7 +393,7 @@ export class MeetsService {
         this.db
           .getClient()
           .raw(
-            `sum(case when status = 'rejected' then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
+            `sum(case when status in ('rejected', 'cancelled') then 1 + coalesce(guests, 0) else 0 end) as rejected_count`,
           ),
       )
       .select(
