@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { CreateMeetModal } from "../CreateMeetModal";
 import { mapMeetToState, toIsoWithOffset } from "../CreateMeetState";
@@ -49,31 +50,37 @@ let mockedOrganization = {
 };
 
 function renderCreateMeetModal() {
+  const queryClient = new QueryClient();
   return render(
-    <MemoryRouter initialEntries={["/plan"]}>
-      <CreateMeetModal
-        open
-        onClose={vi.fn()}
-        onCreated={vi.fn()}
-        meetId="meet-1"
-        isOrganizer
-        canManageMeet
-      />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/plan"]}>
+        <CreateMeetModal
+          open
+          onClose={vi.fn()}
+          onCreated={vi.fn()}
+          meetId="meet-1"
+          isOrganizer
+          canManageMeet
+        />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
 function renderCreateMeetModalAsAdmin() {
+  const queryClient = new QueryClient();
   return render(
-    <MemoryRouter initialEntries={["/plan"]}>
-      <CreateMeetModal
-        open
-        onClose={vi.fn()}
-        onCreated={vi.fn()}
-        meetId="meet-1"
-        canManageMeet
-      />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/plan"]}>
+        <CreateMeetModal
+          open
+          onClose={vi.fn()}
+          onCreated={vi.fn()}
+          meetId="meet-1"
+          canManageMeet
+        />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -101,7 +108,10 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("../../../hooks/useApi", () => ({
-  useApi: () => ({ baseUrl: "http://localhost:3000" }),
+  useApi: () => ({
+    baseUrl: "http://localhost:3000",
+    get: vi.fn().mockResolvedValue({ adminShareCode: null }),
+  }),
 }));
 
 vi.mock("../../../hooks/useSaveMeet", () => ({
