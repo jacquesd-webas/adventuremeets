@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MeetActionsMenu } from "../MeetActionsMenu";
 import MeetStatusEnum from "../../../types/MeetStatusEnum";
 import { SnackbarProvider } from "notistack";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 describe("MeetActionsMenu", () => {
   const setMatchMedia = (matches: boolean) => {
@@ -192,29 +193,32 @@ describe("MeetActionsMenu", () => {
 
   it("opens Share from a published meet menu", async () => {
     const user = userEvent.setup();
+    const queryClient = new QueryClient();
     render(
-      <SnackbarProvider>
-        <MemoryRouter
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
-          <MeetActionsMenu
-            meet={{
-              id: "meet-1",
-              name: "Mountain walk",
-              organizerId: "organizer-1",
-              shareCode: "share-123",
-            }}
-            meetId="meet-1"
-            statusId={MeetStatusEnum.Published}
-            isUpcoming
-            canViewMeet
-            canManageMeet
-            previewLinkCode="share-123"
-            setSelectedMeetId={vi.fn()}
-            setPendingAction={vi.fn()}
-          />
-        </MemoryRouter>
-      </SnackbarProvider>,
+      <QueryClientProvider client={queryClient}>
+        <SnackbarProvider>
+          <MemoryRouter
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
+            <MeetActionsMenu
+              meet={{
+                id: "meet-1",
+                name: "Mountain walk",
+                organizerId: "organizer-1",
+                shareCode: "share-123",
+              }}
+              meetId="meet-1"
+              statusId={MeetStatusEnum.Published}
+              isUpcoming
+              canViewMeet
+              canManageMeet
+              previewLinkCode="share-123"
+              setSelectedMeetId={vi.fn()}
+              setPendingAction={vi.fn()}
+            />
+          </MemoryRouter>
+        </SnackbarProvider>
+      </QueryClientProvider>,
     );
 
     await user.click(screen.getByRole("button"));
@@ -232,29 +236,32 @@ describe("MeetActionsMenu", () => {
       configurable: true,
       value: share,
     });
+    const queryClient = new QueryClient();
     render(
-      <SnackbarProvider>
-        <MemoryRouter
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
-          <MeetActionsMenu
-            meet={{
-              id: "meet-1",
-              name: "Mountain walk",
-              organizerId: "organizer-1",
-              shareCode: "share-123",
-              location: "Table Mountain",
-            }}
-            meetId="meet-1"
-            statusId={MeetStatusEnum.Published}
-            isUpcoming
-            canViewMeet
-            canManageMeet
-            setSelectedMeetId={vi.fn()}
-            setPendingAction={vi.fn()}
-          />
-        </MemoryRouter>
-      </SnackbarProvider>,
+      <QueryClientProvider client={queryClient}>
+        <SnackbarProvider>
+          <MemoryRouter
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
+            <MeetActionsMenu
+              meet={{
+                id: "meet-1",
+                name: "Mountain walk",
+                organizerId: "organizer-1",
+                shareCode: "share-123",
+                location: "Table Mountain",
+              }}
+              meetId="meet-1"
+              statusId={MeetStatusEnum.Published}
+              isUpcoming
+              canViewMeet
+              canManageMeet
+              setSelectedMeetId={vi.fn()}
+              setPendingAction={vi.fn()}
+            />
+          </MemoryRouter>
+        </SnackbarProvider>
+      </QueryClientProvider>,
     );
 
     const user = userEvent.setup();
