@@ -133,7 +133,7 @@ export type MeetTemplateContextOptions = {
 };
 
 export const BRAND_NAME = "AdventureMeets";
-export const SUPPORT_EMAIL = "support@fringecoding.com";
+export const SUPPORT_EMAIL = "support@adventuremeets.com";
 export const PRIMARY_COLOR = "#0f172a";
 export const SECONDARY_COLOR = "#475569";
 export const FROM_NAME = "AdventureMeets";
