@@ -21,6 +21,7 @@ import { RegisterDto } from "./dto/register.dto";
 import { EmailService } from "../email/email.service";
 import { renderEmailTemplate } from "../email/email.templates";
 import { OrganizationsService } from "../organizations/organizations.service";
+import { NOBODY_EMAIL } from "../users/system-user.constants";
 
 type GoogleTokenResponse = {
   access_token: string;
@@ -119,6 +120,9 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<{ user: UserProfile; isValid: boolean }> {
+    if (email.trim().toLowerCase() === NOBODY_EMAIL) {
+      throw new UnauthorizedException("User not found");
+    }
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       throw new UnauthorizedException("User not found");
@@ -336,6 +340,7 @@ export class AuthService {
   private readonly verificationLockMinutes = 15;
 
   async requestPasswordReset(email: string) {
+    if (email.trim().toLowerCase() === NOBODY_EMAIL) return;
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       return;
@@ -373,6 +378,9 @@ export class AuthService {
     const tokenHash = this.hashResetToken(token);
     const user = await this.usersService.findByPasswordResetToken(tokenHash);
     if (!user || !user.password_reset_expires_at) {
+      throw new BadRequestException("Invalid or expired reset token");
+    }
+    if (user.email?.toLowerCase() === NOBODY_EMAIL) {
       throw new BadRequestException("Invalid or expired reset token");
     }
     const expiresAt = new Date(user.password_reset_expires_at);
@@ -561,6 +569,9 @@ export class AuthService {
     profile: GoogleIdTokenPayload,
     organizationId?: string,
   ): Promise<TokenPair> {
+    if (profile.email?.trim().toLowerCase() === NOBODY_EMAIL) {
+      throw new UnauthorizedException("Invalid Google profile");
+    }
     if (organizationId) {
       await this.ensureOrganizationJoinable(organizationId);
     }
@@ -724,6 +735,9 @@ export class AuthService {
     profile: FacebookProfileResponse,
     organizationId?: string,
   ): Promise<TokenPair> {
+    if (profile.email?.trim().toLowerCase() === NOBODY_EMAIL) {
+      throw new UnauthorizedException("Invalid Facebook profile");
+    }
     if (organizationId) {
       await this.ensureOrganizationJoinable(organizationId);
     }

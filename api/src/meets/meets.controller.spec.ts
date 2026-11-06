@@ -78,6 +78,7 @@ describe("MeetsController", () => {
 
   const meetsService = {
     create: jest.fn(),
+    resolveReportOrganizerId: jest.fn(),
     clone: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
@@ -453,6 +454,57 @@ describe("MeetsController", () => {
       action: "created",
       target: "meet Sunrise Hike",
     });
+  });
+
+  it("uses the resolved organiser for an admin report import without adding an extra attendee", async () => {
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
+      "org-1",
+    ]);
+    setRoles({ organizer: true, admin: true });
+    (meetsService.resolveReportOrganizerId as jest.Mock).mockResolvedValue(
+      "nobody-1",
+    );
+    (meetsService.create as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      name: "Forest Walk",
+    });
+
+    await controller.create(
+      {
+        name: "Forest Walk",
+        organizationId: "org-1",
+        reportOrganizerEmail: "",
+      } as any,
+      user,
+    );
+
+    expect(meetsService.resolveReportOrganizerId).toHaveBeenCalledWith(
+      "org-1",
+      "",
+    );
+    expect(meetsService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ organizerId: "nobody-1" }),
+      { skipOrganizerAttendee: true },
+    );
+  });
+
+  it("restricts report imports to organisation admins", async () => {
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
+      "org-1",
+    ]);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.create(
+        {
+          name: "Forest Walk",
+          organizationId: "org-1",
+          reportOrganizerEmail: "",
+        } as any,
+        user,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(meetsService.resolveReportOrganizerId).not.toHaveBeenCalled();
   });
 
   it("clones a meet and writes an audit log", async () => {
@@ -1648,6 +1700,7 @@ describe("MeetsController", () => {
       ["Alex", "alex@example.com", ""],
       ["Jamie", "jamie@example.com", "Invited"],
       ["Robin", "robin@example.com", "Confirmed"],
+      ["Taylor", "taylor@example.com", "No-show"],
     ];
     const metaDefinitionsBuilder = {
       where: jest.fn().mockReturnThis(),
@@ -1661,7 +1714,7 @@ describe("MeetsController", () => {
     (db.getClient as jest.Mock).mockReturnValue(client);
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
     (meetsService.addInvitedAttendees as jest.Mock).mockResolvedValue({
-      created: 3,
+      created: 4,
       skipped: 0,
     });
     setRoles({ organizer: true });
@@ -1676,6 +1729,7 @@ describe("MeetsController", () => {
       expect.objectContaining({ name: "Alex", status: undefined }),
       expect.objectContaining({ name: "Jamie", status: "invited" }),
       expect.objectContaining({ name: "Robin", status: "confirmed" }),
+      expect.objectContaining({ name: "Taylor", status: "no-show" }),
     ]);
   });
 

@@ -425,11 +425,28 @@ export class MeetsController {
       );
     }
 
-    const created = await this.meetsService.create({
-      ...dto,
-      organizerId: dto.organizerId || user.id,
-      organizationId: dto.organizationId,
-    });
+    const isReportImport = dto.reportOrganizerEmail !== undefined;
+    if (
+      isReportImport &&
+      !this.authService.hasRole(user, dto.organizationId, "admin")
+    ) {
+      throw new ForbiddenException("Only an admin can import a meet report");
+    }
+    const organizerId = isReportImport
+      ? await this.meetsService.resolveReportOrganizerId(
+          dto.organizationId,
+          dto.reportOrganizerEmail ?? "",
+        )
+      : dto.organizerId || user.id;
+
+    const created = await this.meetsService.create(
+      {
+        ...dto,
+        organizerId,
+        organizationId: dto.organizationId,
+      },
+      { skipOrganizerAttendee: isReportImport },
+    );
     await this.logMeetAuditAction({
       orgId: dto.organizationId,
       meetId: created.id,
@@ -1440,6 +1457,7 @@ export class MeetsController {
           "cancelled",
           "checked-in",
           "attended",
+          "no-show",
         ].includes(status)
       ) {
         errors.push(`Row ${rowNumber}: invalid attendee status "${status}".`);

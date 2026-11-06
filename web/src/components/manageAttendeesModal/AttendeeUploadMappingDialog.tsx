@@ -34,6 +34,7 @@ type AttendeeUploadMappingDialogProps = {
   questions: AttendeeUploadQuestion[];
   assignments: AttendeeColumnAssignment[];
   isSubmitting?: boolean;
+  confirmLabel?: string;
   onAssignmentChange: (
     columnIndex: number,
     assignment: AttendeeColumnAssignment,
@@ -48,6 +49,7 @@ export function AttendeeUploadMappingDialog({
   questions,
   assignments,
   isSubmitting = false,
+  confirmLabel = "Import attendees",
   onAssignmentChange,
   onConfirm,
   onClose,
@@ -177,7 +179,7 @@ export function AttendeeUploadMappingDialog({
           variant="contained"
           disabled={isSubmitting || missingRoles.length > 0}
         >
-          Import attendees
+          {confirmLabel}
         </Button>
       </DialogActions>
     </Dialog>

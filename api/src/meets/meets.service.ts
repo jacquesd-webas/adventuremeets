@@ -29,6 +29,7 @@ import { MEET_STATUS } from "./constants/meet-status.enum";
 import { type WallItemReaction } from "../wall/dto/update-wall-item-reaction.dto";
 import { WallItemDto } from "../wall/dto/wall-item.dto";
 import { normalizeIncomingMessageContent } from "../email/incoming-message-content";
+import { NOBODY_EMAIL } from "../users/system-user.constants";
 
 type InvitedAttendeeUploadInput = {
   name: string;
@@ -505,7 +506,32 @@ export class MeetsService {
     );
   }
 
-  async create(dto: CreateMeetDto) {
+  async resolveReportOrganizerId(organizationId: string, email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail) {
+      const member = await this.db
+        .getClient()("users as u")
+        .join("user_organization_memberships as uom", "uom.user_id", "u.id")
+        .where("uom.organization_id", organizationId)
+        .where("uom.status", "active")
+        .whereRaw("lower(u.email) = ?", [normalizedEmail])
+        .first("u.id");
+      if (member) return member.id as string;
+    }
+
+    const nobody = await this.db
+      .getClient()("users")
+      .where({ email: NOBODY_EMAIL })
+      .first("id");
+    if (!nobody)
+      throw new NotFoundException("Nobody user not found; run migrations");
+    return nobody.id as string;
+  }
+
+  async create(
+    dto: CreateMeetDto,
+    options?: { skipOrganizerAttendee?: boolean },
+  ) {
     const now = new Date().toISOString();
     const currencyId = await this.resolveCurrencyId(
       dto.currencyId,
@@ -530,7 +556,7 @@ export class MeetsService {
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, meet.id, dto.metaDefinitions);
       }
-      if (dto.organizerId) {
+      if (dto.organizerId && !options?.skipOrganizerAttendee) {
         await this.addOrganizerAsAttendee(trx, meet.id, dto.organizerId, now);
       }
       return meet;

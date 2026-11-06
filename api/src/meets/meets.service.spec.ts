@@ -47,6 +47,41 @@ const buildBuilder = () => {
 };
 
 describe("MeetsService", () => {
+  it("uses an active organisation member or falls back to Nobody for report organisers", async () => {
+    const memberBuilder = buildBuilder();
+    const nobodyBuilder = buildBuilder();
+    nobodyBuilder.first.mockResolvedValue({ id: "nobody-1" });
+    const client = (table: string) =>
+      table === "users as u" ? memberBuilder : nobodyBuilder;
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as MinioService,
+    );
+
+    memberBuilder.first.mockResolvedValueOnce({ id: "member-1" });
+    await expect(
+      service.resolveReportOrganizerId("org-1", "Member@Example.com"),
+    ).resolves.toBe("member-1");
+    expect(memberBuilder.where).toHaveBeenCalledWith(
+      "uom.organization_id",
+      "org-1",
+    );
+    expect(memberBuilder.where).toHaveBeenCalledWith("uom.status", "active");
+    expect(memberBuilder.whereRaw).toHaveBeenCalledWith("lower(u.email) = ?", [
+      "member@example.com",
+    ]);
+
+    memberBuilder.first.mockResolvedValueOnce(undefined);
+    await expect(
+      service.resolveReportOrganizerId("org-1", "missing@example.com"),
+    ).resolves.toBe("nobody-1");
+    await expect(service.resolveReportOrganizerId("org-1", "")).resolves.toBe(
+      "nobody-1",
+    );
+    expect(nobodyBuilder.where).toHaveBeenCalledWith({
+      email: "nobody@adventuremeets.com",
+    });
+  });
   it("limits preview contact lookup to the selected meet", async () => {
     const attendeeBuilder = buildBuilder();
     attendeeBuilder.first.mockResolvedValue({
