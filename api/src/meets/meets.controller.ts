@@ -1658,6 +1658,64 @@ export class MeetsController {
       worksheet.addRow(row);
     });
 
+    const formatReportDate = (value?: string) => {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: meet.timeZone || "UTC",
+      }).format(date);
+    };
+    const startDate = formatReportDate(meet.startTime);
+    const endDate = formatReportDate(meet.endTime);
+    const dateLabel = !startDate
+      ? "TBC"
+      : endDate && endDate !== startDate
+        ? `${startDate} – ${endDate}`
+        : startDate;
+
+    worksheet.insertRows(1, [
+      [`Meet: ${meet.name || "Meet"}`],
+      [`Date: ${dateLabel}`],
+      [`Organiser: ${meet.organizerName || meet.organizerEmail || "TBC"}`],
+      [],
+    ]);
+    for (let rowNumber = 1; rowNumber <= 3; rowNumber += 1) {
+      worksheet.mergeCells(rowNumber, 1, rowNumber, worksheet.columnCount);
+      const headingRow = worksheet.getRow(rowNumber);
+      headingRow.height = rowNumber === 1 ? 32 : 25;
+      headingRow.font = {
+        name: "Aptos",
+        size: rowNumber === 1 ? 17 : 11,
+        bold: true,
+        color: { argb: rowNumber === 1 ? "FFFFFFFF" : "FF0F172A" },
+      };
+      headingRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: rowNumber === 1 ? "FF0F172A" : "FFEFF6FF" },
+      };
+      headingRow.alignment = { vertical: "middle", indent: 1 };
+    }
+    worksheet.getRow(4).height = 10;
+    const columnHeadingRow = worksheet.getRow(5);
+    columnHeadingRow.height = 26;
+    columnHeadingRow.font = {
+      name: "Aptos",
+      size: 11,
+      bold: true,
+      color: { argb: "FFFFFFFF" },
+    };
+    columnHeadingRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF2563EB" },
+    };
+    columnHeadingRow.alignment = { vertical: "middle" };
+
     const buffer = await workbook.xlsx.writeBuffer();
     const content = Buffer.isBuffer(buffer)
       ? buffer

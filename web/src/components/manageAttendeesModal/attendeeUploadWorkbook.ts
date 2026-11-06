@@ -24,6 +24,7 @@ export type AttendeeUploadPreview = {
 export type AttendeeColumnAssignment =
   | AttendeeColumnRole
   | "append_to_name"
+  | "ignore"
   | "other"
   | `question:${number}`;
 
@@ -204,7 +205,21 @@ export async function inspectAttendeeWorkbook(
   }
 
   const range = XLSX.utils.decode_range(worksheetRange);
-  const headerRowIndex = range.s.r;
+  let headerRowIndex = range.s.r;
+  while (headerRowIndex <= range.e.r) {
+    const populatedCells = Array.from(
+      { length: range.e.c - range.s.c + 1 },
+      (_, offset) =>
+        worksheet[
+          XLSX.utils.encode_cell({ r: headerRowIndex, c: range.s.c + offset })
+        ],
+    ).filter((cell) => cell && XLSX.utils.format_cell(cell).trim());
+    if (populatedCells.length > 1) break;
+    headerRowIndex += 1;
+  }
+  if (headerRowIndex > range.e.r) {
+    throw new Error("The first row must contain column headings.");
+  }
   const columns: AttendeeUploadColumn[] = [];
 
   for (
@@ -257,11 +272,11 @@ export async function createMappedAttendeeWorkbook(
 ) {
   const XLSX = await import("xlsx");
   const worksheet = preview.workbook.Sheets[preview.worksheetName];
+  const lastRow = XLSX.utils.decode_range(worksheet["!ref"]!).e.r;
 
   const nameColumn = preview.columns[assignments.indexOf("name")];
   const surnameColumn = preview.columns[assignments.indexOf("append_to_name")];
   if (nameColumn && surnameColumn) {
-    const lastRow = XLSX.utils.decode_range(worksheet["!ref"]!).e.r;
     for (let row = preview.headerRowIndex + 1; row <= lastRow; row += 1) {
       const nameAddress = XLSX.utils.encode_cell({
         r: row,
@@ -286,6 +301,14 @@ export async function createMappedAttendeeWorkbook(
 
   preview.columns.forEach((column, index) => {
     const assignment = assignments[index];
+    if (assignment === "ignore") {
+      for (let row = preview.headerRowIndex; row <= lastRow; row += 1) {
+        delete worksheet[
+          XLSX.utils.encode_cell({ r: row, c: column.columnIndex })
+        ];
+      }
+      return;
+    }
     const normalizedHeader = normalizeAttendeeColumnHeader(column.header);
     const isUnselectedRequiredHeader =
       assignment === "other" &&

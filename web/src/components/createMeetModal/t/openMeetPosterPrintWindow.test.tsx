@@ -62,7 +62,7 @@ describe("openMeetPosterPrintWindow", () => {
     );
 
     expect(options.map((option) => option.textContent)).toEqual([
-      "Split image",
+      "Overlay",
       "Three tier",
       "Branded",
       "Text only",
@@ -79,6 +79,10 @@ describe("openMeetPosterPrintWindow", () => {
     expect(
       doc.querySelector(".poster-above-details .footer-label")?.textContent,
     ).toBe("Summit Explorers");
+    expect(
+      doc.querySelector(".poster-above-details .footer-copy")
+        ?.firstElementChild,
+    ).toBe(doc.querySelector(".poster-above-details .footer-label"));
     expect(doc.querySelector(".poster-above-message h1")?.textContent).toBe(
       "Mountain Day",
     );

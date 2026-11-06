@@ -169,4 +169,55 @@ describe("AttendeeUploadButton", () => {
       questions,
     );
   });
+
+  it("allows more than one column to be ignored", async () => {
+    const sheetPreview = {
+      ...preview,
+      columns: [
+        { columnIndex: 0, header: "Name", previewValues: ["Alex"] },
+        {
+          columnIndex: 1,
+          header: "Email",
+          previewValues: ["alex@example.com"],
+        },
+        { columnIndex: 2, header: "Extra one", previewValues: ["A"] },
+        { columnIndex: 3, header: "Extra two", previewValues: ["B"] },
+      ],
+    };
+    inspectAttendeeWorkbook.mockResolvedValue(sheetPreview);
+    guessAttendeeColumnAssignments.mockReturnValue([
+      "name",
+      "email",
+      "other",
+      "other",
+    ]);
+    assignmentsMatchRequiredHeaders.mockReturnValue(true);
+    hasUnrecognizedAttendeeColumns.mockReturnValue(true);
+    createMappedAttendeeWorkbook.mockResolvedValue(
+      new File(["mapped"], "attendees-mapped.xlsx"),
+    );
+    renderButton();
+
+    const input = screen
+      .getByRole("button", { name: "Upload attendees" })
+      .querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File(["sheet"], "attendees.xlsx")] },
+    });
+    await screen.findByText("Match attendee columns");
+
+    fireEvent.mouseDown(screen.getByLabelText("Use Extra one as"));
+    fireEvent.click(screen.getByRole("option", { name: "Ignore column" }));
+    fireEvent.mouseDown(screen.getByLabelText("Use Extra two as"));
+    fireEvent.click(screen.getByRole("option", { name: "Ignore column" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import attendees" }));
+
+    await waitFor(() =>
+      expect(createMappedAttendeeWorkbook).toHaveBeenCalledWith(
+        sheetPreview,
+        ["name", "email", "ignore", "ignore"],
+        "attendees.xlsx",
+      ),
+    );
+  });
 });

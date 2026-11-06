@@ -151,7 +151,13 @@ export function AttendeeUploadButton({
     setAssignments((current) =>
       current.map((value, index) => {
         if (index === columnIndex) return assignment;
-        if (assignment !== "other" && value === assignment) return "other";
+        if (
+          assignment !== "other" &&
+          assignment !== "ignore" &&
+          value === assignment
+        ) {
+          return "other";
+        }
         return value;
       }),
     );

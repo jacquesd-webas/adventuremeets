@@ -897,7 +897,6 @@ export function CreateMeetModal({
       case 8:
         return (
           <FinishStep
-            meetId={meetId}
             state={state}
             setState={(fn) => setState(fn)}
             organizationName={posterOrganization?.name}

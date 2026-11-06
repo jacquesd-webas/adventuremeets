@@ -53,6 +53,9 @@ describe("AttendeeUploadMappingDialog", () => {
     expect(screen.getByRole("option", { name: "Phone" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Status" })).toBeInTheDocument();
     expect(
+      screen.getByRole("option", { name: "Ignore column" }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("option", { name: "Append to Name" }),
     ).toBeInTheDocument();
     expect(

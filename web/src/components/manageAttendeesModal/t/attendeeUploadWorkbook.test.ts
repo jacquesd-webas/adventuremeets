@@ -66,6 +66,38 @@ describe("attendeeUploadWorkbook", () => {
     ]);
   });
 
+  it("finds attendee columns after single-cell report headings", async () => {
+    const input = createFile(
+      [
+        ["Meet: Sunrise Hike"],
+        ["Date: 14 April 2026"],
+        ["Organiser: Taylor"],
+        [],
+        ["Full Name", "Email Address"],
+        ["Alex", "alex@example.com"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+
+    expect(preview.headerRowIndex).toBe(4);
+    expect(preview.columns.map((column) => column.header)).toEqual([
+      "Full Name",
+      "Email Address",
+    ]);
+
+    const mapped = await createMappedAttendeeWorkbook(
+      preview,
+      ["name", "email"],
+      input.name,
+    );
+    const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    expect(worksheet.A5.v).toBe("Name");
+    expect(worksheet.B5.v).toBe("Email");
+    expect(worksheet.A1.v).toBe("Meet: Sunrise Hike");
+  });
+
   it("only treats canonical required headings as an exact match", async () => {
     const exact = await inspectAttendeeWorkbook(
       createFile(
@@ -212,6 +244,31 @@ describe("attendeeUploadWorkbook", () => {
       ["Name", "Email", "Status", "Q1"],
       ["Alex", "alex@example.com", "Confirmed", "Vegan"],
     ]);
+  });
+
+  it("removes ignored columns from the uploaded workbook", async () => {
+    const input = createFile(
+      [
+        ["Name", "Email", "Private note", "Old status"],
+        ["Alex", "alex@example.com", "Do not import", "Unknown"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+    const mapped = await createMappedAttendeeWorkbook(
+      preview,
+      ["name", "email", "ignore", "ignore"],
+      input.name,
+    );
+    const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    expect(worksheet.A1.v).toBe("Name");
+    expect(worksheet.B2.v).toBe("alex@example.com");
+    expect(worksheet.C1).toBeUndefined();
+    expect(worksheet.C2).toBeUndefined();
+    expect(worksheet.D1).toBeUndefined();
+    expect(worksheet.D2).toBeUndefined();
   });
 
   it("recognizes existing question headings without requesting a mapping", async () => {

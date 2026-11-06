@@ -8,10 +8,16 @@ const workbookState: {
   rows: Record<string, any>[];
   columns: Record<string, any>[];
   uploadRows: Array<Array<any>>;
+  headingRows: string[][];
+  mergedRanges: number[][];
+  styledRows: Record<number, Record<string, any>>;
 } = {
   rows: [],
   columns: [],
   uploadRows: [],
+  headingRows: [],
+  mergedRanges: [],
+  styledRows: {},
 };
 
 jest.mock("./attendee-upload-workbook", () => ({
@@ -23,6 +29,9 @@ jest.mock("exceljs", () => ({
     addWorksheet() {
       workbookState.rows = [];
       workbookState.columns = [];
+      workbookState.headingRows = [];
+      workbookState.mergedRanges = [];
+      workbookState.styledRows = {};
       return {
         get columns() {
           return workbookState.columns;
@@ -30,8 +39,21 @@ jest.mock("exceljs", () => ({
         set columns(value: Record<string, any>[]) {
           workbookState.columns = value;
         },
+        get columnCount() {
+          return workbookState.columns.length;
+        },
         addRow: (row: Record<string, any>) => {
           workbookState.rows.push(row);
+        },
+        insertRows: (_rowNumber: number, rows: string[][]) => {
+          workbookState.headingRows = rows;
+        },
+        mergeCells: (...range: number[]) => {
+          workbookState.mergedRanges.push(range);
+        },
+        getRow: (rowNumber: number) => {
+          workbookState.styledRows[rowNumber] ??= {};
+          return workbookState.styledRows[rowNumber];
         },
       };
     }
@@ -1055,6 +1077,22 @@ describe("MeetsController", () => {
         status: "attended",
       }),
     ]);
+    expect(workbookState.headingRows).toEqual([
+      ["Meet: Sunrise Hike"],
+      ["Date: 14 April 2026"],
+      ["Organiser: Taylor"],
+      [],
+    ]);
+    expect(workbookState.mergedRanges).toEqual([
+      [1, 1, 1, 5],
+      [2, 1, 2, 5],
+      [3, 1, 3, 5],
+    ]);
+    expect(workbookState.styledRows[1].font).toMatchObject({
+      bold: true,
+      size: 17,
+    });
+    expect(workbookState.styledRows[5].font).toMatchObject({ bold: true });
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "organizer@example.com",

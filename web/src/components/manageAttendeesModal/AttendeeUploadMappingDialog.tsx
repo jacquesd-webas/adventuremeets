@@ -115,6 +115,7 @@ export function AttendeeUploadMappingDialog({
                               <MenuItem value="other">
                                 Keep original heading
                               </MenuItem>
+                              <MenuItem value="ignore">Ignore column</MenuItem>
                               {attendeeColumnRoles.map((role) => (
                                 <MenuItem key={role} value={role}>
                                   {attendeeColumnLabels[role]}
@@ -144,7 +145,14 @@ export function AttendeeUploadMappingDialog({
                 {Array.from({ length: previewRowCount }, (_, rowIndex) => (
                   <TableRow key={rowIndex}>
                     {columns.map((column, columnIndex) => (
-                      <TableCell key={column.columnIndex}>
+                      <TableCell
+                        key={column.columnIndex}
+                        sx={
+                          assignments[columnIndex] === "ignore"
+                            ? { color: "text.disabled" }
+                            : undefined
+                        }
+                      >
                         {(columnIndex === nameColumnIndex && surnameColumn
                           ? appendToAttendeeName(
                               column.previewValues[rowIndex] || "",
