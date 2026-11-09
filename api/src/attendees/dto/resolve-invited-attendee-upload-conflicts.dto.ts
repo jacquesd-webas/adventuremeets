@@ -28,6 +28,20 @@ export class ResolveInvitedAttendeeUploadConflictAttendeeDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsIn([
+    "invited",
+    "pending",
+    "confirmed",
+    "waitlisted",
+    "rejected",
+    "cancelled",
+    "checked-in",
+    "attended",
+  ])
+  status?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsInt()
   @Min(1)
   rowNumber?: number;

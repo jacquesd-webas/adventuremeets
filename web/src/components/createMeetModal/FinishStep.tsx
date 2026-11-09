@@ -18,7 +18,6 @@ import { openMeetPosterPrintWindow } from "./openMeetPosterPrintWindow";
 import Meet from "../../types/MeetModel";
 import { useMeetWhatsappConnection } from "../../hooks/useMeetWhatsapp";
 import { MeetWhatsappInviteLink } from "./MeetWhatsappInviteLink";
-import { AdminCheckinShareLink } from "./AdminCheckinShareLink";
 
 type FinishStepProps = StepProps & {
   meetId?: string | null;
@@ -31,9 +30,9 @@ type FinishStepProps = StepProps & {
 };
 
 export function FinishStep({
+  meetId,
   state,
   setState,
-  meetId,
   organizationName,
   organizationLogoUrl,
   errors = [],
@@ -222,12 +221,6 @@ export function FinishStep({
                 {copied ? "Copied" : "Copy link"}
               </Button>
             </Stack>
-            {isEditing &&
-            meetId &&
-            shareCode &&
-            state.statusId !== MeetStatusEnum.Draft ? (
-              <AdminCheckinShareLink meetId={meetId} shareCode={shareCode} />
-            ) : null}
           </>
         )}
         <Typography variant="h6">WhatsApp Group</Typography>

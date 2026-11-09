@@ -21,6 +21,8 @@ import {
 import {
   AttendeeColumnAssignment,
   AttendeeUploadColumn,
+  AttendeeUploadQuestion,
+  appendToAttendeeName,
   attendeeColumnRoles,
   attendeeColumnLabels,
   requiredAttendeeColumnRoles,
@@ -29,8 +31,10 @@ import {
 type AttendeeUploadMappingDialogProps = {
   open: boolean;
   columns: AttendeeUploadColumn[];
+  questions: AttendeeUploadQuestion[];
   assignments: AttendeeColumnAssignment[];
   isSubmitting?: boolean;
+  confirmLabel?: string;
   onAssignmentChange: (
     columnIndex: number,
     assignment: AttendeeColumnAssignment,
@@ -42,8 +46,10 @@ type AttendeeUploadMappingDialogProps = {
 export function AttendeeUploadMappingDialog({
   open,
   columns,
+  questions,
   assignments,
   isSubmitting = false,
+  confirmLabel = "Import attendees",
   onAssignmentChange,
   onConfirm,
   onClose,
@@ -55,6 +61,8 @@ export function AttendeeUploadMappingDialog({
     0,
     ...columns.map((column) => column.previewValues.length),
   );
+  const nameColumnIndex = assignments.indexOf("name");
+  const surnameColumn = columns[assignments.indexOf("append_to_name")];
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
@@ -109,9 +117,22 @@ export function AttendeeUploadMappingDialog({
                               <MenuItem value="other">
                                 Keep original heading
                               </MenuItem>
+                              <MenuItem value="ignore">Ignore column</MenuItem>
                               {attendeeColumnRoles.map((role) => (
                                 <MenuItem key={role} value={role}>
                                   {attendeeColumnLabels[role]}
+                                </MenuItem>
+                              ))}
+                              <MenuItem value="append_to_name">
+                                Append to Name
+                              </MenuItem>
+                              {questions.map((question, questionIndex) => (
+                                <MenuItem
+                                  key={question.id}
+                                  value={`question:${questionIndex + 1}`}
+                                >
+                                  {question.label ||
+                                    `Question ${questionIndex + 1}`}
                                 </MenuItem>
                               ))}
                             </Select>
@@ -125,9 +146,21 @@ export function AttendeeUploadMappingDialog({
               <TableBody>
                 {Array.from({ length: previewRowCount }, (_, rowIndex) => (
                   <TableRow key={rowIndex}>
-                    {columns.map((column) => (
-                      <TableCell key={column.columnIndex}>
-                        {column.previewValues[rowIndex] || "—"}
+                    {columns.map((column, columnIndex) => (
+                      <TableCell
+                        key={column.columnIndex}
+                        sx={
+                          assignments[columnIndex] === "ignore"
+                            ? { color: "text.disabled" }
+                            : undefined
+                        }
+                      >
+                        {(columnIndex === nameColumnIndex && surnameColumn
+                          ? appendToAttendeeName(
+                              column.previewValues[rowIndex] || "",
+                              surnameColumn.previewValues[rowIndex] || "",
+                            )
+                          : column.previewValues[rowIndex]) || "—"}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -146,7 +179,7 @@ export function AttendeeUploadMappingDialog({
           variant="contained"
           disabled={isSubmitting || missingRoles.length > 0}
         >
-          Import attendees
+          {confirmLabel}
         </Button>
       </DialogActions>
     </Dialog>

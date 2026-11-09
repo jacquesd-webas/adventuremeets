@@ -1,6 +1,12 @@
 import type { WorkBook } from "xlsx";
 
-export type AttendeeColumnRole = "name" | "email" | "phone";
+export type AttendeeColumnRole = "name" | "email" | "phone" | "status";
+
+export type AttendeeUploadQuestion = {
+  id: string;
+  label: string;
+  fieldKey: string;
+};
 
 export type AttendeeUploadColumn = {
   columnIndex: number;
@@ -15,18 +21,25 @@ export type AttendeeUploadPreview = {
   worksheetName: string;
 };
 
-export type AttendeeColumnAssignment = AttendeeColumnRole | "other";
+export type AttendeeColumnAssignment =
+  | AttendeeColumnRole
+  | "append_to_name"
+  | "ignore"
+  | "other"
+  | `question:${number}`;
 
 export const attendeeColumnLabels: Record<AttendeeColumnRole, string> = {
   name: "Name",
   email: "Email",
   phone: "Phone",
+  status: "Status",
 };
 
 export const attendeeColumnRoles: AttendeeColumnRole[] = [
   "name",
   "email",
   "phone",
+  "status",
 ];
 
 export const requiredAttendeeColumnRoles: AttendeeColumnRole[] = [
@@ -37,6 +50,7 @@ export const requiredAttendeeColumnRoles: AttendeeColumnRole[] = [
 const headerAliases: Record<AttendeeColumnRole, string[]> = {
   name: [
     "name",
+    "firstname",
     "fullname",
     "fullnames",
     "attendeename",
@@ -79,6 +93,7 @@ const headerAliases: Record<AttendeeColumnRole, string[]> = {
     "whatsapp",
     "whatsappnumber",
   ],
+  status: ["status", "attendeestatus"],
 };
 
 export const normalizeAttendeeColumnHeader = (value: string) =>
@@ -86,6 +101,11 @@ export const normalizeAttendeeColumnHeader = (value: string) =>
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
+
+const surnameHeaders = ["surname", "lastname"];
+
+export const appendToAttendeeName = (name: string, surname: string) =>
+  [name.trim(), surname.trim()].filter(Boolean).join(" ");
 
 export function guessAttendeeColumnAssignments(
   columns: AttendeeUploadColumn[],
@@ -106,6 +126,13 @@ export function guessAttendeeColumnAssignments(
       assignedColumns.add(columnOffset);
     }
   });
+
+  const surnameOffset = columns.findIndex((column) =>
+    surnameHeaders.includes(normalizeAttendeeColumnHeader(column.header)),
+  );
+  if (surnameOffset >= 0) {
+    assignments[surnameOffset] = "append_to_name";
+  }
 
   return assignments;
 }
@@ -133,6 +160,37 @@ export function assignmentsMatchRequiredHeaders(
   );
 }
 
+export function hasUnrecognizedAttendeeColumns(
+  columns: AttendeeUploadColumn[],
+  assignments: AttendeeColumnAssignment[],
+  questions: AttendeeUploadQuestion[],
+) {
+  const questionKeys = new Set(
+    questions
+      .flatMap((question) => [
+        normalizeAttendeeColumnHeader(question.label),
+        normalizeAttendeeColumnHeader(question.fieldKey),
+      ])
+      .filter(Boolean),
+  );
+
+  return columns.some((column, index) => {
+    if (assignments[index] !== "other") return false;
+    const key = normalizeAttendeeColumnHeader(column.header);
+    if (surnameHeaders.includes(key)) return false;
+    if (questionKeys.has(key)) return false;
+    const questionIndex = key.match(/^q(\d+)$/);
+    if (
+      questionIndex &&
+      Number(questionIndex[1]) >= 1 &&
+      Number(questionIndex[1]) <= questions.length
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
 export async function inspectAttendeeWorkbook(
   file: File,
 ): Promise<AttendeeUploadPreview> {
@@ -147,7 +205,21 @@ export async function inspectAttendeeWorkbook(
   }
 
   const range = XLSX.utils.decode_range(worksheetRange);
-  const headerRowIndex = range.s.r;
+  let headerRowIndex = range.s.r;
+  while (headerRowIndex <= range.e.r) {
+    const populatedCells = Array.from(
+      { length: range.e.c - range.s.c + 1 },
+      (_, offset) =>
+        worksheet[
+          XLSX.utils.encode_cell({ r: headerRowIndex, c: range.s.c + offset })
+        ],
+    ).filter((cell) => cell && XLSX.utils.format_cell(cell).trim());
+    if (populatedCells.length > 1) break;
+    headerRowIndex += 1;
+  }
+  if (headerRowIndex > range.e.r) {
+    throw new Error("The first row must contain column headings.");
+  }
   const columns: AttendeeUploadColumn[] = [];
 
   for (
@@ -200,19 +272,58 @@ export async function createMappedAttendeeWorkbook(
 ) {
   const XLSX = await import("xlsx");
   const worksheet = preview.workbook.Sheets[preview.worksheetName];
+  const lastRow = XLSX.utils.decode_range(worksheet["!ref"]!).e.r;
+
+  const nameColumn = preview.columns[assignments.indexOf("name")];
+  const surnameColumn = preview.columns[assignments.indexOf("append_to_name")];
+  if (nameColumn && surnameColumn) {
+    for (let row = preview.headerRowIndex + 1; row <= lastRow; row += 1) {
+      const nameAddress = XLSX.utils.encode_cell({
+        r: row,
+        c: nameColumn.columnIndex,
+      });
+      const surnameAddress = XLSX.utils.encode_cell({
+        r: row,
+        c: surnameColumn.columnIndex,
+      });
+      const name = worksheet[nameAddress]
+        ? XLSX.utils.format_cell(worksheet[nameAddress])
+        : "";
+      const surname = worksheet[surnameAddress]
+        ? XLSX.utils.format_cell(worksheet[surnameAddress])
+        : "";
+      worksheet[nameAddress] = {
+        t: "s",
+        v: appendToAttendeeName(name, surname),
+      };
+    }
+  }
 
   preview.columns.forEach((column, index) => {
     const assignment = assignments[index];
+    if (assignment === "ignore") {
+      for (let row = preview.headerRowIndex; row <= lastRow; row += 1) {
+        delete worksheet[
+          XLSX.utils.encode_cell({ r: row, c: column.columnIndex })
+        ];
+      }
+      return;
+    }
     const normalizedHeader = normalizeAttendeeColumnHeader(column.header);
     const isUnselectedRequiredHeader =
       assignment === "other" &&
-      attendeeColumnRoles.some((role) => role === normalizedHeader);
+      (attendeeColumnRoles.some((role) => role === normalizedHeader) ||
+        surnameHeaders.includes(normalizedHeader));
     const value =
       assignment === "other"
         ? isUnselectedRequiredHeader
           ? `Other ${column.header}`
           : column.header
-        : attendeeColumnLabels[assignment];
+        : assignment === "append_to_name"
+          ? `Appended ${column.header || "Surname"}`
+          : assignment.startsWith("question:")
+            ? `Q${assignment.slice("question:".length)}`
+            : attendeeColumnLabels[assignment as AttendeeColumnRole];
 
     const address = XLSX.utils.encode_cell({
       r: preview.headerRowIndex,

@@ -68,6 +68,14 @@ export class CreateMeetDto {
   @IsString()
   organizerId?: string;
 
+  @ApiPropertyOptional({
+    description:
+      "Attendee email selected as organiser when importing a meet report",
+  })
+  @IsOptional()
+  @IsString()
+  reportOrganizerEmail?: string;
+
   @ApiPropertyOptional({ description: "Organization id (UUID)" })
   @IsOptional()
   @IsString()

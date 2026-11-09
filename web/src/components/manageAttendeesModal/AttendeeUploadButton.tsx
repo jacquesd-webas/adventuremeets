@@ -8,14 +8,17 @@ import { AttendeeUploadMappingDialog } from "./AttendeeUploadMappingDialog";
 import {
   AttendeeColumnAssignment,
   AttendeeUploadPreview,
+  AttendeeUploadQuestion,
   assignmentsMatchRequiredHeaders,
   createMappedAttendeeWorkbook,
   guessAttendeeColumnAssignments,
+  hasUnrecognizedAttendeeColumns,
   inspectAttendeeWorkbook,
 } from "./attendeeUploadWorkbook";
 
 type AttendeeUploadButtonProps = {
   meetId?: string | null;
+  questions?: AttendeeUploadQuestion[];
   disabled?: boolean;
   onUploadSuccess?: (data: AttendeeUploadResponse) => void;
   onUploadError?: () => void;
@@ -31,6 +34,7 @@ export type AttendeeUploadConflict = {
     name: string;
     email: string;
     phone: string;
+    status?: string;
     rowNumber?: number;
     metaValues?: Array<{ definitionId: string; value: string }>;
   };
@@ -49,6 +53,7 @@ export type AttendeeUploadConflictAction =
 
 export function AttendeeUploadButton({
   meetId,
+  questions = [],
   disabled = false,
   onUploadSuccess,
   onUploadError,
@@ -118,7 +123,12 @@ export function AttendeeUploadButton({
       );
 
       if (
-        assignmentsMatchRequiredHeaders(nextPreview.columns, nextAssignments)
+        assignmentsMatchRequiredHeaders(nextPreview.columns, nextAssignments) &&
+        !hasUnrecognizedAttendeeColumns(
+          nextPreview.columns,
+          nextAssignments,
+          questions,
+        )
       ) {
         mutation.mutate(file);
         return;
@@ -141,7 +151,13 @@ export function AttendeeUploadButton({
     setAssignments((current) =>
       current.map((value, index) => {
         if (index === columnIndex) return assignment;
-        if (assignment !== "other" && value === assignment) return "other";
+        if (
+          assignment !== "other" &&
+          assignment !== "ignore" &&
+          value === assignment
+        ) {
+          return "other";
+        }
         return value;
       }),
     );
@@ -195,6 +211,7 @@ export function AttendeeUploadButton({
       <AttendeeUploadMappingDialog
         open={Boolean(preview)}
         columns={preview?.columns ?? []}
+        questions={questions}
         assignments={assignments}
         isSubmitting={isInspecting || mutation.isPending}
         onAssignmentChange={handleAssignmentChange}

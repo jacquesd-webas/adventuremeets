@@ -8,10 +8,16 @@ const workbookState: {
   rows: Record<string, any>[];
   columns: Record<string, any>[];
   uploadRows: Array<Array<any>>;
+  headingRows: string[][];
+  mergedRanges: number[][];
+  styledRows: Record<number, Record<string, any>>;
 } = {
   rows: [],
   columns: [],
   uploadRows: [],
+  headingRows: [],
+  mergedRanges: [],
+  styledRows: {},
 };
 
 jest.mock("./attendee-upload-workbook", () => ({
@@ -23,6 +29,9 @@ jest.mock("exceljs", () => ({
     addWorksheet() {
       workbookState.rows = [];
       workbookState.columns = [];
+      workbookState.headingRows = [];
+      workbookState.mergedRanges = [];
+      workbookState.styledRows = {};
       return {
         get columns() {
           return workbookState.columns;
@@ -30,8 +39,21 @@ jest.mock("exceljs", () => ({
         set columns(value: Record<string, any>[]) {
           workbookState.columns = value;
         },
+        get columnCount() {
+          return workbookState.columns.length;
+        },
         addRow: (row: Record<string, any>) => {
           workbookState.rows.push(row);
+        },
+        insertRows: (_rowNumber: number, rows: string[][]) => {
+          workbookState.headingRows = rows;
+        },
+        mergeCells: (...range: number[]) => {
+          workbookState.mergedRanges.push(range);
+        },
+        getRow: (rowNumber: number) => {
+          workbookState.styledRows[rowNumber] ??= {};
+          return workbookState.styledRows[rowNumber];
         },
       };
     }
@@ -56,6 +78,7 @@ describe("MeetsController", () => {
 
   const meetsService = {
     create: jest.fn(),
+    resolveReportOrganizerId: jest.fn(),
     clone: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
@@ -431,6 +454,57 @@ describe("MeetsController", () => {
       action: "created",
       target: "meet Sunrise Hike",
     });
+  });
+
+  it("uses the resolved organiser for an admin report import without adding an extra attendee", async () => {
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
+      "org-1",
+    ]);
+    setRoles({ organizer: true, admin: true });
+    (meetsService.resolveReportOrganizerId as jest.Mock).mockResolvedValue(
+      "nobody-1",
+    );
+    (meetsService.create as jest.Mock).mockResolvedValue({
+      id: "meet-1",
+      name: "Forest Walk",
+    });
+
+    await controller.create(
+      {
+        name: "Forest Walk",
+        organizationId: "org-1",
+        reportOrganizerEmail: "",
+      } as any,
+      user,
+    );
+
+    expect(meetsService.resolveReportOrganizerId).toHaveBeenCalledWith(
+      "org-1",
+      "",
+    );
+    expect(meetsService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ organizerId: "nobody-1" }),
+      { skipOrganizerAttendee: true },
+    );
+  });
+
+  it("restricts report imports to organisation admins", async () => {
+    (authService.getUserOrganizationIds as jest.Mock).mockReturnValue([
+      "org-1",
+    ]);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.create(
+        {
+          name: "Forest Walk",
+          organizationId: "org-1",
+          reportOrganizerEmail: "",
+        } as any,
+        user,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(meetsService.resolveReportOrganizerId).not.toHaveBeenCalled();
   });
 
   it("clones a meet and writes an audit log", async () => {
@@ -1055,6 +1129,22 @@ describe("MeetsController", () => {
         status: "attended",
       }),
     ]);
+    expect(workbookState.headingRows).toEqual([
+      ["Meet: Sunrise Hike"],
+      ["Date: 14 April 2026"],
+      ["Organiser: Taylor"],
+      [],
+    ]);
+    expect(workbookState.mergedRanges).toEqual([
+      [1, 1, 1, 5],
+      [2, 1, 2, 5],
+      [3, 1, 3, 5],
+    ]);
+    expect(workbookState.styledRows[1].font).toMatchObject({
+      bold: true,
+      size: 17,
+    });
+    expect(workbookState.styledRows[5].font).toMatchObject({ bold: true });
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "organizer@example.com",
@@ -1375,6 +1465,33 @@ describe("MeetsController", () => {
     );
   });
 
+  it("previews an RSVP button for invited attendees", async () => {
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.getAttendeeContactById as jest.Mock).mockResolvedValue({
+      name: "Alex",
+      email: "alex@example.com",
+      status: "invited",
+    });
+    setRoles({ organizer: true });
+
+    const result = await controller.previewMessageAttendees(
+      "meet-1",
+      {
+        messages: [
+          {
+            attendeeIds: ["attendee-1"],
+            subject: "Please RSVP",
+            text: "Please respond.",
+          },
+        ],
+      },
+      user,
+    );
+
+    expect(result.previews[0].html).toContain("To RSVP use the button below:");
+    expect(result.previews[0].html).toContain(">RSVP</a");
+  });
+
   it("sets respondedAt for attendees when an organizer manually sends a message", async () => {
     process.env.MAIL_DOMAIN = "example.com";
     (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
@@ -1383,6 +1500,7 @@ describe("MeetsController", () => {
       async (attendeeId: string) => ({
         id: attendeeId,
         name: attendeeId === "attendee-1" ? "Alex" : "Jamie",
+        status: attendeeId === "attendee-1" ? "invited" : "confirmed",
         email:
           attendeeId === "attendee-1"
             ? "alex@example.com"
@@ -1410,11 +1528,18 @@ describe("MeetsController", () => {
     expect(emailService.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "alex@example.com",
+        html: expect.stringContaining(">RSVP</a"),
         attendeeId: "attendee-1",
         meetId: "meet-1",
         replyTo: "meet+meet-1@example.com",
         from: "organiser@example.com",
         fromName: "Taylor (Aventuremeets)",
+      }),
+    );
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "jamie@example.com",
+        html: expect.stringContaining(">View meet</a"),
       }),
     );
     expect(emailService.saveMessage).toHaveBeenCalledWith(
@@ -1524,6 +1649,116 @@ describe("MeetsController", () => {
         metaValues: undefined,
       },
     ]);
+  });
+
+  it.each([
+    ["Name", "Surname"],
+    ["First name", "Last name"],
+  ])(
+    "combines %s and %s when importing attendees",
+    async (givenHeader, familyHeader) => {
+      workbookState.uploadRows = [
+        [givenHeader, familyHeader, "Email"],
+        ["Alex", "Rider", "alex@example.com"],
+      ];
+      const metaDefinitionsBuilder = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        select: jest.fn().mockResolvedValue([]),
+      };
+      const client: any = (table: string) => {
+        if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+        throw new Error(`Unexpected table: ${table}`);
+      };
+      (db.getClient as jest.Mock).mockReturnValue(client);
+      (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+      (meetsService.addInvitedAttendees as jest.Mock).mockResolvedValue({
+        created: 1,
+        skipped: 0,
+      });
+      setRoles({ organizer: true });
+
+      await controller.uploadAttendees(
+        "meet-1",
+        { buffer: Buffer.from("xlsx") },
+        user,
+      );
+
+      expect(meetsService.addInvitedAttendees).toHaveBeenCalledWith("meet-1", [
+        expect.objectContaining({
+          name: "Alex Rider",
+          email: "alex@example.com",
+          rowNumber: 2,
+        }),
+      ]);
+    },
+  );
+
+  it("uses invited by default and passes uploaded statuses through", async () => {
+    workbookState.uploadRows = [
+      ["Name", "Email", "Status"],
+      ["Alex", "alex@example.com", ""],
+      ["Jamie", "jamie@example.com", "Invited"],
+      ["Robin", "robin@example.com", "Confirmed"],
+      ["Taylor", "taylor@example.com", "No-show"],
+    ];
+    const metaDefinitionsBuilder = {
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue([]),
+    };
+    const client: any = (table: string) => {
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    };
+    (db.getClient as jest.Mock).mockReturnValue(client);
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    (meetsService.addInvitedAttendees as jest.Mock).mockResolvedValue({
+      created: 4,
+      skipped: 0,
+    });
+    setRoles({ organizer: true });
+
+    await controller.uploadAttendees(
+      "meet-1",
+      { buffer: Buffer.from("xlsx") },
+      user,
+    );
+
+    expect(meetsService.addInvitedAttendees).toHaveBeenCalledWith("meet-1", [
+      expect.objectContaining({ name: "Alex", status: undefined }),
+      expect.objectContaining({ name: "Jamie", status: "invited" }),
+      expect.objectContaining({ name: "Robin", status: "confirmed" }),
+      expect.objectContaining({ name: "Taylor", status: "no-show" }),
+    ]);
+  });
+
+  it("rejects unsupported uploaded attendee statuses", async () => {
+    workbookState.uploadRows = [
+      ["Name", "Email", "Status"],
+      ["Alex", "alex@example.com", "Unknown"],
+    ];
+    const metaDefinitionsBuilder = {
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue([]),
+    };
+    const client: any = (table: string) => {
+      if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    };
+    (db.getClient as jest.Mock).mockReturnValue(client);
+    (meetsService.findOne as jest.Mock).mockResolvedValue(meet);
+    setRoles({ organizer: true });
+
+    await expect(
+      controller.uploadAttendees(
+        "meet-1",
+        { buffer: Buffer.from("xlsx") },
+        user,
+      ),
+    ).rejects.toThrow('Row 2: invalid attendee status "unknown".');
+    expect(meetsService.addInvitedAttendees).not.toHaveBeenCalled();
   });
 
   it("requires name and email upload columns", async () => {

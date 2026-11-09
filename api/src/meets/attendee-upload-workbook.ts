@@ -34,12 +34,15 @@ export function parseAttendeeWorkbook(buffer: Buffer): AttendeeWorkbookRow[] {
       throw new BadRequestException("No worksheet found in the uploaded file");
     }
 
-    return XLSX.utils.sheet_to_json(worksheet, {
+    const rows = XLSX.utils.sheet_to_json(worksheet, {
       header: 1,
       raw: false,
       defval: "",
       blankrows: false,
     }) as AttendeeWorkbookRow[];
+    return rows.filter(
+      (row) => row.filter((value) => String(value ?? "").trim()).length > 1,
+    );
   } catch (error) {
     if (error instanceof BadRequestException) throw error;
 

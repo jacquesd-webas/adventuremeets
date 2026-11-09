@@ -425,11 +425,28 @@ export class MeetsController {
       );
     }
 
-    const created = await this.meetsService.create({
-      ...dto,
-      organizerId: dto.organizerId || user.id,
-      organizationId: dto.organizationId,
-    });
+    const isReportImport = dto.reportOrganizerEmail !== undefined;
+    if (
+      isReportImport &&
+      !this.authService.hasRole(user, dto.organizationId, "admin")
+    ) {
+      throw new ForbiddenException("Only an admin can import a meet report");
+    }
+    const organizerId = isReportImport
+      ? await this.meetsService.resolveReportOrganizerId(
+          dto.organizationId,
+          dto.reportOrganizerEmail ?? "",
+        )
+      : dto.organizerId || user.id;
+
+    const created = await this.meetsService.create(
+      {
+        ...dto,
+        organizerId,
+        organizationId: dto.organizationId,
+      },
+      { skipOrganizerAttendee: isReportImport },
+    );
     await this.logMeetAuditAction({
       orgId: dto.organizationId,
       meetId: created.id,
@@ -916,6 +933,7 @@ export class MeetsController {
         const { html } = renderEmailTemplate("meet-message", {
           meetName: meet.name,
           attendeeName,
+          attendeeStatus: isGroupedMessage ? undefined : attendee.status,
           startTime: meet.startTime,
           endTime: meet.endTime,
           timeZone: meet.timeZone,
@@ -1050,6 +1068,7 @@ export class MeetsController {
         const { text } = renderEmailTemplate("meet-message", {
           meetName: meet.name,
           attendeeName,
+          attendeeStatus: attendee?.status,
           startTime: meet.startTime,
           endTime: meet.endTime,
           timeZone: meet.timeZone,
@@ -1129,6 +1148,7 @@ export class MeetsController {
           const { text, html } = renderEmailTemplate("meet-message", {
             meetName: meet.name,
             attendeeName,
+            attendeeStatus: attendee?.status,
             startTime: meet.startTime,
             endTime: meet.endTime,
             timeZone: meet.timeZone,
@@ -1335,9 +1355,11 @@ export class MeetsController {
       if (key) headerMap.set(key, index + 1);
     });
 
-    const nameCol = headerMap.get("name");
+    const nameCol = headerMap.get("name") ?? headerMap.get("firstname");
+    const surnameCol = headerMap.get("surname") ?? headerMap.get("lastname");
     const emailCol = headerMap.get("email");
     const phoneCol = headerMap.get("phone");
+    const statusCol = headerMap.get("status");
     if (!nameCol || !emailCol) {
       throw new BadRequestException("Sheet must include columns: name, email");
     }
@@ -1374,7 +1396,16 @@ export class MeetsController {
     });
 
     headerMap.forEach((col, key) => {
-      if (key === "name" || key === "email" || key === "phone") return;
+      if (
+        key === "name" ||
+        key === "firstname" ||
+        key === "surname" ||
+        key === "lastname" ||
+        key === "email" ||
+        key === "phone" ||
+        key === "status"
+      )
+        return;
       if (/^q\d+$/.test(key)) return;
       const definitionId = metaDefinitionByKey.get(key);
       if (!definitionId || assignedDefinitionIds.has(definitionId)) return;
@@ -1391,6 +1422,7 @@ export class MeetsController {
       name: string;
       email: string;
       phone: string;
+      status?: string;
       rowNumber: number;
       metaValues?: Array<{ definitionId: string; value: string }>;
     }> = [];
@@ -1399,14 +1431,36 @@ export class MeetsController {
     worksheetRows.forEach((row, index) => {
       const rowNumber = index + 1;
       if (rowNumber === 1) return;
-      const name = getCellText(row, nameCol);
+      const firstName = getCellText(row, nameCol);
+      const surname = getCellText(row, surnameCol);
+      const name = firstName
+        ? [firstName, surname].filter(Boolean).join(" ")
+        : "";
       const email = getCellText(row, emailCol);
       const phone = getCellText(row, phoneCol);
+      const status = getCellText(row, statusCol).toLowerCase();
       if (!name && !email && !phone) return;
       if (!name || !email) {
         errors.push(
           `Row ${rowNumber}: name and email are required for each attendee.`,
         );
+        return;
+      }
+      if (
+        status &&
+        ![
+          "invited",
+          "pending",
+          "confirmed",
+          "waitlisted",
+          "rejected",
+          "cancelled",
+          "checked-in",
+          "attended",
+          "no-show",
+        ].includes(status)
+      ) {
+        errors.push(`Row ${rowNumber}: invalid attendee status "${status}".`);
         return;
       }
       const metaValues: Array<{ definitionId: string; value: string }> = [];
@@ -1420,6 +1474,7 @@ export class MeetsController {
         name,
         email,
         phone,
+        status: status || undefined,
         rowNumber,
         metaValues: metaValues.length ? metaValues : undefined,
       });
@@ -1471,6 +1526,7 @@ export class MeetsController {
             name: resolution.attendee.name,
             email: resolution.attendee.email,
             phone: resolution.attendee.phone,
+            status: resolution.attendee.status,
             rowNumber: resolution.attendee.rowNumber,
             metaValues: resolution.attendee.metaValues,
           },
@@ -1619,6 +1675,64 @@ export class MeetsController {
       });
       worksheet.addRow(row);
     });
+
+    const formatReportDate = (value?: string) => {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: meet.timeZone || "UTC",
+      }).format(date);
+    };
+    const startDate = formatReportDate(meet.startTime);
+    const endDate = formatReportDate(meet.endTime);
+    const dateLabel = !startDate
+      ? "TBC"
+      : endDate && endDate !== startDate
+        ? `${startDate} – ${endDate}`
+        : startDate;
+
+    worksheet.insertRows(1, [
+      [`Meet: ${meet.name || "Meet"}`],
+      [`Date: ${dateLabel}`],
+      [`Organiser: ${meet.organizerName || meet.organizerEmail || "TBC"}`],
+      [],
+    ]);
+    for (let rowNumber = 1; rowNumber <= 3; rowNumber += 1) {
+      worksheet.mergeCells(rowNumber, 1, rowNumber, worksheet.columnCount);
+      const headingRow = worksheet.getRow(rowNumber);
+      headingRow.height = rowNumber === 1 ? 32 : 25;
+      headingRow.font = {
+        name: "Aptos",
+        size: rowNumber === 1 ? 17 : 11,
+        bold: true,
+        color: { argb: rowNumber === 1 ? "FFFFFFFF" : "FF0F172A" },
+      };
+      headingRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: rowNumber === 1 ? "FF0F172A" : "FFEFF6FF" },
+      };
+      headingRow.alignment = { vertical: "middle", indent: 1 };
+    }
+    worksheet.getRow(4).height = 10;
+    const columnHeadingRow = worksheet.getRow(5);
+    columnHeadingRow.height = 26;
+    columnHeadingRow.font = {
+      name: "Aptos",
+      size: 11,
+      bold: true,
+      color: { argb: "FFFFFFFF" },
+    };
+    columnHeadingRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF2563EB" },
+    };
+    columnHeadingRow.alignment = { vertical: "middle" };
 
     const buffer = await workbook.xlsx.writeBuffer();
     const content = Buffer.isBuffer(buffer)

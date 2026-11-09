@@ -40,6 +40,7 @@ import {
   OrganizationModal,
 } from "../components/profile/OrganizationModal";
 import { getLogoSrc } from "../helpers/logo";
+import { UploadMeetDialog } from "../components/admin/UploadMeetDialog";
 import { useThemeMode } from "../context/ThemeModeContext";
 import { useAuth } from "../context/authContext";
 import { useCurrentOrganization } from "../context/organizationContext";
@@ -69,6 +70,7 @@ function MainLayout() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [adminAnchorEl, setAdminAnchorEl] = useState<null | HTMLElement>(null);
   const [orgModalOpen, setOrgModalOpen] = useState(false);
+  const [uploadMeetOpen, setUploadMeetOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileHeaderAction, setMobileHeaderAction] =
     useState<ReactNode | null>(null);
@@ -146,6 +148,11 @@ function MainLayout() {
   const handleAdminUsers = () => {
     nav("/admin/users");
     handleAdminClose();
+  };
+  const handleUploadMeet = () => {
+    setUploadMeetOpen(true);
+    handleAdminClose();
+    setMobileNavOpen(false);
   };
 
   const handleProfile = () => {
@@ -442,6 +449,12 @@ function MainLayout() {
                 >
                   Reports
                 </MenuItem>
+                <MenuItem
+                  onClick={handleUploadMeet}
+                  disabled={!currentOrganizationId || !isCurrentOrgAdmin}
+                >
+                  Upload meet report...
+                </MenuItem>
               </Menu>
             )}
           </Toolbar>
@@ -607,6 +620,11 @@ function MainLayout() {
                         <ListItemText primary="Reports" />
                       </ListItemButton>
                     )}
+                    {isCurrentOrgAdmin && (
+                      <ListItemButton onClick={handleUploadMeet}>
+                        <ListItemText primary="Upload meet report..." />
+                      </ListItemButton>
+                    )}
                     <ListItemButton onClick={handleMobileLogout}>
                       <ListItemIcon>
                         <LogoutIcon fontSize="small" />
@@ -636,6 +654,13 @@ function MainLayout() {
         </AppBar>
       )}
       {!isMobile && user ? accountMenu : null}
+      {currentOrganizationId && isCurrentOrgAdmin && (
+        <UploadMeetDialog
+          open={uploadMeetOpen}
+          organizationId={currentOrganizationId}
+          onClose={() => setUploadMeetOpen(false)}
+        />
+      )}
       <Container
         maxWidth={isMobile ? false : "lg"}
         disableGutters={isMobile}

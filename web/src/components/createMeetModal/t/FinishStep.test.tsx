@@ -20,9 +20,6 @@ vi.mock("../../../hooks/useMeetWhatsapp", () => ({
 vi.mock("../openMeetPosterPrintWindow", () => ({
   openMeetPosterPrintWindow: vi.fn(),
 }));
-vi.mock("../AdminCheckinShareLink", () => ({
-  AdminCheckinShareLink: () => <div>Helper check-in link</div>,
-}));
 
 describe("FinishStep", () => {
   afterEach(() => {
@@ -108,28 +105,6 @@ describe("FinishStep", () => {
         name: "Create a WhatsApp group for this meet",
       }),
     ).toBeDisabled();
-  });
-
-  it("shows helper check-in and WhatsApp group links together for a published meet", () => {
-    render(
-      <FinishStep
-        state={{
-          ...initialState,
-          statusId: MeetStatusEnum.Published,
-          whatsappGroupCreated: true,
-        }}
-        setState={vi.fn()}
-        errors={[]}
-        meetId="meet-1"
-        shareCode="share-code-1"
-        isEditing
-      />,
-    );
-
-    expect(screen.getByText("Helper check-in link")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Group invite link" })).toHaveValue(
-      "https://chat.whatsapp.com/InviteCode123",
-    );
   });
 
   it("does not show the postponed warning for non-edit flow", () => {

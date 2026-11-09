@@ -148,7 +148,8 @@ function wrapHtml(content: string, logoUrl?: string) {
 </html>`;
 }
 
-function getMeetResponseWording(isRsvpMode?: boolean) {
+function getMeetResponseWording(isRsvpMode?: boolean, attendeeStatus?: string) {
+  const isInvited = attendeeStatus === "invited";
   if (isRsvpMode) {
     return {
       signupHeading: "Your RSVP has been received",
@@ -159,8 +160,10 @@ function getMeetResponseWording(isRsvpMode?: boolean) {
       responsePastVerb: "RSVP'd",
       viewStatusLabel: "View your RSVP status:",
       viewLabel: "View your RSVP",
-      manageResponseLead:
-        "To view or update your RSVP, or provide feedback and upload photos after the meet please use the button below:",
+      manageResponseLead: isInvited
+        ? "To RSVP use the button below:"
+        : "To view or update your RSVP, or provide feedback and upload photos after the meet please use the button below:",
+      manageResponseButtonLabel: isInvited ? "RSVP" : "View meet",
       rejectHeading: "Sorry, your RSVP was not successful",
       rejectSubject: "Update on your RSVP for",
       rejectDefaultMessage:
@@ -177,8 +180,10 @@ function getMeetResponseWording(isRsvpMode?: boolean) {
     responsePastVerb: "applied",
     viewStatusLabel: "View your application status:",
     viewLabel: "View your application",
-    manageResponseLead:
-      "To view or make changes to your application, or provide feedback and upload photos after the meet please use the button below:",
+    manageResponseLead: isInvited
+      ? "To RSVP use the button below:"
+      : "To view or make changes to your application, or provide feedback and upload photos after the meet please use the button below:",
+    manageResponseButtonLabel: isInvited ? "RSVP" : "View meet",
     rejectHeading: "Sorry, your application was not successful",
     rejectSubject: "Update on your application for",
     rejectDefaultMessage:
@@ -511,7 +516,10 @@ export function renderEmailTemplate(
       throw new Error("Missing meetName for meet-message template");
     }
     const includeStatusUrl = messageVars.includeStatusUrl !== false;
-    const wording = getMeetResponseWording(messageVars.isRsvpMode);
+    const wording = getMeetResponseWording(
+      messageVars.isRsvpMode,
+      messageVars.attendeeStatus,
+    );
     const varsMap = {
       ...baseVarsMap,
       ...getMeetTemplateContext(messageVars, {

@@ -58,6 +58,16 @@ describe("AuthService", () => {
       .mockReturnValueOnce("refresh-token");
   });
 
+  it("does not authenticate or send a password reset for the Nobody account", async () => {
+    await expect(
+      service.validateUser("Nobody@adventuremeets.com", "anything"),
+    ).rejects.toThrow("User not found");
+    await service.requestPasswordReset("nobody@adventuremeets.com");
+
+    expect(usersService.findByEmail).not.toHaveBeenCalled();
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
+  });
+
   it("registers a user without sending a verification email", async () => {
     const previousDisable = process.env.RECAPTCHA_DISABLE;
     process.env.RECAPTCHA_DISABLE = "true";

@@ -32,11 +32,13 @@ import { MEET_STATUS } from "./constants/meet-status.enum";
 import { type WallItemReaction } from "../wall/dto/update-wall-item-reaction.dto";
 import { WallItemDto } from "../wall/dto/wall-item.dto";
 import { normalizeIncomingMessageContent } from "../email/incoming-message-content";
+import { NOBODY_EMAIL } from "../users/system-user.constants";
 
 type InvitedAttendeeUploadInput = {
   name: string;
   email: string;
   phone: string;
+  status?: string;
   rowNumber?: number;
   metaValues?: Array<{ definitionId: string; value: string }>;
 };
@@ -508,7 +510,32 @@ export class MeetsService {
     );
   }
 
-  async create(dto: CreateMeetDto) {
+  async resolveReportOrganizerId(organizationId: string, email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail) {
+      const member = await this.db
+        .getClient()("users as u")
+        .join("user_organization_memberships as uom", "uom.user_id", "u.id")
+        .where("uom.organization_id", organizationId)
+        .where("uom.status", "active")
+        .whereRaw("lower(u.email) = ?", [normalizedEmail])
+        .first("u.id");
+      if (member) return member.id as string;
+    }
+
+    const nobody = await this.db
+      .getClient()("users")
+      .where({ email: NOBODY_EMAIL })
+      .first("id");
+    if (!nobody)
+      throw new NotFoundException("Nobody user not found; run migrations");
+    return nobody.id as string;
+  }
+
+  async create(
+    dto: CreateMeetDto,
+    options?: { skipOrganizerAttendee?: boolean },
+  ) {
     const now = new Date().toISOString();
     const currencyId = await this.resolveCurrencyId(
       dto.currencyId,
@@ -533,7 +560,7 @@ export class MeetsService {
       if (dto.metaDefinitions) {
         await this.syncMetaDefinitions(trx, meet.id, dto.metaDefinitions);
       }
-      if (dto.organizerId) {
+      if (dto.organizerId && !options?.skipOrganizerAttendee) {
         await this.addOrganizerAsAttendee(trx, meet.id, dto.organizerId, now);
       }
       return meet;
@@ -941,7 +968,7 @@ export class MeetsService {
       .getClient()("meet_attendees")
       .where({ id: attendeeId });
     if (meetId) query.andWhere({ meet_id: meetId });
-    const attendee = await query.first("email", "phone", "name");
+    const attendee = await query.first("email", "phone", "name", "status");
     if (!attendee) {
       throw new NotFoundException("Attendee not found");
     }
@@ -1387,6 +1414,7 @@ export class MeetsService {
             "guests",
             "guests_list",
             "guest_of",
+            "signup_method",
           );
           const normalizedName = (dto.name || "").trim().toLowerCase();
           let invited = candidates.length === 1 ? candidates[0] : undefined;
@@ -1434,6 +1462,9 @@ export class MeetsService {
                   indemnity_accepted: indemnityAccepted,
                   indemnity_minors: dto.indemnityMinors ?? null,
                   status: shouldCheckInOnSignup ? "checked-in" : "confirmed",
+                  ...(invited.signup_method == null
+                    ? { signup_method: "I" }
+                    : {}),
                   updated_at: new Date().toISOString(),
                 },
                 ["*"],
@@ -1536,6 +1567,7 @@ export class MeetsService {
             indemnity_accepted: indemnityAccepted,
             indemnity_minors: dto.indemnityMinors ?? null,
             status,
+            signup_method: shouldCheckInOnSignup ? "W" : "S",
           },
           ["*"],
         );
@@ -1919,6 +1951,7 @@ export class MeetsService {
               name: attendee.name,
               email: attendee.email,
               phone: attendee.phone,
+              status: attendee.status,
               rowNumber: attendee.rowNumber,
               metaValues: attendee.metaValues,
             },
@@ -1935,7 +1968,9 @@ export class MeetsService {
             name: attendee.name,
             phone: attendee.phone,
             email: attendee.email,
-            status: "invited",
+            status: attendee.status ?? "invited",
+            signup_method:
+              attendee.status && attendee.status !== "invited" ? "M" : "I",
             sequence: nextSequence,
             is_minor: false,
           },
@@ -1992,7 +2027,7 @@ export class MeetsService {
       for (const resolution of resolutions) {
         const existingAttendee = await trx("meet_attendees")
           .where({ meet_id: meetId, id: resolution.existingAttendeeId })
-          .first("id", "name", "status");
+          .first("id", "name", "status", "signup_method");
 
         if (!existingAttendee) {
           throw new NotFoundException("Conflicting attendee not found");
@@ -2007,6 +2042,17 @@ export class MeetsService {
               email: resolution.attendee.email,
               is_minor: false,
               guardian_name: null,
+              ...(resolution.attendee.status &&
+              resolution.attendee.status !== "invited"
+                ? {
+                    status: resolution.attendee.status,
+                  }
+                : {}),
+              ...(existingAttendee.signup_method == null &&
+              resolution.attendee.status &&
+              resolution.attendee.status !== "invited"
+                ? { signup_method: "M" }
+                : {}),
               updated_at: new Date().toISOString(),
             });
 
@@ -2047,7 +2093,12 @@ export class MeetsService {
             name: resolution.attendee.name,
             phone: resolution.attendee.phone,
             email: resolution.attendee.email,
-            status: "invited",
+            status: resolution.attendee.status ?? "invited",
+            signup_method:
+              resolution.attendee.status &&
+              resolution.attendee.status !== "invited"
+                ? "M"
+                : "I",
             sequence: nextSequence,
             is_minor: true,
             guardian_name: existingAttendee.name ?? null,
@@ -3209,6 +3260,7 @@ export class MeetsService {
         email: organizer?.email ?? null,
         phone: organizer?.phone ?? null,
         status: "confirmed",
+        signup_method: "M",
         responded_at: now,
         created_at: now,
         updated_at: now,

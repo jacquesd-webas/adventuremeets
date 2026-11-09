@@ -3,11 +3,11 @@ import "@testing-library/jest-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
-import MainLayout from "./MainLayout";
-import { ThemeModeProvider } from "../context/ThemeModeContext";
-import { NotistackProvider } from "../components/NotistackProvider";
-import { AuthContext } from "../context/authContext";
-import { OrganizationContext } from "../context/organizationContext";
+import MainLayout from "../MainLayout";
+import { ThemeModeProvider } from "../../context/ThemeModeContext";
+import { NotistackProvider } from "../../components/NotistackProvider";
+import { AuthContext } from "../../context/authContext";
+import { OrganizationContext } from "../../context/organizationContext";
 
 const setMatchMedia = (matches: boolean) => {
   Object.defineProperty(window, "matchMedia", {
@@ -25,7 +25,7 @@ const setMatchMedia = (matches: boolean) => {
   });
 };
 
-vi.mock("../hooks/useFetchOrganization", () => ({
+vi.mock("../../hooks/useFetchOrganization", () => ({
   useFetchOrganization: () => ({
     data: {
       id: "org-1",
@@ -37,12 +37,17 @@ vi.mock("../hooks/useFetchOrganization", () => ({
   }),
 }));
 
-vi.mock("../components/auth/ChooseOrganizationModal", () => ({
+vi.mock("../../components/auth/ChooseOrganizationModal", () => ({
   ChooseOrganizationModal: () => null,
 }));
 
-vi.mock("../components/auth/PendingInvitePromptModal", () => ({
+vi.mock("../../components/auth/PendingInvitePromptModal", () => ({
   PendingInvitePromptModal: () => null,
+}));
+
+vi.mock("../../components/admin/UploadMeetDialog", () => ({
+  UploadMeetDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog">Upload meet form</div> : null,
 }));
 
 describe("MainLayout", () => {
@@ -147,5 +152,31 @@ describe("MainLayout", () => {
     expect(
       screen.queryByRole("button", { name: "Organisation" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens Upload meet from the desktop Admin menu", () => {
+    setMatchMedia(false);
+    renderLayout();
+
+    fireEvent.click(screen.getByText("Admin"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Upload meet report..." }),
+    );
+
+    expect(screen.getByRole("dialog", { name: "" })).toHaveTextContent(
+      "Upload meet form",
+    );
+  });
+
+  it("opens Upload meet from mobile navigation", () => {
+    setMatchMedia(true);
+    renderLayout();
+
+    fireEvent.click(screen.getByLabelText("Open navigation"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Upload meet report..." }),
+    );
+
+    expect(screen.getByText("Upload meet form")).toBeInTheDocument();
   });
 });

@@ -472,7 +472,7 @@ export async function openMeetPosterPrintWindow({
         box-shadow: 0 18px 48px rgba(37, 99, 235, 0.12);
       }
       .poster-variant--above {
-        grid-template-rows: 410px 300px auto;
+        grid-template-rows: 483px 300px 340px;
       }
       .poster-above-image {
         min-height: 0;
@@ -498,6 +498,8 @@ export async function openMeetPosterPrintWindow({
       }
       .poster-above-details {
         grid-template-columns: 1fr 225px;
+        align-items: start;
+        padding: 24px 40px;
       }
       .branded-hero::after {
         background: linear-gradient(180deg, rgba(15, 23, 42, 0.24), transparent 42%);
@@ -607,7 +609,7 @@ export async function openMeetPosterPrintWindow({
         }
         .poster-variant--above {
           height: 273mm;
-          grid-template-rows: 96mm 77mm 100mm;
+          grid-template-rows: 113mm 77mm 83mm;
         }
         .poster-above-image img {
           -webkit-print-color-adjust: exact;
@@ -621,9 +623,6 @@ export async function openMeetPosterPrintWindow({
         }
         .poster-above-message h1 {
           font-size: 42px;
-        }
-        .poster-above-details {
-          padding: 20px 28px;
         }
         .hero {
           height: 182mm;
@@ -642,6 +641,9 @@ export async function openMeetPosterPrintWindow({
         }
         .details {
           padding-top: 24px;
+        }
+        .poster-above-details {
+          padding: 18px 28px;
         }
         .poster--no-image {
           min-height: calc(297mm - 24mm);
@@ -663,7 +665,7 @@ export async function openMeetPosterPrintWindow({
   </head>
   <body data-poster-mode="${initialPosterMode}">
     <div class="toolbar">
-      <button class="chip ${initialPosterMode === "text-and-image" ? "active" : ""}" data-poster-mode-option="text-and-image" aria-pressed="${initialPosterMode === "text-and-image"}" onclick="setPosterMode('text-and-image')" ${hasImage ? "" : "disabled"}>Split image</button>
+      <button class="chip ${initialPosterMode === "text-and-image" ? "active" : ""}" data-poster-mode-option="text-and-image" aria-pressed="${initialPosterMode === "text-and-image"}" onclick="setPosterMode('text-and-image')" ${hasImage ? "" : "disabled"}>Overlay</button>
       <button class="chip ${initialPosterMode === "image-above" ? "active" : ""}" data-poster-mode-option="image-above" aria-pressed="${initialPosterMode === "image-above"}" onclick="setPosterMode('image-above')" ${hasImage ? "" : "disabled"}>Three tier</button>
       <button class="chip ${initialPosterMode === "branded" ? "active" : ""}" data-poster-mode-option="branded" aria-pressed="${initialPosterMode === "branded"}" onclick="setPosterMode('branded')" ${canUseBranded ? "" : "disabled"}>Branded</button>
       <button class="chip ${initialPosterMode === "text-only" ? "active" : ""}" data-poster-mode-option="text-only" aria-pressed="${initialPosterMode === "text-only"}" onclick="setPosterMode('text-only')">Text only</button>

@@ -3,6 +3,7 @@ import {
   assignmentsMatchRequiredHeaders,
   createMappedAttendeeWorkbook,
   guessAttendeeColumnAssignments,
+  hasUnrecognizedAttendeeColumns,
   inspectAttendeeWorkbook,
 } from "../attendeeUploadWorkbook";
 
@@ -65,6 +66,38 @@ describe("attendeeUploadWorkbook", () => {
     ]);
   });
 
+  it("finds attendee columns after single-cell report headings", async () => {
+    const input = createFile(
+      [
+        ["Meet: Sunrise Hike"],
+        ["Date: 14 April 2026"],
+        ["Organiser: Taylor"],
+        [],
+        ["Full Name", "Email Address"],
+        ["Alex", "alex@example.com"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+
+    expect(preview.headerRowIndex).toBe(4);
+    expect(preview.columns.map((column) => column.header)).toEqual([
+      "Full Name",
+      "Email Address",
+    ]);
+
+    const mapped = await createMappedAttendeeWorkbook(
+      preview,
+      ["name", "email"],
+      input.name,
+    );
+    const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    expect(worksheet.A5.v).toBe("Name");
+    expect(worksheet.B5.v).toBe("Email");
+    expect(worksheet.A1.v).toBe("Meet: Sunrise Hike");
+  });
+
   it("only treats canonical required headings as an exact match", async () => {
     const exact = await inspectAttendeeWorkbook(
       createFile(
@@ -99,6 +132,63 @@ describe("attendeeUploadWorkbook", () => {
     ).toBe(false);
   });
 
+  it.each(["Surname", "Last name"])(
+    "appends %s to Name only when selected",
+    async (surnameHeader) => {
+      const input = createFile(
+        [
+          ["First name", surnameHeader, "Email"],
+          ["Alex", "Rider", "alex@example.com"],
+          ["Sam", "", "sam@example.com"],
+        ],
+        "xlsx",
+      );
+      const preview = await inspectAttendeeWorkbook(input);
+      const assignments = guessAttendeeColumnAssignments(preview.columns);
+
+      expect(assignments).toEqual(["name", "append_to_name", "email"]);
+
+      const mapped = await createMappedAttendeeWorkbook(
+        preview,
+        assignments,
+        input.name,
+      );
+      const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      expect(
+        XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }),
+      ).toEqual([
+        ["Name", `Appended ${surnameHeader}`, "Email"],
+        ["Alex Rider", "Rider", "alex@example.com"],
+        ["Sam", "", "sam@example.com"],
+      ]);
+    },
+  );
+
+  it("does not append a surname when Keep original heading is selected", async () => {
+    const input = createFile(
+      [
+        ["Name", "Surname", "Email"],
+        ["Alex", "Rider", "alex@example.com"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+    const mapped = await createMappedAttendeeWorkbook(
+      preview,
+      ["name", "other", "email"],
+      input.name,
+    );
+    const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    expect(
+      XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }),
+    ).toEqual([
+      ["Name", "Other Surname", "Email"],
+      ["Alex", "Rider", "alex@example.com"],
+    ]);
+  });
+
   it("writes selected columns with canonical headings", async () => {
     const input = createFile(
       [
@@ -123,6 +213,82 @@ describe("attendeeUploadWorkbook", () => {
       ["Alex", "+27123456789", "alex@example.com", "Vegan"],
     ]);
     expect(mapped.name).toBe("attendees-mapped.xlsx");
+  });
+
+  it("maps Status and a selected question to API upload headings", async () => {
+    const input = createFile(
+      [
+        ["Name", "Email", "Attendance", "Food preference"],
+        ["Alex", "alex@example.com", "Confirmed", "Vegan"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+    const questions = [{ id: "q-1", label: "Dietary needs", fieldKey: "diet" }];
+    const guessed = guessAttendeeColumnAssignments(preview.columns);
+    expect(guessed).toEqual(["name", "email", "other", "other"]);
+    expect(
+      hasUnrecognizedAttendeeColumns(preview.columns, guessed, questions),
+    ).toBe(true);
+
+    const mapped = await createMappedAttendeeWorkbook(
+      preview,
+      ["name", "email", "status", "question:1"],
+      input.name,
+    );
+    const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    expect(
+      XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }),
+    ).toEqual([
+      ["Name", "Email", "Status", "Q1"],
+      ["Alex", "alex@example.com", "Confirmed", "Vegan"],
+    ]);
+  });
+
+  it("removes ignored columns from the uploaded workbook", async () => {
+    const input = createFile(
+      [
+        ["Name", "Email", "Private note", "Old status"],
+        ["Alex", "alex@example.com", "Do not import", "Unknown"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+    const mapped = await createMappedAttendeeWorkbook(
+      preview,
+      ["name", "email", "ignore", "ignore"],
+      input.name,
+    );
+    const workbook = XLSX.read(await readBlob(mapped), { type: "array" });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    expect(worksheet.A1.v).toBe("Name");
+    expect(worksheet.B2.v).toBe("alex@example.com");
+    expect(worksheet.C1).toBeUndefined();
+    expect(worksheet.C2).toBeUndefined();
+    expect(worksheet.D1).toBeUndefined();
+    expect(worksheet.D2).toBeUndefined();
+  });
+
+  it("recognizes existing question headings without requesting a mapping", async () => {
+    const input = createFile(
+      [
+        ["Name", "Email", "Dietary needs", "diet", "Q1"],
+        ["Alex", "alex@example.com", "Vegan", "Vegan", "Vegan"],
+      ],
+      "xlsx",
+    );
+    const preview = await inspectAttendeeWorkbook(input);
+    const questions = [{ id: "q-1", label: "Dietary needs", fieldKey: "diet" }];
+
+    expect(
+      hasUnrecognizedAttendeeColumns(
+        preview.columns,
+        guessAttendeeColumnAssignments(preview.columns),
+        questions,
+      ),
+    ).toBe(false);
   });
 
   it("rejects a sheet without headings", async () => {

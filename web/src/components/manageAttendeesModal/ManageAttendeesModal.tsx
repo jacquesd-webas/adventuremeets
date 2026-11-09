@@ -1004,7 +1004,8 @@ export function ManageAttendeesModal({
           </Tooltip>
           <AttendeeUploadButton
             meetId={meetId}
-            disabled={!meetId || !canManageAttendees}
+            questions={meet?.metaDefinitions ?? []}
+            disabled={!meetId || !canManageAttendees || meetLoading}
             onUploadSuccess={handleAttendeeUploadSuccess}
             onUploadError={handleAttendeeUploadError}
           />
