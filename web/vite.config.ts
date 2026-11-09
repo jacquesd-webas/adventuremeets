@@ -4,8 +4,10 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const apiBase = String(env.VITE_API_BASEURL || env.API_BASEURL || "")
-    .replace(/\/+$/, "");
+  const apiBase = String(env.VITE_API_BASEURL || env.API_BASEURL || "").replace(
+    /\/+$/,
+    "",
+  );
   const apiOrigin = apiBase.endsWith("/api/v1")
     ? apiBase.slice(0, -"/api/v1".length)
     : apiBase;
@@ -25,7 +27,6 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: "autoUpdate",
-        injectRegister: false,
         manifest: false,
         includeAssets: [
           "favicon.svg",
