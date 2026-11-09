@@ -7,10 +7,14 @@ const users = [
   { email: "charlie@nowhere.com", name: "Charlie", password: "Password123!" },
   { email: "dave@nowhere.com", name: "Dave", password: "Password123!" },
   { email: "ella@nowhere.com", name: "Ella", password: "Password123!" },
-  { email: "frankie@nowhere.com", name: "Frankie", password: "Password123!" }
+  { email: "frankie@nowhere.com", name: "Frankie", password: "Password123!" },
 ];
 
-const organizations = ["Summit Explorers", "Trailblazers Club", "Weekend Adventurers"];
+const organizations = [
+  "Summit Explorers",
+  "Trailblazers Club",
+  "Weekend Adventurers",
+];
 
 export async function seed(knex: Knex): Promise<void> {
   await knex("wall_item_likes").del();
@@ -36,9 +40,12 @@ export async function seed(knex: Knex): Promise<void> {
     name,
     is_private: name === "Summit Explorers" ? false : true,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   }));
-  const [primaryOrg] = await knex("organizations").insert(orgRows, ["id", "name"]);
+  const [primaryOrg] = await knex("organizations").insert(orgRows, [
+    "id",
+    "name",
+  ]);
 
   const userRows = await Promise.all(
     users.map(async (user) => ({
@@ -52,14 +59,26 @@ export async function seed(knex: Knex): Promise<void> {
       idp_subject: null,
       idp_profile: { name: user.name },
       created_at: now,
-      updated_at: now
-    }))
+      updated_at: now,
+    })),
   );
 
   const insertedUsers = await knex("users").insert(userRows, ["id", "email"]);
+  await knex("users").insert({
+    email: "nobody@adventuremeets.com",
+    first_name: "Nobody",
+    password_hash: "*LOCKED*",
+  });
 
-  const orgByName = new Map((await knex("organizations").select("id", "name")).map((org) => [org.name, org.id]));
-  const orgIds = organizations.map((name) => orgByName.get(name)).filter(Boolean) as string[];
+  const orgByName = new Map(
+    (await knex("organizations").select("id", "name")).map((org) => [
+      org.name,
+      org.id,
+    ]),
+  );
+  const orgIds = organizations
+    .map((name) => orgByName.get(name))
+    .filter(Boolean) as string[];
   const [org1, org2, org3] = orgIds;
   if (!org1 || !org2 || !org3) {
     throw new Error("Seed requires three organizations");
@@ -111,7 +130,7 @@ export async function seed(knex: Knex): Promise<void> {
           role_id: 2,
           status: "active",
           created_at: now,
-          updated_at: now
+          updated_at: now,
         },
         {
           user_id: user.id,
@@ -120,8 +139,8 @@ export async function seed(knex: Knex): Promise<void> {
           role_id: 2,
           status: "active",
           created_at: now,
-          updated_at: now
-        }
+          updated_at: now,
+        },
       ];
     }
     if (user.email === "bob@nowhere.com") {
@@ -133,8 +152,8 @@ export async function seed(knex: Knex): Promise<void> {
           role_id: 3,
           status: "active",
           created_at: now,
-          updated_at: now
-        }
+          updated_at: now,
+        },
       ];
     }
     if (user.email === "charlie@nowhere.com") {
@@ -146,8 +165,8 @@ export async function seed(knex: Knex): Promise<void> {
           role_id: 3,
           status: "active",
           created_at: now,
-          updated_at: now
-        }
+          updated_at: now,
+        },
       ];
     }
     return [
@@ -158,8 +177,8 @@ export async function seed(knex: Knex): Promise<void> {
         role_id: 4,
         status: "active",
         created_at: now,
-        updated_at: now
-      }
+        updated_at: now,
+      },
     ];
   });
 
