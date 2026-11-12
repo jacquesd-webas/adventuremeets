@@ -12,6 +12,7 @@ import {
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
+import { attendeeTagChipColors } from "../../helpers/attendeeTagColors";
 
 type AttendeeCheckinItemProps = {
   attendee: {
@@ -19,6 +20,7 @@ type AttendeeCheckinItemProps = {
     name: string;
     email: string;
     phone: string;
+    tags?: string[];
   };
   isCheckingIn: boolean;
   isChecked: boolean;
@@ -79,6 +81,14 @@ export function AttendeeCheckinItem({
                 {attendee.phone ? (
                   <Chip size="small" label={attendee.phone} color="default" />
                 ) : null}
+                {attendee.tags?.map((tag) => (
+                  <Chip
+                    key={tag}
+                    size="small"
+                    label={tag}
+                    sx={attendeeTagChipColors(tag)}
+                  />
+                ))}
                 {syncState === "queued" ? (
                   <Chip
                     size="small"

@@ -795,7 +795,24 @@ export class MeetsService {
       .whereIn("status", ["confirmed", "checked-in", "attended"])
       .orderBy("name", "asc")
       .select("id", "name", "status");
-    return { attendees };
+    const attendeeTags = await this.db
+      .getClient()("attendee_tags")
+      .where({ meet_id: meetId })
+      .orderBy("tag", "asc")
+      .select("attendee_id", "tag");
+    const tagsByAttendee = attendeeTags.reduce<Record<string, string[]>>(
+      (acc, { attendee_id, tag }) => {
+        (acc[attendee_id] ??= []).push(tag);
+        return acc;
+      },
+      {},
+    );
+    return {
+      attendees: attendees.map((attendee) => ({
+        ...attendee,
+        tags: tagsByAttendee[attendee.id] ?? [],
+      })),
+    };
   }
 
   async adminCheckinAttendee(meetId: string, attendeeId: string, code: string) {
@@ -1055,6 +1072,18 @@ export class MeetsService {
       .getClient()("meet_meta_values")
       .where({ meet_id: meetId })
       .select("attendee_id", "meta_definition_id", "value");
+    const attendeeTags = await this.db
+      .getClient()("attendee_tags")
+      .where({ meet_id: meetId })
+      .orderBy("tag", "asc")
+      .select("attendee_id", "tag");
+    const tagsByAttendee = attendeeTags.reduce<Record<string, string[]>>(
+      (acc, { attendee_id, tag }) => {
+        (acc[attendee_id] ??= []).push(tag);
+        return acc;
+      },
+      {},
+    );
     const valuesByAttendee = metaValues.reduce<
       Record<string, Record<string, string>>
     >((acc, value) => {
@@ -1066,6 +1095,7 @@ export class MeetsService {
     }, {});
     const attendeesWithValues = attendees.map((attendee) => ({
       ...this.toAttendeeDto(attendee),
+      tags: tagsByAttendee[attendee.id] ?? [],
       metaValues: metaDefinitions.map((definition) => ({
         definitionId: definition.id,
         label: definition.label,

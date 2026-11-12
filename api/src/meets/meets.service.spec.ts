@@ -148,6 +148,47 @@ describe("MeetsService", () => {
     });
   });
 
+  it("includes attendee tags in the delegated check-in list", async () => {
+    const code = "a".repeat(48);
+    const meetsBuilder = buildBuilder();
+    meetsBuilder.first.mockResolvedValue({ admin_share_code: code });
+    const attendeesBuilder = buildBuilder();
+    attendeesBuilder.select.mockResolvedValue([
+      { id: "attendee-1", name: "Alex", status: "confirmed" },
+      { id: "attendee-2", name: "Robin", status: "checked-in" },
+    ]);
+    const tagsBuilder = buildBuilder();
+    tagsBuilder.select.mockResolvedValue([
+      { attendee_id: "attendee-1", tag: "First aid" },
+      { attendee_id: "attendee-1", tag: "Transport" },
+    ]);
+    const client = (table: string) => {
+      if (table === "meets") return meetsBuilder;
+      if (table === "meet_attendees") return attendeesBuilder;
+      if (table === "attendee_tags") return tagsBuilder;
+      throw new Error(`Unexpected table: ${table}`);
+    };
+    const service = new MeetsService(
+      { getClient: () => client } as unknown as DatabaseService,
+      {} as ObjectStorageService,
+    );
+
+    await expect(
+      service.listAdminCheckinAttendees("meet-1", code),
+    ).resolves.toEqual({
+      attendees: [
+        {
+          id: "attendee-1",
+          name: "Alex",
+          status: "confirmed",
+          tags: ["First aid", "Transport"],
+        },
+        { id: "attendee-2", name: "Robin", status: "checked-in", tags: [] },
+      ],
+    });
+    expect(tagsBuilder.where).toHaveBeenCalledWith({ meet_id: "meet-1" });
+  });
+
   it("uses the latest matching answers from this user's adult signups in the same organization", async () => {
     const meetBuilder = buildBuilder();
     meetBuilder.first.mockResolvedValue({ organization_id: "org-1" });
@@ -255,11 +296,17 @@ describe("MeetsService", () => {
     metaDefinitionsBuilder.select.mockResolvedValue([]);
     const metaValuesBuilder = buildBuilder();
     metaValuesBuilder.select.mockResolvedValue([]);
+    const attendeeTagsBuilder = buildBuilder();
+    attendeeTagsBuilder.select.mockResolvedValue([
+      { attendee_id: "attendee-1", tag: "First aid" },
+      { attendee_id: "attendee-1", tag: "Transport" },
+    ]);
 
     const client: any = (table: string) => {
       if (table === "meet_attendees") return attendeesBuilder;
       if (table === "meet_meta_definitions") return metaDefinitionsBuilder;
       if (table === "meet_meta_values") return metaValuesBuilder;
+      if (table === "attendee_tags") return attendeeTagsBuilder;
       return buildBuilder();
     };
     client.raw = jest.fn((sql: string) => sql);
@@ -274,6 +321,7 @@ describe("MeetsService", () => {
         expect.objectContaining({
           id: "attendee-1",
           hasUnreadMessages: true,
+          tags: ["First aid", "Transport"],
           indemnityAcceptance: expect.objectContaining({
             confirmationMethod: "email",
           }),
@@ -281,6 +329,7 @@ describe("MeetsService", () => {
         expect.objectContaining({
           id: "attendee-2",
           hasUnreadMessages: false,
+          tags: [],
         }),
       ],
     });
@@ -290,6 +339,9 @@ describe("MeetsService", () => {
     expect(client.raw).toHaveBeenCalledWith(
       expect.stringContaining("indemnity_acceptance"),
     );
+    expect(attendeeTagsBuilder.where).toHaveBeenCalledWith({
+      meet_id: "meet-1",
+    });
   });
 
   it("creates a meet with mapped fields", async () => {

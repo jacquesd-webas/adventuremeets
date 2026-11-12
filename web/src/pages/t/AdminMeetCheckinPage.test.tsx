@@ -19,7 +19,12 @@ describe("AdminMeetCheckinPage", () => {
         data: {
           meetName: "Sunrise Hike",
           attendees: [
-            { id: "one", name: "Alex", status: "confirmed" },
+            {
+              id: "one",
+              name: "Alex",
+              status: "confirmed",
+              tags: ["First aid"],
+            },
             { id: "two", name: "Robin", status: "checked-in" },
           ],
         },
@@ -46,6 +51,7 @@ describe("AdminMeetCheckinPage", () => {
     );
 
     expect(useAdminMeetCheckin).toHaveBeenCalledWith("share-123", "secret");
+    expect(screen.getByText("First aid")).toBeInTheDocument();
     await user.click(screen.getByText("Alex"));
     expect(checkin).toHaveBeenCalledWith("one");
   });

@@ -1083,9 +1083,11 @@ export function CreateMeetModal({
               <Box
                 sx={{
                   minWidth: 220,
+                  minHeight: 0,
                   pr: 2,
                   borderRight: 1,
                   borderColor: "divider",
+                  overflowY: "auto",
                 }}
               >
                 {renderStepNavigation()}

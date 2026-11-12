@@ -17,6 +17,7 @@ import type { Attendee } from "../../types/AttendeeModel";
 import { useResendIndemnityConfirmation } from "../../hooks/useResendIndemnityConfirmation";
 import { AttendeeIndemnityFingerprintDetails } from "./AttendeeIndemnityFingerprintDetails";
 import { AttendeeSignedIndemnityPdf } from "./AttendeeSignedIndemnityPdf";
+import { AttendeeNotesAndTags } from "./AttendeeNotesAndTags";
 
 type AttendeesIndemnityInfoProps = {
   hasIndemnity?: boolean;
@@ -256,6 +257,14 @@ export function AttendeesIndemnityInfo({
             </LockedTooltipWrapper>
           </Stack>
         )}
+        {meetId ? (
+          <AttendeeNotesAndTags
+            key={attendeeId}
+            meetId={meetId}
+            attendeeId={attendeeId}
+            canManageMeet={canManageMeet}
+          />
+        ) : null}
       </Box>
     </>
   );

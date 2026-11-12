@@ -76,9 +76,22 @@ export function AttendeePanelHeader({
             <CloseIcon />
           </IconButton>
         </Stack>
-        <Typography variant="body2" color="text.secondary">
-          {selectedAttendee.email || selectedAttendee.phone || ""}
-        </Typography>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 0.5 }}>
+          {selectedAttendee.email ? (
+            <Chip
+              size="small"
+              label={selectedAttendee.email}
+              sx={{ fontSize: "0.875rem", maxWidth: "100%" }}
+            />
+          ) : null}
+          {selectedAttendee.phone ? (
+            <Chip
+              size="small"
+              label={selectedAttendee.phone}
+              sx={{ fontSize: "0.875rem", maxWidth: "100%" }}
+            />
+          ) : null}
+        </Box>
         <Stack
           direction="row"
           alignItems="center"

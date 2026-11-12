@@ -61,6 +61,7 @@ export default function AdminMeetCheckinPage() {
                         name: attendee.name || "Unnamed attendee",
                         email: "",
                         phone: "",
+                        tags: attendee.tags,
                       }}
                       isCheckingIn={
                         mutation.isPending && mutation.variables === attendee.id

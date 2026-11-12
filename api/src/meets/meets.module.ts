@@ -15,6 +15,8 @@ import { IndemnityTemplateController } from "./indemnity-template.controller";
 import { IndemnityTemplateService } from "./indemnity-template.service";
 import { MeetWhatsappController } from "./meet-whatsapp.controller";
 import { MeetWhatsappService } from "./meet-whatsapp.service";
+import { AttendeeTagsController } from "./attendee-tags.controller";
+import { AttendeeTagsService } from "./attendee-tags.service";
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { MeetWhatsappService } from "./meet-whatsapp.service";
     MeetShareController,
     IndemnityTemplateController,
     MeetWhatsappController,
+    AttendeeTagsController,
   ],
   providers: [
     MeetsService,
@@ -38,6 +41,7 @@ import { MeetWhatsappService } from "./meet-whatsapp.service";
     AttendeeItemsStorageService,
     IndemnityTemplateService,
     MeetWhatsappService,
+    AttendeeTagsService,
   ],
   exports: [MeetsService, IndemnityTemplateService],
 })

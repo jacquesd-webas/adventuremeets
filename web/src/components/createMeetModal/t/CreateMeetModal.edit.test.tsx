@@ -693,4 +693,20 @@ describe("CreateMeetModal edit mode", () => {
       screen.getByPlaceholderText("Give your meet a name"),
     ).toBeInTheDocument();
   });
+
+  it("lets the desktop step list scroll when the editor is short", async () => {
+    renderCreateMeetModal();
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("Give your meet a name"),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      document.querySelector(".MuiStepper-root")?.parentElement,
+    ).toHaveStyle({
+      overflowY: "auto",
+    });
+  });
 });

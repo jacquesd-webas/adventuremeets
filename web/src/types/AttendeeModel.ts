@@ -14,6 +14,7 @@ export type Attendee = {
   email?: string;
   guests: number;
   guestsList?: { name: string; isMinor: boolean }[];
+  tags?: string[];
   guestOf?: string;
   isMinor?: boolean;
   guardianName?: string;

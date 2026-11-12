@@ -5,6 +5,7 @@ type AdminCheckinAttendee = {
   id: string;
   name: string;
   status: string;
+  tags?: string[];
 };
 
 type AdminCheckinResponse = {
@@ -43,7 +44,7 @@ export function useAdminMeetCheckin(meetId?: string, code?: string) {
             ? {
                 ...current,
                 attendees: current.attendees.map((item) =>
-                  item.id === attendee.id ? attendee : item,
+                  item.id === attendee.id ? { ...item, ...attendee } : item,
                 ),
               }
             : current,

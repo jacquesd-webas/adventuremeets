@@ -73,6 +73,21 @@ vi.mock("../../../hooks/useFetchAttendeeHistory", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useAttendeeTags", () => ({
+  useAttendeeTags: () => ({
+    data: { notes: "", tags: [] },
+    isLoading: false,
+    isError: false,
+  }),
+  useMeetAttendeeTags: () => ({ data: { tags: [] }, isError: false }),
+  useSaveAttendeeNotesAndTags: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    isError: false,
+    reset: vi.fn(),
+  }),
+}));
+
 vi.mock("../MessageModal", () => ({
   MessageModal: ({ open }: { open: boolean }) =>
     open ? <div>Message modal</div> : null,

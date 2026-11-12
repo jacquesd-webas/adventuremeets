@@ -16,6 +16,7 @@ import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccount
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import AttendeeStatusEnum from "../../types/AttendeeStatusEnum";
 import Meet from "../../types/MeetModel";
+import { attendeeTagChipColors } from "../../helpers/attendeeTagColors";
 
 export type AttendeeItemProps = {
   attendee: any;
@@ -226,8 +227,35 @@ export function AttendeeItem({
             ) : null}
           </Stack>
         }
-        secondary={subLabel}
+        secondary={
+          attendee.tags?.length ? (
+            <Stack spacing={0.25}>
+              {subLabel ? <Box component="span">{subLabel}</Box> : null}
+              <Box
+                component="span"
+                sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}
+              >
+                {attendee.tags.map((tag: string) => (
+                  <Chip
+                    key={tag}
+                    label={tag}
+                    size="small"
+                    sx={{
+                      ...attendeeTagChipColors(tag),
+                      height: 16,
+                      fontSize: 9,
+                      "& .MuiChip-label": { px: 0.5, lineHeight: 1 },
+                    }}
+                  />
+                ))}
+              </Box>
+            </Stack>
+          ) : (
+            subLabel
+          )
+        }
         primaryTypographyProps={{ fontWeight: 600 }}
+        secondaryTypographyProps={{ component: "div" }}
       />
     </ListItemButton>
   );

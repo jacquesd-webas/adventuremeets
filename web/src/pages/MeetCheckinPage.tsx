@@ -119,6 +119,7 @@ function MeetCheckinPage() {
           "Unnamed attendee",
         email: attendee.email || "",
         phone: attendee.phone || "",
+        tags: attendee.tags ?? [],
         status:
           optimisticStatusByAttendeeId[attendee.id] ||
           queuedStatusByAttendeeId[attendee.id] ||

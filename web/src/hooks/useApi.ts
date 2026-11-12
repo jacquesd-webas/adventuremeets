@@ -230,6 +230,14 @@ export function useApi(options: ApiOptions = {}) {
     });
   }
 
+  async function put<T>(path: string, body?: Json, init?: RequestInit) {
+    return request<T>(path, {
+      ...init,
+      method: "PUT",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   async function postForm<T>(path: string, body: FormData, init?: RequestInit) {
     return request<T>(
       path,
@@ -247,5 +255,5 @@ export function useApi(options: ApiOptions = {}) {
     return request<T>(path, { ...init, method: "DELETE" });
   }
 
-  return { baseUrl, get, getBlob, post, patch, postForm, del };
+  return { baseUrl, get, getBlob, post, patch, put, postForm, del };
 }

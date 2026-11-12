@@ -12,6 +12,7 @@ let mockAttendees: Array<{
   name?: string;
   email?: string;
   phone?: string;
+  tags?: string[];
   status?: string;
 }> = [];
 let mockCheckinState = {
@@ -386,6 +387,7 @@ describe("MeetCheckinPage", () => {
       {
         id: "attendee-1",
         name: "Alex Example",
+        tags: ["First aid"],
         status: AttendeeStatusEnum.Confirmed,
       },
     ];
@@ -415,7 +417,10 @@ describe("MeetCheckinPage", () => {
 
     expect(attendeeCheckinItemSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        attendee: expect.objectContaining({ id: "attendee-1" }),
+        attendee: expect.objectContaining({
+          id: "attendee-1",
+          tags: ["First aid"],
+        }),
         isCheckingIn: false,
         isChecked: true,
       }),

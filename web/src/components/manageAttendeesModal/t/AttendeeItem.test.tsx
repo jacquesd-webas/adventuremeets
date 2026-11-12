@@ -94,4 +94,26 @@ describe("AttendeeItem", () => {
       screen.getByText("+2").closest(".MuiChip-colorInfo"),
     ).toBeInTheDocument();
   });
+
+  it("shows small tag chips below an attendee's contact details", () => {
+    render(
+      <AttendeeItem
+        attendee={{
+          id: "a1",
+          status: AttendeeStatusEnum.Confirmed,
+          tags: ["First aid", "Transport"],
+        }}
+        label="Alex"
+        subLabel="alex@example.com"
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("First aid")).toBeInTheDocument();
+    expect(screen.getByText("Transport")).toBeInTheDocument();
+    expect(screen.getByText("alex@example.com")).toBeInTheDocument();
+    expect(screen.getByText("First aid").closest(".MuiChip-root")).toHaveStyle({
+      height: "16px",
+    });
+  });
 });

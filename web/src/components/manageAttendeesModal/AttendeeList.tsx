@@ -1,24 +1,16 @@
-import {
-  Box,
-  Chip,
-  Divider,
-  IconButton,
-  InputAdornment,
-  List,
-  Paper,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import SearchIcon from "@mui/icons-material/Search";
-import FilterAltOffOutlinedIcon from "@mui/icons-material/FilterAltOffOutlined";
+import { Box, Divider, List, Paper, Typography } from "@mui/material";
 import { Meet } from "../../types/MeetModel";
 import { Attendee } from "../../types/AttendeeModel";
 import { AttendeeItem } from "./AttendeeItem";
 import { AttendeeStatusEnum } from "../../types/AttendeeStatusEnum";
 import { useMemo, useState } from "react";
 import { ManageAttendeesSectionLoading } from "./ManageAttendeesSectionLoading";
+import {
+  AttendeeListFilters,
+  AttendeeListFilterState,
+  AttendeeStatusGroup,
+  emptyAttendeeListFilters,
+} from "./AttendeeListFilters";
 
 type AttendeeListProps = {
   attendees: Attendee[];
@@ -30,9 +22,9 @@ type AttendeeListProps = {
   fullScreen?: boolean;
 };
 
-type StatusGroup = "accepted" | "rejected" | "waitlisted";
-
-function getStatusGroup(status: AttendeeStatusEnum): StatusGroup | null {
+function getStatusGroup(
+  status: AttendeeStatusEnum,
+): AttendeeStatusGroup | null {
   if (
     status === AttendeeStatusEnum.Confirmed ||
     status === AttendeeStatusEnum.CheckedIn ||
@@ -58,9 +50,9 @@ export function AttendeeList({
   setSelectedAttendeeId,
   fullScreen,
 }: AttendeeListProps) {
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusGroup | null>(null);
+  const [filters, setFilters] = useState<AttendeeListFilterState>(
+    emptyAttendeeListFilters,
+  );
   const statusCounts = useMemo(() => {
     return attendees.reduce(
       (acc, attendee) => {
@@ -73,12 +65,16 @@ export function AttendeeList({
     );
   }, [attendees]);
   const filteredAttendees = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query && !statusFilter) return attendees;
+    const query = filters.search.trim().toLowerCase();
+    if (!query && !filters.status && !filters.tag) return attendees;
     return attendees.filter((attendee) => {
-      if (statusFilter && getStatusGroup(attendee.status) !== statusFilter) {
+      if (
+        filters.status &&
+        getStatusGroup(attendee.status) !== filters.status
+      ) {
         return false;
       }
+      if (filters.tag && !attendee.tags?.includes(filters.tag)) return false;
       if (!query) return true;
       return [
         attendee.name,
@@ -88,7 +84,7 @@ export function AttendeeList({
         ...(attendee.guestsList?.map((guest) => guest.name) ?? []),
       ].some((value) => value?.toLowerCase().includes(query));
     });
-  }, [attendees, search, statusFilter]);
+  }, [attendees, filters]);
 
   const attendeeLabel = (attendee: Attendee) =>
     attendee?.name || attendee?.email || attendee?.phone || "Unnamed attendee";
@@ -111,90 +107,12 @@ export function AttendeeList({
         }),
       }}
     >
-      <Box sx={{ p: 2 }}>
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          spacing={1}
-        >
-          <Typography variant="subtitle2" color="text.secondary">
-            Attendees
-          </Typography>
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <Tooltip title={searchOpen ? "Clear filters" : "Search attendees"}>
-              <IconButton
-                size="small"
-                aria-label={
-                  searchOpen ? "Clear attendee filters" : "Search attendees"
-                }
-                onClick={() => {
-                  if (searchOpen) {
-                    setSearch("");
-                    setStatusFilter(null);
-                    setSearchOpen(false);
-                  } else {
-                    setSearchOpen(true);
-                  }
-                }}
-              >
-                {searchOpen ? (
-                  <FilterAltOffOutlinedIcon fontSize="small" />
-                ) : (
-                  <SearchIcon fontSize="small" />
-                )}
-              </IconButton>
-            </Tooltip>
-            {(
-              [
-                { group: "accepted", color: "success", label: "Accepted" },
-                { group: "rejected", color: "error", label: "Rejected" },
-                { group: "waitlisted", color: "warning", label: "Waitlisted" },
-              ] as const
-            ).map(({ group, color, label }) => (
-              <Tooltip key={group} title={label}>
-                <Chip
-                  size="small"
-                  color={color}
-                  label={statusCounts[group]}
-                  variant={
-                    statusFilter && statusFilter !== group
-                      ? "outlined"
-                      : "filled"
-                  }
-                  aria-label={`Filter ${label.toLowerCase()} attendees`}
-                  aria-pressed={statusFilter === group}
-                  onClick={() =>
-                    setStatusFilter((current) =>
-                      current === group ? null : group,
-                    )
-                  }
-                />
-              </Tooltip>
-            ))}
-          </Stack>
-        </Stack>
-        {searchOpen && (
-          <TextField
-            autoFocus
-            fullWidth
-            size="small"
-            variant="standard"
-            placeholder="Search attendees"
-            inputProps={{ "aria-label": "Search attendees" }}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            sx={{ mt: 1 }}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <SearchIcon fontSize="small" color="disabled" />
-                </InputAdornment>
-              ),
-            }}
-          />
-        )}
-      </Box>
+      <AttendeeListFilters
+        attendees={attendees}
+        statusCounts={statusCounts}
+        filters={filters}
+        onChange={setFilters}
+      />
       <Divider />
       <Box
         sx={{
