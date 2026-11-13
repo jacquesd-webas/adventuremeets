@@ -23,17 +23,11 @@ export type AttendeeListFilterState = {
   tag: string | null;
 };
 
-export const emptyAttendeeListFilters: AttendeeListFilterState = {
-  searchOpen: false,
-  search: "",
-  status: null,
-  tag: null,
-};
-
 type AttendeeListFiltersProps = {
   attendees: Attendee[];
   statusCounts: Record<AttendeeStatusGroup, number>;
   filters: AttendeeListFilterState;
+  emptyAttendeeListFilters: AttendeeListFilterState;
   onChange: (filters: AttendeeListFilterState) => void;
 };
 
@@ -41,6 +35,7 @@ export function AttendeeListFilters({
   attendees,
   statusCounts,
   filters,
+  emptyAttendeeListFilters,
   onChange,
 }: AttendeeListFiltersProps) {
   const tags = useMemo(

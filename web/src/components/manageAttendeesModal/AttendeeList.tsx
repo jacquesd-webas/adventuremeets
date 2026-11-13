@@ -9,7 +9,6 @@ import {
   AttendeeListFilters,
   AttendeeListFilterState,
   AttendeeStatusGroup,
-  emptyAttendeeListFilters,
 } from "./AttendeeListFilters";
 
 type AttendeeListProps = {
@@ -20,6 +19,13 @@ type AttendeeListProps = {
   selectedAttendeeId: string | null;
   setSelectedAttendeeId: (attendeeId: string | null) => void;
   fullScreen?: boolean;
+};
+
+const emptyAttendeeListFilters: AttendeeListFilterState = {
+  searchOpen: false,
+  search: "",
+  status: null,
+  tag: null,
 };
 
 function getStatusGroup(
@@ -109,6 +115,7 @@ export function AttendeeList({
     >
       <AttendeeListFilters
         attendees={attendees}
+        emptyAttendeeListFilters={emptyAttendeeListFilters}
         statusCounts={statusCounts}
         filters={filters}
         onChange={setFilters}

@@ -84,6 +84,8 @@ describe("Profile modal", () => {
       );
     cy.contains("Avatar saved").should("be.visible");
 
+    cy.wait(1500); // Notistack is sometimes slow to disappear
+
     cy.closeProfileModal();
 
     cy.openProfileModal();
@@ -124,6 +126,6 @@ describe("Profile modal", () => {
     cy.contains("Avatar").click();
     cy.get('[data-testid="profile-modal"] .MuiAvatar-root img')
       .should("have.attr", "src")
-      .and("include", "/avatars/");
+      .and("include", "key=avatars%2F");
   });
 });

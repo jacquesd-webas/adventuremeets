@@ -115,7 +115,7 @@ describe("Meet self check-in with walk-ins", () => {
 
     openMeetRowMenu();
     cy.contains("Check-in").click();
-    cy.get('[aria-label="Walk-ins enabled"]').should("be.visible");
+    cy.get('[aria-label="Show self check-in QR code"]').should("be.visible");
     cy.get('[aria-label="Show self check-in QR code"]').click();
     cy.contains("Self check-in QR code").should("be.visible");
     cy.contains("/meets/")

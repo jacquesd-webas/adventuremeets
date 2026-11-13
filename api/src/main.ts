@@ -4,6 +4,10 @@ import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import * as express from "express";
 import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env.loader";
+import {
+  ApiFailureReasonFilter,
+  apiFailureLogging,
+} from "./api-failure-logging";
 
 async function bootstrap() {
   loadEnv();
@@ -12,6 +16,8 @@ async function bootstrap() {
   const bootstrapLogger = new Logger("Bootstrap");
   app.useLogger(bootstrapLogger);
   const logger = bootstrapLogger;
+  app.use(apiFailureLogging(logger));
+  app.useGlobalFilters(new ApiFailureReasonFilter(app.getHttpAdapter()));
 
   // Prefix all routes with /api/v1 to version the public surface
   // Exclude share pages so crawlers can read OG tags from server-rendered HTML.

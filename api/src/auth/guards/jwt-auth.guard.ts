@@ -2,23 +2,20 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
-  Logger,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { AuthGuard } from "@nestjs/passport";
+import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
-  private readonly logger = new Logger(JwtAuthGuard.name);
-
+export class JwtAuthGuard extends AuthGuard("jwt") {
   constructor(private readonly reflector: Reflector) {
     super();
   }
 
   canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
-    const apiKeyHeader = request?.headers?.['x-api-key'];
+    const apiKeyHeader = request?.headers?.["x-api-key"];
     const apiKey = Array.isArray(apiKeyHeader) ? apiKeyHeader[0] : apiKeyHeader;
     if (process.env.WORKER_API_KEY && apiKey === process.env.WORKER_API_KEY) {
       return true;
@@ -30,19 +27,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (isPublic) {
       return true;
     }
-    if (process.env.DEBUG_AUTH === 'true') {
-      const request = context.switchToHttp().getRequest();
-      if (!request?.headers?.authorization) {
-        this.logger.warn('Missing Authorization header');
-      }
-    }
     return super.canActivate(context);
   }
 
-  handleRequest(err: any, user: any, info?: { message?: string }) {
-    if (process.env.DEBUG_AUTH === 'true' && (err || !user)) {
-      this.logger.warn(`Auth failed: ${info?.message || err?.message || 'no user'}`);
-    }
+  handleRequest(err: any, user: any) {
     if (err || !user) {
       throw err || new UnauthorizedException();
     }

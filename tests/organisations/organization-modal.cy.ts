@@ -91,6 +91,6 @@ describe("Organisation modal", () => {
     openOrganizationSection("Theme");
     cy.get('[alt="Organisation logo preview"]')
       .should("have.attr", "src")
-      .and("include", "/logos/");
+      .and("include", "key=logos%2F");
   });
 });
