@@ -92,21 +92,21 @@ export function OrganizationContent({
   }
 
   return (
-    <Grid container spacing={2} sx={{ mt: 0 }}>
-      <Grid item xs={12} sm={4} md={3}>
+    <Grid container spacing={2} sx={{ mt: 0, height: "100%", minHeight: 0 }}>
+      <Grid item xs={12} sm={4} md={3} sx={{ minHeight: 0, overflowY: "auto" }}>
         <List component="nav">
           {sections.map((item) => (
             <ListItemButton
               key={item.key}
               selected={section === item.key}
-              onClick={() => setSection(item.key)}
+              onClick={() => setSection(item.key as OrganizationSection)}
             >
               <ListItemText primary={item.label} />
             </ListItemButton>
           ))}
         </List>
       </Grid>
-      <Grid item xs={12} sm={8} md={9}>
+      <Grid item xs={12} sm={8} md={9} sx={{ minHeight: 0, overflowY: "auto" }}>
         {section === "organization" ? (
           <MyOrganization
             title="Theme"
@@ -143,7 +143,14 @@ export function OrganizationModal({
       PaperProps={{ sx: { minHeight: "80vh" } }}
     >
       <DialogTitle>Organisation</DialogTitle>
-      <DialogContent dividers>
+      <DialogContent
+        dividers
+        sx={{
+          minHeight: 0,
+          display: { xs: "block", sm: "flex" },
+          overflowY: { xs: "auto", sm: "hidden" },
+        }}
+      >
         <OrganizationContent open={open} onOpenProfile={onOpenProfile} />
       </DialogContent>
       <Divider />

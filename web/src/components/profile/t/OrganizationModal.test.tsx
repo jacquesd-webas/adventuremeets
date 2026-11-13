@@ -296,6 +296,14 @@ describe("OrganizationModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the desktop section list scrollable in a short dialog", async () => {
+    await renderWithQueryClient(<OrganizationModal open onClose={vi.fn()} />);
+
+    expect(screen.getByRole("navigation").parentElement).toHaveStyle({
+      overflowY: "auto",
+    });
+  });
+
   it("saves custom field names", async () => {
     mockedUpdateOrganizationAsync.mockResolvedValue({
       ...mockedOrganization,
