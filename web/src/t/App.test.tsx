@@ -31,7 +31,7 @@ vi.mock("../hooks/useApi", () => ({
 }));
 
 describe("App", () => {
-  it("redirects unauthenticated users to login", () => {
+  it("redirects unauthenticated users to login", async () => {
     const queryClient = new QueryClient();
     render(
       <ThemeModeProvider>
@@ -80,6 +80,8 @@ describe("App", () => {
         </QueryClientProvider>
       </ThemeModeProvider>,
     );
-    expect(screen.getByRole("heading", { name: /login/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: /login/i }),
+    ).toBeInTheDocument();
   });
 });

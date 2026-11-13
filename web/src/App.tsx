@@ -1,26 +1,28 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
-import DashboardPage from "./pages/DashboardPage";
-import MainLayout from "./layout/MainLayout";
-import CalendarPage from "./pages/CalendarPage";
-import MeetSignupSheet from "./pages/MeetSignupSheet";
-import MeetCheckinRoute from "./pages/MeetCheckinRoute";
-import MeetSelfCheckinRoute from "./pages/MeetSelfCheckinRoute";
-import AttendeeStatusPage from "./pages/AttendeeStatusPage";
-import ConfirmIndemnityPage from "./pages/ConfirmIndemnityPage";
-import MeetAttendeesPage from "./pages/MeetAttendeesPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import SplashPage from "./pages/SplashPage";
-import PrivacyPage from "./pages/PrivacyPage";
-import TncPage from "./pages/TncPage";
-import RequestAccountDeletionPage from "./pages/RequestAccountDeletionPage";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { FullPageSpinner } from "./components/FullPageSpinner";
 
 const ListPage = lazy(() => import("./pages/ListPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const RegisterPage = lazy(() => import("./pages/RegisterPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const MainLayout = lazy(() => import("./layout/MainLayout"));
+const CalendarPage = lazy(() => import("./pages/CalendarPage"));
+const MeetSignupSheet = lazy(() => import("./pages/MeetSignupSheet"));
+const MeetCheckinRoute = lazy(() => import("./pages/MeetCheckinRoute"));
+const MeetSelfCheckinRoute = lazy(() => import("./pages/MeetSelfCheckinRoute"));
+const AttendeeStatusPage = lazy(() => import("./pages/AttendeeStatusPage"));
+const ConfirmIndemnityPage = lazy(() => import("./pages/ConfirmIndemnityPage"));
+const MeetAttendeesPage = lazy(() => import("./pages/MeetAttendeesPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const SplashPage = lazy(() => import("./pages/SplashPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const TncPage = lazy(() => import("./pages/TncPage"));
+const RequestAccountDeletionPage = lazy(
+  () => import("./pages/RequestAccountDeletionPage"),
+);
 const OrganisationsPage = lazy(() => import("./pages/OrganisationsPage"));
 const MembersPage = lazy(() => import("./pages/MembersPage"));
 const TemplatesPage = lazy(() => import("./pages/TemplatesPage"));
@@ -33,12 +35,15 @@ function withPageLoader(element: ReactNode) {
 function App() {
   return (
     <Routes>
-      <Route element={<MainLayout />}>
+      <Route element={withPageLoader(<MainLayout />)}>
         <Route element={<RequireAuth />}>
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/" element={withPageLoader(<DashboardPage />)} />
           <Route path="/plan" element={withPageLoader(<ListPage />)} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/meet/:id/attendees" element={<MeetAttendeesPage />} />
+          <Route path="/calendar" element={withPageLoader(<CalendarPage />)} />
+          <Route
+            path="/meet/:id/attendees"
+            element={withPageLoader(<MeetAttendeesPage />)}
+          />
           <Route
             path="/admin/organizations"
             element={withPageLoader(<OrganisationsPage />)}
@@ -65,36 +70,63 @@ function App() {
           />
         </Route>
       </Route>
-      <Route path="/meet/:id/checkin" element={<MeetCheckinRoute />} />
-      <Route path="/meets/:code/checkin" element={<MeetSelfCheckinRoute />} />
+      <Route
+        path="/meet/:id/checkin"
+        element={withPageLoader(<MeetCheckinRoute />)}
+      />
+      <Route
+        path="/meets/:code/checkin"
+        element={withPageLoader(<MeetSelfCheckinRoute />)}
+      />
       <Route
         path="/meets/:code/:attendeeId/confirm-indemnity"
-        element={<ConfirmIndemnityPage />}
+        element={withPageLoader(<ConfirmIndemnityPage />)}
       />
-      <Route path="/meets/:code/:attendeeId" element={<AttendeeStatusPage />} />
-      <Route path="/meets/:code" element={<MeetSignupSheet />} />
-      <Route path="/share/:code" element={<MeetSignupSheet />} />
-      <Route path="/splash" element={<SplashPage />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route
+        path="/meets/:code/:attendeeId"
+        element={withPageLoader(<AttendeeStatusPage />)}
+      />
+      <Route
+        path="/meets/:code"
+        element={withPageLoader(<MeetSignupSheet />)}
+      />
+      <Route
+        path="/share/:code"
+        element={withPageLoader(<MeetSignupSheet />)}
+      />
+      <Route path="/splash" element={withPageLoader(<SplashPage />)} />
+      <Route path="/privacy" element={withPageLoader(<PrivacyPage />)} />
       <Route
         path="/privacy-policy"
         element={<Navigate to="/privacy" replace />}
       />
       <Route
         path="/request-account-deletion"
-        element={<RequestAccountDeletionPage />}
+        element={withPageLoader(<RequestAccountDeletionPage />)}
       />
-      <Route path="/tnc" element={<TncPage />} />
+      <Route path="/tnc" element={withPageLoader(<TncPage />)} />
       <Route
         path="/terms-and-conditions"
         element={<Navigate to="/tnc" replace />}
       />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/oauth/callback/google" element={<LoginPage />} />
-      <Route path="/oauth/callback/facebook" element={<LoginPage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/login" element={withPageLoader(<LoginPage />)} />
+      <Route
+        path="/oauth/callback/google"
+        element={withPageLoader(<LoginPage />)}
+      />
+      <Route
+        path="/oauth/callback/facebook"
+        element={withPageLoader(<LoginPage />)}
+      />
+      <Route
+        path="/forgot-password"
+        element={withPageLoader(<ForgotPasswordPage />)}
+      />
+      <Route
+        path="/reset-password"
+        element={withPageLoader(<ResetPasswordPage />)}
+      />
+      <Route path="/register" element={withPageLoader(<RegisterPage />)} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

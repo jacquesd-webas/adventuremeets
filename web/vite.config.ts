@@ -31,7 +31,13 @@ export default defineConfig(({ mode }) => {
           globPatterns: [
             "**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,webmanifest}",
           ],
-          globIgnores: ["**/static/splash/*.png", "**/static/themes/*.png"],
+          globIgnores: [
+            "**/static/splash/*.png",
+            "**/static/themes/*.png",
+            "**/assets/RegisterPage-*.js",
+            "**/assets/xlsx-*.js",
+            "**/assets/DataGrid-*.js",
+          ],
           navigateFallback: "/index.html",
           navigateFallbackDenylist: [/^\/api\//, /^\/share\//],
           runtimeCaching: [
