@@ -27,6 +27,10 @@ export function AttendeeActionButtons({
     attendee?.status === AttendeeStatusEnum.Attended;
   const isWithdrawn = attendee?.status === AttendeeStatusEnum.Cancelled;
   const isNotified = Boolean(attendee?.respondedAt);
+  const isNotifiedPlacement =
+    isNotified &&
+    (attendee?.status === AttendeeStatusEnum.Confirmed ||
+      attendee?.status === AttendeeStatusEnum.Waitlisted);
   const hasPaidDeposit = Boolean(attendee?.paidDepositAt);
   const hasPaidFull = Boolean(attendee?.paidFullAt);
   const showPaidControl = Boolean(onPaid && (hasAmount || hasDeposit));
@@ -47,6 +51,10 @@ export function AttendeeActionButtons({
       ) : isWithdrawn ? (
         <Button color="error" variant="outlined" size="small">
           Withdrawn
+        </Button>
+      ) : attendee?.status === AttendeeStatusEnum.NoShow ? (
+        <Button color="error" variant="outlined" size="small">
+          No show
         </Button>
       ) : (
         <LockedTooltipWrapper isReadOnly={!canManageMeet}>
@@ -83,7 +91,7 @@ export function AttendeeActionButtons({
                 color="error"
                 onClick={() => onUpdateStatus(AttendeeStatusEnum.Rejected)}
               >
-                Reject
+                {isNotifiedPlacement ? "Cancel" : "Reject"}
               </Button>
             ) : null}
             {attendee?.status !== AttendeeStatusEnum.Waitlisted ? (

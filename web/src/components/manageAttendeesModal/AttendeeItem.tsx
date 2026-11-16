@@ -48,7 +48,8 @@ export function AttendeeItem({
     attendee.status === AttendeeStatusEnum.CheckedIn;
   const isRejected =
     attendee.status === AttendeeStatusEnum.Rejected ||
-    attendee.status === AttendeeStatusEnum.Cancelled;
+    attendee.status === AttendeeStatusEnum.Cancelled ||
+    attendee.status === AttendeeStatusEnum.NoShow;
   const isPending = attendee.status === AttendeeStatusEnum.Pending;
   const isInvited = attendee.status === AttendeeStatusEnum.Invited;
   const isWaitlisted = attendee.status === AttendeeStatusEnum.Waitlisted;

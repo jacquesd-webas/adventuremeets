@@ -38,7 +38,7 @@ describe("ConfirmClosedStatusDialog", () => {
         status={AttendeeStatusEnum.Confirmed}
         onClose={vi.fn()}
         onDone={vi.fn()}
-      />
+      />,
     );
 
     fireEvent.change(screen.getByLabelText("Subject"), {
@@ -71,7 +71,7 @@ describe("ConfirmClosedStatusDialog", () => {
         status={AttendeeStatusEnum.Waitlisted}
         onClose={vi.fn()}
         onDone={vi.fn()}
-      />
+      />,
     );
 
     fireEvent.click(
@@ -92,4 +92,41 @@ describe("ConfirmClosedStatusDialog", () => {
       });
     });
   });
+
+  it.each([
+    ["Attendee cancelled", AttendeeStatusEnum.Cancelled],
+    ["Organizer rejected", AttendeeStatusEnum.Rejected],
+    ["Late cancellation / No show", AttendeeStatusEnum.NoShow],
+  ])(
+    "maps %s to %s for an already notified placement",
+    async (reason, expectedStatus) => {
+      render(
+        <ConfirmClosedStatusDialog
+          open
+          meet={{ id: "m1", name: "Meet" } as any}
+          attendee={
+            {
+              id: "a1",
+              status: AttendeeStatusEnum.Confirmed,
+              respondedAt: "2026-01-01",
+            } as any
+          }
+          status={AttendeeStatusEnum.Rejected}
+          onClose={vi.fn()}
+          onDone={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: /Reason/i }));
+      fireEvent.click(screen.getByRole("option", { name: reason }));
+      fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+      await waitFor(() => {
+        expect(updateAttendeeStatusAsync).toHaveBeenCalledWith(
+          expect.objectContaining({ status: expectedStatus }),
+        );
+      });
+    },
+  );
 });

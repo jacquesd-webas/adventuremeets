@@ -4,6 +4,7 @@ import {
   Box,
   Checkbox,
   FormControlLabel,
+  MenuItem,
   TextField,
   Typography,
 } from "@mui/material";
@@ -45,6 +46,14 @@ export function ConfirmClosedStatusDialog({
   const [shouldSendMessage, setShouldSendMessage] = useState(true);
   const [editableSubject, setEditableSubject] = useState(subject);
   const [editableMessage, setEditableMessage] = useState(messageContent);
+  const [cancellationStatus, setCancellationStatus] = useState<
+    AttendeeStatusEnum | ""
+  >("");
+  const requiresReason =
+    status === AttendeeStatusEnum.Rejected &&
+    Boolean(attendee?.respondedAt) &&
+    (attendee?.status === AttendeeStatusEnum.Confirmed ||
+      attendee?.status === AttendeeStatusEnum.Waitlisted);
   const canSendMessage =
     Boolean(editableSubject.trim()) && Boolean(editableMessage.trim());
 
@@ -53,6 +62,7 @@ export function ConfirmClosedStatusDialog({
     setShouldSendMessage(Boolean(subject.trim() && messageContent.trim()));
     setEditableSubject(subject);
     setEditableMessage(messageContent);
+    setCancellationStatus("");
   }, [open, subject, messageContent]);
 
   const handleConfirm = async () => {
@@ -60,11 +70,12 @@ export function ConfirmClosedStatusDialog({
       onClose();
       return;
     }
+    if (requiresReason && !cancellationStatus) return;
     try {
       await updateAttendeeStatusAsync({
         meetId: meet.id,
         attendeeId: attendee.id,
-        status,
+        status: requiresReason ? cancellationStatus : status,
         sendMessage: shouldSendMessage,
         subject: editableSubject,
         text: editableMessage,
@@ -95,21 +106,69 @@ export function ConfirmClosedStatusDialog({
       cancelLabel="Cancel"
       onConfirm={handleConfirm}
       onClose={onClose}
-      confirmDisabled={shouldSendMessage && !canSendMessage}
+      confirmDisabled={
+        (requiresReason && !cancellationStatus) ||
+        (shouldSendMessage && !canSendMessage)
+      }
     >
       <Box>
-        <Typography variant="body2">
+        <Typography sx={{ mb: 2 }} variant="body2">
           {attendee?.respondedAt
-            ? "This attendee has already received a notification about this meet. You can edit the message below or skip sending a new one."
+            ? requiresReason
+              ? "This attendee has already received a notification about this meet. Please provide reason for the status change. You should also send a notification to the attendee to confirm or inform them of the change."
+              : "This attendee has already received a notification about this meet. You can edit the message below or skip sending a new one."
             : "This meet is already closed. You can edit the message below before sending it, or update the status without sending a message."}
         </Typography>
+        {requiresReason && (
+          <TextField
+            select
+            fullWidth
+            required
+            label="Reason"
+            value={cancellationStatus}
+            SelectProps={{
+              MenuProps: {
+                sx: { zIndex: (theme) => theme.zIndex.modal + 201 },
+              },
+            }}
+            onChange={(event) => {
+              const nextStatus = event.target.value as AttendeeStatusEnum;
+              setCancellationStatus(nextStatus);
+              if (nextStatus === AttendeeStatusEnum.Cancelled) {
+                setEditableSubject(`Cancelled: ${meet.name}`);
+                setEditableMessage(
+                  "Your attendance for this meet has been cancelled.",
+                );
+              } else if (nextStatus === AttendeeStatusEnum.NoShow) {
+                setEditableSubject(`Attendance update: ${meet.name}`);
+                setEditableMessage(
+                  "Your attendance for this meet has been marked as a no-show.",
+                );
+              } else {
+                setEditableSubject(subject);
+                setEditableMessage(messageContent);
+              }
+            }}
+            sx={{ mb: 2 }}
+          >
+            <MenuItem value={AttendeeStatusEnum.Cancelled}>
+              Attendee cancelled
+            </MenuItem>
+            <MenuItem value={AttendeeStatusEnum.Rejected}>
+              Organiser rejected
+            </MenuItem>
+            <MenuItem value={AttendeeStatusEnum.NoShow}>
+              Late cancellation / No show
+            </MenuItem>
+          </TextField>
+        )}
         <TextField
           label="Subject"
           value={editableSubject}
           onChange={(event) => setEditableSubject(event.target.value)}
           fullWidth
           disabled={!shouldSendMessage}
-          sx={{ mt: 2, mb: 2 }}
+          sx={{ mb: 2 }}
         />
         <TextField
           label="Message"
