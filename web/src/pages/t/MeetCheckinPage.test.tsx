@@ -340,6 +340,9 @@ describe("MeetCheckinPage", () => {
     expect(
       screen.getByLabelText("Show self check-in QR code"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Show helper check-in QR code"),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Show walk-in QR code")).toBeInTheDocument();
 
     await user.click(screen.getByLabelText("Show self check-in QR code"));
@@ -379,6 +382,36 @@ describe("MeetCheckinPage", () => {
     expect(
       screen.getByLabelText("Close walk-in signup QR code"),
     ).toBeInTheDocument();
+  });
+
+  it("opens the helper QR directly when self check-in is disabled", async () => {
+    const user = userEvent.setup();
+    mockMeet = {
+      organizerId: "organizer-1",
+      shareCode: "share-123",
+      allowSelfCheckin: false,
+      allowWalkins: false,
+    };
+    mockAdminShareCode = "b".repeat(48);
+
+    render(
+      <MemoryRouter
+        initialEntries={["/meet/meet-1/checkin"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/meet/:id/checkin" element={<MeetCheckinPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByLabelText("Show helper check-in QR code"));
+    expect(screen.getByText("Delegate check-in QR code")).toBeInTheDocument();
+    expect(screen.getByTestId("checkin-qr-code")).toHaveAttribute(
+      "data-value",
+      `${window.location.origin}/meets/share-123/checkin?adminShareCode=${"b".repeat(48)}`,
+    );
+    expect(screen.queryByRole("button", { name: "Self check-in" })).toBeNull();
   });
 
   it("does not set the row checking spinner while offline", async () => {

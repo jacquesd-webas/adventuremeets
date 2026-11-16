@@ -29,6 +29,7 @@ import { useFetchMeet } from "../hooks/useFetchMeet";
 import { useAuth } from "../context/authContext";
 import CloseIcon from "@mui/icons-material/Close";
 import DirectionsWalkIcon from "@mui/icons-material/DirectionsWalk";
+import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccountOutlined";
 import QrCode2Icon from "@mui/icons-material/QrCode2";
 import { ConfirmActionDialog } from "../components/ConfirmActionDialog";
 import AttendeeStatusEnum from "../types/AttendeeStatusEnum";
@@ -359,6 +360,20 @@ function MeetCheckinPage() {
                 onClear={() => setSearchTerm("")}
               />
             </Box>
+            <Tooltip describeChild title="Show helper check-in QR code">
+              <span>
+                <IconButton
+                  aria-label="Show helper check-in QR code"
+                  disabled={!canEnableFeature || !meet?.shareCode}
+                  onClick={() => {
+                    setQrMode("delegate");
+                    setIsQrDialogOpen(true);
+                  }}
+                >
+                  <SupervisorAccountOutlinedIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
             {areWalkinsEnabled ? (
               <Tooltip describeChild title="Show walk-in QR code">
                 <span>
@@ -636,7 +651,10 @@ function MeetCheckinPage() {
                 Self check-in link is not available for this meet yet.
               </Typography>
             )}
-            {canEnableFeature && qrMode !== "walkin" ? (
+            {canEnableFeature &&
+            qrMode !== "walkin" &&
+            (qrMode === "self" ||
+              (isSelfCheckinEnabled && Boolean(selfCheckinUrl))) ? (
               <Button
                 variant="outlined"
                 onClick={() =>
